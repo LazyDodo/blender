@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2007 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -111,6 +111,7 @@ struct wmEvent;
 struct wmWindowManager;
 struct wmMsgBus;
 struct wmOperator;
+struct ID;
 struct ImBuf;
 
 #include "RNA_types.h"
@@ -121,10 +122,10 @@ struct ImBuf;
 /* exported types for WM */
 #include "wm_cursors.h"
 #include "wm_event_types.h"
-#include "manipulators/WM_manipulator_types.h"
+#include "gizmo/WM_gizmo_types.h"
 
-/* Include external manipulator API's */
-#include "manipulators/WM_manipulator_api.h"
+/* Include external gizmo API's */
+#include "gizmo/WM_gizmo_api.h"
 
 /* ************** wmOperatorType ************************ */
 
@@ -145,6 +146,7 @@ enum {
 
 	OPTYPE_LOCK_BYPASS  = (1 << 7),  /* Allow operator to run when interface is locked */
 	OPTYPE_UNDO_GROUPED = (1 << 8),  /* Special type of undo which doesn't store itself multiple times */
+	OPTYPE_USE_EVAL_DATA = (1 << 9),  /* Need evaluated data (i.e. a valid, up-to-date depsgraph for current context) */
 };
 
 /* context to call operator in for WM_operator_name_call */
@@ -200,6 +202,7 @@ typedef enum eOperatorPropTags {
 #define KM_RELEASE	2
 #define KM_CLICK	3
 #define KM_DBL_CLICK	4
+#define KM_CLICK_DRAG	5
 
 
 /* ************** UI Handler ***************** */
@@ -211,14 +214,14 @@ typedef enum eOperatorPropTags {
 
 typedef struct wmNotifier {
 	struct wmNotifier *next, *prev;
-	
+
 	struct wmWindowManager *wm;
 	struct wmWindow *window;
-	
+
 	unsigned int category, data, subtype, action;
-	
+
 	void *reference;
-	
+
 } wmNotifier;
 
 
@@ -256,6 +259,7 @@ typedef struct wmNotifier {
 #define NC_GPENCIL			(22<<24)
 #define NC_LINESTYLE			(23<<24)
 #define NC_CAMERA			(24<<24)
+#define NC_LIGHTPROBE		(25<<24)
 
 /* data type, 256 entries is enough, it can overlap */
 #define NOTE_DATA			0x00FF0000
@@ -271,13 +275,13 @@ typedef struct wmNotifier {
 	/* NC_SCREEN */
 #define ND_LAYOUTBROWSE		(1<<16)
 #define ND_LAYOUTDELETE		(2<<16)
-#define ND_SCREENCAST		(3<<16)
 #define ND_ANIMPLAY			(4<<16)
 #define ND_GPENCIL			(5<<16)
 #define ND_EDITOR_CHANGED	(6<<16) /*sent to new editors after switching to them*/
 #define ND_LAYOUTSET		(7<<16)
 #define ND_SKETCH			(8<<16)
 #define ND_WORKSPACE_SET	(9<<16)
+#define ND_WORKSPACE_DELETE (10<<16)
 
 	/* NC_SCENE Scene */
 #define ND_SCENEBROWSE		(1<<16)
@@ -334,7 +338,7 @@ typedef struct wmNotifier {
 	/* NC_TEXT Text */
 #define ND_CURSOR			(50<<16)
 #define ND_DISPLAY			(51<<16)
-	
+
 	/* NC_ANIMATION Animato */
 #define ND_KEYFRAME			(70<<16)
 #define ND_KEYFRAME_PROP	(71<<16)
@@ -432,7 +436,7 @@ typedef struct wmGesture {
 	uint is_active : 1;
 	/* Use for gestures that support both immediate or delayed activation. */
 	uint wait_for_input : 1;
-	
+
 	void *customdata;
 	/* customdata for border is a recti */
 	/* customdata for circle is recti, (xmin, ymin) is center, xmax radius */
@@ -450,7 +454,7 @@ typedef struct wmGesture {
 /* event comes from eventmanager and from keymap */
 typedef struct wmEvent {
 	struct wmEvent *next, *prev;
-	
+
 	short type;			/* event code itself (short, is also in keymap) */
 	short val;			/* press, release, scrollvalue */
 	int x, y;			/* mouse pointer position, screen coord */
@@ -467,13 +471,14 @@ typedef struct wmEvent {
 	int prevx, prevy;
 	double prevclicktime;
 	int prevclickx, prevclicky;
-	
+
 	/* modifier states */
 	short shift, ctrl, alt, oskey;	/* oskey is apple or windowskey, value denotes order of pressed */
 	short keymodifier;				/* rawkey modifier */
-	
+
 	/* set in case a KM_PRESS went by unhandled */
 	char check_click;
+	char check_drag;
 	char is_motion_absolute;
 
 	/* keymap item, set by handler (weak?) */
@@ -487,7 +492,7 @@ typedef struct wmEvent {
 	short customdatafree;
 	int pad2;
 	void *customdata;	/* ascii, unicode, mouse coords, angles, vectors, dragdrop info */
-	
+
 } wmEvent;
 
 /* ************** custom wmEvent data ************** */
@@ -526,17 +531,17 @@ typedef enum {  /* Timer flags */
 
 typedef struct wmTimer {
 	struct wmTimer *next, *prev;
-	
+
 	struct wmWindow *win;	/* window this timer is attached to (optional) */
 
 	double timestep;		/* set by timer user */
 	int event_type;			/* set by timer user, goes to event system */
 	wmTimerFlags flags;		/* Various flags controlling timer options, see below. */
 	void *customdata;		/* set by timer user, to allow custom values */
-	
+
 	double duration;		/* total running time in seconds */
 	double delta;			/* time since previous step in seconds */
-	
+
 	double ltime;			/* internal, last time timer was activated */
 	double ntime;			/* internal, next time we want to activate the timer */
 	double stime;			/* internal, when the timer started */
@@ -580,7 +585,13 @@ typedef struct wmOperatorType {
 
 	/* verify if the operator can be executed in the current context, note
 	 * that the operator might still fail to execute even if this return true */
-	int (*poll)(struct bContext *) ATTR_WARN_UNUSED_RESULT;
+	bool (*poll)(struct bContext *) ATTR_WARN_UNUSED_RESULT;
+
+	/* Use to check of properties should be displayed in auto-generated UI.
+	 * Use 'check' callback to enforce refreshing. */
+	bool (*poll_property)(
+	        const struct bContext *C, struct wmOperator *op,
+	        const PropertyRNA *prop) ATTR_WARN_UNUSED_RESULT;
 
 	/* optional panel for redo and repeat, autogenerated if not set */
 	void (*ui)(struct bContext *, struct wmOperator *);
@@ -602,7 +613,7 @@ typedef struct wmOperatorType {
 	struct wmKeyMap *modalkeymap;
 
 	/* python needs the operator type as well */
-	int (*pyop_poll)(struct bContext *, struct wmOperatorType *ot) ATTR_WARN_UNUSED_RESULT;
+	bool (*pyop_poll)(struct bContext *, struct wmOperatorType *ot) ATTR_WARN_UNUSED_RESULT;
 
 	/* RNA integration */
 	ExtensionRNA ext;
@@ -634,26 +645,6 @@ typedef struct wmIMEData {
 
 typedef void (*wmPaintCursorDraw)(struct bContext *C, int, int, void *customdata);
 
-
-/* ****************** Messages ********************* */
-
-enum {
-	WM_LOG_DEBUG				= 0,
-	WM_LOG_INFO					= 1000,
-	WM_LOG_WARNING				= 2000,
-	WM_ERROR_UNDEFINED			= 3000,
-	WM_ERROR_INVALID_INPUT		= 3001,
-	WM_ERROR_INVALID_CONTEXT	= 3002,
-	WM_ERROR_OUT_OF_MEMORY		= 3003
-};
-
-typedef struct wmReport {
-	struct wmReport *next, *prev;
-	const char *typestr;
-	char *message;
-	int type;
-} wmReport;
-
 /* *************** Drag and drop *************** */
 
 #define WM_DRAG_ID		0
@@ -670,33 +661,41 @@ typedef enum wmDragFlags {
 
 /* note: structs need not exported? */
 
+typedef struct wmDragID {
+	struct wmDragID  *next, *prev;
+	struct ID *id;
+	struct ID *from_parent;
+} wmDragID;
+
 typedef struct wmDrag {
 	struct wmDrag *next, *prev;
-	
+
 	int icon, type;					/* type, see WM_DRAG defines above */
 	void *poin;
 	char path[1024]; /* FILE_MAX */
 	double value;
-	
+
 	struct ImBuf *imb;						/* if no icon but imbuf should be drawn around cursor */
 	float scale;
 	int sx, sy;
-	
+
 	char opname[200]; /* if set, draws operator name*/
 	unsigned int flags;
+
+	ListBase ids; /* List of wmDragIDs, all are guaranteed to have the same ID type. */
 } wmDrag;
 
 /* dropboxes are like keymaps, part of the screen/area/region definition */
 /* allocation and free is on startup and exit */
 typedef struct wmDropBox {
 	struct wmDropBox *next, *prev;
-	
+
 	/* test if the dropbox is active, then can print optype name */
-	int (*poll)(struct bContext *, struct wmDrag *, const wmEvent *);
+	bool (*poll)(struct bContext *, struct wmDrag *, const wmEvent *, const char **);
 
 	/* before exec, this copies drag info to wmDrop properties */
 	void (*copy)(struct wmDrag *, struct wmDropBox *);
-	
+
 	/* if poll survives, operator is called */
 	wmOperatorType *ot;				/* not saved in file, so can be pointer */
 
@@ -719,9 +718,13 @@ typedef struct wmTooltipState {
 	/** The tooltip region. */
 	struct ARegion *region;
 	/** Create the tooltip region (assign to 'region'). */
-	struct ARegion *(*init)(struct bContext *, struct ARegion *, bool *r_exit_on_event);
+	struct ARegion *(*init)(
+	        struct bContext *C, struct ARegion *ar,
+	        int *pass, double *pass_delay, bool *r_exit_on_event);
 	/** Exit on any event, not needed for buttons since their highlight state is used. */
 	bool exit_on_event;
+	/** Pass, use when we want multiple tips, count down to zero. */
+	int pass;
 } wmTooltipState;
 
 /* *************** migrated stuff, clean later? ************** */
@@ -738,6 +741,9 @@ extern struct CLG_LogRef *WM_LOG_OPERATORS;
 extern struct CLG_LogRef *WM_LOG_HANDLERS;
 extern struct CLG_LogRef *WM_LOG_EVENTS;
 extern struct CLG_LogRef *WM_LOG_KEYMAPS;
+extern struct CLG_LogRef *WM_LOG_TOOLS;
+extern struct CLG_LogRef *WM_LOG_MSGBUS_PUB;
+extern struct CLG_LogRef *WM_LOG_MSGBUS_SUB;
 
 
 #ifdef __cplusplus
@@ -745,4 +751,3 @@ extern struct CLG_LogRef *WM_LOG_KEYMAPS;
 #endif
 
 #endif /* __WM_TYPES_H__ */
-

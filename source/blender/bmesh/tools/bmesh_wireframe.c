@@ -28,7 +28,6 @@
 
 #include "MEM_guardedalloc.h"
 
-#include "DNA_object_types.h"
 #include "DNA_meshdata_types.h"
 
 #include "BLI_math.h"
@@ -91,6 +90,7 @@ static void bm_vert_boundary_tangent(
 
 		/* average edge face normal */
 		add_v3_v3v3(no_face, l_a->f->no, l_b->f->no);
+		normalize_v3(no_face);
 
 		/* average edge direction */
 		v_a = BM_edge_other_vert(e_a, v);

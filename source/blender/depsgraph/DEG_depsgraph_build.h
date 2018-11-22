@@ -42,8 +42,7 @@ struct Depsgraph;
 
 struct CacheFile;
 struct EffectorWeights;
-struct EvaluationContext;
-struct Group;
+struct Collection;
 struct Main;
 struct ModifierData;
 struct Object;
@@ -53,6 +52,8 @@ struct ViewLayer;
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "BLI_sys_types.h"
 
 /* Graph Building -------------------------------- */
 
@@ -114,7 +115,7 @@ typedef enum eDepsObjectComponentType {
 	DEG_OB_COMP_ANIMATION,
 	/* Transform Component (Parenting/Constraints) */
 	DEG_OB_COMP_TRANSFORM,
-	/* Geometry Component (DerivedMesh/Displist) */
+	/* Geometry Component (Mesh/Displist) */
 	DEG_OB_COMP_GEOMETRY,
 
 	/* Evaluation-Related Outer Types (with Subdata) */
@@ -124,22 +125,25 @@ typedef enum eDepsObjectComponentType {
 	/* Bone Component - Child/Subcomponent of Pose */
 	DEG_OB_COMP_BONE,
 
-	/* Particle Systems Component */
-	DEG_OB_COMP_EVAL_PARTICLES,
 	/* Material Shading Component */
 	DEG_OB_COMP_SHADING,
 	/* Cache Component */
 	DEG_OB_COMP_CACHE,
 } eDepsObjectComponentType;
 
-void DEG_add_scene_relation(struct DepsNodeHandle *node,
+void DEG_add_scene_relation(struct DepsNodeHandle *node_handle,
                             struct Scene *scene,
                             eDepsSceneComponentType component,
                             const char *description);
-void DEG_add_object_relation(struct DepsNodeHandle *node,
+void DEG_add_object_relation(struct DepsNodeHandle *node_handle,
                              struct Object *object,
                              eDepsObjectComponentType component,
                              const char *description);
+void DEG_add_object_relation_with_customdata(struct DepsNodeHandle *node_handle,
+                                             struct Object *object,
+                                             eDepsObjectComponentType component,
+                                             uint64_t customdata_mask,
+                                             const char *description);
 void DEG_add_bone_relation(struct DepsNodeHandle *handle,
                            struct Object *object,
                            const char *bone_name,
@@ -150,28 +154,18 @@ void DEG_add_object_cache_relation(struct DepsNodeHandle *handle,
                                    eDepsObjectComponentType component,
                                    const char *description);
 
+/* Adds relations from the given component of a given object to the given node
+ * handle AND the component to the point cache component of the node's ID.
+ */
+void DEG_add_object_pointcache_relation(struct DepsNodeHandle *node_handle,
+                                        struct Object *object,
+                                        eDepsObjectComponentType component,
+                                        const char *description);
 
-struct Depsgraph *DEG_get_graph_from_handle(struct DepsNodeHandle *handle);
-void DEG_add_special_eval_flag(struct Depsgraph *graph, struct ID *id, short flag);
+void DEG_add_special_eval_flag(struct DepsNodeHandle *handle, struct ID *id, uint32_t flag);
 
-/* Utility functions for physics modifiers */
-typedef bool (*DEG_CollobjFilterFunction)(struct Object *obj, struct ModifierData *md);
-
-void DEG_add_collision_relations(struct DepsNodeHandle *handle,
-                                 struct Scene *scene,
-                                 struct Object *object,
-                                 struct Group *group,
-                                 unsigned int modifier_type,
-                                 DEG_CollobjFilterFunction fn,
-                                 bool dupli,
-                                 const char *name);
-void DEG_add_forcefield_relations(struct DepsNodeHandle *handle,
-                                  struct Scene *scene,
-                                  struct Object *object,
-                                  struct EffectorWeights *eff,
-                                  bool add_absorption,
-                                  int skip_forcefield,
-                                  const char *name);
+struct ID *DEG_get_id_from_handle(struct DepsNodeHandle *node_handle);
+struct Depsgraph *DEG_get_graph_from_handle(struct DepsNodeHandle *node_handle);
 
 /* ************************************************ */
 

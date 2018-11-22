@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2007 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -32,6 +32,7 @@
 #define __DNA_WINDOWMANAGER_TYPES_H__
 
 #include "DNA_listBase.h"
+#include "DNA_screen_types.h"
 #include "DNA_vec_types.h"
 #include "DNA_userdef_types.h"
 
@@ -117,8 +118,7 @@ typedef struct ReportList {
 #
 #
 typedef struct ReportTimerInfo {
-	float col[3];
-	float grayscale;
+	float col[4];
 	float widthfac;
 } ReportTimerInfo;
 
@@ -168,8 +168,10 @@ typedef struct wmWindowManager {
 /* wmWindowManager.initialized */
 enum {
 	WM_WINDOW_IS_INITIALIZED = (1<<0),
-	WM_KEYMAP_IS_INITIALIZED = (1<<1),
+	WM_KEYCONFIG_IS_INITIALIZED = (1<<1),
 };
+
+#define WM_KEYCONFIG_STR_DEFAULT "blender"
 
 /* IME is win32 only! */
 #ifndef WIN32
@@ -178,17 +180,24 @@ enum {
 #  endif
 #endif
 
-/* the savable part, rest of data is local in ghostwinlay */
+/* the saveable part, rest of data is local in ghostwinlay */
 typedef struct wmWindow {
 	struct wmWindow *next, *prev;
 
 	void *ghostwin;             /* don't want to include ghost.h stuff */
-	void *gwnctx;               /* don't want to include gawin stuff */
+	void *gpuctx;               /* don't want to include gpu stuff */
 
-	struct Scene *scene;     /* The scene displayed in this window. */
-	struct Scene *new_scene; /* temporary when switching */
+	struct wmWindow *parent;    /* Parent window */
+
+	struct Scene *scene;        /* Active scene displayed in this window. */
+	struct Scene *new_scene;    /* temporary when switching */
+	char view_layer_name[64];   /* Active view layer displayed in this window. */
 
 	struct WorkSpaceInstanceHook *workspace_hook;
+
+	/** Global areas aren't part of the screen, but part of the window directly.
+	 * \note Code assumes global areas with fixed height, fixed width not supported yet */
+	ScrAreaMap global_areas;
 
 	struct bScreen *screen DNA_DEPRECATED;
 
@@ -217,9 +226,6 @@ typedef struct wmWindow {
 	 * Currently WIN32, runtime-only data */
 	struct wmIMEData *ime_data;
 
-	int drawmethod, drawfail;     /* internal for wm_draw.c only */
-	ListBase drawdata;            /* internal for wm_draw.c only */
-
 	ListBase queue;               /* all events (ghost level events were handled) */
 	ListBase handlers;            /* window+screen handlers, handled last */
 	ListBase modalhandlers;       /* priority handlers, handled first */
@@ -230,6 +236,9 @@ typedef struct wmWindow {
 
 	/* custom drawing callbacks */
 	ListBase drawcalls;
+
+	/* Private runtime info to show text in the status bar. */
+	void *cursor_keymap_status;
 } wmWindow;
 
 #ifdef ime_data
@@ -237,7 +246,7 @@ typedef struct wmWindow {
 #endif
 
 /* These two Lines with # tell makesdna this struct can be excluded. */
-/* should be something like DNA_EXCLUDE 
+/* should be something like DNA_EXCLUDE
  * but the preprocessor first removes all comments, spaces etc */
 #
 #
@@ -322,7 +331,9 @@ typedef struct wmKeyMap {
 
 	/* runtime */
 	/** Verify if enabled in the current context, use #WM_keymap_poll instead of direct calls. */
-	int (*poll)(struct bContext *);
+	bool (*poll)(struct bContext *);
+	bool (*poll_modal_item)(const struct wmOperator *op, int value);
+
 	/** For modal, #EnumPropertyItem for now. */
 	const void *modal_items;
 } wmKeyMap;
@@ -336,7 +347,21 @@ enum {
 	KEYMAP_DIFF               = (1 << 4),  /* diff keymap for user preferences */
 	KEYMAP_USER_MODIFIED      = (1 << 5),  /* keymap has user modifications */
 	KEYMAP_UPDATE             = (1 << 6),
+	KEYMAP_TOOL               = (1 << 7),  /* keymap for active tool system */
 };
+
+/**
+ * This is similar to addon-preferences,
+ * however unlike add-ons key-config's aren't saved to disk.
+ *
+ * #wmKeyConfigPref is written to DNA,
+ * #wmKeyConfigPrefType_Runtime has the RNA type.
+ */
+typedef struct wmKeyConfigPref {
+	struct wmKeyConfigPref *next, *prev;
+	char idname[64];    /* unique name */
+	IDProperty *prop;
+} wmKeyConfigPref;
 
 typedef struct wmKeyConfig {
 	struct wmKeyConfig *next, *prev;
@@ -345,13 +370,15 @@ typedef struct wmKeyConfig {
 	char basename[64];  /* idname of configuration this is derives from, "" if none */
 
 	ListBase keymaps;
-	int actkeymap, flag;
+	int actkeymap;
+	short flag;
+	char _pad0[2];
 } wmKeyConfig;
 
 /* wmKeyConfig.flag */
 enum {
 	KEYCONF_USER          = (1 << 1),  /* And what about (1 << 0)? */
-	KEYCONF_INIT_DEFAULT  = (1 << 2),
+	KEYCONF_INIT_DEFAULT  = (1 << 2),  /* Has default keymap been initialized? */
 };
 
 /* this one is the operator itself, stored in files for macros etc */
@@ -375,7 +402,6 @@ typedef struct wmOperator {
 	struct wmOperator *opm;       /* current running macro, not saved */
 	struct uiLayout *layout;      /* runtime for drawing */
 	short flag, pad[3];
-
 } wmOperator;
 
 /* operator type return flags: exec(), invoke() modal(), return values */

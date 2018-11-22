@@ -34,7 +34,7 @@
 extern "C" {
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_image_types.h"
@@ -48,7 +48,6 @@ extern "C" {
 #include "DNA_modifier_types.h"
 #include "DNA_userdef_types.h"
 
-#include "BKE_DerivedMesh.h"
 #include "BKE_fcurve.h"
 #include "BKE_animsys.h"
 #include "BLI_path_util.h"
@@ -96,13 +95,13 @@ class SceneExporter: COLLADASW::LibraryVisualScenes, protected TransformWriter, 
 {
 public:
 	SceneExporter(COLLADASW::StreamWriter *sw, ArmatureExporter *arm, const ExportSettings *export_settings);
-	void exportScene(const EvaluationContext *eval_ctx, Scene *sce);
+	void exportScene(bContext *C, Depsgraph *depsgraph, Scene *sce);
 
 private:
 	friend class ArmatureExporter;
-	void exportHierarchy(const struct EvaluationContext *eval_ctx, Scene *sce);
-	void writeNodes(const struct EvaluationContext *eval_ctx, Object *ob, Scene *sce);
-	
+	void exportHierarchy(bContext *C, struct Depsgraph *depsgraph, Scene *sce);
+	void writeNodes(bContext *C, struct Depsgraph *depsgraph, Object *ob, Scene *sce);
+
 	ArmatureExporter *arm_exporter;
 	const ExportSettings *export_settings;
 };

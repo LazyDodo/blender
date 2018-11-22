@@ -31,7 +31,7 @@
 
 #include "GPU_batch.h"
 
-#define MAX_INSTANCE_DATA_SIZE 42 /* Can be adjusted for more */
+#define MAX_INSTANCE_DATA_SIZE 64 /* Can be adjusted for more */
 
 typedef struct DRWInstanceData DRWInstanceData;
 typedef struct DRWInstanceDataList DRWInstanceDataList;
@@ -39,16 +39,15 @@ typedef struct DRWInstanceDataList DRWInstanceDataList;
 struct DRWShadingGroup;
 
 void *DRW_instance_data_next(DRWInstanceData *idata);
-void *DRW_instance_data_get(DRWInstanceData *idata);
 DRWInstanceData *DRW_instance_data_request(
-        DRWInstanceDataList *idatalist, unsigned int attrib_size, unsigned int instance_group);
+        DRWInstanceDataList *idatalist, uint attrib_size);
 
 void DRW_batching_buffer_request(
-        DRWInstanceDataList *idatalist, Gwn_VertFormat *format, Gwn_PrimType type, struct DRWShadingGroup *shgroup,
-        Gwn_Batch **r_batch, Gwn_VertBuf **r_vert);
+        DRWInstanceDataList *idatalist, GPUVertFormat *format, GPUPrimType type, struct DRWShadingGroup *shgroup,
+        GPUBatch **r_batch, GPUVertBuf **r_vert);
 void DRW_instancing_buffer_request(
-        DRWInstanceDataList *idatalist, Gwn_VertFormat *format, Gwn_Batch *instance, struct DRWShadingGroup *shgroup,
-        Gwn_Batch **r_batch, Gwn_VertBuf **r_vert);
+        DRWInstanceDataList *idatalist, GPUVertFormat *format, GPUBatch *instance, struct DRWShadingGroup *shgroup,
+        GPUBatch **r_batch, GPUVertBuf **r_vert);
 
 /* Upload all instance data to the GPU as soon as possible. */
 void DRW_instance_buffer_finish(DRWInstanceDataList *idatalist);

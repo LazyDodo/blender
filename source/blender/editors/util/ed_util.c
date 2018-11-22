@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -27,7 +27,6 @@
 /** \file blender/editors/util/ed_util.c
  *  \ingroup edutil
  */
-
 
 #include <stdlib.h>
 #include <string.h>
@@ -54,14 +53,15 @@
 
 #include "BKE_context.h"
 #include "BKE_global.h"
+#include "BKE_layer.h"
 #include "BKE_main.h"
 #include "BKE_multires.h"
+#include "BKE_object.h"
 #include "BKE_packedFile.h"
 #include "BKE_paint.h"
 #include "BKE_screen.h"
-#include "BKE_workspace.h"
-#include "BKE_layer.h"
 #include "BKE_undo_system.h"
+#include "BKE_workspace.h"
 
 #include "ED_armature.h"
 #include "ED_buttons.h"
@@ -75,6 +75,7 @@
 #include "ED_util.h"
 
 #include "GPU_immediate.h"
+#include "GPU_state.h"
 
 #include "UI_interface.h"
 #include "UI_resources.h"
@@ -113,11 +114,16 @@ void ED_editors_init(bContext *C)
 			if (mode == OB_MODE_OBJECT) {
 				/* pass */
 			}
-			else {
-				ID *data = ob->data;
-				ob->mode = OB_MODE_OBJECT;
-				if ((ob == obact) && !ID_IS_LINKED(ob) && !(data && ID_IS_LINKED(data))) {
-					ED_object_mode_toggle(C, mode);
+			else if (!BKE_object_has_mode_data(ob, mode)) {
+				/* For multi-edit mode we may already have mode data.
+				 * (grease pencil does not need it)
+				 */
+				if (ob->type != OB_GPENCIL) {
+					ID *data = ob->data;
+					ob->mode = OB_MODE_OBJECT;
+					if ((ob == obact) && !ID_IS_LINKED(ob) && !(data && ID_IS_LINKED(data))) {
+						ED_object_mode_toggle(C, mode);
+					}
 				}
 			}
 		}
@@ -127,7 +133,7 @@ void ED_editors_init(bContext *C)
 	{
 		Scene *sce = CTX_data_scene(C);
 		if (sce) {
-			ED_space_image_paint_update(wm, sce);
+			ED_space_image_paint_update(bmain, wm, sce);
 		}
 	}
 
@@ -143,8 +149,8 @@ void ED_editors_exit(bContext *C)
 		return;
 
 	/* frees all editmode undos */
-	if (G.main->wm.first) {
-		wmWindowManager *wm = G.main->wm.first;
+	if (G_MAIN->wm.first) {
+		wmWindowManager *wm = G_MAIN->wm.first;
 		/* normally we don't check for NULL undo stack, do here since it may run in different context. */
 		if (wm->undo_stack) {
 			BKE_undosys_stack_destroy(wm->undo_stack);
@@ -208,7 +214,7 @@ bool ED_editors_flush_edits(const bContext *C, bool for_render)
 		else if (ob->mode & OB_MODE_EDIT) {
 			/* get editmode results */
 			has_edited = true;
-			ED_object_editmode_load(ob);
+			ED_object_editmode_load(bmain, ob);
 		}
 	}
 
@@ -225,7 +231,7 @@ void apply_keyb_grid(int shift, int ctrl, float *val, float fac1, float fac2, fl
 	/* fac1 is for 'nothing', fac2 for CTRL, fac3 for SHIFT */
 	if (invert)
 		ctrl = !ctrl;
-	
+
 	if (ctrl && shift) {
 		if (fac3 != 0.0f) *val = fac3 * floorf(*val / fac3 + 0.5f);
 	}
@@ -239,6 +245,7 @@ void apply_keyb_grid(int shift, int ctrl, float *val, float fac1, float fac2, fl
 
 void unpack_menu(bContext *C, const char *opname, const char *id_name, const char *abs_name, const char *folder, struct PackedFile *pf)
 {
+	Main *bmain = CTX_data_main(C);
 	PointerRNA props_ptr;
 	uiPopupMenu *pup;
 	uiLayout *layout;
@@ -260,7 +267,7 @@ void unpack_menu(bContext *C, const char *opname, const char *id_name, const cha
 		BLI_split_file_part(abs_name, fi, sizeof(fi));
 		BLI_snprintf(local_name, sizeof(local_name), "//%s/%s", folder, fi);
 		if (!STREQ(abs_name, local_name)) {
-			switch (checkPackedFile(local_name, pf)) {
+			switch (checkPackedFile(BKE_main_blendfile_path(bmain), local_name, pf)) {
 				case PF_NOFILE:
 					BLI_snprintf(line, sizeof(line), IFACE_("Create %s"), local_name);
 					uiItemFullO_ptr(layout, ot, line, ICON_NONE, NULL, WM_OP_EXEC_DEFAULT, 0, &props_ptr);
@@ -293,7 +300,7 @@ void unpack_menu(bContext *C, const char *opname, const char *id_name, const cha
 		}
 	}
 
-	switch (checkPackedFile(abs_name, pf)) {
+	switch (checkPackedFile(BKE_main_blendfile_path(bmain), abs_name, pf)) {
 		case PF_NOFILE:
 			BLI_snprintf(line, sizeof(line), IFACE_("Create %s"), abs_name);
 			//uiItemEnumO_ptr(layout, ot, line, 0, "method", PF_WRITE_ORIGINAL);
@@ -338,20 +345,22 @@ void ED_region_draw_mouse_line_cb(const bContext *C, ARegion *ar, void *arg_info
 	const float mval_dst[2] = {win->eventstate->x - ar->winrct.xmin,
 	                           win->eventstate->y - ar->winrct.ymin};
 
-	const uint shdr_pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	const uint shdr_pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+
+	GPU_line_width(1.0f);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_LINE_DASHED_UNIFORM_COLOR);
 
 	float viewport_size[4];
-	glGetFloatv(GL_VIEWPORT, viewport_size);
+	GPU_viewport_size_get_f(viewport_size);
 	immUniform2f("viewport_size", viewport_size[2] / UI_DPI_FAC, viewport_size[3] / UI_DPI_FAC);
 
-	immUniform1i("num_colors", 0);  /* "simple" mode */
+	immUniform1i("colors_len", 0);  /* "simple" mode */
 	immUniformThemeColor(TH_VIEW_OVERLAY);
 	immUniform1f("dash_width", 6.0f);
 	immUniform1f("dash_factor", 0.5f);
 
-	immBegin(GWN_PRIM_LINES, 2);
+	immBegin(GPU_PRIM_LINES, 2);
 	immVertex2fv(shdr_pos, mval_src);
 	immVertex2fv(shdr_pos, mval_dst);
 	immEnd();

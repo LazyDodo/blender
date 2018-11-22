@@ -43,12 +43,7 @@ set(INC_SYS
 )
 
 set(SRC
-	drawanimviz.c
-	drawarmature.c
-	drawmesh.c
 	drawobject.c
-	drawsimdebug.c
-	drawvolume.c
 	space_view3d.c
 	view3d_buttons.c
 	view3d_camera_control.c
@@ -59,14 +54,16 @@ set(SRC
 	view3d_walk.c
 	view3d_header.c
 	view3d_iterators.c
-	view3d_manipulator_armature.c
-	view3d_manipulator_camera.c
-	view3d_manipulator_empty.c
-	view3d_manipulator_forcefield.c
-	view3d_manipulator_lamp.c
-	view3d_manipulator_navigate.c
-	view3d_manipulator_navigate_type.c
-	view3d_manipulator_ruler.c
+	view3d_gizmo_armature.c
+	view3d_gizmo_camera.c
+	view3d_gizmo_empty.c
+	view3d_gizmo_forcefield.c
+	view3d_gizmo_lamp.c
+	view3d_gizmo_navigate.c
+	view3d_gizmo_navigate_type.c
+	view3d_gizmo_ruler.c
+	view3d_gizmo_preselect.c
+	view3d_gizmo_preselect_type.c
 	view3d_ops.c
 	view3d_project.c
 	view3d_ruler.c
@@ -82,13 +79,6 @@ set(SRC
 if(WITH_PYTHON)
 	blender_include_dirs(../../python)
 	add_definitions(-DWITH_PYTHON)
-endif()
-
-if(WITH_GAMEENGINE)
-	list(APPEND INC
-		../../../gameengine/BlenderRoutines
-	)
-	add_definitions(-DWITH_GAMEENGINE)
 endif()
 
 add_definitions(${GL_DEFINITIONS})

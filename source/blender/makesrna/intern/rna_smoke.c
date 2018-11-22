@@ -243,7 +243,7 @@ static void rna_SmokeModifier_density_grid_get(PointerRNA *ptr, float *values)
 	float *density;
 
 	BLI_rw_mutex_lock(sds->fluid_mutex, THREAD_LOCK_READ);
-	
+
 	if (sds->flags & MOD_SMOKE_HIGHRES && sds->wt)
 		density = smoke_turbulence_get_density(sds->wt);
 	else
@@ -288,20 +288,27 @@ static void rna_SmokeModifier_color_grid_get(PointerRNA *ptr, float *values)
 {
 #ifdef WITH_SMOKE
 	SmokeDomainSettings *sds = (SmokeDomainSettings *)ptr->data;
+	int length[RNA_MAX_ARRAY_DIMENSION];
+	int size = rna_SmokeModifier_grid_get_length(ptr, length);
 
 	BLI_rw_mutex_lock(sds->fluid_mutex, THREAD_LOCK_READ);
 
-	if (sds->flags & MOD_SMOKE_HIGHRES) {
-		if (smoke_turbulence_has_colors(sds->wt))
-			smoke_turbulence_get_rgba(sds->wt, values, 0);
-		else
-			smoke_turbulence_get_rgba_from_density(sds->wt, sds->active_color, values, 0);
+	if (!sds->fluid) {
+		memset(values, 0, size * sizeof(float));
 	}
 	else {
-		if (smoke_has_colors(sds->fluid))
-			smoke_get_rgba(sds->fluid, values, 0);
-		else
-			smoke_get_rgba_from_density(sds->fluid, sds->active_color, values, 0);
+		if (sds->flags & MOD_SMOKE_HIGHRES) {
+			if (smoke_turbulence_has_colors(sds->wt))
+				smoke_turbulence_get_rgba(sds->wt, values, 0);
+			else
+				smoke_turbulence_get_rgba_from_density(sds->wt, sds->active_color, values, 0);
+		}
+		else {
+			if (smoke_has_colors(sds->fluid))
+				smoke_get_rgba(sds->fluid, values, 0);
+			else
+				smoke_get_rgba_from_density(sds->fluid, sds->active_color, values, 0);
+		}
 	}
 
 	BLI_rw_mutex_unlock(sds->fluid_mutex);
@@ -319,12 +326,12 @@ static void rna_SmokeModifier_flame_grid_get(PointerRNA *ptr, float *values)
 	float *flame;
 
 	BLI_rw_mutex_lock(sds->fluid_mutex, THREAD_LOCK_READ);
-	
+
 	if (sds->flags & MOD_SMOKE_HIGHRES && sds->wt)
 		flame = smoke_turbulence_get_flame(sds->wt);
 	else
 		flame = smoke_get_flame(sds->fluid);
-	
+
 	if (flame)
 		memcpy(values, flame, size * sizeof(float));
 	else
@@ -424,7 +431,7 @@ static void rna_SmokeFlow_uvlayer_set(PointerRNA *ptr, const char *value)
 	rna_object_uvlayer_name_set(ptr, value, flow->uvlayer_name, sizeof(flow->uvlayer_name));
 }
 
-static void rna_Smoke_use_color_ramp_set(PointerRNA *ptr, int value)
+static void rna_Smoke_use_color_ramp_set(PointerRNA *ptr, bool value)
 {
 	SmokeDomainSettings *sds = (SmokeDomainSettings *)ptr->data;
 
@@ -507,6 +514,12 @@ static void rna_def_smoke_domain_settings(BlenderRNA *brna)
 	    {0, NULL, 0, NULL, NULL}
 	};
 
+	static const EnumPropertyItem interp_method_item[] = {
+	    {VOLUME_INTERP_LINEAR, "LINEAR", 0, "Linear", "Good smoothness and speed"},
+	    {VOLUME_INTERP_CUBIC, "CUBIC", 0, "Cubic", "Smoothed high quality interpolation, but slower"},
+	    {0, NULL, 0, NULL, NULL}
+	};
+
 	static const EnumPropertyItem axis_slice_position_items[] = {
 	    {SLICE_AXIS_AUTO, "AUTO", 0, "Auto", "Adjust slice direction according to the view direction"},
 	    {SLICE_AXIS_X, "X", 0, "X", "Slice along the X axis"},
@@ -516,8 +529,8 @@ static void rna_def_smoke_domain_settings(BlenderRNA *brna)
 	};
 
 	static const EnumPropertyItem vector_draw_items[] = {
-	    {VECTOR_DRAW_NEEDLE, "NEEDLE", 0, "Needle", "Draw vectors as needles"},
-	    {VECTOR_DRAW_STREAMLINE, "STREAMLINE", 0, "Streamlines", "Draw vectors as streamlines"},
+	    {VECTOR_DRAW_NEEDLE, "NEEDLE", 0, "Needle", "Display vectors as needles"},
+	    {VECTOR_DRAW_STREAMLINE, "STREAMLINE", 0, "Streamlines", "Display vectors as streamlines"},
 	    {0, NULL, 0, NULL, NULL}
 	};
 
@@ -578,23 +591,23 @@ static void rna_def_smoke_domain_settings(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "collision_group", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "coll_group");
-	RNA_def_property_struct_type(prop, "Group");
+	RNA_def_property_struct_type(prop, "Collection");
 	RNA_def_property_flag(prop, PROP_EDITABLE);
-	RNA_def_property_ui_text(prop, "Collision Group", "Limit collisions to this group");
+	RNA_def_property_ui_text(prop, "Collision Collection", "Limit collisions to this collection");
 	RNA_def_property_update(prop, NC_OBJECT | ND_MODIFIER, "rna_Smoke_reset_dependency");
 
 	prop = RNA_def_property(srna, "fluid_group", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "fluid_group");
-	RNA_def_property_struct_type(prop, "Group");
+	RNA_def_property_struct_type(prop, "Collection");
 	RNA_def_property_flag(prop, PROP_EDITABLE);
-	RNA_def_property_ui_text(prop, "Fluid Group", "Limit fluid objects to this group");
+	RNA_def_property_ui_text(prop, "Fluid Collection", "Limit fluid objects to this collection");
 	RNA_def_property_update(prop, NC_OBJECT | ND_MODIFIER, "rna_Smoke_reset_dependency");
 
 	prop = RNA_def_property(srna, "effector_group", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "eff_group");
-	RNA_def_property_struct_type(prop, "Group");
+	RNA_def_property_struct_type(prop, "Collection");
 	RNA_def_property_flag(prop, PROP_EDITABLE);
-	RNA_def_property_ui_text(prop, "Effector Group", "Limit effectors to this group");
+	RNA_def_property_ui_text(prop, "Effector Collection", "Limit effectors to this collection");
 	RNA_def_property_update(prop, NC_OBJECT | ND_MODIFIER, "rna_Smoke_reset_dependency");
 
 	prop = RNA_def_property(srna, "strength", PROP_FLOAT, PROP_NONE);
@@ -849,15 +862,21 @@ static void rna_def_smoke_domain_settings(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Thickness", "Thickness of smoke drawing in the viewport");
 	RNA_def_property_update(prop, NC_OBJECT | ND_MODIFIER, NULL);
 
-	prop = RNA_def_property(srna, "draw_velocity", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "draw_velocity", 0);
-	RNA_def_property_ui_text(prop, "Draw Velocity", "Toggle visualization of the velocity field as needles");
+	prop = RNA_def_property(srna, "display_interpolation", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "interp_method");
+	RNA_def_property_enum_items(prop, interp_method_item);
+	RNA_def_property_ui_text(prop, "Interpolation", "Interpolation method to use for smoke/fire volumes in solid mode");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
 
-	prop = RNA_def_property(srna, "vector_draw_type", PROP_ENUM, PROP_NONE);
+	prop = RNA_def_property(srna, "display_velocity", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "draw_velocity", 0);
+	RNA_def_property_ui_text(prop, "Display Velocity", "Toggle visualization of the velocity field as needles");
+	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
+
+	prop = RNA_def_property(srna, "vector_display_type", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "vector_draw_type");
 	RNA_def_property_enum_items(prop, vector_draw_items);
-	RNA_def_property_ui_text(prop, "Draw Type", "");
+	RNA_def_property_ui_text(prop, "Display Type", "");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
 
 	prop = RNA_def_property(srna, "vector_scale", PROP_FLOAT, PROP_NONE);
@@ -966,7 +985,7 @@ static void rna_def_smoke_flow_settings(BlenderRNA *brna)
 	RNA_def_property_ui_range(prop, -10, 10, 1, 1);
 	RNA_def_property_ui_text(prop, "Temp. Diff.", "Temperature difference to ambient temperature");
 	RNA_def_property_update(prop, NC_OBJECT | ND_MODIFIER, "rna_Smoke_reset");
-	
+
 	prop = RNA_def_property(srna, "particle_system", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "psys");
 	RNA_def_property_struct_type(prop, "ParticleSystem");

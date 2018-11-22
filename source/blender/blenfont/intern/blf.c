@@ -85,7 +85,6 @@ static FontBLF *global_font[BLF_MAX_FONT] = {NULL};
 static int global_font_default = -1;
 static int global_font_points = 11;
 static int global_font_dpi = 72;
-static bool global_use_antialias = true;
 
 /* XXX, should these be made into global_font_'s too? */
 int blf_mono_font = -1;
@@ -172,7 +171,7 @@ static int blf_search_available(void)
 	for (i = 0; i < BLF_MAX_FONT; i++)
 		if (!global_font[i])
 			return i;
-	
+
 	return -1;
 }
 
@@ -188,16 +187,6 @@ int BLF_default(void)
 {
 	ASSERT_DEFAULT_SET;
 	return global_font_default;
-}
-
-void BLF_antialias_set(bool enabled)
-{
-	global_use_antialias = enabled;
-}
-
-bool BLF_antialias_get(void)
-{
-	return global_use_antialias;
 }
 
 int BLF_load(const char *name)
@@ -581,6 +570,15 @@ void BLF_draw_default_ascii(float x, float y, float z, const char *str, size_t l
 	BLF_draw_ascii(global_font_default, str, len); /* XXX, use real length */
 }
 
+int BLF_set_default(void)
+{
+	ASSERT_DEFAULT_SET;
+
+	BLF_size(global_font_default, global_font_points, global_font_dpi);
+
+	return global_font_default;
+}
+
 static void blf_draw_gl__start(FontBLF *font)
 {
 	/*
@@ -594,24 +592,24 @@ static void blf_draw_gl__start(FontBLF *font)
 	if ((font->flags & (BLF_ROTATION | BLF_MATRIX | BLF_ASPECT)) == 0)
 		return; /* glyphs will be translated individually and batched. */
 
-	gpuPushMatrix();
+	GPU_matrix_push();
 
 	if (font->flags & BLF_MATRIX)
-		gpuMultMatrix(font->m);
+		GPU_matrix_mul(font->m);
 
-	gpuTranslate3fv(font->pos);
+	GPU_matrix_translate_3fv(font->pos);
 
 	if (font->flags & BLF_ASPECT)
-		gpuScale3fv(font->aspect);
+		GPU_matrix_scale_3fv(font->aspect);
 
 	if (font->flags & BLF_ROTATION)
-		gpuRotate2D(RAD2DEG(font->angle));
+		GPU_matrix_rotate_2d(RAD2DEG(font->angle));
 }
 
 static void blf_draw_gl__end(FontBLF *font)
 {
 	if ((font->flags & (BLF_ROTATION | BLF_MATRIX | BLF_ASPECT)) != 0)
-		gpuPopMatrix();
+		GPU_matrix_pop();
 }
 
 void BLF_draw_ex(

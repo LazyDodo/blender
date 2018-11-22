@@ -8,37 +8,6 @@
 
 #define LUT_SIZE 64
 
-#ifdef SHADOW_SHADER
-layout(std140) uniform shadow_render_block {
-	mat4 ShadowMatrix[6];
-	mat4 FaceViewMatrix[6];
-	vec4 lampPosition;
-	float cubeTexelSize;
-	float storedTexelSize;
-	float nearClip;
-	float farClip;
-	int shadowSampleCount;
-	float shadowInvSampleCount;
-};
-
-flat in int shFace; /* Shadow layer we are rendering to. */
-
-/* Replacing viewBlock */
-#define ViewMatrix              FaceViewMatrix[shFace]
-#define ViewProjectionMatrix    ShadowMatrix[shFace]
-/* TODO optimize */
-#define ProjectionMatrix       \
-mat4(vec4(1.0, 0.0, 0.0, 0.0), \
-     vec4(0.0, 1.0, 0.0, 0.0), \
-     vec4(0.0, 0.0, -(farClip + nearClip) / (farClip - nearClip), -1.0), \
-     vec4(0.0, 0.0, (-2.0 * farClip * nearClip) / (farClip - nearClip), 0.0))
-
-#define ViewMatrixInverse             inverse(ViewMatrix)
-#define ViewProjectionMatrixInverse   inverse(ViewProjectionMatrix)
-#define ProjectionMatrixInverse       inverse(ProjectionMatrix)
-#define CameraTexCoFactors            vec4(1.0f, 1.0f, 0.0f, 0.0f)
-#endif
-
 /* Buffers */
 uniform sampler2D colorBuffer;
 uniform sampler2D depthBuffer;
@@ -55,7 +24,7 @@ uniform sampler2DArray planarDepth;
 
 /* ------ Lights ----- */
 struct LightData {
-	vec4 position_influence;      /* w : InfluenceRadius */
+	vec4 position_influence;      /* w : InfluenceRadius (inversed and squared) */
 	vec4 color_spec;              /* w : Spec Intensity */
 	vec4 spotdata_radius_shadow;  /* x : spot size, y : spot blend, z : radius, w: shadow id */
 	vec4 rightvec_sizex;          /* xyz: Normalized up vector, w: area size X or spot scale X */
@@ -126,6 +95,30 @@ vec3 project_point(mat4 m, vec3 v) {
 	return tmp.xyz / tmp.w;
 }
 
+#define min3(a, b, c)                   min(a, min(b, c))
+#define min4(a, b, c, d)                min(a, min3(b, c, d))
+#define min5(a, b, c, d, e)             min(a, min4(b, c, d, e))
+#define min6(a, b, c, d, e, f)          min(a, min5(b, c, d, e, f))
+#define min7(a, b, c, d, e, f, g)       min(a, min6(b, c, d, e, f, g))
+#define min8(a, b, c, d, e, f, g, h)    min(a, min7(b, c, d, e, f, g, h))
+#define min9(a, b, c, d, e, f, g, h, i) min(a, min8(b, c, d, e, f, g, h, i))
+
+#define max3(a, b, c)                   max(a, max(b, c))
+#define max4(a, b, c, d)                max(a, max3(b, c, d))
+#define max5(a, b, c, d, e)             max(a, max4(b, c, d, e))
+#define max6(a, b, c, d, e, f)          max(a, max5(b, c, d, e, f))
+#define max7(a, b, c, d, e, f, g)       max(a, max6(b, c, d, e, f, g))
+#define max8(a, b, c, d, e, f, g, h)    max(a, max7(b, c, d, e, f, g, h))
+#define max9(a, b, c, d, e, f, g, h, i) max(a, max8(b, c, d, e, f, g, h, i))
+
+#define avg3(a, b, c)                   (a + b + c) * (1.0 / 3.0)
+#define avg4(a, b, c, d)                (a + b + c + d) * (1.0 / 4.0)
+#define avg5(a, b, c, d, e)             (a + b + c + d + e) * (1.0 / 5.0)
+#define avg6(a, b, c, d, e, f)          (a + b + c + d + e + f) * (1.0 / 6.0)
+#define avg7(a, b, c, d, e, f, g)       (a + b + c + d + e + f + g) * (1.0 / 7.0)
+#define avg8(a, b, c, d, e, f, g, h)    (a + b + c + d + e + f + g + h) * (1.0 / 8.0)
+#define avg9(a, b, c, d, e, f, g, h, i) (a + b + c + d + e + f + g + h + i) * (1.0 / 9.0)
+
 float min_v2(vec2 v) { return min(v.x, v.y); }
 float min_v3(vec3 v) { return min(v.x, min(v.y, v.z)); }
 float max_v2(vec2 v) { return max(v.x, v.y); }
@@ -150,6 +143,20 @@ vec2 mip_ratio_interp(float mip) {
 	float low_mip = floor(mip);
 	return mix(mipRatio[int(low_mip)], mipRatio[int(low_mip + 1.0)], mip - low_mip);
 }
+
+/* ------- RNG ------- */
+
+float wang_hash_noise(uint s)
+{
+	s = (s ^ 61u) ^ (s >> 16u);
+	s *= 9u;
+	s = s ^ (s >> 4u);
+	s *= 0x27d4eb2du;
+	s = s ^ (s >> 15u);
+
+	return fract(float(s) / 4294967296.0);
+}
+
 /* ------- Fast Math ------- */
 
 /* [Drobot2014a] Low Level Optimizations for GCN */
@@ -283,6 +290,7 @@ void make_orthonormal_basis(vec3 N, out vec3 T, out vec3 B)
 }
 
 /* ---- Opengl Depth conversion ---- */
+
 float linear_depth(bool is_persp, float z, float zf, float zn)
 {
 	if (is_persp) {
@@ -540,6 +548,14 @@ float F_eta(float eta, float cos_theta)
 	return result;
 }
 
+/* Fresnel color blend base on fresnel factor */
+vec3 F_color_blend(float eta, float fresnel, vec3 f0_color)
+{
+	float f0 = F_eta(eta, 1.0);
+	float fac = saturate((fresnel - f0) / max(1e-8, 1.0 - f0));
+	return mix(f0_color, vec3(1.0), fac);
+}
+
 /* Fresnel */
 vec3 F_schlick(vec3 f0, float cos_theta)
 {
@@ -582,7 +598,7 @@ float G1_Smith_GGX(float NX, float a2)
 	/* Using Brian Karis approach and refactoring by NX/NX
 	 * this way the (2*NL)*(2*NV) in G = G1(V) * G1(L) gets canceled by the brdf denominator 4*NL*NV
 	 * Rcp is done on the whole G later
-	 * Note that this is not convenient for the transmition formula */
+	 * Note that this is not convenient for the transmission formula */
 	return NX + sqrt(NX * (NX - NX * a2) + a2);
 	/* return 2 / (1 + sqrt(1 + a2 * (1 - NX*NX) / (NX*NX) ) ); /* Reference function */
 }
@@ -610,7 +626,7 @@ void accumulate_light(vec3 light, float fac, inout vec4 accum)
 	accum += vec4(light, 1.0) * min(fac, (1.0 - accum.a));
 }
 
-/* ----------- Cone Apperture Approximation --------- */
+/* ----------- Cone Aperture Approximation --------- */
 
 /* Return a fitted cone angle given the input roughness */
 float cone_cosine(float r)
@@ -658,6 +674,13 @@ Closure closure_add(Closure cl1, Closure cl2)
 	return cl;
 }
 
+Closure closure_emission(vec3 rgb)
+{
+	Closure cl = CLOSURE_DEFAULT;
+	cl.emission = rgb;
+	return cl;
+}
+
 #else /* VOLUMETRICS */
 
 struct Closure {
@@ -677,6 +700,7 @@ struct Closure {
 /* This is hacking ssr_id to tag transparent bsdf */
 #define TRANSPARENT_CLOSURE_FLAG -2
 #define REFRACT_CLOSURE_FLAG -3
+#define NO_SSR -999
 
 #  ifdef USE_SSS
 #    ifdef USE_SSS_ALBEDO
@@ -695,7 +719,6 @@ Closure closure_mix(Closure cl1, Closure cl2, float fac)
 	Closure cl;
 
 	if (cl1.ssr_id == TRANSPARENT_CLOSURE_FLAG) {
-		cl1.radiance = cl2.radiance;
 		cl1.ssr_normal = cl2.ssr_normal;
 		cl1.ssr_data = cl2.ssr_data;
 		cl1.ssr_id = cl2.ssr_id;
@@ -707,7 +730,6 @@ Closure closure_mix(Closure cl1, Closure cl2, float fac)
 #  endif
 	}
 	if (cl2.ssr_id == TRANSPARENT_CLOSURE_FLAG) {
-		cl2.radiance = cl1.radiance;
 		cl2.ssr_normal = cl1.ssr_normal;
 		cl2.ssr_data = cl1.ssr_data;
 		cl2.ssr_id = cl1.ssr_id;
@@ -728,8 +750,9 @@ Closure closure_mix(Closure cl1, Closure cl2, float fac)
 		cl.ssr_normal = cl2.ssr_normal;
 		cl.ssr_id = cl2.ssr_id;
 	}
-	cl.radiance = mix(cl1.radiance, cl2.radiance, fac);
 	cl.opacity = mix(cl1.opacity, cl2.opacity, fac);
+	cl.radiance = mix(cl1.radiance * cl1.opacity, cl2.radiance * cl2.opacity, fac);
+	cl.radiance /= max(1e-8, cl.opacity);
 
 #  ifdef USE_SSS
 	cl.sss_data.rgb = mix(cl1.sss_data.rgb, cl2.sss_data.rgb, fac);
@@ -755,6 +778,13 @@ Closure closure_add(Closure cl1, Closure cl2)
 #  endif
 	cl.radiance = cl1.radiance + cl2.radiance;
 	cl.opacity = saturate(cl1.opacity + cl2.opacity);
+	return cl;
+}
+
+Closure closure_emission(vec3 rgb)
+{
+	Closure cl = CLOSURE_DEFAULT;
+	cl.radiance = rgb;
 	return cl;
 }
 

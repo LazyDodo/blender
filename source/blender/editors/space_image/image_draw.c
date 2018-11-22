@@ -65,6 +65,7 @@
 #include "GPU_immediate.h"
 #include "GPU_immediate_util.h"
 #include "GPU_matrix.h"
+#include "GPU_state.h"
 
 #include "BLF_api.h"
 
@@ -116,21 +117,21 @@ static void draw_render_info(const bContext *C,
 			int x, y;
 			UI_view2d_view_to_region(&ar->v2d, 0.0f, 0.0f, &x, &y);
 
-			gpuPushMatrix();
-			gpuTranslate2f(x, y);
-			gpuScale2f(zoomx, zoomy);
+			GPU_matrix_push();
+			GPU_matrix_translate_2f(x, y);
+			GPU_matrix_scale_2f(zoomx, zoomy);
 
 			if (rd->mode & R_BORDER) {
 				/* TODO: round or floor instead of casting to int */
-				gpuTranslate2f((int)(-rd->border.xmin * rd->xsch * rd->size * 0.01f),
+				GPU_matrix_translate_2f((int)(-rd->border.xmin * rd->xsch * rd->size * 0.01f),
 				               (int)(-rd->border.ymin * rd->ysch * rd->size * 0.01f));
 			}
 
-			unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+			uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 			immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 			immUniformThemeColor(TH_FACE_SELECT);
 
-			glLineWidth(1.0f);
+			GPU_line_width(1.0f);
 
 			rcti *tile = tiles;
 			for (int i = 0; i < total_tiles; i++, tile++) {
@@ -143,7 +144,7 @@ static void draw_render_info(const bContext *C,
 				MEM_freeN(tiles);
 			}
 
-			gpuPopMatrix();
+			GPU_matrix_pop();
 		}
 	}
 }
@@ -170,10 +171,10 @@ void ED_image_draw_info(Scene *scene, ARegion *ar, bool color_manage, bool use_d
 	float hue = 0, sat = 0, val = 0, lum = 0, u = 0, v = 0;
 	float col[4], finalcol[4];
 
-	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_BLEND);
+	GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
+	GPU_blend(true);
 
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+	uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_I32, 2, GPU_FETCH_INT_TO_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
 	/* noisy, high contrast make impossible to read if lower alpha is used. */
@@ -182,7 +183,7 @@ void ED_image_draw_info(Scene *scene, ARegion *ar, bool color_manage, bool use_d
 
 	immUnbindProgram();
 
-	glDisable(GL_BLEND);
+	GPU_blend(false);
 
 	BLF_size(blf_mono_font, 11 * U.pixelsize, U.dpi);
 
@@ -231,7 +232,7 @@ void ED_image_draw_info(Scene *scene, ARegion *ar, bool color_manage, bool use_d
 		BLF_position(blf_mono_font, dx, dy, 0);
 		BLF_draw_ascii(blf_mono_font, str, sizeof(str));
 		dx += BLF_width(blf_mono_font, str, sizeof(str));
-		
+
 		BLF_color3ubv(blf_mono_font, green);
 		if (fp)
 			BLI_snprintf(str, sizeof(str), "  G:%-.5f", fp[1]);
@@ -242,7 +243,7 @@ void ED_image_draw_info(Scene *scene, ARegion *ar, bool color_manage, bool use_d
 		BLF_position(blf_mono_font, dx, dy, 0);
 		BLF_draw_ascii(blf_mono_font, str, sizeof(str));
 		dx += BLF_width(blf_mono_font, str, sizeof(str));
-		
+
 		BLF_color3ubv(blf_mono_font, blue);
 		if (fp)
 			BLI_snprintf(str, sizeof(str), "  B:%-.5f", fp[2]);
@@ -253,7 +254,7 @@ void ED_image_draw_info(Scene *scene, ARegion *ar, bool color_manage, bool use_d
 		BLF_position(blf_mono_font, dx, dy, 0);
 		BLF_draw_ascii(blf_mono_font, str, sizeof(str));
 		dx += BLF_width(blf_mono_font, str, sizeof(str));
-		
+
 		if (channels == 4) {
 			BLF_color3ub(blf_mono_font, 255, 255, 255);
 			if (fp)
@@ -287,7 +288,7 @@ void ED_image_draw_info(Scene *scene, ARegion *ar, bool color_manage, bool use_d
 			dx += BLF_width(blf_mono_font, str, sizeof(str));
 		}
 	}
-	
+
 	/* color rectangle */
 	if (channels == 1) {
 		if (fp) {
@@ -323,13 +324,13 @@ void ED_image_draw_info(Scene *scene, ARegion *ar, bool color_manage, bool use_d
 		copy_v4_v4(finalcol, col);
 	}
 
-	glDisable(GL_BLEND);
+	GPU_blend(false);
 	dx += 0.25f * UI_UNIT_X;
 
 	BLI_rcti_init(&color_rect, dx, dx + (1.5f * UI_UNIT_X), 0.15f * UI_UNIT_Y, 0.85f * UI_UNIT_Y);
 
 	/* BLF uses immediate mode too, so we must reset our vertex format */
-	pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+	pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_I32, 2, GPU_FETCH_INT_TO_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
 	if (channels == 4) {
@@ -354,10 +355,10 @@ void ED_image_draw_info(Scene *scene, ARegion *ar, bool color_manage, bool use_d
 		immRecti(pos, color_quater_x, color_quater_y, color_rect_half.xmax, color_rect_half.ymax);
 		immRecti(pos, color_rect_half.xmin, color_rect_half.ymin, color_quater_x, color_quater_y);
 
-		glEnable(GL_BLEND);
+		GPU_blend(true);
 		immUniformColor3fvAlpha(finalcol, fp ? fp[3] : (cp[3] / 255.0f));
 		immRecti(pos, color_rect.xmin, color_rect.ymin, color_rect.xmax, color_rect.ymax);
-		glDisable(GL_BLEND);
+		GPU_blend(false);
 	}
 	else {
 		immUniformColor3fv(finalcol);
@@ -366,7 +367,7 @@ void ED_image_draw_info(Scene *scene, ARegion *ar, bool color_manage, bool use_d
 	immUnbindProgram();
 
 	/* draw outline */
-	pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformColor3ub(128, 128, 128);
 	imm_draw_box_wire_2d(pos, color_rect.xmin, color_rect.ymin, color_rect.xmax, color_rect.ymax);
@@ -378,13 +379,13 @@ void ED_image_draw_info(Scene *scene, ARegion *ar, bool color_manage, bool use_d
 	if (channels == 1) {
 		if (fp) {
 			rgb_to_hsv(fp[0], fp[0], fp[0], &hue, &sat, &val);
-			rgb_to_yuv(fp[0], fp[0], fp[0], &lum, &u, &v);
+			rgb_to_yuv(fp[0], fp[0], fp[0], &lum, &u, &v, BLI_YUV_ITU_BT709);
 		}
 		else if (cp) {
 			rgb_to_hsv((float)cp[0] / 255.0f, (float)cp[0] / 255.0f, (float)cp[0] / 255.0f, &hue, &sat, &val);
-			rgb_to_yuv((float)cp[0] / 255.0f, (float)cp[0] / 255.0f, (float)cp[0] / 255.0f, &lum, &u, &v);
+			rgb_to_yuv((float)cp[0] / 255.0f, (float)cp[0] / 255.0f, (float)cp[0] / 255.0f, &lum, &u, &v, BLI_YUV_ITU_BT709);
 		}
-		
+
 		BLI_snprintf(str, sizeof(str), "V:%-.4f", val);
 		BLF_position(blf_mono_font, dx, dy, 0);
 		BLF_draw_ascii(blf_mono_font, str, sizeof(str));
@@ -396,7 +397,7 @@ void ED_image_draw_info(Scene *scene, ARegion *ar, bool color_manage, bool use_d
 	}
 	else if (channels >= 3) {
 		rgb_to_hsv(finalcol[0], finalcol[1], finalcol[2], &hue, &sat, &val);
-		rgb_to_yuv(finalcol[0], finalcol[1], finalcol[2], &lum, &u, &v);
+		rgb_to_yuv(finalcol[0], finalcol[1], finalcol[2], &lum, &u, &v, BLI_YUV_ITU_BT709);
 
 		BLI_snprintf(str, sizeof(str), "H:%-.4f", hue);
 		BLF_position(blf_mono_font, dx, dy, 0);
@@ -503,8 +504,8 @@ static void draw_image_buffer(const bContext *C, SpaceImage *sima, ARegion *ar, 
 		if (sima->flag & SI_USE_ALPHA) {
 			imm_draw_box_checker_2d(x, y, x + ibuf->x * zoomx, y + ibuf->y * zoomy);
 
-			glEnable(GL_BLEND);
-			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+			GPU_blend(true);
+			GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 		}
 
 		/* If RGBA display with color management */
@@ -544,119 +545,7 @@ static void draw_image_buffer(const bContext *C, SpaceImage *sima, ARegion *ar, 
 		}
 
 		if (sima->flag & SI_USE_ALPHA)
-			glDisable(GL_BLEND);
-	}
-}
-
-static unsigned int *get_part_from_buffer(unsigned int *buffer, int width, short startx, short starty, short endx, short endy)
-{
-	unsigned int *rt, *rp, *rectmain;
-	short y, heigth, len;
-
-	/* the right offset in rectot */
-
-	rt = buffer + (starty * width + startx);
-
-	len = (endx - startx);
-	heigth = (endy - starty);
-
-	rp = rectmain = MEM_mallocN(heigth * len * sizeof(int), "rect");
-	
-	for (y = 0; y < heigth; y++) {
-		memcpy(rp, rt, len * 4);
-		rt += width;
-		rp += len;
-	}
-	return rectmain;
-}
-
-static void draw_image_buffer_tiled(SpaceImage *sima, ARegion *ar, Scene *scene, Image *ima, ImBuf *ibuf, float fx, float fy, float zoomx, float zoomy)
-{
-	unsigned char *display_buffer;
-	unsigned int *rect;
-	int dx, dy, sx, sy, x, y;
-	void *cache_handle;
-	float shuffle[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-
-	/* verify valid values, just leave this a while */
-	if (ima->xrep < 1) return;
-	if (ima->yrep < 1) return;
-
-	if (ima->flag & IMA_VIEW_AS_RENDER)
-		display_buffer = IMB_display_buffer_acquire(ibuf, &scene->view_settings, &scene->display_settings, &cache_handle);
-	else
-		display_buffer = IMB_display_buffer_acquire(ibuf, NULL, &scene->display_settings, &cache_handle);
-
-	if (!display_buffer)
-		return;
-
-	if (sima->curtile >= ima->xrep * ima->yrep)
-		sima->curtile = ima->xrep * ima->yrep - 1;
-	
-	/* retrieve part of image buffer */
-	dx = max_ii(ibuf->x / ima->xrep, 1);
-	dy = max_ii(ibuf->y / ima->yrep, 1);
-	sx = (sima->curtile % ima->xrep) * dx;
-	sy = (sima->curtile / ima->xrep) * dy;
-	rect = get_part_from_buffer((unsigned int *)display_buffer, ibuf->x, sx, sy, sx + dx, sy + dy);
-	
-	/* draw repeated */
-	if ((sima->flag & (SI_SHOW_R | SI_SHOW_G | SI_SHOW_B | SI_SHOW_ALPHA)) != 0) {
-		if (sima->flag & SI_SHOW_R)
-			shuffle[0] = 1.0f;
-		else if (sima->flag & SI_SHOW_G)
-			shuffle[1] = 1.0f;
-		else if (sima->flag & SI_SHOW_B)
-			shuffle[2] = 1.0f;
-		else if (sima->flag & SI_SHOW_ALPHA)
-			shuffle[3] = 1.0f;
-	}
-
-	for (sy = 0; sy + dy <= ibuf->y; sy += dy) {
-		for (sx = 0; sx + dx <= ibuf->x; sx += dx) {
-			UI_view2d_view_to_region(&ar->v2d, fx + (float)sx / (float)ibuf->x, fy + (float)sy / (float)ibuf->y, &x, &y);
-
-			if ((sima->flag & (SI_SHOW_R | SI_SHOW_G | SI_SHOW_B | SI_SHOW_ALPHA)) == 0) {
-				IMMDrawPixelsTexState state = immDrawPixelsTexSetup(GPU_SHADER_2D_IMAGE_COLOR);
-				immDrawPixelsTex(&state, x, y, dx, dy, GL_RGBA, GL_UNSIGNED_BYTE, GL_NEAREST, rect, zoomx, zoomy, NULL);
-			}
-			else {
-				IMMDrawPixelsTexState state = immDrawPixelsTexSetup(GPU_SHADER_2D_IMAGE_SHUFFLE_COLOR);
-				GPU_shader_uniform_vector(state.shader, GPU_shader_get_uniform(state.shader, "shuffle"), 4, 1, shuffle);
-
-				immDrawPixelsTex(&state, x, y, dx, dy, GL_RGBA, GL_UNSIGNED_BYTE, GL_NEAREST, rect, zoomx, zoomy, NULL);
-			}
-		}
-	}
-
-	IMB_display_buffer_release(cache_handle);
-
-	MEM_freeN(rect);
-}
-
-static void draw_image_buffer_repeated(const bContext *C, SpaceImage *sima, ARegion *ar, Scene *scene, Image *ima, ImBuf *ibuf, float zoomx, float zoomy)
-{
-	const double time_current = PIL_check_seconds_timer();
-
-	const int xmax = ceil(ar->v2d.cur.xmax);
-	const int ymax = ceil(ar->v2d.cur.ymax);
-	const int xmin = floor(ar->v2d.cur.xmin);
-	const int ymin = floor(ar->v2d.cur.ymin);
-
-	int x;
-
-	for (x = xmin; x < xmax; x++) {
-		int y;
-		for (y = ymin; y < ymax; y++) {
-			if (ima && (ima->tpageflag & IMA_TILES))
-				draw_image_buffer_tiled(sima, ar, scene, ima, ibuf, x, y, zoomx, zoomy);
-			else
-				draw_image_buffer(C, sima, ar, scene, ibuf, x, y, zoomx, zoomy);
-
-			/* only draw until running out of time */
-			if ((PIL_check_seconds_timer() - time_current) > 0.25)
-				return;
-		}
+			GPU_blend(false);
 	}
 }
 
@@ -673,7 +562,7 @@ void draw_image_grease_pencil(bContext *C, bool onlyv2d)
 	else {
 		/* assume that UI_view2d_restore(C) has been called... */
 		//SpaceImage *sima = (SpaceImage *)CTX_wm_space_data(C);
-		
+
 		/* draw grease-pencil ('screen' strokes) */
 		ED_gpencil_draw_view2d(C, 0);
 	}
@@ -684,20 +573,20 @@ void draw_image_sample_line(SpaceImage *sima)
 	if (sima->sample_line_hist.flag & HISTO_FLAG_SAMPLELINE) {
 		Histogram *hist = &sima->sample_line_hist;
 
-		Gwn_VertFormat *format = immVertexFormat();
-		unsigned int shdr_dashed_pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		GPUVertFormat *format = immVertexFormat();
+		uint shdr_dashed_pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 		immBindBuiltinProgram(GPU_SHADER_2D_LINE_DASHED_UNIFORM_COLOR);
 
 		float viewport_size[4];
-		glGetFloatv(GL_VIEWPORT, viewport_size);
+		GPU_viewport_size_get_f(viewport_size);
 		immUniform2f("viewport_size", viewport_size[2] / UI_DPI_FAC, viewport_size[3] / UI_DPI_FAC);
 
-		immUniform1i("num_colors", 2);  /* Advanced dashes. */
+		immUniform1i("colors_len", 2);  /* Advanced dashes. */
 		immUniformArray4fv("colors", (float *)(float[][4]){{1.0f, 1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 0.0f, 1.0f}}, 2);
 		immUniform1f("dash_width", 2.0f);
 
-		immBegin(GWN_PRIM_LINES, 2);
+		immBegin(GPU_PRIM_LINES, 2);
 		immVertex2fv(shdr_dashed_pos, hist->co[0]);
 		immVertex2fv(shdr_dashed_pos, hist->co[1]);
 		immEnd();
@@ -730,13 +619,13 @@ static void draw_image_paint_helpers(const bContext *C, ARegion *ar, Scene *scen
 				return;
 			}
 
-			glEnable(GL_BLEND);
-			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+			GPU_blend(true);
+			GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 
 			IMMDrawPixelsTexState state = immDrawPixelsTexSetup(GPU_SHADER_2D_IMAGE_COLOR);
 			immDrawPixelsTex(&state, x, y, ibuf->x, ibuf->y, GL_RGBA, GL_UNSIGNED_BYTE, GL_NEAREST, display_buffer, zoomx, zoomy, col);
 
-			glDisable(GL_BLEND);
+			GPU_blend(false);
 
 			BKE_image_release_ibuf(brush->clone.image, ibuf, NULL);
 			IMB_display_buffer_release(cache_handle);
@@ -759,10 +648,10 @@ void draw_image_main(const bContext *C, ARegion *ar)
 	/* XXX can we do this in refresh? */
 #if 0
 	what_image(sima);
-	
+
 	if (sima->image) {
 		ED_image_get_aspect(sima->image, &xuser_asp, &yuser_asp);
-		
+
 		/* UGLY hack? until now iusers worked fine... but for flipbook viewer we need this */
 		if (sima->image->type == IMA_TYPE_COMPOSITE) {
 			ImageUser *iuser = ntree_get_active_iuser(scene->nodetree);
@@ -810,14 +699,8 @@ void draw_image_main(const bContext *C, ARegion *ar)
 		ED_region_grid_draw(ar, zoomx, zoomy);
 	}
 	else {
+		draw_image_buffer(C, sima, ar, scene, ibuf, 0.0f, 0.0f, zoomx, zoomy);
 
-		if (sima->flag & SI_DRAW_TILE)
-			draw_image_buffer_repeated(C, sima, ar, scene, ima, ibuf, zoomx, zoomy);
-		else if (ima && (ima->tpageflag & IMA_TILES))
-			draw_image_buffer_tiled(sima, ar, scene, ima, ibuf, 0.0f, 0.0, zoomx, zoomy);
-		else
-			draw_image_buffer(C, sima, ar, scene, ibuf, 0.0f, 0.0f, zoomx, zoomy);
-		
 		if (sima->flag & SI_DRAW_METADATA) {
 			int x, y;
 			rctf frame;
@@ -876,8 +759,8 @@ void draw_image_cache(const bContext *C, ARegion *ar)
 		mask = ED_space_image_get_mask(sima);
 	}
 
-	glEnable(GL_BLEND);
-	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+	GPU_blend(true);
+	GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 
 	/* Draw cache background. */
 	ED_region_cache_draw_background(ar);
@@ -891,12 +774,12 @@ void draw_image_cache(const bContext *C, ARegion *ar)
 		ED_region_cache_draw_cached_segments(ar, num_segments, points, sfra + sima->iuser.offset, efra + sima->iuser.offset);
 	}
 
-	glDisable(GL_BLEND);
+	GPU_blend(false);
 
 	/* Draw current frame. */
 	x = (cfra - sfra) / (efra - sfra + 1) * ar->winx;
 
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+	uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_I32, 2, GPU_FETCH_INT_TO_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformThemeColor(TH_CFRAME);
 	immRecti(pos, x, 0, x + ceilf(framelen), 8 * UI_DPI_FAC);

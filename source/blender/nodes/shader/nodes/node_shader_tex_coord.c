@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -46,22 +46,13 @@ static int node_shader_gpu_tex_coord(GPUMaterial *mat, bNode *node, bNodeExecDat
 {
 	GPUNodeLink *orco = GPU_attribute(CD_ORCO, "");
 	GPUNodeLink *mtface = GPU_attribute(CD_MTFACE, "");
-	GPUMatType type = GPU_Material_get_type(mat);
 
 	GPU_link(mat, "generated_from_orco", orco, &orco);
-	
-	if (type == GPU_MATERIAL_TYPE_WORLD) {
-		return GPU_stack_link(mat, node, "node_tex_coord_background", in, out,
-		                      GPU_builtin(GPU_VIEW_POSITION), GPU_builtin(GPU_VIEW_NORMAL),
-		                      GPU_builtin(GPU_INVERSE_VIEW_MATRIX), GPU_builtin(GPU_INVERSE_OBJECT_MATRIX),
-		                      GPU_builtin(GPU_CAMERA_TEXCO_FACTORS), orco, mtface);
-	}
-	else {
-		return GPU_stack_link(mat, node, "node_tex_coord", in, out,
-		                      GPU_builtin(GPU_VIEW_POSITION), GPU_builtin(GPU_VIEW_NORMAL),
-		                      GPU_builtin(GPU_INVERSE_VIEW_MATRIX), GPU_builtin(GPU_INVERSE_OBJECT_MATRIX), 
-		                      GPU_builtin(GPU_CAMERA_TEXCO_FACTORS), orco, mtface);
-	}
+
+	return GPU_stack_link(mat, node, "node_tex_coord", in, out,
+	                      GPU_builtin(GPU_VIEW_POSITION), GPU_builtin(GPU_VIEW_NORMAL),
+	                      GPU_builtin(GPU_INVERSE_VIEW_MATRIX), GPU_builtin(GPU_INVERSE_OBJECT_MATRIX),
+	                      GPU_builtin(GPU_CAMERA_TEXCO_FACTORS), orco, mtface);
 }
 
 /* node type definition */
@@ -70,7 +61,6 @@ void register_node_type_sh_tex_coord(void)
 	static bNodeType ntype;
 
 	sh_node_type_base(&ntype, SH_NODE_TEX_COORD, "Texture Coordinate", NODE_CLASS_INPUT, 0);
-	node_type_compatibility(&ntype, NODE_NEW_SHADING);
 	node_type_socket_templates(&ntype, NULL, sh_node_tex_coord_out);
 	node_type_init(&ntype, NULL);
 	node_type_storage(&ntype, "", NULL, NULL);

@@ -46,8 +46,11 @@ extern "C" {
 #include "intern/nodes/deg_node_operation.h"
 #include "intern/depsgraph.h"
 
+#include "DEG_depsgraph_debug.h"
+
 struct DEGEditorUpdateContext;
-struct Group;
+struct Collection;
+struct ListBase;
 struct Main;
 struct Scene;
 
@@ -112,10 +115,18 @@ void deg_editors_id_update(const DEGEditorUpdateContext *update_ctx,
 void deg_editors_scene_update(const DEGEditorUpdateContext *update_ctx,
                               bool updated);
 
-#define DEG_DEBUG_PRINTF(type, ...) \
+#define DEG_DEBUG_PRINTF(depsgraph, type, ...) \
+	do { \
+		if (DEG_debug_flags_get(depsgraph) & G_DEBUG_DEPSGRAPH_ ## type) { \
+			DEG_debug_print_begin(depsgraph); \
+			fprintf(stdout, __VA_ARGS__); \
+		} \
+	} while (0)
+
+#define DEG_GLOBAL_DEBUG_PRINTF(type, ...) \
 	do { \
 		if (G.debug & G_DEBUG_DEPSGRAPH_ ## type) { \
-			fprintf(stderr, __VA_ARGS__); \
+			fprintf(stdout, __VA_ARGS__); \
 		} \
 	} while (0)
 
@@ -128,5 +139,15 @@ void deg_editors_scene_update(const DEGEditorUpdateContext *update_ctx,
 bool deg_terminal_do_color(void);
 string deg_color_for_pointer(const void *pointer);
 string deg_color_end(void);
+
+/* Physics Utilities -------------------------------------------------- */
+
+struct ListBase *deg_build_effector_relations(Depsgraph *graph, struct Collection *collection);
+struct ListBase *deg_build_collision_relations(Depsgraph *graph, struct Collection *collection, unsigned int modifier_type);
+void deg_clear_physics_relations(Depsgraph *graph);
+
+/* Tagging Utilities -------------------------------------------------------- */
+
+eDepsNode_Type deg_geometry_tag_to_component(const ID *id);
 
 }  // namespace DEG

@@ -203,7 +203,7 @@ bool Device::bind_fallback_display_space_shader(const float width, const float h
 		fallback_shader_program = bind_fallback_shader();
 		fallback_status = FALLBACK_SHADER_STATUS_ERROR;
 
-		if (fallback_shader_program == 0) {
+		if(fallback_shader_program == 0) {
 			return false;
 		}
 
@@ -248,7 +248,7 @@ void Device::draw_pixels(
 	if(rgba.data_type == TYPE_HALF) {
 		GLhalf *data_pointer = (GLhalf*)rgba.host_pointer;
 		data_pointer += 4 * y * w;
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F_ARB, w, h, 0, GL_RGBA, GL_HALF_FLOAT, data_pointer);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, w, h, 0, GL_RGBA, GL_HALF_FLOAT, data_pointer);
 	}
 	else {
 		uint8_t *data_pointer = (uint8_t*)rgba.host_pointer;
@@ -266,7 +266,7 @@ void Device::draw_pixels(
 
 	GLint shader_program;
 	if(use_fallback_shader) {
-		if (!bind_fallback_display_space_shader(dw, dh)) {
+		if(!bind_fallback_display_space_shader(dw, dh)) {
 			return;
 		}
 		shader_program = fallback_shader_program;
@@ -504,7 +504,6 @@ DeviceInfo Device::get_multi_device(const vector<DeviceInfo>& subdevices, int th
 
 	info.has_half_images = true;
 	info.has_volume_decoupled = true;
-	info.bvh_layout_mask = BVH_LAYOUT_ALL;
 	info.has_osl = true;
 
 	foreach(const DeviceInfo &device, subdevices) {
@@ -539,7 +538,6 @@ DeviceInfo Device::get_multi_device(const vector<DeviceInfo>& subdevices, int th
 		/* Accumulate device info. */
 		info.has_half_images &= device.has_half_images;
 		info.has_volume_decoupled &= device.has_volume_decoupled;
-		info.bvh_layout_mask = device.bvh_layout_mask & info.bvh_layout_mask;
 		info.has_osl &= device.has_osl;
 	}
 

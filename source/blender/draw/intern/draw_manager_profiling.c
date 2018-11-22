@@ -81,7 +81,7 @@ void DRW_stats_free(void)
 
 void DRW_stats_begin(void)
 {
-	if (G.debug_value > 20) {
+	if (G.debug_value > 20 && G.debug_value < 30) {
 		DTP.is_recording = true;
 	}
 
@@ -126,6 +126,7 @@ static void drw_stats_timer_start_ex(const char *name, const bool is_query)
 				glGenQueries(1, timer->query);
 			}
 
+			glFinish();
 			/* Issue query for the next frame */
 			glBeginQuery(GL_TIME_ELAPSED, timer->query[0]);
 			DTP.is_querying = true;
@@ -304,8 +305,8 @@ void DRW_stats_draw(rcti *rect)
 	/* ------------------------------------------ */
 
 	/* Memory Stats */
-	unsigned int tex_mem = GPU_texture_memory_usage_get();
-	unsigned int vbo_mem = GWN_vertbuf_get_memory_usage();
+	uint tex_mem = GPU_texture_memory_usage_get();
+	uint vbo_mem = GPU_vertbuf_get_memory_usage();
 
 	sprintf(stat_string, "GPU Memory");
 	draw_stat(rect, 0, v, stat_string, sizeof(stat_string));

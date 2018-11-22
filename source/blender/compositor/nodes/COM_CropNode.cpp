@@ -15,9 +15,9 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Contributor: 
- *		Jeroen Bakker 
- *		Monique Dewanchand
+ * Contributor:
+ *      Jeroen Bakker
+ *      Monique Dewanchand
  */
 
 #include "COM_CropNode.h"
@@ -45,7 +45,7 @@ void CropNode::convertToOperations(NodeConverter &converter, const CompositorCon
 	operation->setCropSettings(cropSettings);
 	operation->setRelative(relative);
 	converter.addOperation(operation);
-	
+
 	converter.mapInputSocket(getInputSocket(0), operation->getInputSocket(0));
 	converter.mapOutputSocket(getOutputSocket(), operation->getOutputSocket());
 }

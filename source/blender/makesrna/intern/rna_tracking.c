@@ -209,14 +209,14 @@ static void rna_trackingTrack_name_set(PointerRNA *ptr, const char *value)
 	}
 }
 
-static int rna_trackingTrack_select_get(PointerRNA *ptr)
+static bool rna_trackingTrack_select_get(PointerRNA *ptr)
 {
 	MovieTrackingTrack *track = (MovieTrackingTrack *)ptr->data;
 
 	return TRACK_SELECTED(track);
 }
 
-static void rna_trackingTrack_select_set(PointerRNA *ptr, int value)
+static void rna_trackingTrack_select_set(PointerRNA *ptr, bool value)
 {
 	MovieTrackingTrack *track = (MovieTrackingTrack *)ptr->data;
 
@@ -665,7 +665,7 @@ static void rna_trackingObject_remove(MovieTracking *tracking, ReportList *repor
 	WM_main_add_notifier(NC_MOVIECLIP | NA_EDITED, NULL);
 }
 
-static MovieTrackingMarker *rna_trackingMarkers_find_frame(MovieTrackingTrack *track, int framenr, int exact)
+static MovieTrackingMarker *rna_trackingMarkers_find_frame(MovieTrackingTrack *track, int framenr, bool exact)
 {
 	if (exact)
 		return BKE_tracking_marker_get_exact(track, framenr);
@@ -707,7 +707,7 @@ static void rna_trackingMarkers_delete_frame(MovieTrackingTrack *track, int fram
 }
 
 static MovieTrackingPlaneMarker *rna_trackingPlaneMarkers_find_frame(MovieTrackingPlaneTrack *plane_track,
-                                                                     int framenr, int exact)
+                                                                     int framenr, bool exact)
 {
 	if (exact)
 		return BKE_tracking_plane_marker_get_exact(plane_track, framenr);
@@ -915,14 +915,14 @@ static void rna_def_trackingSettings(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", TRACKING_SETTINGS_SHOW_DEFAULT_EXPANDED);
 	RNA_def_property_ui_text(prop, "Show Expanded", "Show default options expanded in the user interface");
-	RNA_def_property_ui_icon(prop, ICON_TRIA_RIGHT, 1);
+	RNA_def_property_ui_icon(prop, ICON_DISCLOSURE_TRI_RIGHT, 1);
 
 	/* ** extra tracker settings ** */
 	prop = RNA_def_property(srna, "show_extra_expanded", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", TRACKING_SETTINGS_SHOW_EXTRA_EXPANDED);
 	RNA_def_property_ui_text(prop, "Show Expanded", "Show extra options expanded in the user interface");
-	RNA_def_property_ui_icon(prop, ICON_TRIA_RIGHT, 1);
+	RNA_def_property_ui_icon(prop, ICON_DISCLOSURE_TRI_RIGHT, 1);
 
 	/* solver settings */
 	prop = RNA_def_property(srna, "use_tripod_solver", PROP_BOOLEAN, PROP_NONE);
@@ -1480,6 +1480,7 @@ static void rna_def_trackingTrack(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "grease_pencil", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "gpd");
 	RNA_def_property_struct_type(prop, "GreasePencil");
+	RNA_def_property_pointer_funcs(prop, NULL, NULL, NULL, "rna_GPencil_datablocks_annotations_poll");
 	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_REFCOUNT);
 	RNA_def_property_ui_text(prop, "Grease Pencil", "Grease pencil data for this track");
 	RNA_def_property_update(prop, NC_MOVIECLIP | ND_DISPLAY, NULL);
@@ -1793,7 +1794,7 @@ static void rna_def_trackingStabilization(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", TRACKING_SHOW_STAB_TRACKS);
 	RNA_def_property_ui_text(prop, "Show Tracks", "Show UI list of tracks participating in stabilization");
-	RNA_def_property_ui_icon(prop, ICON_TRIA_RIGHT, 1);
+	RNA_def_property_ui_icon(prop, ICON_DISCLOSURE_TRI_RIGHT, 1);
 }
 
 static void rna_def_reconstructedCamera(BlenderRNA *brna)

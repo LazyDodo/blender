@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -74,6 +74,7 @@
 
 #include "GPU_immediate.h"
 #include "GPU_immediate_util.h"
+#include "GPU_state.h"
 
 #include "filelist.h"
 
@@ -86,7 +87,7 @@ static char *file_draw_tooltip_func(bContext *UNUSED(C), void *argN, const char 
 	return BLI_strdup(dyn_tooltip);
 }
 
-/* Note: This function uses pixelspace (0, 0, winx, winy), not view2d. 
+/* Note: This function uses pixelspace (0, 0, winx, winy), not view2d.
  * The controls are laid out as follows:
  *
  * -------------------------------------------
@@ -121,14 +122,14 @@ void file_draw_buttons(const bContext *C, ARegion *ar)
 	int available_w = max_x - min_x;
 	int line1_w     = available_w;
 	int line2_w     = available_w;
-	
+
 	uiBut *but;
 	uiBlock *block;
 	SpaceFile *sfile  = CTX_wm_space_file(C);
 	FileSelectParams *params = ED_fileselect_get_params(sfile);
 	ARegion *artmp;
 	const bool is_browse_only = (sfile->op == NULL);
-	
+
 	/* Initialize UI block. */
 	BLI_snprintf(uiblockstr, sizeof(uiblockstr), "win %p", (void *)ar);
 	block = UI_block_begin(C, ar, uiblockstr, UI_EMBOSS);
@@ -212,28 +213,28 @@ void file_draw_buttons(const bContext *C, ARegion *ar)
 				UI_but_flag_enable(but, UI_BUT_REDALERT);
 			}
 		}
-		
+
 		/* clear func */
 		UI_block_func_set(block, NULL, NULL, NULL);
 	}
-	
+
 	/* Filename number increment / decrement buttons. */
 	if (fnumbuttons && (params->flag & FILE_DIRSEL_ONLY) == 0) {
 		UI_block_align_begin(block);
-		but = uiDefIconButO(block, UI_BTYPE_BUT, "FILE_OT_filenum", 0, ICON_ZOOMOUT,
+		but = uiDefIconButO(block, UI_BTYPE_BUT, "FILE_OT_filenum", 0, ICON_REMOVE,
 		                    min_x + line2_w + separator - chan_offs, line2_y,
 		                    btn_fn_w, btn_h,
 		                    TIP_("Decrement the filename number"));
 		RNA_int_set(UI_but_operator_ptr_get(but), "increment", -1);
 
-		but = uiDefIconButO(block, UI_BTYPE_BUT, "FILE_OT_filenum", 0, ICON_ZOOMIN,
+		but = uiDefIconButO(block, UI_BTYPE_BUT, "FILE_OT_filenum", 0, ICON_ADD,
 		                    min_x + line2_w + separator + btn_fn_w - chan_offs, line2_y,
 		                    btn_fn_w, btn_h,
 		                    TIP_("Increment the filename number"));
 		RNA_int_set(UI_but_operator_ptr_get(but), "increment", 1);
 		UI_block_align_end(block);
 	}
-	
+
 	/* Execute / cancel buttons. */
 	if (loadbutton) {
 		const struct FileDirEntry *file = sfile->files ? filelist_file(sfile->files, params->active_file) : NULL;
@@ -254,7 +255,7 @@ void file_draw_buttons(const bContext *C, ARegion *ar)
 		uiDefButO(block, UI_BTYPE_BUT, "FILE_OT_cancel", WM_OP_EXEC_REGION_WIN, IFACE_("Cancel"),
 		          max_x - loadbutton, line2_y, loadbutton, btn_h, "");
 	}
-	
+
 	UI_block_end(C, block);
 	UI_block_draw(C, block);
 }
@@ -274,10 +275,10 @@ static void file_draw_icon(uiBlock *block, const char *path, int sx, int sy, int
 	uiBut *but;
 	int x, y;
 	// float alpha = 1.0f;
-	
+
 	x = sx;
 	y = sy - height;
-	
+
 	/*if (icon == ICON_FILE_BLANK) alpha = 0.375f;*/
 
 	but = uiDefIconBut(block, UI_BTYPE_LABEL, 0, icon, x, y, width, height, NULL, 0.0f, 0.0f, 0.0f, 0.0f, NULL);
@@ -323,7 +324,7 @@ void file_calc_previews(const bContext *C, ARegion *ar)
 {
 	SpaceFile *sfile = CTX_wm_space_file(C);
 	View2D *v2d = &ar->v2d;
-	
+
 	ED_fileselect_init_layout(sfile, ar);
 	UI_view2d_totRect_set(v2d, sfile->layout->width, sfile->layout->height);
 }
@@ -377,14 +378,14 @@ static void file_draw_preview(
 	xco = sx + (int)dx;
 	yco = sy - layout->prv_h + (int)dy;
 
-	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+	GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 
 	/* shadow */
 	if (use_dropshadow) {
 		UI_draw_box_shadow(220, (float)xco, (float)yco, (float)(xco + ex), (float)(yco + ey));
 	}
 
-	glEnable(GL_BLEND);
+	GPU_blend(true);
 
 	/* the image */
 	if (!is_icon && typeflags & FILE_TYPE_FTFONT) {
@@ -396,13 +397,13 @@ static void file_draw_preview(
 	                       scale, scale, 1.0f, 1.0f, col);
 
 	if (icon) {
-		UI_icon_draw_aspect((float)xco, (float)yco, icon, icon_aspect, 1.0f);
+		UI_icon_draw_aspect((float)xco, (float)yco, icon, icon_aspect, 1.0f, NULL);
 	}
 
 	/* border */
 	if (use_dropshadow) {
-		Gwn_VertFormat *format = immVertexFormat();
-		unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		GPUVertFormat *format = immVertexFormat();
+		uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 		immUniformColor4f(0.0f, 0.0f, 0.0f, 0.4f);
@@ -419,11 +420,12 @@ static void file_draw_preview(
 		UI_but_drag_set_image(but, BLI_strdup(path), icon, imb, scale, true);
 	}
 
-	glDisable(GL_BLEND);
+	GPU_blend(false);
 }
 
 static void renamebutton_cb(bContext *C, void *UNUSED(arg1), char *oldname)
 {
+	Main *bmain = CTX_data_main(C);
 	char newname[FILE_MAX + 12];
 	char orgname[FILE_MAX + 12];
 	char filename[FILE_MAX + 12];
@@ -432,10 +434,11 @@ static void renamebutton_cb(bContext *C, void *UNUSED(arg1), char *oldname)
 	ScrArea *sa = CTX_wm_area(C);
 	ARegion *ar = CTX_wm_region(C);
 
-	BLI_make_file_string(G.main->name, orgname, sfile->params->dir, oldname);
+	const char *blendfile_path = BKE_main_blendfile_path(bmain);
+	BLI_make_file_string(blendfile_path, orgname, sfile->params->dir, oldname);
 	BLI_strncpy(filename, sfile->params->renameedit, sizeof(filename));
 	BLI_filename_make_safe(filename);
-	BLI_make_file_string(G.main->name, newname, sfile->params->dir, filename);
+	BLI_make_file_string(blendfile_path, newname, sfile->params->dir, filename);
 
 	if (!STREQ(orgname, newname)) {
 		if (!BLI_exists(newname)) {
@@ -463,7 +466,7 @@ static void draw_background(FileLayout *layout, View2D *v2d)
 	int i;
 	int sy;
 
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformThemeColorShade(TH_BACK, -7);
 
@@ -483,14 +486,14 @@ static void draw_dividers(FileLayout *layout, View2D *v2d)
 
 	const int step = (layout->tile_w + 2 * layout->tile_border_x);
 
-	unsigned int vertex_ct = 0;
+	unsigned int vertex_len = 0;
 	int sx = (int)v2d->tot.xmin;
 	while (sx < v2d->cur.xmax) {
 		sx += step;
-		vertex_ct += 4; /* vertex_count = 2 points per line * 2 lines per divider */
+		vertex_len += 4; /* vertex_count = 2 points per line * 2 lines per divider */
 	}
 
-	if (vertex_ct > 0) {
+	if (vertex_len > 0) {
 		int v1[2], v2[2];
 		unsigned char col_hi[3], col_lo[3];
 
@@ -500,27 +503,27 @@ static void draw_dividers(FileLayout *layout, View2D *v2d)
 		v1[1] = v2d->cur.ymax - layout->tile_border_y;
 		v2[1] = v2d->cur.ymin;
 
-		Gwn_VertFormat *format = immVertexFormat();
-		unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
-		unsigned int color = GWN_vertformat_attr_add(format, "color", GWN_COMP_U8, 3, GWN_FETCH_INT_TO_FLOAT_UNIT);
+		GPUVertFormat *format = immVertexFormat();
+		uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_I32, 2, GPU_FETCH_INT_TO_FLOAT);
+		uint color = GPU_vertformat_attr_add(format, "color", GPU_COMP_U8, 3, GPU_FETCH_INT_TO_FLOAT_UNIT);
 
 		immBindBuiltinProgram(GPU_SHADER_2D_FLAT_COLOR);
-		immBegin(GWN_PRIM_LINES, vertex_ct);
+		immBegin(GPU_PRIM_LINES, vertex_len);
 
 		sx = (int)v2d->tot.xmin;
 		while (sx < v2d->cur.xmax) {
 			sx += step;
 
 			v1[0] = v2[0] = sx;
-			immSkipAttrib(color);
+			immAttrSkip(color);
 			immVertex2iv(pos, v1);
-			immAttrib3ubv(color, col_lo);
+			immAttr3ubv(color, col_lo);
 			immVertex2iv(pos, v2);
 
 			v1[0] = v2[0] = sx + 1;
-			immSkipAttrib(color);
+			immAttrSkip(color);
 			immVertex2iv(pos, v1);
-			immAttrib3ubv(color, col_hi);
+			immAttr3ubv(color, col_hi);
 			immVertex2iv(pos, v2);
 		}
 
@@ -556,11 +559,11 @@ void file_draw_list(const bContext *C, ARegion *ar)
 	const float thumb_icon_aspect = sqrtf(64.0f / (float)(params->thumbnail_size));
 
 	numfiles = filelist_files_ensure(files);
-	
+
 	if (params->display != FILE_IMGDISPLAY) {
 
 		draw_background(layout, v2d);
-	
+
 		draw_dividers(layout, v2d);
 	}
 
@@ -592,7 +595,7 @@ void file_draw_list(const bContext *C, ARegion *ar)
 		filelist_cache_previews_update(files);
 
 		/* Handle preview timer here, since it's filelist_file_cache_block() and filelist_cache_previews_update()
-		 * which controlls previews task. */
+		 * which controls previews task. */
 		{
 			const bool previews_running = filelist_cache_previews_running(files);
 //			printf("%s: preview task: %d\n", __func__, previews_running);
@@ -630,7 +633,7 @@ void file_draw_list(const bContext *C, ARegion *ar)
 				int colorid = (file_selflag & FILE_SEL_SELECTED) ? TH_HILITE : TH_BACK;
 				int shade = (params->highlight_file == i) || (file_selflag & FILE_SEL_HIGHLIGHTED) ? 35 : 0;
 
-				BLI_assert(i > 0 || FILENAME_IS_CURRPAR(file->relpath));
+				BLI_assert(i == 0 || !FILENAME_IS_CURRPAR(file->relpath));
 
 				draw_tile(sx, sy - 1, layout->tile_w + 4, sfile->layout->tile_h + layout->tile_border_y, colorid, shade);
 			}

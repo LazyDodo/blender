@@ -34,8 +34,31 @@
 
 #include "RNA_access.h"
 #include "RNA_define.h"
+#include "RNA_enum_types.h"
 
 #include "rna_internal.h" /* own include */
+
+const EnumPropertyItem rna_enum_context_mode_items[] = {
+	{CTX_MODE_EDIT_MESH, "EDIT_MESH", 0, "Mesh Edit", ""},
+	{CTX_MODE_EDIT_CURVE, "EDIT_CURVE", 0, "Curve Edit", ""},
+	{CTX_MODE_EDIT_SURFACE, "EDIT_SURFACE", 0, "Surface Edit", ""},
+	{CTX_MODE_EDIT_TEXT, "EDIT_TEXT", 0, "Edit Edit", ""},
+	{CTX_MODE_EDIT_ARMATURE, "EDIT_ARMATURE", 0, "Armature Edit", ""}, /* PARSKEL reuse will give issues */
+	{CTX_MODE_EDIT_METABALL, "EDIT_METABALL", 0, "Metaball Edit", ""},
+	{CTX_MODE_EDIT_LATTICE, "EDIT_LATTICE", 0, "Lattice Edit", ""},
+	{CTX_MODE_POSE, "POSE", 0, "Pose ", ""},
+	{CTX_MODE_SCULPT, "SCULPT", 0, "Sculpt", ""},
+	{CTX_MODE_PAINT_WEIGHT, "PAINT_WEIGHT", 0, "Weight Paint", ""},
+	{CTX_MODE_PAINT_VERTEX, "PAINT_VERTEX", 0, "Vertex Paint", ""},
+	{CTX_MODE_PAINT_TEXTURE, "PAINT_TEXTURE", 0, "Texture Paint", ""},
+	{CTX_MODE_PARTICLE, "PARTICLE", 0, "Particle", ""},
+	{CTX_MODE_OBJECT, "OBJECT", 0, "Object", ""},
+	{CTX_MODE_GPENCIL_PAINT, "GPENCIL_PAINT", 0, "Grease Pencil Paint", "" },
+	{CTX_MODE_GPENCIL_EDIT, "GPENCIL_EDIT", 0, "Grease Pencil Edit", "" },
+	{CTX_MODE_GPENCIL_SCULPT, "GPENCIL_SCULPT", 0, "Grease Pencil Sculpt", "" },
+	{CTX_MODE_GPENCIL_WEIGHT, "GPENCIL_WEIGHT", 0, "Grease Pencil Weight Paint", "" },
+	{0, NULL, 0, NULL, NULL}
+};
 
 #ifdef RNA_RUNTIME
 
@@ -103,11 +126,11 @@ static PointerRNA rna_Context_region_data_get(PointerRNA *ptr)
 	return PointerRNA_NULL;
 }
 
-static PointerRNA rna_Context_manipulator_group_get(PointerRNA *ptr)
+static PointerRNA rna_Context_gizmo_group_get(PointerRNA *ptr)
 {
 	bContext *C = (bContext *)ptr->data;
 	PointerRNA newptr;
-	RNA_pointer_create(NULL, &RNA_ManipulatorGroup, CTX_wm_manipulator_group(C), &newptr);
+	RNA_pointer_create(NULL, &RNA_GizmoGroup, CTX_wm_gizmo_group(C), &newptr);
 	return newptr;
 }
 
@@ -139,12 +162,6 @@ static PointerRNA rna_Context_view_layer_get(PointerRNA *ptr)
 	return rna_pointer_inherit_refine(&scene_ptr, &RNA_ViewLayer, CTX_data_view_layer(C));
 }
 
-static PointerRNA rna_Context_view_render_get(PointerRNA *ptr)
-{
-	bContext *C = (bContext *)ptr->data;
-	return rna_pointer_inherit_refine(ptr, &RNA_ViewRenderSettings, CTX_data_view_render(C));
-}
-
 static void rna_Context_engine_get(PointerRNA *ptr, char *value)
  {
 	bContext *C = (bContext *)ptr->data;
@@ -159,11 +176,10 @@ static int rna_Context_engine_length(PointerRNA *ptr)
 	return strlen(engine_type->idname);
 }
 
-static PointerRNA rna_Context_scene_collection_get(PointerRNA *ptr)
+static PointerRNA rna_Context_collection_get(PointerRNA *ptr)
 {
 	bContext *C = (bContext *)ptr->data;
-	ptr->id.data = CTX_data_scene(C);
-	return rna_pointer_inherit_refine(ptr, &RNA_SceneCollection, CTX_data_scene_collection(C));
+	return rna_pointer_inherit_refine(ptr, &RNA_Collection, CTX_data_collection(C));
 }
 
 static PointerRNA rna_Context_layer_collection_get(PointerRNA *ptr)
@@ -199,24 +215,6 @@ void RNA_def_context(BlenderRNA *brna)
 {
 	StructRNA *srna;
 	PropertyRNA *prop;
-
-	static const EnumPropertyItem mode_items[] = {
-		{CTX_MODE_EDIT_MESH, "EDIT_MESH", 0, "Mesh Edit", ""},
-		{CTX_MODE_EDIT_CURVE, "EDIT_CURVE", 0, "Curve Edit", ""},
-		{CTX_MODE_EDIT_SURFACE, "EDIT_SURFACE", 0, "Surface Edit", ""},
-		{CTX_MODE_EDIT_TEXT, "EDIT_TEXT", 0, "Edit Edit", ""},
-		{CTX_MODE_EDIT_ARMATURE, "EDIT_ARMATURE", 0, "Armature Edit", ""}, /* PARSKEL reuse will give issues */
-		{CTX_MODE_EDIT_METABALL, "EDIT_METABALL", 0, "Metaball Edit", ""},
-		{CTX_MODE_EDIT_LATTICE, "EDIT_LATTICE", 0, "Lattice Edit", ""},
-		{CTX_MODE_POSE, "POSE", 0, "Pose ", ""},
-		{CTX_MODE_SCULPT, "SCULPT", 0, "Sculpt", ""},
-		{CTX_MODE_PAINT_WEIGHT, "PAINT_WEIGHT", 0, "Weight Paint", ""},
-		{CTX_MODE_PAINT_VERTEX, "PAINT_VERTEX", 0, "Vertex Paint", ""},
-		{CTX_MODE_PAINT_TEXTURE, "PAINT_TEXTURE", 0, "Texture Paint", ""},
-		{CTX_MODE_PARTICLE, "PARTICLE", 0, "Particle", ""},
-		{CTX_MODE_OBJECT, "OBJECT", 0, "Object", ""},
-		{0, NULL, 0, NULL, NULL}
-	};
 
 	srna = RNA_def_struct(brna, "Context", NULL);
 	RNA_def_struct_ui_text(srna, "Context", "Current windowmanager and data context");
@@ -263,10 +261,10 @@ void RNA_def_context(BlenderRNA *brna)
 	RNA_def_property_struct_type(prop, "RegionView3D");
 	RNA_def_property_pointer_funcs(prop, "rna_Context_region_data_get", NULL, NULL, NULL);
 
-	prop = RNA_def_property(srna, "manipulator_group", PROP_POINTER, PROP_NONE);
+	prop = RNA_def_property(srna, "gizmo_group", PROP_POINTER, PROP_NONE);
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_struct_type(prop, "ManipulatorGroup");
-	RNA_def_property_pointer_funcs(prop, "rna_Context_manipulator_group_get", NULL, NULL, NULL);
+	RNA_def_property_struct_type(prop, "GizmoGroup");
+	RNA_def_property_pointer_funcs(prop, "rna_Context_gizmo_group_get", NULL, NULL, NULL);
 
 	/* Data */
 	prop = RNA_def_property(srna, "blend_data", PROP_POINTER, PROP_NONE);
@@ -289,19 +287,14 @@ void RNA_def_context(BlenderRNA *brna)
 	RNA_def_property_struct_type(prop, "ViewLayer");
 	RNA_def_property_pointer_funcs(prop, "rna_Context_view_layer_get", NULL, NULL, NULL);
 
-	prop = RNA_def_property(srna, "view_render", PROP_POINTER, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_struct_type(prop, "ViewRenderSettings");
-	RNA_def_property_pointer_funcs(prop, "rna_Context_view_render_get", NULL, NULL, NULL);
-
 	prop = RNA_def_property(srna, "engine", PROP_STRING, PROP_NONE);
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_string_funcs(prop, "rna_Context_engine_get", "rna_Context_engine_length", NULL);
 
-	prop = RNA_def_property(srna, "scene_collection", PROP_POINTER, PROP_NONE);
+	prop = RNA_def_property(srna, "collection", PROP_POINTER, PROP_NONE);
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_struct_type(prop, "SceneCollection");
-	RNA_def_property_pointer_funcs(prop, "rna_Context_scene_collection_get", NULL, NULL, NULL);
+	RNA_def_property_struct_type(prop, "Collection");
+	RNA_def_property_pointer_funcs(prop, "rna_Context_collection_get", NULL, NULL, NULL);
 
 	prop = RNA_def_property(srna, "layer_collection", PROP_POINTER, PROP_NONE);
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
@@ -319,10 +312,9 @@ void RNA_def_context(BlenderRNA *brna)
 	RNA_def_property_pointer_funcs(prop, "rna_Context_user_preferences_get", NULL, NULL, NULL);
 
 	prop = RNA_def_property(srna, "mode", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_items(prop, mode_items);
+	RNA_def_property_enum_items(prop, rna_enum_context_mode_items);
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_enum_funcs(prop, "rna_Context_mode_get", NULL, NULL);
 }
 
 #endif
-

@@ -6,10 +6,16 @@ uniform float lodFactor;
 uniform float lodMax;
 uniform float paddingSize;
 uniform float intensityFac;
+uniform float fireflyFactor;
 
 in vec3 worldPosition;
 
 out vec4 FragColor;
+
+float brightness(vec3 c)
+{
+	return max(max(c.r, c.g), c.b);
+}
 
 vec3 octahedral_to_cubemap_proj(vec2 co)
 {
@@ -30,8 +36,7 @@ void main() {
 
 	/* Add a N pixel border to ensure filtering is correct
 	 * for N mipmap levels. */
-	uvs += uvs * texelSize * paddingSize * 2.0;
-	uvs -= texelSize * paddingSize;
+	uvs = (uvs - paddingSize) / (1.0 - 2.0 * paddingSize);
 
 	/* edge mirroring : only mirror if directly adjacent
 	 * (not diagonally adjacent) */
@@ -78,7 +83,13 @@ void main() {
 			/* http://http.developer.nvidia.com/GPUGems3/gpugems3_ch20.html : Equation 13 */
 			float lod = clamp(lodFactor - 0.5 * log2(pdf * dist), 0.0, lodMax) ;
 
-			out_radiance += textureLod(probeHdr, L, lod).rgb * NL;
+			vec3 l_col = textureLod(probeHdr, L, lod).rgb;
+
+			/* Clamped brightness. */
+			float luma = max(1e-8, brightness(l_col));
+			l_col *= 1.0 - max(0.0, luma - fireflyFactor) / luma;
+
+			out_radiance += l_col * NL;
 			weight += NL;
 		}
 	}

@@ -31,8 +31,8 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "DNA_collection_types.h"
 #include "DNA_freestyle_types.h"
-#include "DNA_group_types.h"
 
 #include "BLI_blenlib.h"
 #include "BLI_math.h"
@@ -83,7 +83,7 @@ void BKE_freestyle_config_free(FreestyleConfig *config, const bool do_id_user)
 	BLI_freelistN(&config->modules);
 }
 
-void BKE_freestyle_config_copy(FreestyleConfig *new_config, FreestyleConfig *config, const int flag)
+void BKE_freestyle_config_copy(FreestyleConfig *new_config, const FreestyleConfig *config, const int flag)
 {
 	FreestyleLineSet *lineset, *new_lineset;
 	FreestyleModuleConfig *module, *new_module;

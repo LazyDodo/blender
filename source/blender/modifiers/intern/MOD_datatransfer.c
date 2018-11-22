@@ -37,15 +37,15 @@
 #include "DNA_object_types.h"
 
 #include "BKE_customdata.h"
-#include "BKE_cdderivedmesh.h"
 #include "BKE_data_transfer.h"
-#include "BKE_DerivedMesh.h"
 #include "BKE_library.h"
 #include "BKE_library_query.h"
 #include "BKE_mesh_mapping.h"
 #include "BKE_mesh_remap.h"
 #include "BKE_modifier.h"
 #include "BKE_report.h"
+
+#include "DEG_depsgraph_query.h"
 
 #include "MEM_guardedalloc.h"
 #include "MOD_util.h"
@@ -129,11 +129,13 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 {
 	DataTransferModifierData *dtmd = (DataTransferModifierData *) md;
 	if (dtmd->ob_source != NULL) {
-		DEG_add_object_relation(ctx->node, dtmd->ob_source, DEG_OB_COMP_GEOMETRY, "DataTransfer Modifier");
+		CustomDataMask mask = BKE_object_data_transfer_dttypes_to_cdmask(dtmd->data_types);
+
+		DEG_add_object_relation_with_customdata(ctx->node, dtmd->ob_source, DEG_OB_COMP_GEOMETRY, mask, "DataTransfer Modifier");
 	}
 }
 
-static bool isDisabled(ModifierData *md, int UNUSED(useRenderParams))
+static bool isDisabled(const struct Scene *UNUSED(scene), ModifierData *md, bool UNUSED(useRenderParams))
 {
 	DataTransferModifierData *dtmd = (DataTransferModifierData *) md;
 	/* If no source object, bypass. */
@@ -148,15 +150,15 @@ static bool isDisabled(ModifierData *md, int UNUSED(useRenderParams))
 	DT_TYPE_SHARP_FACE \
 )
 
-static DerivedMesh *applyModifier(ModifierData *md, const struct EvaluationContext *eval_ctx, Object *ob, DerivedMesh *derivedData,
-                                  ModifierApplyFlag UNUSED(flag))
+static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mesh *me_mod)
 {
 	DataTransferModifierData *dtmd = (DataTransferModifierData *) md;
-	DerivedMesh *dm = derivedData;
+	struct Scene *scene = DEG_get_evaluated_scene(ctx->depsgraph);
+	Mesh *result = me_mod;
 	ReportList reports;
 
 	/* Only used to check wehther we are operating on org data or not... */
-	Mesh *me = ob->data;
+	Mesh *me = ctx->object->data;
 
 	const bool invert_vgroup = (dtmd->flags & MOD_DATATRANSFER_INVERT_VGROUP) != 0;
 
@@ -166,21 +168,27 @@ static DerivedMesh *applyModifier(ModifierData *md, const struct EvaluationConte
 	SpaceTransform *space_transform = (dtmd->flags & MOD_DATATRANSFER_OBSRC_TRANSFORM) ? &space_transform_data : NULL;
 
 	if (space_transform) {
-		BLI_SPACE_TRANSFORM_SETUP(space_transform, ob, dtmd->ob_source);
+		BLI_SPACE_TRANSFORM_SETUP(space_transform, ctx->object, dtmd->ob_source);
 	}
 
-	MVert *mvert = dm->getVertArray(dm);
-	MEdge *medge = dm->getEdgeArray(dm);
-	if (((me->mvert == mvert) || (me->medge == medge)) && (dtmd->data_types & DT_TYPES_AFFECT_MESH)) {
+	if ((result == me_mod || (me->mvert == result->mvert) || (me->medge == result->medge)) &&
+	    (dtmd->data_types & DT_TYPES_AFFECT_MESH))
+	{
 		/* We need to duplicate data here, otherwise setting custom normals, edges' shaprness, etc., could
 		 * modify org mesh, see T43671. */
-		dm = CDDM_copy(dm);
+		BKE_id_copy_ex(
+		        NULL, &me_mod->id, (ID **)&result,
+		        LIB_ID_CREATE_NO_MAIN |
+		        LIB_ID_CREATE_NO_USER_REFCOUNT |
+		        LIB_ID_CREATE_NO_DEG_TAG |
+		        LIB_ID_COPY_NO_PREVIEW,
+		        false);
 	}
 
 	BKE_reports_init(&reports, RPT_STORE);
 
 	/* Note: no islands precision for now here. */
-	BKE_object_data_transfer_dm(eval_ctx, md->scene, dtmd->ob_source, ob, dm, dtmd->data_types, false,
+	BKE_object_data_transfer_ex(ctx->depsgraph, scene, dtmd->ob_source, ctx->object, result, dtmd->data_types, false,
 	                     dtmd->vmap_mode, dtmd->emap_mode, dtmd->lmap_mode, dtmd->pmap_mode,
 	                     space_transform, false, max_dist, dtmd->map_ray_radius, 0.0f,
 	                     dtmd->layers_select_src, dtmd->layers_select_dst,
@@ -192,24 +200,15 @@ static DerivedMesh *applyModifier(ModifierData *md, const struct EvaluationConte
 	else if ((dtmd->data_types & DT_TYPE_LNOR) && !(me->flag & ME_AUTOSMOOTH)) {
 		modifier_setError((ModifierData *)dtmd, "Enable 'Auto Smooth' option in mesh settings");
 	}
-	else if (dm->getNumVerts(dm) > HIGH_POLY_WARNING || ((Mesh *)(dtmd->ob_source->data))->totvert > HIGH_POLY_WARNING) {
+	else if (result->totvert > HIGH_POLY_WARNING || ((Mesh *)(dtmd->ob_source->data))->totvert > HIGH_POLY_WARNING) {
 		modifier_setError(md, "You are using a rather high poly as source or destination, computation might be slow");
 	}
 
-	return dm;
+	return result;
 }
 
 #undef HIGH_POLY_WARNING
 #undef DT_TYPES_AFFECT_MESH
-
-static void copyData(ModifierData *md, ModifierData *target)
-{
-#if 0
-	DataTransferModifierData *dtmd = (DecimateModifierData *) md;
-	DataTransferModifierData *tdtmd = (DecimateModifierData *) target;
-#endif
-	modifier_copyData_generic(md, target);
-}
 
 ModifierTypeInfo modifierType_DataTransfer = {
 	/* name */              "DataTransfer",
@@ -221,13 +220,20 @@ ModifierTypeInfo modifierType_DataTransfer = {
 	                        eModifierTypeFlag_SupportsEditmode |
 	                        eModifierTypeFlag_UsesPreview,
 
-	/* copyData */          copyData,
+	/* copyData */          modifier_copyData_generic,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
-	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          NULL,

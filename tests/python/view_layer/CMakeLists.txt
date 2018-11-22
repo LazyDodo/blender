@@ -18,7 +18,7 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-# --env-system-scripts allows to run without the install target. 
+# --env-system-scripts allows to run without the install target.
 
 # Use '--write-blend=/tmp/test.blend' to view output
 
@@ -43,7 +43,7 @@ else()
 	set(TEST_BLENDER_EXE ${EXECUTABLE_OUTPUT_PATH}/blender)
 endif()
 
-# for testing with valgrind prefix: valgrind --track-origins=yes --error-limit=no 
+# for testing with valgrind prefix: valgrind --track-origins=yes --error-limit=no
 set(TEST_BLENDER_EXE ${TEST_BLENDER_EXE} --background -noaudio --factory-startup --env-system-scripts ${CMAKE_SOURCE_DIR}/release/scripts)
 
 
@@ -65,15 +65,15 @@ VIEW_LAYER_TEST(background_set)
 VIEW_LAYER_TEST(collection_new_sync)
 VIEW_LAYER_TEST(collection_rename_a)
 VIEW_LAYER_TEST(collection_rename_b)
-VIEW_LAYER_TEST(evaluation_render_settings_a)
-VIEW_LAYER_TEST(evaluation_render_settings_b)
-VIEW_LAYER_TEST(evaluation_render_settings_c)
-VIEW_LAYER_TEST(evaluation_render_settings_d)
-VIEW_LAYER_TEST(evaluation_render_settings_e)
-VIEW_LAYER_TEST(evaluation_render_settings_f)
-VIEW_LAYER_TEST(evaluation_render_settings_g)
-VIEW_LAYER_TEST(evaluation_render_settings_h)
-VIEW_LAYER_TEST(evaluation_render_settings_i)
+#VIEW_LAYER_TEST(evaluation_render_settings_a)
+#VIEW_LAYER_TEST(evaluation_render_settings_b)
+#VIEW_LAYER_TEST(evaluation_render_settings_c)
+#VIEW_LAYER_TEST(evaluation_render_settings_d)
+#VIEW_LAYER_TEST(evaluation_render_settings_e)
+#VIEW_LAYER_TEST(evaluation_render_settings_f)
+#VIEW_LAYER_TEST(evaluation_render_settings_g)
+#VIEW_LAYER_TEST(evaluation_render_settings_h)
+#VIEW_LAYER_TEST(evaluation_render_settings_i)
 VIEW_LAYER_TEST(evaluation_visibility_a)
 VIEW_LAYER_TEST(evaluation_visibility_b)
 VIEW_LAYER_TEST(evaluation_visibility_c)

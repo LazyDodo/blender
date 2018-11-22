@@ -6,9 +6,6 @@ layout(std140) uniform globalsBlock {
 	vec4 colorActive;
 	vec4 colorSelect;
 	vec4 colorTransform;
-	vec4 colorGroupActive;
-	vec4 colorGroupSelect;
-	vec4 colorGroup;
 	vec4 colorLibrarySelect;
 	vec4 colorLibrary;
 	vec4 colorLamp;
@@ -17,6 +14,8 @@ layout(std140) uniform globalsBlock {
 	vec4 colorEmpty;
 	vec4 colorVertex;
 	vec4 colorVertexSelect;
+	vec4 colorVertexUnreferenced;
+	vec4 colorVertexMissingData;
 	vec4 colorEditMeshActive;
 	vec4 colorEdgeSelect;
 	vec4 colorEdgeSeam;
@@ -24,13 +23,14 @@ layout(std140) uniform globalsBlock {
 	vec4 colorEdgeCrease;
 	vec4 colorEdgeBWeight;
 	vec4 colorEdgeFaceSelect;
+	vec4 colorEdgeFreestyle;
 	vec4 colorFace;
 	vec4 colorFaceSelect;
+	vec4 colorFaceFreestyle;
 	vec4 colorNormal;
 	vec4 colorVNormal;
 	vec4 colorLNormal;
 	vec4 colorFaceDot;
-
 	vec4 colorDeselect;
 	vec4 colorOutline;
 	vec4 colorLampNoAlpha;
@@ -48,8 +48,14 @@ layout(std140) uniform globalsBlock {
 	vec4 colorHandleSelAlign;
 	vec4 colorHandleSelAutoclamp;
 	vec4 colorNurbUline;
+	vec4 colorNurbVline;
 	vec4 colorNurbSelUline;
+	vec4 colorNurbSelVline;
 	vec4 colorActiveSpline;
+
+	vec4 colorBonePose;
+
+	vec4 colorCurrentFrame;
 
 	vec4 colorGrid;
 	vec4 colorGridEmphasise;
@@ -69,4 +75,6 @@ layout(std140) uniform globalsBlock {
 	float gridResolution;
 	float gridSubdivisions;
 	float gridScale;
+
+	float pad_globalsBlock;
 };

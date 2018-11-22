@@ -34,7 +34,9 @@
 #include "BKE_context.h"
 #include "BKE_curve.h"
 #include "BKE_fcurve.h"
+#include "BKE_main.h"
 #include "BKE_report.h"
+#include "BKE_layer.h"
 
 #include "DEG_depsgraph.h"
 
@@ -49,9 +51,11 @@
 #include "BIF_gl.h"
 
 #include "GPU_batch.h"
+#include "GPU_batch_presets.h"
 #include "GPU_immediate.h"
 #include "GPU_immediate_util.h"
 #include "GPU_matrix.h"
+#include "GPU_state.h"
 
 #include "curve_intern.h"
 
@@ -93,7 +97,7 @@ struct StrokeElem {
 };
 
 struct CurveDrawData {
-	const Depsgraph *depsgraph;
+	Depsgraph *depsgraph;
 
 	short init_event_type;
 	short curve_type;
@@ -104,7 +108,7 @@ struct CurveDrawData {
 		bool use_plane;
 		float    plane[4];
 
-		/* use 'rv3d->depths', note that this will become 'damaged' while drawing, but thats OK. */
+		/* use 'rv3d->depths', note that this will become 'damaged' while drawing, but that's OK. */
 		bool use_depth;
 
 		/* offset projection by this value */
@@ -191,7 +195,6 @@ static bool stroke_elem_project(
         float surface_offset, const float radius,
         float r_location_world[3], float r_normal_world[3])
 {
-	View3D *v3d = cdd->vc.v3d;
 	ARegion *ar = cdd->vc.ar;
 	RegionView3D *rv3d = cdd->vc.rv3d;
 
@@ -200,12 +203,7 @@ static bool stroke_elem_project(
 	/* project to 'location_world' */
 	if (cdd->project.use_plane) {
 		/* get the view vector to 'location' */
-		float ray_origin[3], ray_direction[3];
-		ED_view3d_win_to_ray(cdd->depsgraph, cdd->vc.ar, v3d, mval_fl, ray_origin, ray_direction, false);
-
-		float lambda;
-		if (isect_ray_plane_v3(ray_origin, ray_direction, cdd->project.plane, &lambda, true)) {
-			madd_v3_v3v3fl(r_location_world, ray_origin, ray_direction, lambda);
+		if (ED_view3d_win_to_3d_on_plane(ar, cdd->project.plane, mval_fl, true, r_location_world)) {
 			if (r_normal_world) {
 				zero_v3(r_normal_world);
 			}
@@ -371,7 +369,6 @@ static void curve_draw_stroke_3d(const struct bContext *UNUSED(C), ARegion *UNUS
 		return;
 	}
 
-	View3D *v3d = cdd->vc.v3d;
 	Object *obedit = cdd->vc.obedit;
 	Curve *cu = obedit->data;
 
@@ -385,17 +382,17 @@ static void curve_draw_stroke_3d(const struct bContext *UNUSED(C), ARegion *UNUS
 		float color[3];
 		UI_GetThemeColor3fv(TH_WIRE, color);
 
-		Gwn_Batch *sphere = GPU_batch_preset_sphere(0);
-		GWN_batch_program_set_builtin(sphere, GPU_SHADER_3D_UNIFORM_COLOR);
-		GWN_batch_uniform_3fv(sphere, "color", color);
+		GPUBatch *sphere = GPU_batch_preset_sphere(0);
+		GPU_batch_program_set_builtin(sphere, GPU_SHADER_3D_UNIFORM_COLOR);
+		GPU_batch_uniform_3fv(sphere, "color", color);
 
 		/* scale to edit-mode space */
-		gpuPushMatrix();
-		gpuMultMatrix(obedit->obmat);
+		GPU_matrix_push();
+		GPU_matrix_mul(obedit->obmat);
 
 		BLI_mempool_iternew(cdd->stroke_elem_pool, &iter);
 		for (selem = BLI_mempool_iterstep(&iter); selem; selem = BLI_mempool_iterstep(&iter)) {
-			gpuTranslate3f(
+			GPU_matrix_translate_3f(
 			        selem->location_local[0] - location_prev[0],
 			        selem->location_local[1] - location_prev[1],
 			        selem->location_local[2] - location_prev[2]);
@@ -403,15 +400,15 @@ static void curve_draw_stroke_3d(const struct bContext *UNUSED(C), ARegion *UNUS
 
 			const float radius = stroke_elem_radius(cdd, selem);
 
-			gpuPushMatrix();
-			gpuScaleUniform(radius);
-			GWN_batch_draw(sphere);
-			gpuPopMatrix();
+			GPU_matrix_push();
+			GPU_matrix_scale_1f(radius);
+			GPU_batch_draw(sphere);
+			GPU_matrix_pop();
 
 			location_prev = selem->location_local;
 		}
 
-		gpuPopMatrix();
+		GPU_matrix_pop();
 	}
 
 	if (stroke_len > 1) {
@@ -428,43 +425,35 @@ static void curve_draw_stroke_3d(const struct bContext *UNUSED(C), ARegion *UNUS
 		}
 
 		{
-			Gwn_VertFormat *format = immVertexFormat();
-			unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 3, GWN_FETCH_FLOAT);
+			GPUVertFormat *format = immVertexFormat();
+			uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
 			immBindBuiltinProgram(GPU_SHADER_3D_UNIFORM_COLOR);
 
-			glEnable(GL_BLEND);
-			glEnable(GL_LINE_SMOOTH);
+			GPU_depth_test(false);
+			GPU_blend(true);
+			GPU_line_smooth(true);
+			GPU_line_width(3.0f);
 
 			imm_cpack(0x0);
-			immBegin(GWN_PRIM_LINE_STRIP, stroke_len);
-			glLineWidth(3.0f);
-
-			if (v3d->zbuf) {
-				glDisable(GL_DEPTH_TEST);
-			}
-
+			immBegin(GPU_PRIM_LINE_STRIP, stroke_len);
 			for (int i = 0; i < stroke_len; i++) {
 				immVertex3fv(pos, coord_array[i]);
 			}
-
 			immEnd();
+
+			GPU_line_width(1.0f);
 
 			imm_cpack(0xffffffff);
-			immBegin(GWN_PRIM_LINE_STRIP, stroke_len);
-			glLineWidth(1.0f);
-
+			immBegin(GPU_PRIM_LINE_STRIP, stroke_len);
 			for (int i = 0; i < stroke_len; i++) {
 				immVertex3fv(pos, coord_array[i]);
 			}
-
 			immEnd();
 
-			if (v3d->zbuf) {
-				glEnable(GL_DEPTH_TEST);
-			}
-
-			glDisable(GL_BLEND);
-			glDisable(GL_LINE_SMOOTH);
+			/* Reset defaults */
+			GPU_depth_test(true);
+			GPU_blend(false);
+			GPU_line_smooth(false);
 
 			immUnbindProgram();
 		}
@@ -616,6 +605,7 @@ static bool curve_draw_init(bContext *C, wmOperator *op, bool is_invoke)
 		}
 	}
 	else {
+		cdd->vc.bmain = CTX_data_main(C);
 		cdd->vc.depsgraph = CTX_data_depsgraph(C);
 		cdd->vc.scene = CTX_data_scene(C);
 		cdd->vc.view_layer = CTX_data_view_layer(C);
@@ -711,7 +701,7 @@ static void curve_draw_exec_precalc(wmOperator *op)
 			const struct StrokeElem *selem, *selem_first, *selem_last;
 
 			BLI_mempool_iternew(cdd->stroke_elem_pool, &iter);
-			selem_first = BLI_mempool_iterstep(&iter);
+			selem_first = selem_last = BLI_mempool_iterstep(&iter);
 			for (selem = BLI_mempool_iterstep(&iter); selem; selem = BLI_mempool_iterstep(&iter)) {
 				selem_last = selem;
 			}
@@ -802,7 +792,14 @@ static int curve_draw_exec(bContext *C, wmOperator *op)
 		stroke_len = BLI_mempool_len(cdd->stroke_elem_pool);
 	}
 
-	ED_curve_deselect_all(cu->editnurb);
+	/* Deselect all existing curves. */
+	{
+		ViewLayer *view_layer = CTX_data_view_layer(C);
+		uint objects_len;
+		Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+		ED_curve_deselect_all_multi(objects, objects_len);
+		MEM_freeN(objects);
+	}
 
 	const float radius_min = cps->radius_min;
 	const float radius_max = cps->radius_max;
@@ -1007,8 +1004,15 @@ static int curve_draw_exec(bContext *C, wmOperator *op)
 		const struct StrokeElem *selem;
 
 		nu->pntsu = stroke_len;
+		nu->pntsv = 1;
 		nu->type = CU_POLY;
 		nu->bp = MEM_callocN(nu->pntsu * sizeof(BPoint), __func__);
+
+		/* Misc settings. */
+		nu->resolu = cu->resolu;
+		nu->resolv = 1;
+		nu->orderu = 4;
+		nu->orderv = 1;
 
 		BPoint *bp = nu->bp;
 
@@ -1093,15 +1097,12 @@ static int curve_draw_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 		}
 		else {
 			if ((cps->depth_mode == CURVE_PAINT_PROJECT_SURFACE) &&
-			    (v3d->drawtype > OB_WIRE))
+			    (v3d->shading.type > OB_WIRE))
 			{
-				EvaluationContext eval_ctx;
-				CTX_data_eval_ctx(C, &eval_ctx);
-
 				/* needed or else the draw matrix can be incorrect */
 				view3d_operator_needs_opengl(C);
 
-				ED_view3d_autodist_init(&eval_ctx, cdd->vc.depsgraph, cdd->vc.ar, cdd->vc.v3d, 0);
+				ED_view3d_autodist_init(cdd->vc.depsgraph, cdd->vc.ar, cdd->vc.v3d, 0);
 
 				if (cdd->vc.rv3d->depths) {
 					cdd->vc.rv3d->depths->damaged = true;
@@ -1120,7 +1121,7 @@ static int curve_draw_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 
 			/* use view plane (when set or as fallback when surface can't be found) */
 			if (cdd->project.use_depth == false) {
-				plane_co = ED_view3d_cursor3d_get(cdd->vc.scene, v3d);
+				plane_co = ED_view3d_cursor3d_get(cdd->vc.scene, v3d)->location;
 				plane_no = rv3d->viewinv[2];
 				cdd->project.use_plane = true;
 			}

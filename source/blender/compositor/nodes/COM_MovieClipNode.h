@@ -15,9 +15,9 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Contributor: 
- *		Jeroen Bakker 
- *		Monique Dewanchand
+ * Contributor:
+ *      Jeroen Bakker
+ *      Monique Dewanchand
  */
 
 #ifndef __COM_MOVIECLIPNODE_H__
@@ -27,8 +27,8 @@
 #include "DNA_node_types.h"
 
 /**
- * @brief MovieClipNode
- * @ingroup Node
+ * \brief MovieClipNode
+ * \ingroup Node
  */
 class MovieClipNode : public Node {
 public:

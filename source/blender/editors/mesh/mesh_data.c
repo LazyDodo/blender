@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2009 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -42,12 +42,10 @@
 #include "BLI_math.h"
 
 #include "BKE_context.h"
-#include "BKE_library.h"
-#include "BKE_main.h"
+#include "BKE_editmesh.h"
 #include "BKE_mesh.h"
 #include "BKE_paint.h"
 #include "BKE_report.h"
-#include "BKE_editmesh.h"
 
 #include "DEG_depsgraph.h"
 
@@ -255,7 +253,7 @@ void ED_mesh_uv_loop_reset(struct bContext *C, struct Mesh *me)
 	CustomData *ldata = GET_CD_DATA(me, ldata);
 	const int layernum = CustomData_get_active_layer(ldata, CD_MLOOPUV);
 	ED_mesh_uv_loop_reset_ex(me, layernum);
-	
+
 	WM_event_add_notifier(C, NC_GEOM | ND_DATA, me);
 }
 
@@ -301,7 +299,7 @@ int ED_mesh_uv_texture_add(Mesh *me, const char *name, const bool active_set)
 			CustomData_add_layer_named(&me->ldata, CD_MLOOPUV, CD_DEFAULT, NULL, me->totloop, name);
 			CustomData_add_layer_named(&me->fdata, CD_MTFACE, CD_DEFAULT, NULL, me->totface, name);
 		}
-		
+
 		if (active_set || layernum_dst == 0) {
 			CustomData_set_layer_active(&me->ldata, CD_MLOOPUV, layernum_dst);
 			CustomData_set_layer_active(&me->fdata, CD_MTFACE, layernum_dst);
@@ -497,7 +495,7 @@ bool ED_mesh_color_remove_named(Mesh *me, const char *name)
 
 /*********************** UV texture operators ************************/
 
-static int layers_poll(bContext *C)
+static bool layers_poll(bContext *C)
 {
 	Object *ob = ED_object_context(C);
 	ID *data = (ob) ? ob->data : NULL;
@@ -517,7 +515,7 @@ static int mesh_uv_texture_add_exec(bContext *C, wmOperator *UNUSED(op))
 		BKE_paint_proj_mesh_data_check(scene, ob, NULL, NULL, NULL, NULL);
 		WM_event_add_notifier(C, NC_SCENE | ND_TOOLSETTINGS, NULL);
 	}
-	
+
 	return OPERATOR_FINISHED;
 }
 
@@ -527,97 +525,13 @@ void MESH_OT_uv_texture_add(wmOperatorType *ot)
 	ot->name = "Add UV Map";
 	ot->description = "Add UV Map";
 	ot->idname = "MESH_OT_uv_texture_add";
-	
+
 	/* api callbacks */
 	ot->poll = layers_poll;
 	ot->exec = mesh_uv_texture_add_exec;
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-}
-
-static int drop_named_image_invoke(bContext *C, wmOperator *op, const wmEvent *event)
-{
-	Main *bmain = CTX_data_main(C);
-	Scene *scene = CTX_data_scene(C);
-	View3D *v3d = CTX_wm_view3d(C);
-	Base *base;
-	Image *ima = NULL;
-	Mesh *me;
-	Object *obedit;
-	int exitmode = 0;
-	
-	if (v3d == NULL) {
-		BKE_report(op->reports, RPT_ERROR, "No 3D View Available");
-		return OPERATOR_CANCELLED;
-	}
-
-	base = ED_view3d_give_base_under_cursor(C, event->mval);
-
-	/* Check context */
-	if (base == NULL || base->object->type != OB_MESH) {
-		BKE_report(op->reports, RPT_ERROR, "Not an object or mesh");
-		return OPERATOR_CANCELLED;
-	}
-	
-	ima = (Image *)WM_operator_drop_load_path(C, op, ID_IM);
-	if (!ima) {
-		return OPERATOR_CANCELLED;
-	}
-	/* handled below */
-	id_us_min((ID *)ima);
-
-	/* put mesh in editmode */
-
-	obedit = base->object;
-	me = obedit->data;
-	if (me->edit_btmesh == NULL) {
-		EDBM_mesh_make(obedit, scene->toolsettings->selectmode, false);
-		exitmode = 1;
-	}
-	if (me->edit_btmesh == NULL)
-		return OPERATOR_CANCELLED;
-	
-	ED_uvedit_assign_image(bmain, scene, obedit, ima, NULL);
-
-	if (exitmode) {
-		EDBM_mesh_load(obedit);
-		EDBM_mesh_free(me->edit_btmesh);
-		MEM_freeN(me->edit_btmesh);
-		me->edit_btmesh = NULL;
-
-		/* load_editMesh free's pointers used by CustomData layers which might be used by DerivedMesh too,
-		 * so signal to re-create DerivedMesh here (sergey) */
-		DEG_id_tag_update(&me->id, 0);
-	}
-
-	/* dummie drop support; ensure view shows a result :) */
-	if (v3d)
-		v3d->flag2 |= V3D_SOLID_TEX;
-	
-	WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
-	
-	return OPERATOR_FINISHED;
-}
-
-void MESH_OT_drop_named_image(wmOperatorType *ot)
-{
-	/* identifiers */
-	ot->name = "Drop Image to Mesh UV Map";
-	ot->description = "Assign Image to active UV Map, or create an UV Map";
-	ot->idname = "MESH_OT_drop_named_image";
-	
-	/* api callbacks */
-	ot->poll = layers_poll;
-	ot->invoke = drop_named_image_invoke;
-	
-	/* flags */
-	ot->flag = OPTYPE_UNDO | OPTYPE_INTERNAL;
-	
-	/* properties */
-	RNA_def_string(ot->srna, "name", "Image", MAX_ID_NAME - 2, "Name", "Image name to assign");
-	RNA_def_string(ot->srna, "filepath", "Path", FILE_MAX, "Filepath", "Path to image file");
-	RNA_def_boolean(ot->srna, "relative_path", true, "Relative Path", "Select the file relative to the blend file");
 }
 
 static int mesh_uv_texture_remove_exec(bContext *C, wmOperator *UNUSED(op))
@@ -633,7 +547,7 @@ static int mesh_uv_texture_remove_exec(bContext *C, wmOperator *UNUSED(op))
 		BKE_paint_proj_mesh_data_check(scene, ob, NULL, NULL, NULL, NULL);
 		WM_event_add_notifier(C, NC_SCENE | ND_TOOLSETTINGS, NULL);
 	}
-	
+
 	return OPERATOR_FINISHED;
 }
 
@@ -643,7 +557,7 @@ void MESH_OT_uv_texture_remove(wmOperatorType *ot)
 	ot->name = "Remove UV Map";
 	ot->description = "Remove UV Map";
 	ot->idname = "MESH_OT_uv_texture_remove";
-	
+
 	/* api callbacks */
 	ot->poll = layers_poll;
 	ot->exec = mesh_uv_texture_remove_exec;
@@ -671,7 +585,7 @@ void MESH_OT_vertex_color_add(wmOperatorType *ot)
 	ot->name = "Add Vertex Color";
 	ot->description = "Add vertex color layer";
 	ot->idname = "MESH_OT_vertex_color_add";
-	
+
 	/* api callbacks */
 	ot->poll = layers_poll;
 	ot->exec = mesh_vertex_color_add_exec;
@@ -697,7 +611,7 @@ void MESH_OT_vertex_color_remove(wmOperatorType *ot)
 	ot->name = "Remove Vertex Color";
 	ot->description = "Remove vertex color layer";
 	ot->idname = "MESH_OT_vertex_color_remove";
-	
+
 	/* api callbacks */
 	ot->exec = mesh_vertex_color_remove_exec;
 	ot->poll = layers_poll;
@@ -738,7 +652,7 @@ static int mesh_customdata_clear_exec__internal(bContext *C,
 }
 
 /* Clear Mask */
-static int mesh_customdata_mask_clear_poll(bContext *C)
+static bool mesh_customdata_mask_clear_poll(bContext *C)
 {
 	Object *ob = ED_object_context(C);
 	if (ob && ob->type == OB_MESH) {
@@ -811,7 +725,7 @@ static int mesh_customdata_skin_state(bContext *C)
 	return -1;
 }
 
-static int mesh_customdata_skin_add_poll(bContext *C)
+static bool mesh_customdata_skin_add_poll(bContext *C)
 {
 	return (mesh_customdata_skin_state(C) == 0);
 }
@@ -844,7 +758,7 @@ void MESH_OT_customdata_skin_add(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 }
 
-static int mesh_customdata_skin_clear_poll(bContext *C)
+static bool mesh_customdata_skin_clear_poll(bContext *C)
 {
 	return (mesh_customdata_skin_state(C) == 1);
 }
@@ -882,8 +796,6 @@ static int mesh_customdata_custom_splitnormals_add_exec(bContext *C, wmOperator 
 			/* Tag edges as sharp according to smooth threshold if needed, to preserve autosmooth shading. */
 			if (me->flag & ME_AUTOSMOOTH) {
 				BM_edges_sharp_from_angle_set(me->edit_btmesh->bm, me->smoothresh);
-
-				me->drawflag |= ME_DRAWSHARP;
 			}
 
 			BM_data_layer_add(me->edit_btmesh->bm, data, CD_CUSTOMLOOPNORMAL);
@@ -907,8 +819,6 @@ static int mesh_customdata_custom_splitnormals_add_exec(bContext *C, wmOperator 
 				            me->smoothresh);
 
 				MEM_freeN(polynors);
-
-				me->drawflag |= ME_DRAWSHARP;
 			}
 
 			CustomData_add_layer(data, CD_CUSTOMLOOPNORMAL, CD_DEFAULT, NULL, me->totloop);
@@ -965,7 +875,7 @@ void MESH_OT_customdata_custom_splitnormals_clear(wmOperatorType *ot)
 
 /************************** Add Geometry Layers *************************/
 
-void ED_mesh_update(Mesh *mesh, bContext *C, int calc_edges, int calc_tessface)
+void ED_mesh_update(Mesh *mesh, bContext *C, bool calc_edges, bool calc_edges_loose, bool calc_tessface)
 {
 	bool tessface_input = false;
 
@@ -974,6 +884,10 @@ void ED_mesh_update(Mesh *mesh, bContext *C, int calc_edges, int calc_tessface)
 
 		/* would only be converting back again, don't bother */
 		tessface_input = true;
+	}
+
+	if (calc_edges_loose && mesh->totedge) {
+		BKE_mesh_calc_edges_loose(mesh);
 	}
 
 	if (calc_edges || ((mesh->totpoly || mesh->totface) && mesh->totedge == 0))

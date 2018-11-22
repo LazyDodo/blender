@@ -26,7 +26,6 @@ class UnitTesting(ViewLayerTesting):
 
         layer = scene.view_layers.new('Selectability Test')
         layer.collections.unlink(layer.collections[0])
-        scene.view_layers.active = layer
         window.view_layer = layer
 
         scene_collection_mom = scene.master_collection.collections.new("Mom")
@@ -38,7 +37,7 @@ class UnitTesting(ViewLayerTesting):
         layer_collection_kid = layer.collections.link(scene_collection_kid)
 
         layer_collection_mom.enabled = True
-        cube.select_set('SELECT')
+        cube.select_set(True)
         layer_collection_mom.collections[layer_collection_kid.name].selectable = False
         layer_collection_kid.enabled = False
 

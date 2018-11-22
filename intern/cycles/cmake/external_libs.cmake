@@ -98,6 +98,12 @@ if(CYCLES_STANDALONE_REPOSITORY)
 	endif()
 
 	####
+	# OpenColorIO
+	if(WITH_OPENCOLORIO)
+		find_package(OpenColorIO REQUIRED)
+	endif()
+
+	####
 	# Boost
 	set(__boost_packages filesystem regex system thread date_time)
 	if(WITH_CYCLES_NETWORK)
@@ -125,6 +131,12 @@ if(CYCLES_STANDALONE_REPOSITORY)
 	set(BOOST_LIBRARIES ${Boost_LIBRARIES})
 	set(BOOST_LIBPATH ${Boost_LIBRARY_DIRS})
 	set(BOOST_DEFINITIONS "-DBOOST_ALL_NO_LIB")
+
+	####
+	# embree
+	if(WITH_CYCLES_EMBREE)
+		find_package(embree 3.2.4 REQUIRED)
+	endif()
 
 	####
 	# Logging

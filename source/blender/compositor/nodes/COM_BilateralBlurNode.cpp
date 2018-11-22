@@ -15,9 +15,9 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Contributor: 
- *		Jeroen Bakker 
- *		Monique Dewanchand
+ * Contributor:
+ *      Jeroen Bakker
+ *      Monique Dewanchand
  */
 
 #include "COM_BilateralBlurNode.h"
@@ -36,7 +36,7 @@ void BilateralBlurNode::convertToOperations(NodeConverter &converter, const Comp
 	BilateralBlurOperation *operation = new BilateralBlurOperation();
 	operation->setQuality(context.getQuality());
 	operation->setData(data);
-	
+
 	converter.addOperation(operation);
 	converter.mapInputSocket(getInputSocket(0), operation->getInputSocket(0));
 	converter.mapInputSocket(getInputSocket(1), operation->getInputSocket(1));

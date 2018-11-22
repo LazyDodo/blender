@@ -40,6 +40,7 @@
 #include "BKE_curve.h"
 #include "BKE_cdderivedmesh.h"
 #include "BKE_editmesh.h"
+#include "BKE_mesh_runtime.h"
 #include "BKE_report.h"
 
 #include "DEG_depsgraph.h"
@@ -60,31 +61,30 @@
 
 static LinkNode *knifeproject_poly_from_object(const bContext *C, Scene *scene, Object *ob, LinkNode *polys)
 {
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	ARegion *ar = CTX_wm_region(C);
-	EvaluationContext eval_ctx;
-	DerivedMesh *dm;
-	bool dm_needsFree;
+	struct Mesh *me_eval;
+	bool me_eval_needs_free;
 
-	CTX_data_eval_ctx(C, &eval_ctx);
-
-	if (ob->type == OB_MESH || ob->derivedFinal) {
-		dm = ob->derivedFinal ? ob->derivedFinal : mesh_get_derived_final(&eval_ctx, scene, ob, CD_MASK_BAREMESH);
-		dm_needsFree = false;
+	if (ob->type == OB_MESH || ob->runtime.mesh_eval) {
+		me_eval = (ob->runtime.mesh_eval ?
+		           ob->runtime.mesh_eval : mesh_get_eval_final(depsgraph, scene, ob, CD_MASK_BAREMESH));
+		me_eval_needs_free = false;
 	}
 	else if (ELEM(ob->type, OB_FONT, OB_CURVE, OB_SURF)) {
-		dm = CDDM_from_curve(ob);
-		dm_needsFree = true;
+		me_eval = BKE_mesh_new_nomain_from_curve(ob);
+		me_eval_needs_free = true;
 	}
 	else {
-		dm = NULL;
+		me_eval = NULL;
 	}
 
-	if (dm) {
+	if (me_eval) {
 		ListBase nurbslist = {NULL, NULL};
 		float projmat[4][4];
 
-		BKE_mesh_to_curve_nurblist(dm, &nurbslist, 0);  /* wire */
-		BKE_mesh_to_curve_nurblist(dm, &nurbslist, 1);  /* boundary */
+		BKE_mesh_to_curve_nurblist(me_eval, &nurbslist, 0);  /* wire */
+		BKE_mesh_to_curve_nurblist(me_eval, &nurbslist, 1);  /* boundary */
 
 		ED_view3d_ob_project_mat_get(ar->regiondata, ob, projmat);
 
@@ -111,11 +111,10 @@ static LinkNode *knifeproject_poly_from_object(const bContext *C, Scene *scene, 
 
 		BKE_nurbList_free(&nurbslist);
 
-		if (dm_needsFree) {
-			dm->release(dm);
+		if (me_eval_needs_free) {
+			BKE_mesh_free(me_eval);
 		}
 	}
-
 
 	return polys;
 }

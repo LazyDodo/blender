@@ -16,9 +16,9 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
  * Contributor:
- *		Jeroen Bakker
- *		Monique Dewanchand
- *		Sergey Sharybin
+ *      Jeroen Bakker
+ *      Monique Dewanchand
+ *      Sergey Sharybin
  */
 
 #include "COM_TrackPositionNode.h"
@@ -63,7 +63,7 @@ void TrackPositionNode::convertToOperations(NodeConverter &converter, const Comp
 	bNode *editorNode = this->getbNode();
 	MovieClip *clip = (MovieClip *) editorNode->id;
 	NodeTrackPosData *trackpos_data = (NodeTrackPosData *) editorNode->storage;
-	
+
 	NodeOutput *outputX = this->getOutputSocket(0);
 	NodeOutput *outputY = this->getOutputSocket(1);
 	NodeOutput *outputSpeed = this->getOutputSocket(2);

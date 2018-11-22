@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Joshua Leung
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -141,12 +141,12 @@ typedef enum eKeyframeVertOk {
 typedef enum eKeyframeIterFlags {
 	/* consider handles in addition to key itself */
 	KEYFRAME_ITER_INCL_HANDLES  = (1 << 0),
-	
+
 	/* Perform NLA time remapping (global -> strip) for the "f1" parameter
 	 * (e.g. used for selection tools on summary tracks)
 	 */
 	KED_F1_NLA_UNMAP            = (1 << 1),
-	
+
 	/* Perform NLA time remapping (global -> strip) for the "f2" parameter */
 	KED_F2_NLA_UNMAP            = (1 << 2),
 } eKeyframeIterFlags;
@@ -165,7 +165,7 @@ typedef struct KeyframeEditData {
 	struct FCurve *fcu;         /* F-Curve that is being iterated over */
 	int curIndex;               /* index of current keyframe being iterated over */
 	float channel_y;            /* y-position of midpoint of the channel (for the dopesheet) */
-	
+
 	/* flags */
 	eKeyframeVertOk curflags;        /* current flags for the keyframe we're reached in the iteration process */
 	eKeyframeIterFlags iterflags;    /* settings for iteration process */
@@ -216,11 +216,11 @@ typedef enum eKeyMergeMode {
 /* function for working with F-Curve data only (i.e. when filters have been chosen to explicitly use this) */
 short ANIM_fcurve_keyframes_loop(KeyframeEditData *ked, struct FCurve *fcu, KeyframeEditFunc key_ok, KeyframeEditFunc key_cb, FcuEditFunc fcu_cb);
 /* function for working with any type (i.e. one of the known types) of animation channel
- *  - filterflag is bDopeSheet->flag (DOPESHEET_FILTERFLAG)
+ * - filterflag is bDopeSheet->flag (DOPESHEET_FILTERFLAG)
  */
 short ANIM_animchannel_keyframes_loop(KeyframeEditData *ked, struct bDopeSheet *ads, struct bAnimListElem *ale, KeyframeEditFunc key_ok, KeyframeEditFunc key_cb, FcuEditFunc fcu_cb);
 /* same as above, except bAnimListElem wrapper is not needed...
- *  - keytype is eAnim_KeyType
+ * - keytype is eAnim_KeyType
  */
 short ANIM_animchanneldata_keyframes_loop(KeyframeEditData *ked, struct bDopeSheet *ads, void *data, int keytype, KeyframeEditFunc key_ok, KeyframeEditFunc key_cb, FcuEditFunc fcu_cb);
 
@@ -243,8 +243,8 @@ KeyframeEditFunc ANIM_editkeyframes_easing(short mode);
 
 /* -------- BezTriple Callbacks (Selection Map) ---------- */
 
-/* Get a callback to populate the selection settings map  
- * requires: ked->custom = char[] of length fcurve->totvert 
+/* Get a callback to populate the selection settings map
+ * requires: ked->custom = char[] of length fcurve->totvert
  */
 KeyframeEditFunc ANIM_editkeyframes_buildselmap(short mode);
 
@@ -262,7 +262,7 @@ short bezt_calc_average(KeyframeEditData *ked, struct BezTriple *bezt);
 short bezt_to_cfraelem(KeyframeEditData *ked, struct BezTriple *bezt);
 
 /* used to remap times from one range to another
- * requires:  ked->custom = KeyframeEditCD_Remap	
+ * requires:  ked->custom = KeyframeEditCD_Remap
  */
 void bezt_remap_times(KeyframeEditData *ked, struct BezTriple *bezt);
 

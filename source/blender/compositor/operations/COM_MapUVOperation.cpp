@@ -16,7 +16,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
  * Contributor:
- *		Dalai Felinto
+ *      Dalai Felinto
  */
 
 #include "COM_MapUVOperation.h"
@@ -54,7 +54,7 @@ void MapUVOperation::executePixelSampled(float output[4], float x, float y, Pixe
 
 	/* EWA filtering */
 	this->m_inputColorProgram->readFiltered(output, uv[0], uv[1], deriv[0], deriv[1]);
-	
+
 	/* UV to alpha threshold */
 	const float threshold = this->m_alpha * 0.05f;
 	/* XXX alpha threshold is used to fade out pixels on boundaries with invalid derivatives.
@@ -174,4 +174,3 @@ bool MapUVOperation::determineDependingAreaOfInterest(rcti *input, ReadBufferOpe
 
 	return false;
 }
-

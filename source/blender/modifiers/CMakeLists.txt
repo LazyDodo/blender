@@ -24,7 +24,7 @@
 #
 # ***** END GPL LICENSE BLOCK *****
 
-set(INC 
+set(INC
 	.
 	intern
 	../blenkernel
@@ -100,6 +100,7 @@ set(SRC
 	intern/MOD_uvproject.c
 	intern/MOD_warp.c
 	intern/MOD_wave.c
+	intern/MOD_weighted_normal.c
 	intern/MOD_weightvg_util.c
 	intern/MOD_weightvgedit.c
 	intern/MOD_weightvgmix.c
@@ -143,8 +144,8 @@ if(WITH_INTERNATIONAL)
 	add_definitions(-DWITH_INTERNATIONAL)
 endif()
 
-if(WITH_OPENSUBDIV)
-	add_definitions(-DWITH_OPENSUBDIV)
+if(WITH_OPENSUBDIV_MODIFIER)
+	add_definitions(-DWITH_OPENSUBDIV_MODIFIER)
 endif()
 
 # So we can have special tricks in modifier system.

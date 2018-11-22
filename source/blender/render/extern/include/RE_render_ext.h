@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -37,8 +37,7 @@
 /* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
 /* called by meshtools */
-struct DerivedMesh;
-struct EvaluationContext;
+struct Depsgraph;
 struct ImagePool;
 struct MTex;
 struct Scene;
@@ -56,37 +55,29 @@ float texture_value_blend(float tex, float out, float fact, float facg, int blen
 void RE_texture_rng_init(void);
 void RE_texture_rng_exit(void);
 
-struct Material *RE_sample_material_init(const struct EvaluationContext *eval_ctx, struct Material *orig_mat, struct Scene *scene);
-void RE_sample_material_free(struct Material *mat);
-void RE_sample_material_color(
-        struct Material *mat, float color[3], float *alpha, const float volume_co[3], const float surface_co[3],
-        int tri_index, struct DerivedMesh *orcoDm, struct Object *ob);
-
 /* imagetexture.c */
 void ibuf_sample(struct ImBuf *ibuf, float fx, float fy, float dx, float dy, float result[4]);
-
-/* zbuf.c */
-void antialias_tagbuf(int xsize, int ysize, char *rectmove);
 
 /* pointdensity.c */
 struct PointDensity;
 
 void RE_point_density_cache(
-        const struct EvaluationContext *eval_ctx,
+        struct Depsgraph *depsgraph,
         struct PointDensity *pd);
 
 void RE_point_density_minmax(
-        const struct EvaluationContext *eval_ctx,
+        struct Depsgraph *depsgraph,
         struct PointDensity *pd,
         float r_min[3], float r_max[3]);
 
 void RE_point_density_sample(
-        const struct EvaluationContext *eval_ctx,
+        struct Depsgraph *depsgraph,
         struct PointDensity *pd,
         const int resolution,
         float *values);
 
 void RE_point_density_free(struct PointDensity *pd);
 
-#endif /* __RE_RENDER_EXT_H__ */
+void RE_point_density_fix_linking(void);
 
+#endif /* __RE_RENDER_EXT_H__ */

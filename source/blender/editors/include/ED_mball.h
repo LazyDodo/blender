@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -50,5 +50,12 @@ void ED_mball_editmball_load(struct Object *obedit);
 
 /* editmball_undo.c */
 void ED_mball_undosys_type(struct UndoType *ut);
+
+
+#define MBALLSEL_STIFF    (1 << 29)
+#define MBALLSEL_RADIUS   (1 << 30)
+#define MBALLSEL_ANY      (MBALLSEL_STIFF | MBALLSEL_RADIUS)
+
+#define MBALL_NOSEL   (1u << 31u)
 
 #endif  /* __ED_MBALL_H__ */

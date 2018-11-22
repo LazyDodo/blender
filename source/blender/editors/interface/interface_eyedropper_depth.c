@@ -41,6 +41,7 @@
 #include "BLI_math_vector.h"
 
 #include "BKE_context.h"
+#include "BKE_main.h"
 #include "BKE_screen.h"
 #include "BKE_unit.h"
 
@@ -157,9 +158,6 @@ static void depthdropper_depth_sample_pt(bContext *C, DepthDropper *ddr, int mx,
 	ScrArea *sa = BKE_screen_find_area_xy(screen, SPACE_TYPE_ANY, mx, my);
 	Scene *scene = CTX_data_scene(C);
 
-	UnitSettings *unit = &scene->unit;
-	const bool do_split = (unit->flag & USER_UNIT_OPT_SPLIT) != 0;
-
 	ScrArea *area_prev = CTX_wm_area(C);
 	ARegion *ar_prev = CTX_wm_region(C);
 
@@ -169,7 +167,7 @@ static void depthdropper_depth_sample_pt(bContext *C, DepthDropper *ddr, int mx,
 		if (sa->spacetype == SPACE_VIEW3D) {
 			ARegion *ar = BKE_area_find_region_xy(sa, RGN_TYPE_WINDOW, mx, my);
 			if (ar) {
-				struct Depsgraph *graph = CTX_data_depsgraph(C);
+				struct Depsgraph *depsgraph = CTX_data_depsgraph(C);
 				View3D *v3d = sa->spacedata.first;
 				RegionView3D *rv3d = ar->regiondata;
 				/* weak, we could pass in some reference point */
@@ -179,9 +177,6 @@ static void depthdropper_depth_sample_pt(bContext *C, DepthDropper *ddr, int mx,
 				    my - ar->winrct.ymin};
 				float co[3];
 
-				EvaluationContext eval_ctx;
-				CTX_data_eval_ctx(C, &eval_ctx);
-
 				CTX_wm_area_set(C, sa);
 				CTX_wm_region_set(C, ar);
 
@@ -190,7 +185,7 @@ static void depthdropper_depth_sample_pt(bContext *C, DepthDropper *ddr, int mx,
 
 				view3d_operator_needs_opengl(C);
 
-				if (ED_view3d_autodist(&eval_ctx, graph, ar, v3d, mval, co, true, NULL)) {
+				if (ED_view3d_autodist(depsgraph, ar, v3d, mval, co, true, NULL)) {
 					const float mval_center_fl[2] = {
 					    (float)ar->winx / 2,
 					    (float)ar->winy / 2};
@@ -201,9 +196,9 @@ static void depthdropper_depth_sample_pt(bContext *C, DepthDropper *ddr, int mx,
 
 					*r_depth = len_v3v3(view_co, co_align);
 
-					bUnit_AsString(ddr->name, sizeof(ddr->name),
-					               (double)*r_depth,
-					               4, unit->system, B_UNIT_LENGTH, do_split, false);
+					bUnit_AsString2(
+					        ddr->name, sizeof(ddr->name), (double)*r_depth,
+					        4, B_UNIT_LENGTH, &scene->unit, false);
 				}
 				else {
 					BLI_strncpy(ddr->name, "Nothing under cursor", sizeof(ddr->name));
@@ -337,7 +332,7 @@ static int depthdropper_exec(bContext *C, wmOperator *op)
 	}
 }
 
-static int depthdropper_poll(bContext *C)
+static bool depthdropper_poll(bContext *C)
 {
 	PointerRNA ptr;
 	PropertyRNA *prop;

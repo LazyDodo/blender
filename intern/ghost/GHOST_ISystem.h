@@ -315,11 +315,16 @@ public:
 	 * \return The current status.
 	 */
 	virtual bool getFullScreen(void) = 0;
-	
+
 	/**
 	 * Native pixel size support (MacBook 'retina').
 	 */
 	virtual bool useNativePixel(void) = 0;
+
+	/**
+	 * Focus window after opening, or put them in the background.
+	 */
+	virtual void useWindowFocus(const bool use_focus) = 0;
 
 	/***************************************************************************************
 	 * Event management functionality
@@ -462,4 +467,3 @@ protected:
 };
 
 #endif // __GHOST_ISYSTEM_H__
-

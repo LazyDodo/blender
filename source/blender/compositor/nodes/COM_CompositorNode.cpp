@@ -15,9 +15,9 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Contributor: 
- *		Jeroen Bakker 
- *		Monique Dewanchand
+ * Contributor:
+ *      Jeroen Bakker
+ *      Monique Dewanchand
  */
 
 #include "COM_CompositorNode.h"
@@ -49,7 +49,7 @@ void CompositorNode::convertToOperations(NodeConverter &converter, const Composi
 	/* alpha socket gives either 1 or a custom alpha value if "use alpha" is enabled */
 	compositorOperation->setUseAlphaInput(ignore_alpha || alphaSocket->isLinked());
 	compositorOperation->setActive(is_active);
-	
+
 	converter.addOperation(compositorOperation);
 	converter.mapInputSocket(imageSocket, compositorOperation->getInputSocket(0));
 	/* only use alpha link if "use alpha" is enabled */
@@ -58,6 +58,6 @@ void CompositorNode::convertToOperations(NodeConverter &converter, const Composi
 	else
 		converter.mapInputSocket(alphaSocket, compositorOperation->getInputSocket(1));
 	converter.mapInputSocket(depthSocket, compositorOperation->getInputSocket(2));
-	
+
 	converter.addNodeInputPreview(imageSocket);
 }

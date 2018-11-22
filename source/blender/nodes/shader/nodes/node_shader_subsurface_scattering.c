@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -54,6 +54,8 @@ static int node_shader_gpu_subsurface_scattering(GPUMaterial *mat, bNode *node, 
 	if (!in[5].link)
 		GPU_link(mat, "world_normals_get", &in[5].link);
 
+	GPU_material_flag_set(mat, GPU_MATFLAG_DIFFUSE | GPU_MATFLAG_SSS);
+
 	if (node->sss_id == 1) {
 		bNodeSocket *socket = BLI_findlink(&node->original->inputs, 2);
 		bNodeSocketValueRGBA *socket_data = socket->default_value;
@@ -65,7 +67,7 @@ static int node_shader_gpu_subsurface_scattering(GPUMaterial *mat, bNode *node, 
 		                                     &socket_data_sharp->value);
 	}
 
-	return GPU_stack_link(mat, node, "node_subsurface_scattering", in, out, GPU_uniform(&node->sss_id));
+	return GPU_stack_link(mat, node, "node_subsurface_scattering", in, out, GPU_constant(&node->sss_id));
 }
 
 static void node_shader_update_subsurface_scattering(bNodeTree *UNUSED(ntree), bNode *node)
@@ -90,7 +92,6 @@ void register_node_type_sh_subsurface_scattering(void)
 	static bNodeType ntype;
 
 	sh_node_type_base(&ntype, SH_NODE_SUBSURFACE_SCATTERING, "Subsurface Scattering", NODE_CLASS_SHADER, 0);
-	node_type_compatibility(&ntype, NODE_NEW_SHADING);
 	node_type_socket_templates(&ntype, sh_node_subsurface_scattering_in, sh_node_subsurface_scattering_out);
 	node_type_size_preset(&ntype, NODE_SIZE_MIDDLE);
 	node_type_init(&ntype, node_shader_init_subsurface_scattering);
@@ -100,4 +101,3 @@ void register_node_type_sh_subsurface_scattering(void)
 
 	nodeRegisterType(&ntype);
 }
-

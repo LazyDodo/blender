@@ -103,7 +103,13 @@ void IDDepsNode::init(const ID *id, const char *UNUSED(subdata))
 	/* Store ID-pointer. */
 	id_orig = (ID *)id;
 	eval_flags = 0;
+	previous_eval_flags = 0;
 	linked_state = DEG_ID_LINKED_INDIRECTLY;
+	is_directly_visible = true;
+	is_collection_fully_expanded = false;
+
+	visible_components_mask = 0;
+	previously_visible_components_mask = 0;
 
 	components = BLI_ghash_new(id_deps_node_hash_key,
 	                           id_deps_node_hash_key_cmp,
@@ -112,14 +118,6 @@ void IDDepsNode::init(const ID *id, const char *UNUSED(subdata))
 
 void IDDepsNode::init_copy_on_write(ID *id_cow_hint)
 {
-	/* Early output for non-copy-on-write case: we keep CoW pointer same as
-	 * an original one.
-	 */
-	if (!DEG_depsgraph_use_copy_on_write()) {
-		UNUSED_VARS(id_cow_hint);
-		id_cow = id_orig;
-		return;
-	}
 	/* Create pointer as early as possible, so we can use it for function
 	 * bindings. Rest of data we'll be copying to the new datablock when
 	 * it is actually needed.
@@ -164,12 +162,24 @@ void IDDepsNode::destroy()
 	if (id_cow != id_orig && id_cow != NULL) {
 		deg_free_copy_on_write_datablock(id_cow);
 		MEM_freeN(id_cow);
+		id_cow = NULL;
 		DEG_COW_PRINT("Destroy CoW for %s: id_orig=%p id_cow=%p\n",
 		              id_orig->name, id_orig, id_cow);
 	}
 
 	/* Tag that the node is freed. */
 	id_orig = NULL;
+}
+
+string IDDepsNode::identifier() const
+{
+	char orig_ptr[24], cow_ptr[24];
+	BLI_snprintf(orig_ptr, sizeof(orig_ptr), "%p", id_orig);
+	BLI_snprintf(cow_ptr, sizeof(cow_ptr), "%p", id_cow);
+	return string(nodeTypeAsString(type)) + " : " + name +
+	        " (orig: " + orig_ptr + ", eval: " + cow_ptr +
+	        ", is_directly_visible " + (is_directly_visible ? "true"
+	                                                        : "false") + ")";
 }
 
 ComponentDepsNode *IDDepsNode::find_component(eDepsNode_Type type,
@@ -195,11 +205,11 @@ ComponentDepsNode *IDDepsNode::add_component(eDepsNode_Type type,
 	return comp_node;
 }
 
-void IDDepsNode::tag_update(Depsgraph *graph)
+void IDDepsNode::tag_update(Depsgraph *graph, eDepsTag_Source source)
 {
 	GHASH_FOREACH_BEGIN(ComponentDepsNode *, comp_node, components)
 	{
-		comp_node->tag_update(graph);
+		comp_node->tag_update(graph, source);
 	}
 	GHASH_FOREACH_END();
 }
@@ -212,6 +222,21 @@ void IDDepsNode::finalize_build(Depsgraph *graph)
 		comp_node->finalize_build(graph);
 	}
 	GHASH_FOREACH_END();
+	visible_components_mask = get_visible_components_mask();
+}
+
+IDComponentsMask IDDepsNode::get_visible_components_mask() const {
+	IDComponentsMask result = 0;
+	GHASH_FOREACH_BEGIN(ComponentDepsNode *, comp_node, components)
+	{
+		if (comp_node->affects_directly_visible) {
+			const int component_type = comp_node->type;
+			BLI_assert(component_type < 64);
+			result |= (1ULL << component_type);
+		}
+	}
+	GHASH_FOREACH_END();
+	return result;
 }
 
 }  // namespace DEG

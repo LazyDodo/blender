@@ -140,8 +140,8 @@ static void PAINT_TEXTURE_engine_init(void *vedata)
 
 	/* Init Framebuffers like this: order is attachment order (for color texs) */
 	/*
-	 * DRWFboTexture tex[2] = {{&txl->depth, DRW_TEX_DEPTH_24, 0},
-	 *                         {&txl->color, DRW_TEX_RGBA_8, DRW_TEX_FILTER}};
+	 * DRWFboTexture tex[2] = {{&txl->depth, GPU_DEPTH_COMPONENT24, 0},
+	 *                         {&txl->color, GPU_RGBA8, DRW_TEX_FILTER}};
 	 */
 
 	/* DRW_framebuffer_init takes care of checking if
@@ -194,8 +194,7 @@ static void PAINT_TEXTURE_cache_init(void *vedata)
 
 	{
 		/* Create a pass */
-		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS |
-		                 DRW_STATE_BLEND | DRW_STATE_WIRE;
+		DRWState state = DRW_STATE_WRITE_COLOR | DRW_STATE_DEPTH_EQUAL | DRW_STATE_BLEND;
 		psl->image_faces = DRW_pass_create("Image Color Pass", state);
 
 		stl->g_data->shgroup_fallback = DRW_shgroup_create(e_data.fallback_sh, psl->image_faces);
@@ -222,11 +221,13 @@ static void PAINT_TEXTURE_cache_init(void *vedata)
 					Material *ma = give_current_material(ob, i + 1);
 					Image *ima = (ma && ma->texpaintslot) ? ma->texpaintslot[ma->paint_active_slot].ima : NULL;
 					GPUTexture *tex = ima ?
-					        GPU_texture_from_blender(ima, NULL, GL_TEXTURE_2D, false, false, false) : NULL;
+					        GPU_texture_from_blender(ima, NULL, GL_TEXTURE_2D, false, 0.0f) : NULL;
 
 					if (tex) {
 						DRWShadingGroup *grp = DRW_shgroup_create(e_data.image_sh, psl->image_faces);
 						DRW_shgroup_uniform_texture(grp, "image", tex);
+						DRW_shgroup_uniform_float(grp, "alpha", &draw_ctx->v3d->overlay.texture_paint_mode_opacity, 1);
+						DRW_shgroup_uniform_block(grp, "globalsBlock", globals_ubo);
 						stl->g_data->shgroup_image_array[i] = grp;
 					}
 					else {
@@ -237,11 +238,13 @@ static void PAINT_TEXTURE_cache_init(void *vedata)
 			else {
 				Image *ima = scene->toolsettings->imapaint.canvas;
 				GPUTexture *tex = ima ?
-				        GPU_texture_from_blender(ima, NULL, GL_TEXTURE_2D, false, false, false) : NULL;
+				        GPU_texture_from_blender(ima, NULL, GL_TEXTURE_2D, false, 0.0f) : NULL;
 
 				if (tex) {
 					DRWShadingGroup *grp = DRW_shgroup_create(e_data.image_sh, psl->image_faces);
 					DRW_shgroup_uniform_texture(grp, "image", tex);
+					DRW_shgroup_uniform_float(grp, "alpha", &draw_ctx->v3d->overlay.texture_paint_mode_opacity, 1);
+					DRW_shgroup_uniform_block(grp, "globalsBlock", globals_ubo);
 					stl->g_data->shgroup_image_array[0] = grp;
 				}
 				else {
@@ -255,15 +258,16 @@ static void PAINT_TEXTURE_cache_init(void *vedata)
 	{
 		psl->wire_overlay = DRW_pass_create(
 		        "Wire Pass",
-		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
+		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
 
 		stl->g_data->lwire_shgrp = DRW_shgroup_create(e_data.wire_overlay_shader, psl->wire_overlay);
+		DRW_shgroup_uniform_block(stl->g_data->lwire_shgrp, "globalsBlock", globals_ubo);
 	}
 
 	{
 		psl->face_overlay = DRW_pass_create(
 		        "Face Mask Pass",
-		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_BLEND);
+		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_BLEND);
 
 		stl->g_data->face_shgrp = DRW_shgroup_create(e_data.face_overlay_shader, psl->face_overlay);
 
@@ -285,16 +289,16 @@ static void PAINT_TEXTURE_cache_populate(void *vedata, Object *ob)
 		/* Get geometry cache */
 		const Mesh *me = ob->data;
 		Scene *scene = draw_ctx->scene;
-		const bool use_surface = DRW_object_is_mode_shade(ob) == true;
+		const bool use_surface = draw_ctx->v3d->overlay.texture_paint_mode_opacity != 0.0; //DRW_object_is_mode_shade(ob) == true;
 		const bool use_material_slots = (scene->toolsettings->imapaint.mode == IMAGEPAINT_MODE_MATERIAL);
 		bool ok = false;
 
 		if (use_surface) {
 			if (me->mloopuv != NULL) {
 				if (use_material_slots) {
-					struct Gwn_Batch **geom_array = me->totcol ? DRW_cache_mesh_surface_texpaint_get(ob) : NULL;
+					struct GPUBatch **geom_array = me->totcol ? DRW_cache_mesh_surface_texpaint_get(ob) : NULL;
 					if ((me->totcol == 0) || (geom_array == NULL)) {
-						struct Gwn_Batch *geom = DRW_cache_mesh_surface_get(ob);
+						struct GPUBatch *geom = DRW_cache_mesh_surface_get(ob);
 						DRW_shgroup_call_add(stl->g_data->shgroup_fallback, geom, ob->obmat);
 						ok = true;
 					}
@@ -311,7 +315,7 @@ static void PAINT_TEXTURE_cache_populate(void *vedata, Object *ob)
 					}
 				}
 				else {
-					struct Gwn_Batch *geom = DRW_cache_mesh_surface_texpaint_single_get(ob);
+					struct GPUBatch *geom = DRW_cache_mesh_surface_texpaint_single_get(ob);
 					if (geom && stl->g_data->shgroup_image_array[0]) {
 						DRW_shgroup_call_add(stl->g_data->shgroup_image_array[0], geom, ob->obmat);
 						ok = true;
@@ -320,7 +324,7 @@ static void PAINT_TEXTURE_cache_populate(void *vedata, Object *ob)
 			}
 
 			if (!ok) {
-				struct Gwn_Batch *geom = DRW_cache_mesh_surface_get(ob);
+				struct GPUBatch *geom = DRW_cache_mesh_surface_get(ob);
 				DRW_shgroup_call_add(stl->g_data->shgroup_fallback, geom, ob->obmat);
 			}
 		}
@@ -328,7 +332,7 @@ static void PAINT_TEXTURE_cache_populate(void *vedata, Object *ob)
 		/* Face Mask */
 		const bool use_face_sel = (me->editflag & ME_EDIT_PAINT_FACE_SEL) != 0;
 		if (use_face_sel) {
-			struct Gwn_Batch *geom;
+			struct GPUBatch *geom;
 			/* Note: ideally selected faces wouldn't show interior wire. */
 			const bool use_wire = true;
 			geom = DRW_cache_mesh_edges_paint_overlay_get(ob, use_wire, use_face_sel);
@@ -346,7 +350,7 @@ static void PAINT_TEXTURE_cache_finish(void *vedata)
 	PAINT_TEXTURE_PassList *psl = ((PAINT_TEXTURE_Data *)vedata)->psl;
 	PAINT_TEXTURE_StorageList *stl = ((PAINT_TEXTURE_Data *)vedata)->stl;
 
-	/* Do something here! dependant on the objects gathered */
+	/* Do something here! dependent on the objects gathered */
 	UNUSED_VARS(psl);
 
 	MEM_SAFE_FREE(stl->g_data->shgroup_image_array);
@@ -378,27 +382,6 @@ static void PAINT_TEXTURE_engine_free(void)
 	DRW_SHADER_FREE_SAFE(e_data.image_sh);
 	DRW_SHADER_FREE_SAFE(e_data.wire_overlay_shader);
 }
-
-/* Create collection settings here.
- *
- * Be sure to add this function there :
- * source/blender/draw/DRW_engine.h
- * source/blender/blenkernel/intern/layer.c
- * source/blenderplayer/bad_level_call_stubs/stubs.c
- *
- * And relevant collection settings to :
- * source/blender/makesrna/intern/rna_scene.c
- * source/blender/blenkernel/intern/layer.c
- */
-#if 0
-void PAINT_TEXTURE_collection_settings_create(CollectionEngineSettings *ces)
-{
-	BLI_assert(ces);
-	// BKE_collection_engine_property_add_int(ces, "my_bool_prop", false);
-	// BKE_collection_engine_property_add_int(ces, "my_int_prop", 0);
-	// BKE_collection_engine_property_add_float(ces, "my_float_prop", 0.0f);
-}
-#endif
 
 static const DrawEngineDataSize PAINT_TEXTURE_data_size = DRW_VIEWPORT_DATA_SIZE(PAINT_TEXTURE_Data);
 

@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2009 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -48,9 +48,6 @@ void BLF_default_dpi(int dpi);
 void BLF_default_set(int fontid);
 int BLF_default(void); /* get default font ID so we can pass it to other functions */
 void BLF_batch_reset(void); /* call when changing opengl context. */
-
-void BLF_antialias_set(bool enabled);
-bool BLF_antialias_get(void);
 
 void BLF_cache_clear(void);
 
@@ -105,6 +102,9 @@ void BLF_batch_draw_end(void);
 void BLF_draw_default(float x, float y, float z, const char *str, size_t len) ATTR_NONNULL();
 void BLF_draw_default_ascii(float x, float y, float z, const char *str, size_t len) ATTR_NONNULL();
 
+/* Set size and DPI, and return default font ID. */
+int BLF_set_default(void);
+
 /* Draw the string using the current font. */
 void BLF_draw_ex(int fontid, const char *str, size_t len, struct ResultBLF *r_info) ATTR_NONNULL(2);
 void BLF_draw(int fontid, const char *str, size_t len) ATTR_NONNULL(2);
@@ -124,7 +124,7 @@ void BLF_boundbox_ex(int fontid, const char *str, size_t len, struct rctf *box, 
 void BLF_boundbox(int fontid, const char *str, size_t len, struct rctf *box) ATTR_NONNULL();
 
 /* The next both function return the width and height
- * of the string, using the current font and both value 
+ * of the string, using the current font and both value
  * are multiplied by the aspect of the font.
  */
 float BLF_width_ex(int fontid, const char *str, size_t len, struct ResultBLF *r_info) ATTR_WARN_UNUSED_RESULT ATTR_NONNULL(2);
@@ -230,8 +230,11 @@ void BLF_state_print(int fontid);
 #define BLF_KERNING_DEFAULT  (1 << 3)
 #define BLF_MATRIX           (1 << 4)
 #define BLF_ASPECT           (1 << 5)
-#define BLF_HINTING          (1 << 6)
-#define BLF_WORD_WRAP        (1 << 7)
+#define BLF_WORD_WRAP        (1 << 6)
+#define BLF_MONOCHROME       (1 << 7)  /* no-AA */
+#define BLF_HINTING_NONE     (1 << 8)
+#define BLF_HINTING_SLIGHT   (1 << 9)
+#define BLF_HINTING_FULL     (1 << 10)
 
 #define BLF_DRAW_STR_DUMMY_MAX 1024
 

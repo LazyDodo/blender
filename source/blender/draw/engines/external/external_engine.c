@@ -116,7 +116,7 @@ static void external_cache_init(void *vedata)
 
 	/* Depth Pass */
 	{
-		psl->depth_pass = DRW_pass_create("Depth Pass", DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS);
+		psl->depth_pass = DRW_pass_create("Depth Pass", DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL);
 		stl->g_data->depth_shgrp = DRW_shgroup_create(e_data.depth_sh, psl->depth_pass);
 	}
 }
@@ -128,7 +128,7 @@ static void external_cache_populate(void *vedata, Object *ob)
 	if (!DRW_object_is_renderable(ob))
 		return;
 
-	struct Gwn_Batch *geom = DRW_cache_object_surface_get(ob);
+	struct GPUBatch *geom = DRW_cache_object_surface_get(ob);
 	if (geom) {
 		/* Depth Prepass */
 		DRW_shgroup_call_add(stl->g_data->depth_shgrp, geom, ob->obmat);
@@ -147,13 +147,13 @@ static void external_draw_scene_do(void *vedata)
 	ARegion *ar = draw_ctx->ar;
 	RenderEngineType *type;
 
-	DRW_state_reset_ex(DRW_STATE_DEFAULT & ~DRW_STATE_DEPTH_LESS);
+	DRW_state_reset_ex(DRW_STATE_DEFAULT & ~DRW_STATE_DEPTH_LESS_EQUAL);
 
 	/* Create render engine. */
 	if (!rv3d->render_engine) {
 		RenderEngineType *engine_type = draw_ctx->engine_type;
 
-		if (!(engine_type->view_update && engine_type->render_to_view)) {
+		if (!(engine_type->view_update && engine_type->view_draw)) {
 			return;
 		}
 
@@ -165,14 +165,14 @@ static void external_draw_scene_do(void *vedata)
 	}
 
 	/* Rendered draw. */
-	gpuPushProjectionMatrix();
+	GPU_matrix_push_projection();
 	ED_region_pixelspace(ar);
 
 	/* Render result draw. */
 	type = rv3d->render_engine->type;
-	type->render_to_view(rv3d->render_engine, draw_ctx->evil_C);
+	type->view_draw(rv3d->render_engine, draw_ctx->evil_C);
 
-	gpuPopProjectionMatrix();
+	GPU_matrix_pop_projection();
 
 	/* Set render info. */
 	EXTERNAL_Data *data = vedata;
@@ -226,7 +226,7 @@ DrawEngineType draw_engine_external_type = {
 RenderEngineType DRW_engine_viewport_external_type = {
 	NULL, NULL,
 	EXTERNAL_ENGINE, N_("External"), RE_INTERNAL,
-	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+	NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 	&draw_engine_external_type,
 	{NULL, NULL, NULL}
 };

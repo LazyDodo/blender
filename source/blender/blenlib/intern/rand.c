@@ -42,7 +42,7 @@
 #include "BLI_math.h"
 
 /* defines BLI_INLINE */
-#include "BLI_utildefines.h"
+#include "BLI_compiler_compat.h"
 
 #include "BLI_sys_types.h"
 #include "BLI_strict_flags.h"
@@ -265,27 +265,16 @@ void BLI_rng_skip(RNG *rng, int n)
 
 /***/
 
-/* initialize with some non-zero seed */
-static RNG theBLI_rng = {611330372042337130};
-
-void BLI_srandom(unsigned int seed)
+/* fill an array with random numbers */
+void BLI_array_frand(float *ar, int count, unsigned int seed)
 {
-	BLI_rng_srandom(&theBLI_rng, seed);
-}
+	RNG rng;
 
-int BLI_rand(void)
-{
-	return BLI_rng_get_int(&theBLI_rng);
-}
+	BLI_rng_srandom(&rng, seed);
 
-float BLI_frand(void)
-{
-	return BLI_rng_get_float(&theBLI_rng);
-}
-
-void BLI_frand_unit_v3(float v[3])
-{
-	BLI_rng_get_float_unit_v3(&theBLI_rng, v);
+	for (int i = 0; i < count; i++) {
+		ar[i] = BLI_rng_get_float(&rng);
+	}
 }
 
 float BLI_hash_frand(unsigned int seed)
@@ -312,7 +301,7 @@ void BLI_thread_srandom(int thread, unsigned int seed)
 {
 	if (thread >= BLENDER_MAX_THREADS)
 		thread = 0;
-	
+
 	BLI_rng_seed(&rng_tab[thread], seed + hash[seed & 255]);
 	seed = BLI_rng_get_uint(&rng_tab[thread]);
 	BLI_rng_seed(&rng_tab[thread], seed + hash[seed & 255]);
@@ -338,11 +327,11 @@ RNG_THREAD_ARRAY *BLI_rng_threaded_new(void)
 {
 	unsigned int i;
 	RNG_THREAD_ARRAY *rngarr = MEM_mallocN(sizeof(RNG_THREAD_ARRAY), "random_array");
-	
+
 	for (i = 0; i < BLENDER_MAX_THREADS; i++) {
 		BLI_rng_srandom(&rngarr->rng_tab[i], (unsigned int)clock());
 	}
-	
+
 	return rngarr;
 }
 

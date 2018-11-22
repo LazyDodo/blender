@@ -16,12 +16,12 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
  * Contributor:
- *		Jeroen Bakker
- *		Monique Dewanchand
+ *      Jeroen Bakker
+ *      Monique Dewanchand
  */
 
-#ifndef _COM_ColorSpillOperation_h
-#define _COM_ColorSpillOperation_h
+#ifndef __COM_COLORSPILLOPERATION_H__
+#define __COM_COLORSPILLOPERATION_H__
 #include "COM_NodeOperation.h"
 
 /**
@@ -55,7 +55,7 @@ public:
 	void setSettings(NodeColorspill *nodeColorSpill) { this->m_settings = nodeColorSpill; }
 	void setSpillChannel(int channel) { this->m_spillChannel = channel; }
 	void setSpillMethod(int method) { this->m_spillMethod = method; }
-	
+
 	float calculateMapValue(float fac, float *input);
 };
 

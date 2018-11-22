@@ -46,7 +46,6 @@
 #include "RNA_types.h"
 
 #include "bpy.h"
-#include "gpu.h"
 #include "bpy_rna.h"
 #include "bpy_path.h"
 #include "bpy_capi_utils.h"
@@ -59,9 +58,9 @@
 
 #include "BKE_appdir.h"
 #include "BKE_context.h"
-#include "BKE_text.h"
-#include "BKE_main.h"
 #include "BKE_global.h" /* only for script checking */
+#include "BKE_main.h"
+#include "BKE_text.h"
 
 #include "CCL_api.h"
 
@@ -74,7 +73,8 @@
 #include "../generic/bgl.h"
 #include "../generic/blf_py_api.h"
 #include "../generic/idprop_py_api.h"
-#include "../gawain/gwn_py_api.h"
+#include "../generic/imbuf_py_api.h"
+#include "../gpu/gpu_py_api.h"
 #include "../bmesh/bmesh_py_api.h"
 #include "../mathutils/mathutils.h"
 
@@ -218,9 +218,9 @@ static struct _inittab bpy_internal_modules[] = {
 	{"mathutils.kdtree", PyInit_mathutils_kdtree},
 #endif
 	{"_bpy_path", BPyInit__bpy_path},
-	{"_gawain", BPyInit_gawain},
 	{"bgl", BPyInit_bgl},
 	{"blf", BPyInit_blf},
+	{"imbuf", BPyInit_imbuf},
 	{"bmesh", BPyInit_bmesh},
 #if 0
 	{"bmesh.types", BPyInit_bmesh_types},
@@ -233,7 +233,7 @@ static struct _inittab bpy_internal_modules[] = {
 #ifdef WITH_CYCLES
 	{"_cycles", CCL_initPython},
 #endif
-	{"gpu", GPU_initPython},
+	{"gpu", BPyInit_gpu},
 	{"idprop", BPyInit_idprop},
 	{NULL, NULL}
 };
@@ -291,7 +291,7 @@ void BPY_python_start(int argc, const char **argv)
 		PySys_SetObject("argv", py_argv);
 		Py_DECREF(py_argv);
 	}
-	
+
 	/* Initialize thread support (also acquires lock) */
 	PyEval_InitThreads();
 #else
@@ -330,7 +330,7 @@ void BPY_python_start(int argc, const char **argv)
 	BPy_init_modules();
 
 	bpy_import_init(PyEval_GetBuiltins());
-	
+
 	pyrna_alloc_types();
 
 #ifndef WITH_PYTHON_MODULE
@@ -349,7 +349,7 @@ void BPY_python_end(void)
 
 	/* finalizing, no need to grab the state, except when we are a module */
 	gilstate = PyGILState_Ensure();
-	
+
 	/* free other python data. */
 	pyrna_free_types();
 
@@ -538,7 +538,7 @@ static bool python_script_exec(
 	if (py_dict) {
 #ifdef PYMODULE_CLEAR_WORKAROUND
 		PyModuleObject *mmod = (PyModuleObject *)PyDict_GetItem(
-		        PyThreadState_GET()->interp->modules, bpy_intern_str___main__);
+		        PyImport_GetModuleDict(), bpy_intern_str___main__);
 		PyObject *dict_back = mmod->md_dict;
 		/* freeing the module will clear the namespace,
 		 * gives problems running classes defined in this namespace being used later. */
@@ -589,7 +589,9 @@ void BPY_DECREF_RNA_INVALIDATE(void *pyob_ptr)
 /**
  * \return success
  */
-bool BPY_execute_string_as_number(bContext *C, const char *expr, const bool verbose, double *r_value)
+bool BPY_execute_string_as_number(
+        bContext *C, const char *imports[],
+        const char *expr, const bool verbose, double *r_value)
 {
 	PyGILState_STATE gilstate;
 	bool ok = true;
@@ -605,7 +607,7 @@ bool BPY_execute_string_as_number(bContext *C, const char *expr, const bool verb
 
 	bpy_context_set(C, &gilstate);
 
-	ok = PyC_RunString_AsNumber(expr, "<blender button>", r_value);
+	ok = PyC_RunString_AsNumber(imports, expr, "<expr as number>", r_value);
 
 	if (ok == false) {
 		if (verbose) {
@@ -624,14 +626,13 @@ bool BPY_execute_string_as_number(bContext *C, const char *expr, const bool verb
 /**
  * \return success
  */
-bool BPY_execute_string_as_string(bContext *C, const char *expr, const bool verbose, char **r_value)
+bool BPY_execute_string_as_string(
+        bContext *C, const char *imports[],
+        const char *expr, const bool verbose, char **r_value)
 {
+	BLI_assert(r_value && expr);
 	PyGILState_STATE gilstate;
 	bool ok = true;
-
-	if (!r_value || !expr) {
-		return -1;
-	}
 
 	if (expr[0] == '\0') {
 		*r_value = NULL;
@@ -640,7 +641,7 @@ bool BPY_execute_string_as_string(bContext *C, const char *expr, const bool verb
 
 	bpy_context_set(C, &gilstate);
 
-	ok = PyC_RunString_AsString(expr, "<blender button>", r_value);
+	ok = PyC_RunString_AsString(imports, expr, "<expr as str>", r_value);
 
 	if (ok == false) {
 		if (verbose) {
@@ -656,16 +657,52 @@ bool BPY_execute_string_as_string(bContext *C, const char *expr, const bool verb
 	return ok;
 }
 
-
-bool BPY_execute_string_ex(bContext *C, const char *expr, bool use_eval)
+/**
+ * Support both int and pointers.
+ *
+ * \return success
+ */
+bool BPY_execute_string_as_intptr(
+        bContext *C, const char *imports[],
+        const char *expr, const bool verbose, intptr_t *r_value)
 {
+	BLI_assert(r_value && expr);
+	PyGILState_STATE gilstate;
+	bool ok = true;
+
+	if (expr[0] == '\0') {
+		*r_value = 0;
+		return ok;
+	}
+
+	bpy_context_set(C, &gilstate);
+
+	ok = PyC_RunString_AsIntPtr(imports, expr, "<expr as intptr>", r_value);
+
+	if (ok == false) {
+		if (verbose) {
+			BPy_errors_to_report_ex(CTX_wm_reports(C), false, false);
+		}
+		else {
+			PyErr_Clear();
+		}
+	}
+
+	bpy_context_clear(C, &gilstate);
+
+	return ok;
+}
+
+bool BPY_execute_string_ex(
+        bContext *C, const char *imports[],
+        const char *expr, bool use_eval)
+{
+	BLI_assert(expr);
 	PyGILState_STATE gilstate;
 	PyObject *main_mod = NULL;
 	PyObject *py_dict, *retval;
 	bool ok = true;
 	Main *bmain_back; /* XXX, quick fix for release (Copy Settings crash), needs further investigation */
-
-	if (!expr) return -1;
 
 	if (expr[0] == '\0') {
 		return ok;
@@ -680,13 +717,18 @@ bool BPY_execute_string_ex(bContext *C, const char *expr, bool use_eval)
 	bmain_back = bpy_import_main_get();
 	bpy_import_main_set(CTX_data_main(C));
 
-	retval = PyRun_String(expr, use_eval ? Py_eval_input : Py_file_input, py_dict, py_dict);
+	if (imports && (!PyC_NameSpace_ImportArray(py_dict, imports))) {
+		Py_DECREF(py_dict);
+		retval = NULL;
+	}
+	else {
+		retval = PyRun_String(expr, use_eval ? Py_eval_input : Py_file_input, py_dict, py_dict);
+	}
 
 	bpy_import_main_set(bmain_back);
 
 	if (retval == NULL) {
 		ok = false;
-
 		BPy_errors_to_report(CTX_wm_reports(C));
 	}
 	else {
@@ -696,13 +738,15 @@ bool BPY_execute_string_ex(bContext *C, const char *expr, bool use_eval)
 	PyC_MainModule_Restore(main_mod);
 
 	bpy_context_clear(C, &gilstate);
-	
+
 	return ok;
 }
 
-bool BPY_execute_string(bContext *C, const char *expr)
+bool BPY_execute_string(
+        bContext *C, const char *imports[],
+        const char *expr)
 {
-	return BPY_execute_string_ex(C, expr, true);
+	return BPY_execute_string_ex(C, imports, expr, true);
 }
 
 void BPY_modules_load_user(bContext *C)
@@ -724,13 +768,13 @@ void BPY_modules_load_user(bContext *C)
 	bpy_context_set(C, &gilstate);
 
 	for (text = bmain->text.first; text; text = text->id.next) {
-		if (text->flags & TXT_ISSCRIPT && BLI_testextensie(text->id.name + 2, ".py")) {
+		if (text->flags & TXT_ISSCRIPT && BLI_path_extension_check(text->id.name + 2, ".py")) {
 			if (!(G.f & G_SCRIPT_AUTOEXEC)) {
 				if (!(G.f & G_SCRIPT_AUTOEXEC_FAIL_QUIET)) {
 					G.f |= G_SCRIPT_AUTOEXEC_FAIL;
 					BLI_snprintf(G.autoexec_fail, sizeof(G.autoexec_fail), "Text '%s'", text->id.name + 2);
 
-					printf("scripts disabled for \"%s\", skipping '%s'\n", bmain->name, text->id.name + 2);
+					printf("scripts disabled for \"%s\", skipping '%s'\n", BKE_main_blendfile_path(bmain), text->id.name + 2);
 				}
 			}
 			else {
@@ -880,7 +924,7 @@ static void bpy_module_delay_init(PyObject *bpy_proxy)
 
 	argv[0] = filename_abs;
 	argv[1] = NULL;
-	
+
 	// printf("module found %s\n", argv[0]);
 
 	main_python_enter(argc, argv);
@@ -909,14 +953,14 @@ PyMODINIT_FUNC
 PyInit_bpy(void)
 {
 	PyObject *bpy_proxy = PyModule_Create(&bpy_proxy_def);
-	
+
 	/* Problem:
 	 * 1) this init function is expected to have a private member defined - 'md_def'
 	 *    but this is only set for C defined modules (not py packages)
 	 *    so we cant return 'bpy_package_py' as is.
 	 *
 	 * 2) there is a 'bpy' C module for python to load which is basically all of blender,
-	 *    and there is scripts/bpy/__init__.py, 
+	 *    and there is scripts/bpy/__init__.py,
 	 *    we may end up having to rename this module so there is no naming conflict here eg:
 	 *    'from blender import bpy'
 	 *
@@ -926,13 +970,13 @@ PyInit_bpy(void)
 
 	/* assign an object which is freed after __file__ is assigned */
 	dealloc_obj *dob;
-	
+
 	/* assign dummy type */
 	dealloc_obj_Type.tp_name = "dealloc_obj";
 	dealloc_obj_Type.tp_basicsize = sizeof(dealloc_obj);
 	dealloc_obj_Type.tp_dealloc = dealloc_obj_dealloc;
 	dealloc_obj_Type.tp_flags = Py_TPFLAGS_DEFAULT;
-	
+
 	if (PyType_Ready(&dealloc_obj_Type) < 0)
 		return NULL;
 
@@ -960,7 +1004,7 @@ bool BPY_string_is_keyword(const char *str)
 	 */
 	const char *kwlist[] = {
 	    "False", "None", "True",
-	    "and", "as", "assert", "break",
+	    "and", "as", "assert", "async", "await", "break",
 	    "class", "continue", "def", "del", "elif", "else", "except",
 	    "finally", "for", "from", "global", "if", "import", "in",
 	    "is", "lambda", "nonlocal", "not", "or", "pass", "raise",

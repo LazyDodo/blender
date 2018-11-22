@@ -914,10 +914,6 @@ ccl_device float3 shader_bsdf_ao(KernelGlobals *kg, ShaderData *sd, float ao_fac
 			eval += sc->weight*ao_factor;
 			N += bsdf->N*fabsf(average(sc->weight));
 		}
-		else if(CLOSURE_IS_AMBIENT_OCCLUSION(sc->type)) {
-			eval += sc->weight;
-			N += sd->N*fabsf(average(sc->weight));
-		}
 	}
 
 	*N_ = (is_zero(N))? sd->N : normalize(N);
@@ -1014,7 +1010,7 @@ ccl_device void shader_eval_surface(KernelGlobals *kg, ShaderData *sd,
 		DiffuseBsdf *bsdf = (DiffuseBsdf*)bsdf_alloc(sd,
 		                                             sizeof(DiffuseBsdf),
 		                                             make_float3(0.8f, 0.8f, 0.8f));
-		if (bsdf != NULL) {
+		if(bsdf != NULL) {
 			bsdf->N = sd->N;
 			sd->flag |= bsdf_diffuse_setup(bsdf);
 		}
@@ -1279,5 +1275,10 @@ ccl_device bool shader_transparent_shadow(KernelGlobals *kg, Intersection *isect
 	return (flag & SD_HAS_TRANSPARENT_SHADOW) != 0;
 }
 #endif  /* __TRANSPARENT_SHADOWS__ */
+
+ccl_device float shader_cryptomatte_id(KernelGlobals *kg, int shader)
+{
+	return kernel_tex_fetch(__shaders, (shader & SHADER_MASK)).cryptomatte_id;
+}
 
 CCL_NAMESPACE_END

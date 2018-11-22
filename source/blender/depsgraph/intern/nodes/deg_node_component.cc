@@ -124,7 +124,8 @@ static void comp_node_hash_value_free(void *value_v)
 
 ComponentDepsNode::ComponentDepsNode() :
     entry_operation(NULL),
-    exit_operation(NULL)
+    exit_operation(NULL),
+    affects_directly_visible(false)
 {
 	operations_map = BLI_ghash_new(comp_node_hash_key,
 	                               comp_node_hash_key_cmp,
@@ -157,7 +158,11 @@ string ComponentDepsNode::identifier() const
 	char typebuf[16];
 	sprintf(typebuf, "(%d)", type);
 
-	return string(typebuf) + name + " : " + idname;
+	return string(typebuf) + name + " : " + idname +
+	       "( affects_directly_visible: " +
+	               (affects_directly_visible ? "true"
+	                                         : "false") + ")";
+;
 }
 
 OperationDepsNode *ComponentDepsNode::find_operation(OperationIDKey key) const
@@ -167,9 +172,9 @@ OperationDepsNode *ComponentDepsNode::find_operation(OperationIDKey key) const
 		node = (OperationDepsNode *)BLI_ghash_lookup(operations_map, &key);
 	}
 	else {
-		BLI_assert(key.name_tag == -1);
 		foreach (OperationDepsNode *op_node, operations) {
 			if (op_node->opcode == key.opcode &&
+			    op_node->name_tag == key.name_tag &&
 			    STREQ(op_node->name, key.name))
 			{
 				node = op_node;
@@ -248,6 +253,7 @@ OperationDepsNode *ComponentDepsNode::add_operation(const DepsEvalOperationCb& o
 	op_node->evaluate = op;
 	op_node->opcode = opcode;
 	op_node->name = name;
+	op_node->name_tag = name_tag;
 
 	return op_node;
 }
@@ -277,20 +283,20 @@ void ComponentDepsNode::clear_operations()
 	operations.clear();
 }
 
-void ComponentDepsNode::tag_update(Depsgraph *graph)
+void ComponentDepsNode::tag_update(Depsgraph *graph, eDepsTag_Source source)
 {
 	OperationDepsNode *entry_op = get_entry_operation();
 	if (entry_op != NULL && entry_op->flag & DEPSOP_FLAG_NEEDS_UPDATE) {
 		return;
 	}
 	foreach (OperationDepsNode *op_node, operations) {
-		op_node->tag_update(graph);
+		op_node->tag_update(graph, source);
 	}
 	// It is possible that tag happens before finalization.
 	if (operations_map != NULL) {
 		GHASH_FOREACH_BEGIN(OperationDepsNode *, op_node, operations_map)
 		{
-			op_node->tag_update(graph);
+			op_node->tag_update(graph, source);
 		}
 		GHASH_FOREACH_END();
 	}
@@ -381,17 +387,20 @@ DEG_COMPONENT_NODE_DEFINE(Animation,         ANIMATION,          ID_RECALC_ANIMA
 DEG_COMPONENT_NODE_DEFINE(BatchCache,        BATCH_CACHE,        ID_RECALC_DRAW_CACHE);
 DEG_COMPONENT_NODE_DEFINE(Bone,              BONE,               ID_RECALC_GEOMETRY);
 DEG_COMPONENT_NODE_DEFINE(Cache,             CACHE,              ID_RECALC);
-DEG_COMPONENT_NODE_DEFINE(CopyOnWrite,       COPY_ON_WRITE,      ID_RECALC);
+DEG_COMPONENT_NODE_DEFINE(CopyOnWrite,       COPY_ON_WRITE,      ID_RECALC_COPY_ON_WRITE);
 DEG_COMPONENT_NODE_DEFINE(Geometry,          GEOMETRY,           ID_RECALC_GEOMETRY);
-DEG_COMPONENT_NODE_DEFINE(LayerCollections,  LAYER_COLLECTIONS,  ID_RECALC_COLLECTIONS);
+DEG_COMPONENT_NODE_DEFINE(LayerCollections,  LAYER_COLLECTIONS,  0);
 DEG_COMPONENT_NODE_DEFINE(Parameters,        PARAMETERS,         ID_RECALC);
 DEG_COMPONENT_NODE_DEFINE(Particles,         EVAL_PARTICLES,     ID_RECALC_GEOMETRY);
-DEG_COMPONENT_NODE_DEFINE(Proxy,             PROXY,              ID_RECALC_GEOMETRY);
+DEG_COMPONENT_NODE_DEFINE(PointCache,        POINT_CACHE,        0);
 DEG_COMPONENT_NODE_DEFINE(Pose,              EVAL_POSE,          ID_RECALC_GEOMETRY);
+DEG_COMPONENT_NODE_DEFINE(Proxy,             PROXY,              ID_RECALC_GEOMETRY);
 DEG_COMPONENT_NODE_DEFINE(Sequencer,         SEQUENCER,          ID_RECALC);
 DEG_COMPONENT_NODE_DEFINE(Shading,           SHADING,            ID_RECALC_DRAW);
 DEG_COMPONENT_NODE_DEFINE(ShadingParameters, SHADING_PARAMETERS, ID_RECALC_DRAW);
 DEG_COMPONENT_NODE_DEFINE(Transform,         TRANSFORM,          ID_RECALC_TRANSFORM);
+DEG_COMPONENT_NODE_DEFINE(ObjectFromLayer,   OBJECT_FROM_LAYER,  ID_RECALC);
+DEG_COMPONENT_NODE_DEFINE(Dupli,             DUPLI,              0);
 
 /* Node Types Register =================================== */
 
@@ -406,12 +415,15 @@ void deg_register_component_depsnodes()
 	deg_register_node_typeinfo(&DNTI_LAYER_COLLECTIONS);
 	deg_register_node_typeinfo(&DNTI_PARAMETERS);
 	deg_register_node_typeinfo(&DNTI_EVAL_PARTICLES);
+	deg_register_node_typeinfo(&DNTI_POINT_CACHE);
 	deg_register_node_typeinfo(&DNTI_PROXY);
 	deg_register_node_typeinfo(&DNTI_EVAL_POSE);
 	deg_register_node_typeinfo(&DNTI_SEQUENCER);
 	deg_register_node_typeinfo(&DNTI_SHADING);
 	deg_register_node_typeinfo(&DNTI_SHADING_PARAMETERS);
 	deg_register_node_typeinfo(&DNTI_TRANSFORM);
+	deg_register_node_typeinfo(&DNTI_OBJECT_FROM_LAYER);
+	deg_register_node_typeinfo(&DNTI_DUPLI);
 }
 
 }  // namespace DEG

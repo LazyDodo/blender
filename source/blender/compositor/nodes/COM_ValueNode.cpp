@@ -15,9 +15,9 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Contributor: 
- *		Jeroen Bakker 
- *		Monique Dewanchand
+ * Contributor:
+ *      Jeroen Bakker
+ *      Monique Dewanchand
  */
 
 #include "COM_ValueNode.h"
@@ -35,6 +35,6 @@ void ValueNode::convertToOperations(NodeConverter &converter, const CompositorCo
 	NodeOutput *output = this->getOutputSocket(0);
 	operation->setValue(output->getEditorValueFloat());
 	converter.addOperation(operation);
-	
+
 	converter.mapOutputSocket(output, operation->getOutputSocket());
 }

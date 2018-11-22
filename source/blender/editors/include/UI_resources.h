@@ -21,7 +21,7 @@
  * The Original Code is: all of this file.
  *
  * Contributor(s): none yet.
- * 
+ *
  * ***** END GPL/BL DUAL LICENSE BLOCK *****
  */
 
@@ -29,13 +29,16 @@
  *  \ingroup editorui
  */
 
+#include "BLI_sys_types.h"
+
 #ifndef __UI_RESOURCES_H__
 #define __UI_RESOURCES_H__
 
-/* elubie: TODO: move the typedef for icons to UI_interface_icons.h */
-/* and add/replace include of UI_resources.h by UI_interface_icons.h */
+/* Define icon enum. */
 #define DEF_ICON(name) ICON_##name,
-#define DEF_VICO(name) VICO_##name,
+#define DEF_ICON_VECTOR(name) ICON_##name,
+#define DEF_ICON_COLOR(name) ICON_##name,
+#define DEF_ICON_BLANK(name) ICON_BLANK_##name,
 
 typedef enum {
 	/* ui */
@@ -45,18 +48,15 @@ typedef enum {
 
 #define BIFICONID_FIRST  (ICON_NONE)
 
-#undef DEF_ICON
-#undef DEF_VICO
-
 /* use to denote intentionally unset theme color */
 #define TH_UNDEFINED -1
 
-enum {
+typedef enum ThemeColorID {
 	TH_REDALERT,
 
 	TH_THEMEUI,
 // common colors among spaces
-	
+
 	TH_BACK,
 	TH_TEXT,
 	TH_TEXT_HI,
@@ -65,22 +65,21 @@ enum {
 	TH_TAB_INACTIVE,
 	TH_TAB_BACK,
 	TH_TAB_OUTLINE,
-	
+
 	TH_HEADER,
 	TH_HEADERDESEL,
 	TH_HEADER_TEXT,
 	TH_HEADER_TEXT_HI,
-	
+
 	/* panels */
 	TH_PANEL_HEADER,
 	TH_PANEL_BACK,
-	TH_PANEL_SHOW_HEADER,
-	TH_PANEL_SHOW_BACK,
-	
+	TH_PANEL_SUB_BACK,
+
 	TH_BUTBACK,
 	TH_BUTBACK_TEXT,
 	TH_BUTBACK_TEXT_HI,
-	
+
 	TH_SHADE1,
 	TH_SHADE2,
 	TH_HILITE,
@@ -141,14 +140,14 @@ enum {
 	TH_SYNTAX_D,
 	TH_SYNTAX_N,
 	TH_SYNTAX_S,
-	
+
 	TH_BONE_SOLID,
 	TH_BONE_POSE,
 	TH_BONE_POSE_ACTIVE,
-	
+
 	TH_STRIP,
 	TH_STRIP_SELECT,
-	
+
 	TH_KEYTYPE_KEYFRAME, /* KEYTYPES */
 	TH_KEYTYPE_KEYFRAME_SELECT,
 	TH_KEYTYPE_EXTREME,
@@ -157,15 +156,17 @@ enum {
 	TH_KEYTYPE_BREAKDOWN_SELECT,
 	TH_KEYTYPE_JITTER,
 	TH_KEYTYPE_JITTER_SELECT,
-	
+	TH_KEYTYPE_MOVEHOLD,
+	TH_KEYTYPE_MOVEHOLD_SELECT,
+
 	TH_KEYBORDER,
 	TH_KEYBORDER_SELECT,
-	
+
 	TH_LAMP,
 	TH_SPEAKER,
 	TH_CAMERA,
 	TH_EMPTY,
-	
+
 	TH_NODE,
 	TH_NODE_INPUT,
 	TH_NODE_OUTPUT,
@@ -183,14 +184,14 @@ enum {
 	TH_NODE_FRAME,
 	TH_NODE_MATTE,
 	TH_NODE_DISTORT,
-	
+
 	TH_CONSOLE_OUTPUT,
 	TH_CONSOLE_INPUT,
 	TH_CONSOLE_INFO,
 	TH_CONSOLE_ERROR,
 	TH_CONSOLE_CURSOR,
 	TH_CONSOLE_SELECT,
-	
+
 	TH_SEQ_MOVIE,
 	TH_SEQ_MOVIECLIP,
 	TH_SEQ_MASK,
@@ -205,20 +206,21 @@ enum {
 
 	TH_EDGE_SHARP,
 	TH_EDITMESH_ACTIVE,
-	
+
 	TH_HANDLE_VERTEX,
 	TH_HANDLE_VERTEX_SELECT,
 	TH_HANDLE_VERTEX_SIZE,
-	
+
 	TH_GP_VERTEX,
 	TH_GP_VERTEX_SELECT,
 	TH_GP_VERTEX_SIZE,
-	
+
 	TH_DOPESHEET_CHANNELOB,
 	TH_DOPESHEET_CHANNELSUBOB,
-	
+	TH_DOPESHEET_IPOLINE,
+
 	TH_PREVIEW_BACK,
-	
+
 	TH_EDGE_CREASE,
 
 	TH_DRAWEXTRA_EDGELEN,
@@ -259,31 +261,40 @@ enum {
 	TH_SELECT_HIGHLIGHT, /* highlight color for selected outliner item */
 
 	TH_SKIN_ROOT,
-	
+
 	TH_ANIM_ACTIVE,   /* active action */
 	TH_ANIM_INACTIVE, /* no active action */
-	
+	TH_ANIM_PREVIEW_RANGE,/* preview range overlay */
+
+	TH_ICON_COLLECTION,
+	TH_ICON_OBJECT,
+	TH_ICON_OBJECT_DATA,
+	TH_ICON_MODIFIER,
+	TH_ICON_SHADING,
+
 	TH_NLA_TWEAK,        /* 'tweaking' track in NLA */
 	TH_NLA_TWEAK_DUPLI,  /* error/warning flag for other strips referencing dupli strip */
-	
+
 	TH_NLA_TRANSITION,
 	TH_NLA_TRANSITION_SEL,
 	TH_NLA_META,
 	TH_NLA_META_SEL,
 	TH_NLA_SOUND,
 	TH_NLA_SOUND_SEL,
-	
+
 	TH_WIDGET_EMBOSS,
+
+	TH_EDITOR_OUTLINE,
 
 	TH_AXIS_X,		/* X/Y/Z Axis */
 	TH_AXIS_Y,
 	TH_AXIS_Z,
 
-	TH_MANIPULATOR_HI,
-	TH_MANIPULATOR_PRIMARY,
-	TH_MANIPULATOR_SECONDARY,
-	TH_MANIPULATOR_A,
-	TH_MANIPULATOR_B,
+	TH_GIZMO_HI,
+	TH_GIZMO_PRIMARY,
+	TH_GIZMO_SECONDARY,
+	TH_GIZMO_A,
+	TH_GIZMO_B,
 
 	TH_LOW_GRAD,
 	TH_HIGH_GRAD,
@@ -300,7 +311,7 @@ enum {
 	TH_INFO_DEBUG,
 	TH_INFO_DEBUG_TEXT,
 	TH_VIEW_OVERLAY,
-	
+
 	TH_V3D_CLIPPING_BORDER,
 
 	TH_METADATA_BG,
@@ -308,7 +319,7 @@ enum {
 
 	TH_EDGE_BEVEL,
 	TH_VERTEX_BEVEL
-};
+} ThemeColorID;
 
 /* specific defines per space should have higher define values */
 
@@ -320,24 +331,6 @@ struct bThemeState {
 };
 
 // THE CODERS API FOR THEMES:
-
-// sets the color
-void    UI_ThemeColor(int colorid);
-
-// sets the color plus alpha
-void	UI_ThemeColor4(int colorid);
-
-// sets color plus offset for shade
-void	UI_ThemeColorShade(int colorid, int offset);
-
-// sets color plus offset for alpha
-void	UI_ThemeColorShadeAlpha(int colorid, int coloffset, int alphaoffset);
-
-// sets color, which is blend between two theme colors
-void    UI_ThemeColorBlend(int colorid1, int colorid2, float fac);
-// same, with shade offset
-void    UI_ThemeColorBlendShade(int colorid1, int colorid2, float fac, int offset);
-void    UI_ThemeColorBlendShadeAlpha(int colorid1, int colorid2, float fac, int offset, int alphaoffset);
 
 // returns one value, not scaled
 float   UI_GetThemeValuef(int colorid);
@@ -378,8 +371,8 @@ void UI_GetThemeColor4ubv(int colorid, unsigned char col[4]);
 // get a theme color from specified space type
 void UI_GetThemeColorType4ubv(int colorid, int spacetype, char col[4]);
 
-// blends and shades between two color pointers
-void    UI_ColorPtrBlendShade3ubv(const unsigned char cp1[3], const unsigned char cp2[3], float fac, int offset);
+// get theme color for coloring monochrome icons
+bool    UI_GetIconThemeColor4fv(int colorid, float col[4]);
 
 // shade a 3 byte color (same as UI_GetColorPtrBlendShade3ubv with 0.0 factor)
 void    UI_GetColorPtrShade3ubv(const unsigned char cp1[3], unsigned char col[3], int offset);

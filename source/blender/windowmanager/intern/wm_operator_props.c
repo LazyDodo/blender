@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -39,8 +39,19 @@
 #include "RNA_define.h"
 #include "RNA_enum_types.h"
 
+#include "ED_select_utils.h"
+
 #include "WM_api.h"
 #include "WM_types.h"
+
+
+void WM_operator_properties_confirm_or_exec(wmOperatorType *ot)
+{
+	PropertyRNA *prop;
+
+	prop = RNA_def_boolean(ot->srna, "confirm", true, "Confirm", "Prompt for confirmation");
+	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
+}
 
 /* default properties for fileselect */
 void WM_operator_properties_filesel(
@@ -130,7 +141,9 @@ void WM_operator_properties_filesel(
 static void wm_operator_properties_select_action_ex(wmOperatorType *ot, int default_action,
                                                     const EnumPropertyItem *select_actions)
 {
-	RNA_def_enum(ot->srna, "action", select_actions, default_action, "Action", "Selection action to execute");
+	PropertyRNA *prop;
+	prop = RNA_def_enum(ot->srna, "action", select_actions, default_action, "Action", "Selection action to execute");
+	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 }
 
 void WM_operator_properties_select_action(wmOperatorType *ot, int default_action)
@@ -225,30 +238,48 @@ void WM_operator_properties_border_to_rctf(struct wmOperator *op, rctf *rect)
 }
 
 /**
- * Use with #WM_gesture_border_invoke
+ * Use with #WM_gesture_box_invoke
  */
-void WM_operator_properties_gesture_border_ex(wmOperatorType *ot, bool deselect, bool extend)
+void WM_operator_properties_gesture_box_ex(wmOperatorType *ot, bool deselect, bool extend)
 {
+	PropertyRNA *prop;
+
 	WM_operator_properties_border(ot);
 
 	if (deselect) {
-		RNA_def_boolean(ot->srna, "deselect", false, "Deselect", "Deselect rather than select items");
+		prop = RNA_def_boolean(ot->srna, "deselect", false, "Deselect", "Deselect rather than select items");
+		RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 	}
 	if (extend) {
-		RNA_def_boolean(ot->srna, "extend", true, "Extend", "Extend selection instead of deselecting everything first");
+		prop = RNA_def_boolean(ot->srna, "extend", true, "Extend", "Extend selection instead of deselecting everything first");
+		RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 	}
 }
 
-void WM_operator_properties_gesture_border_select(wmOperatorType *ot)
+void WM_operator_properties_gesture_box_select(wmOperatorType *ot)
 {
-	WM_operator_properties_gesture_border_ex(ot, true, true);
+	WM_operator_properties_gesture_box_ex(ot, true, true);
 }
-void WM_operator_properties_gesture_border(wmOperatorType *ot)
+void WM_operator_properties_gesture_box(wmOperatorType *ot)
 {
-	WM_operator_properties_gesture_border_ex(ot, false, false);
+	WM_operator_properties_gesture_box_ex(ot, false, false);
 }
 
-void WM_operator_properties_gesture_border_zoom(wmOperatorType *ot)
+void WM_operator_properties_select_operation(wmOperatorType *ot)
+{
+	static const EnumPropertyItem select_mode_items[] = {
+		{SEL_OP_SET, "SET", 0, "New", ""},
+		{SEL_OP_ADD, "ADD", 0, "Add", ""},
+		{SEL_OP_SUB, "SUB", 0, "Subtract", ""},
+		{SEL_OP_XOR, "XOR", 0, "Difference", ""},
+		{SEL_OP_AND, "AND", 0, "Intersect", ""},
+		{0, NULL, 0, NULL, NULL}
+	};
+	PropertyRNA *prop = RNA_def_enum(ot->srna, "mode", select_mode_items, SEL_OP_SET, "Mode", "");
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+}
+
+void WM_operator_properties_gesture_box_zoom(wmOperatorType *ot)
 {
 	WM_operator_properties_border(ot);
 
@@ -322,7 +353,8 @@ void WM_operator_properties_gesture_circle_ex(wmOperatorType *ot, bool deselect)
 	RNA_def_int(ot->srna, "radius", radius_default, 1, INT_MAX, "Radius", "", 1, INT_MAX);
 
 	if (deselect) {
-		RNA_def_boolean(ot->srna, "deselect", false, "Deselect", "Deselect rather than select items");
+		prop = RNA_def_boolean(ot->srna, "deselect", false, "Deselect", "Deselect rather than select items");
+		RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 	}
 }
 
@@ -356,9 +388,9 @@ void WM_operator_properties_checker_interval(wmOperatorType *ot, bool nth_can_di
 {
 	const int nth_default = nth_can_disable ? 1 : 2;
 	const int nth_min =  min_ii(nth_default, 2);
-	RNA_def_int(ot->srna, "nth", nth_default, nth_min, INT_MAX, "Nth Selection", "", nth_min, 100);
-	RNA_def_int(ot->srna, "skip", 1, 1, INT_MAX, "Skip", "", 1, 100);
-	RNA_def_int(ot->srna, "offset", 0, INT_MIN, INT_MAX, "Offset", "", -100, 100);
+	RNA_def_int(ot->srna, "nth", nth_default, nth_min, INT_MAX, "Nth Element", "Skip every Nth element", nth_min, 100);
+	RNA_def_int(ot->srna, "skip", 1, 1, INT_MAX, "Skip", "Number of elements to skip at once", 1, 100);
+	RNA_def_int(ot->srna, "offset", 0, INT_MIN, INT_MAX, "Offset", "Offset from the starting point", -100, 100);
 }
 
 void WM_operator_properties_checker_interval_from_op(

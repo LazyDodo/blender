@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -17,7 +17,7 @@
  *
  * The Original Code is Copyright (C) 2009 Blender Foundation.
  * All rights reserved.
- * 
+ *
  * Contributor(s): Blender Foundation.
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -61,7 +61,7 @@ static ListBase global_font_dir = { NULL, NULL };
 static DirBLF *blf_dir_find(const char *path)
 {
 	DirBLF *p;
-	
+
 	p = global_font_dir.first;
 	while (p) {
 		if (BLI_path_cmp(p->path, path) == 0)
@@ -74,11 +74,11 @@ static DirBLF *blf_dir_find(const char *path)
 void BLF_dir_add(const char *path)
 {
 	DirBLF *dir;
-	
+
 	dir = blf_dir_find(path);
 	if (dir) /* already in the list ? just return. */
 		return;
-	
+
 	dir = (DirBLF *)MEM_callocN(sizeof(DirBLF), "BLF_dir_add");
 	dir->path = BLI_strdup(path);
 	BLI_addhead(&global_font_dir, dir);
@@ -87,7 +87,7 @@ void BLF_dir_add(const char *path)
 void BLF_dir_rem(const char *path)
 {
 	DirBLF *dir;
-	
+
 	dir = blf_dir_find(path);
 	if (dir) {
 		BLI_remlink(&global_font_dir, dir);
@@ -102,11 +102,11 @@ char **BLF_dir_get(int *ndir)
 	char **dirs;
 	char *path;
 	int i, count;
-	
+
 	count = BLI_listbase_count(&global_font_dir);
 	if (!count)
 		return NULL;
-	
+
 	dirs = (char **)MEM_callocN(sizeof(char *) * count, "BLF_dir_get");
 	p = global_font_dir.first;
 	i = 0;
@@ -123,7 +123,7 @@ void BLF_dir_free(char **dirs, int count)
 {
 	char *path;
 	int i;
-	
+
 	for (i = 0; i < count; i++) {
 		path = dirs[i];
 		MEM_freeN(path);
@@ -153,32 +153,6 @@ char *blf_dir_search(const char *file)
 
 	return s;
 }
-
-#if 0 /* UNUSED */
-int blf_dir_split(const char *str, char *file, int *size)
-{
-	int i, len;
-	char *s;
-	
-	/* Window, Linux or Mac, this is always / */
-	s = strrchr(str, '/');
-	if (s) {
-		len = s - str;
-		for (i = 0; i < len; i++)
-			file[i] = str[i];
-
-		file[i] = '.';
-		file[i + 1] = 't';
-		file[i + 2] = 't';
-		file[i + 3] = 'f';
-		file[i + 4] = '\0';
-		s++;
-		*size = atoi(s);
-		return 1;
-	}
-	return 0;
-}
-#endif
 
 /* Some font have additional file with metrics information,
  * in general, the extension of the file is: .afm or .pfm

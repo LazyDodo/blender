@@ -35,15 +35,14 @@
 #include "BLI_math.h"
 #include "BLI_listbase.h"
 
+#include "BKE_layer.h"
 #include "BKE_context.h"
-#include "BKE_object.h"
 #include "BKE_report.h"
 #include "BKE_editmesh.h"
 
 #include "RNA_define.h"
 #include "RNA_access.h"
 
-#include "WM_api.h"
 #include "WM_types.h"
 
 #include "ED_mesh.h"
@@ -51,18 +50,9 @@
 #include "ED_transform.h"
 #include "ED_view3d.h"
 
-#include "UI_resources.h"
-
 #include "MEM_guardedalloc.h"
 
 #include "mesh_intern.h"  /* own include */
-
-#define USE_MANIPULATOR
-
-#ifdef USE_MANIPULATOR
-#include "ED_manipulator_library.h"
-#include "ED_undo.h"
-#endif
 
 /* -------------------------------------------------------------------- */
 /** \name Extrude Internal Utilities
@@ -174,15 +164,15 @@ static bool edbm_extrude_discrete_faces(BMEditMesh *em, wmOperator *op, const ch
 }
 
 /* extrudes individual edges */
-static bool edbm_extrude_edges_indiv(BMEditMesh *em, wmOperator *op, const char hflag)
+static bool edbm_extrude_edges_indiv(BMEditMesh *em, wmOperator *op, const char hflag, const bool use_normal_flip)
 {
 	BMesh *bm = em->bm;
 	BMOperator bmop;
 
 	EDBM_op_init(
 	        em, &bmop, op,
-	        "extrude_edge_only edges=%he use_select_history=%b",
-	        hflag, true);
+	        "extrude_edge_only edges=%he use_normal_flip=%b use_select_history=%b",
+	        hflag, use_normal_flip, true);
 
 	/* deselect original verts */
 	BM_SELECT_HISTORY_BACKUP(bm);
@@ -249,6 +239,7 @@ static char edbm_extrude_htype_from_em_select(BMEditMesh *em)
 static bool edbm_extrude_ex(
         Object *obedit, BMEditMesh *em,
         char htype, const char hflag,
+        const bool use_normal_flip,
         const bool use_mirror,
         const bool use_select_history)
 {
@@ -263,6 +254,7 @@ static bool edbm_extrude_ex(
 	}
 
 	BMO_op_init(bm, &extop, BMO_FLAG_DEFAULTS, "extrude_face_region");
+	BMO_slot_bool_set(extop.slots_in, "use_normal_flip", use_normal_flip);
 	BMO_slot_bool_set(extop.slots_in, "use_select_history", use_select_history);
 	BMO_slot_buffer_from_enabled_hflag(bm, &extop, extop.slots_in, "geom", htype, hflag);
 
@@ -296,36 +288,44 @@ static bool edbm_extrude_ex(
 
 static int edbm_extrude_repeat_exec(bContext *C, wmOperator *op)
 {
-	Object *obedit = CTX_data_edit_object(C);
-	BMEditMesh *em = BKE_editmesh_from_object(obedit);
 	RegionView3D *rv3d = CTX_wm_region_view3d(C);
-
 	const int steps = RNA_int_get(op->ptr, "steps");
-
 	const float offs = RNA_float_get(op->ptr, "offset");
 	float dvec[3], tmat[3][3], bmat[3][3];
 	short a;
 
-	/* dvec */
-	normalize_v3_v3_length(dvec, rv3d->persinv[2], offs);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
 
-	/* base correction */
-	copy_m3_m4(bmat, obedit->obmat);
-	invert_m3_m3(tmat, bmat);
-	mul_m3_v3(tmat, dvec);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 
-	for (a = 0; a < steps; a++) {
-		edbm_extrude_ex(obedit, em, BM_ALL_NOLOOP, BM_ELEM_SELECT, false, false);
+		Object *obedit = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(obedit);
 
-		BMO_op_callf(
-		        em->bm, BMO_FLAG_DEFAULTS,
-		        "translate vec=%v verts=%hv",
-		        dvec, BM_ELEM_SELECT);
+		/* dvec */
+		normalize_v3_v3_length(dvec, rv3d->persinv[2], offs);
+
+		/* base correction */
+		copy_m3_m4(bmat, obedit->obmat);
+		invert_m3_m3(tmat, bmat);
+		mul_m3_v3(tmat, dvec);
+
+		for (a = 0; a < steps; a++) {
+			edbm_extrude_ex(obedit, em, BM_ALL_NOLOOP, BM_ELEM_SELECT, false, false, false);
+
+			BMO_op_callf(
+				em->bm, BMO_FLAG_DEFAULTS,
+				"translate vec=%v verts=%hv",
+				dvec, BM_ELEM_SELECT);
+		}
+
+		EDBM_mesh_normals_update(em);
+
+		EDBM_update_generic(em, true, true);
 	}
 
-	EDBM_mesh_normals_update(em);
-
-	EDBM_update_generic(em, true, true);
+	MEM_freeN(objects);
 
 	return OPERATOR_FINISHED;
 }
@@ -358,9 +358,10 @@ void MESH_OT_extrude_repeat(wmOperatorType *ot)
 /* generic extern called extruder */
 static bool edbm_extrude_mesh(Object *obedit, BMEditMesh *em, wmOperator *op)
 {
-	bool changed = false;
+	const bool use_normal_flip = RNA_boolean_get(op->ptr, "use_normal_flip");
 	const char htype = edbm_extrude_htype_from_em_select(em);
 	enum {NONE = 0, ELEM_FLAG, VERT_ONLY, EDGE_ONLY} nr;
+	bool changed = false;
 
 	if (em->selectmode & SCE_SELECT_VERTEX) {
 		if      (em->bm->totvertsel == 0) nr = NONE;
@@ -382,13 +383,13 @@ static bool edbm_extrude_mesh(Object *obedit, BMEditMesh *em, wmOperator *op)
 		case NONE:
 			return false;
 		case ELEM_FLAG:
-			changed = edbm_extrude_ex(obedit, em, htype, BM_ELEM_SELECT, true, true);
+			changed = edbm_extrude_ex(obedit, em, htype, BM_ELEM_SELECT, use_normal_flip, true, true);
 			break;
 		case VERT_ONLY:
 			changed = edbm_extrude_verts_indiv(em, op, BM_ELEM_SELECT);
 			break;
 		case EDGE_ONLY:
-			changed = edbm_extrude_edges_indiv(em, op, BM_ELEM_SELECT);
+			changed = edbm_extrude_edges_indiv(em, op, BM_ELEM_SELECT, use_normal_flip);
 			break;
 	}
 
@@ -404,18 +405,28 @@ static bool edbm_extrude_mesh(Object *obedit, BMEditMesh *em, wmOperator *op)
 /* extrude without transform */
 static int edbm_extrude_region_exec(bContext *C, wmOperator *op)
 {
-	Object *obedit = CTX_data_edit_object(C);
-	BMEditMesh *em = BKE_editmesh_from_object(obedit);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
 
-	edbm_extrude_mesh(obedit, em, op);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(obedit);
+		if (em->bm->totvertsel == 0) {
+			continue;
+		}
 
-	/* This normally happens when pushing undo but modal operators
-	 * like this one don't push undo data until after modal mode is
-	 * done.*/
-	EDBM_mesh_normals_update(em);
+		if (!edbm_extrude_mesh(obedit, em, op)) {
+			continue;
+		}
+		/* This normally happens when pushing undo but modal operators
+		 * like this one don't push undo data until after modal mode is
+		 * done.*/
+		EDBM_mesh_normals_update(em);
 
-	EDBM_update_generic(em, true, true);
-
+		EDBM_update_generic(em, true, true);
+	}
+	MEM_freeN(objects);
 	return OPERATOR_FINISHED;
 }
 
@@ -434,6 +445,60 @@ void MESH_OT_extrude_region(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
+	RNA_def_boolean(ot->srna, "use_normal_flip", false, "Flip Normals", "");
+	Transform_Properties(ot, P_NO_DEFAULTS | P_MIRROR_DUMMY);
+}
+
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Extrude Context Operator
+ *
+ * Guess what to do based on selection.
+ * \{ */
+
+/* extrude without transform */
+static int edbm_extrude_context_exec(bContext *C, wmOperator *op)
+{
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(obedit);
+		if (em->bm->totvertsel == 0) {
+			continue;
+		}
+
+		edbm_extrude_mesh(obedit, em, op);
+		/* This normally happens when pushing undo but modal operators
+		 * like this one don't push undo data until after modal mode is
+		 * done.*/
+
+		EDBM_mesh_normals_update(em);
+
+		EDBM_update_generic(em, true, true);
+	}
+	MEM_freeN(objects);
+	return OPERATOR_FINISHED;
+}
+
+void MESH_OT_extrude_context(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Extrude Context";
+	ot->idname = "MESH_OT_extrude_context";
+	ot->description = "Extrude selection";
+
+	/* api callbacks */
+	ot->exec = edbm_extrude_context_exec;
+	ot->poll = ED_operator_editmesh;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+	RNA_def_boolean(ot->srna, "use_normal_flip", false, "Flip Normals", "");
 	Transform_Properties(ot, P_NO_DEFAULTS | P_MIRROR_DUMMY);
 }
 
@@ -445,12 +510,22 @@ void MESH_OT_extrude_region(wmOperatorType *ot)
 
 static int edbm_extrude_verts_exec(bContext *C, wmOperator *op)
 {
-	Object *obedit = CTX_data_edit_object(C);
-	BMEditMesh *em = BKE_editmesh_from_object(obedit);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
 
-	edbm_extrude_verts_indiv(em, op, BM_ELEM_SELECT);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(obedit);
+		if (em->bm->totvertsel == 0) {
+			continue;
+		}
 
-	EDBM_update_generic(em, true, true);
+		edbm_extrude_verts_indiv(em, op, BM_ELEM_SELECT);
+
+		EDBM_update_generic(em, true, true);
+	}
+	MEM_freeN(objects);
 
 	return OPERATOR_FINISHED;
 }
@@ -481,12 +556,23 @@ void MESH_OT_extrude_verts_indiv(wmOperatorType *ot)
 
 static int edbm_extrude_edges_exec(bContext *C, wmOperator *op)
 {
-	Object *obedit = CTX_data_edit_object(C);
-	BMEditMesh *em = BKE_editmesh_from_object(obedit);
+	const bool use_normal_flip = RNA_boolean_get(op->ptr, "use_normal_flip");
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
 
-	edbm_extrude_edges_indiv(em, op, BM_ELEM_SELECT);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(obedit);
+		if (em->bm->totedgesel == 0) {
+			continue;
+		}
 
-	EDBM_update_generic(em, true, true);
+		edbm_extrude_edges_indiv(em, op, BM_ELEM_SELECT, use_normal_flip);
+
+		EDBM_update_generic(em, true, true);
+	}
+	MEM_freeN(objects);
 
 	return OPERATOR_FINISHED;
 }
@@ -506,6 +592,7 @@ void MESH_OT_extrude_edges_indiv(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	/* to give to transform */
+	RNA_def_boolean(ot->srna, "use_normal_flip", false, "Flip Normals", "");
 	Transform_Properties(ot, P_NO_DEFAULTS | P_MIRROR_DUMMY);
 }
 
@@ -517,12 +604,22 @@ void MESH_OT_extrude_edges_indiv(wmOperatorType *ot)
 
 static int edbm_extrude_faces_exec(bContext *C, wmOperator *op)
 {
-	Object *obedit = CTX_data_edit_object(C);
-	BMEditMesh *em = BKE_editmesh_from_object(obedit);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
 
-	edbm_extrude_discrete_faces(em, op, BM_ELEM_SELECT);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		BMEditMesh *em = BKE_editmesh_from_object(obedit);
+		if (em->bm->totfacesel == 0) {
+			continue;
+		}
 
-	EDBM_update_generic(em, true, true);
+		edbm_extrude_discrete_faces(em, op, BM_ELEM_SELECT);
+
+		EDBM_update_generic(em, true, true);
+	}
+	MEM_freeN(objects);
 
 	return OPERATOR_FINISHED;
 }
@@ -559,161 +656,206 @@ static int edbm_dupli_extrude_cursor_invoke(bContext *C, wmOperator *op, const w
 	BMIter iter;
 	float center[3];
 	uint verts_len;
-	bool use_proj;
 
 	em_setup_viewcontext(C, &vc);
+	const Object *object_active = vc.obact;
 
-	invert_m4_m4(vc.obedit->imat, vc.obedit->obmat);
+	const bool rot_src = RNA_boolean_get(op->ptr, "rotate_source");
+	const bool use_proj = ((vc.scene->toolsettings->snap_flag & SCE_SNAP) &&
+	                       (vc.scene->toolsettings->snap_mode == SCE_SNAP_MODE_FACE));
 
-	ED_view3d_init_mats_rv3d(vc.obedit, vc.rv3d);
-
-	use_proj = ((vc.scene->toolsettings->snap_flag & SCE_SNAP) &&
-	            (vc.scene->toolsettings->snap_mode == SCE_SNAP_MODE_FACE));
-
+	/* First calculate the center of transformation. */
 	zero_v3(center);
 	verts_len = 0;
 
-	BM_ITER_MESH (v1, &iter, vc.em->bm, BM_VERTS_OF_MESH) {
-		if (BM_elem_flag_test(v1, BM_ELEM_SELECT)) {
-			add_v3_v3(center, v1->co);
-			verts_len += 1;
+	uint objects_len = 0;
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(vc.view_layer, &objects_len);
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		ED_view3d_viewcontext_init_object(&vc, obedit);
+		const int local_verts_len = vc.em->bm->totvertsel;
+
+		if (vc.em->bm->totvertsel == 0) {
+			continue;
 		}
+
+		float local_center[3];
+		zero_v3(local_center);
+
+		BM_ITER_MESH(v1, &iter, vc.em->bm, BM_VERTS_OF_MESH) {
+			if (BM_elem_flag_test(v1, BM_ELEM_SELECT)) {
+				add_v3_v3(local_center, v1->co);
+			}
+		}
+
+		mul_v3_fl(local_center, 1.0f / (float)local_verts_len);
+		mul_m4_v3(vc.obedit->obmat, local_center);
+		mul_v3_fl(local_center, (float)local_verts_len);
+
+		add_v3_v3(center, local_center);
+		verts_len += local_verts_len;
 	}
 
-	/* call extrude? */
 	if (verts_len != 0) {
-		const char extrude_htype = edbm_extrude_htype_from_em_select(vc.em);
-		const bool rot_src = RNA_boolean_get(op->ptr, "rotate_source");
-		BMEdge *eed;
-		float mat[3][3];
-		float vec[3], ofs[3];
-		float nor[3] = {0.0, 0.0, 0.0};
-
-		/* 2D normal calc */
-		const float mval_f[2] = {(float)event->mval[0],
-		                         (float)event->mval[1]};
-
 		mul_v3_fl(center, 1.0f / (float)verts_len);
+	}
 
-		/* check for edges that are half selected, use for rotation */
-		bool done = false;
-		BM_ITER_MESH (eed, &iter, vc.em->bm, BM_EDGES_OF_MESH) {
-			if (BM_elem_flag_test(eed, BM_ELEM_SELECT)) {
-				float co1[2], co2[2];
+	/* Then we process the meshes. */
+	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
+		Object *obedit = objects[ob_index];
+		ED_view3d_viewcontext_init_object(&vc, obedit);
 
-				if ((ED_view3d_project_float_object(vc.ar, eed->v1->co, co1, V3D_PROJ_TEST_NOP) == V3D_PROJ_RET_OK) &&
-				    (ED_view3d_project_float_object(vc.ar, eed->v2->co, co2, V3D_PROJ_TEST_NOP) == V3D_PROJ_RET_OK))
-				{
-					/* 2D rotate by 90d while adding.
-					 *  (x, y) = (y, -x)
-					 *
-					 * accumulate the screenspace normal in 2D,
-					 * with screenspace edge length weighting the result. */
-					if (line_point_side_v2(co1, co2, mval_f) >= 0.0f) {
-						nor[0] +=  (co1[1] - co2[1]);
-						nor[1] += -(co1[0] - co2[0]);
-					}
-					else {
-						nor[0] +=  (co2[1] - co1[1]);
-						nor[1] += -(co2[0] - co1[0]);
-					}
-					done = true;
-				}
+		if (verts_len != 0) {
+			if (vc.em->bm->totvertsel == 0) {
+				continue;
 			}
 		}
-
-		if (done) {
-			float view_vec[3], cross[3];
-
-			/* convert the 2D nomal into 3D */
-			mul_mat3_m4_v3(vc.rv3d->viewinv, nor); /* worldspace */
-			mul_mat3_m4_v3(vc.obedit->imat, nor); /* local space */
-
-			/* correct the normal to be aligned on the view plane */
-			mul_v3_mat3_m4v3(view_vec, vc.obedit->imat, vc.rv3d->viewinv[2]);
-			cross_v3_v3v3(cross, nor, view_vec);
-			cross_v3_v3v3(nor, view_vec, cross);
-			normalize_v3(nor);
+		else if (obedit != object_active) {
+			continue;
 		}
 
-		/* center */
-		copy_v3_v3(ofs, center);
+		invert_m4_m4(vc.obedit->imat, vc.obedit->obmat);
+		ED_view3d_init_mats_rv3d(vc.obedit, vc.rv3d);
 
-		mul_m4_v3(vc.obedit->obmat, ofs);  /* view space */
-		ED_view3d_win_to_3d_int(vc.v3d, vc.ar, ofs, event->mval, ofs);
-		mul_m4_v3(vc.obedit->imat, ofs); // back in object space
+		float local_center[3];
+		mul_v3_m4v3(local_center, vc.obedit->imat, center);
 
-		sub_v3_v3(ofs, center);
+		/* call extrude? */
+		if (verts_len != 0) {
+			const char extrude_htype = edbm_extrude_htype_from_em_select(vc.em);
+			BMEdge *eed;
+			float mat[3][3];
+			float vec[3], ofs[3];
+			float nor[3] = { 0.0, 0.0, 0.0 };
 
-		/* calculate rotation */
-		unit_m3(mat);
-		if (done) {
-			float angle;
+			/* 2D normal calc */
+			const float mval_f[2] = { (float)event->mval[0],
+			                          (float)event->mval[1] };
 
-			normalize_v3_v3(vec, ofs);
+			/* check for edges that are half selected, use for rotation */
+			bool done = false;
+			BM_ITER_MESH(eed, &iter, vc.em->bm, BM_EDGES_OF_MESH) {
+				if (BM_elem_flag_test(eed, BM_ELEM_SELECT)) {
+					float co1[2], co2[2];
 
-			angle = angle_normalized_v3v3(vec, nor);
-
-			if (angle != 0.0f) {
-				float axis[3];
-
-				cross_v3_v3v3(axis, nor, vec);
-
-				/* halve the rotation if its applied twice */
-				if (rot_src) {
-					angle *= 0.5f;
+					if ((ED_view3d_project_float_object(vc.ar, eed->v1->co, co1, V3D_PROJ_TEST_NOP) == V3D_PROJ_RET_OK) &&
+					    (ED_view3d_project_float_object(vc.ar, eed->v2->co, co2, V3D_PROJ_TEST_NOP) == V3D_PROJ_RET_OK))
+					{
+						/* 2D rotate by 90d while adding.
+						 *  (x, y) = (y, -x)
+						 *
+						 * accumulate the screenspace normal in 2D,
+						 * with screenspace edge length weighting the result. */
+						if (line_point_side_v2(co1, co2, mval_f) >= 0.0f) {
+							nor[0] += (co1[1] - co2[1]);
+							nor[1] += -(co1[0] - co2[0]);
+						}
+						else {
+							nor[0] += (co2[1] - co1[1]);
+							nor[1] += -(co2[0] - co1[0]);
+						}
+						done = true;
+					}
 				}
-
-				axis_angle_to_mat3(mat, axis, angle);
 			}
-		}
 
-		if (rot_src) {
+			if (done) {
+				float view_vec[3], cross[3];
+
+				/* convert the 2D normal into 3D */
+				mul_mat3_m4_v3(vc.rv3d->viewinv, nor); /* worldspace */
+				mul_mat3_m4_v3(vc.obedit->imat, nor); /* local space */
+
+				/* correct the normal to be aligned on the view plane */
+				mul_v3_mat3_m4v3(view_vec, vc.obedit->imat, vc.rv3d->viewinv[2]);
+				cross_v3_v3v3(cross, nor, view_vec);
+				cross_v3_v3v3(nor, view_vec, cross);
+				normalize_v3(nor);
+			}
+
+			/* center */
+			copy_v3_v3(ofs, local_center);
+
+			mul_m4_v3(vc.obedit->obmat, ofs);  /* view space */
+			ED_view3d_win_to_3d_int(vc.v3d, vc.ar, ofs, event->mval, ofs);
+			mul_m4_v3(vc.obedit->imat, ofs); // back in object space
+
+			sub_v3_v3(ofs, local_center);
+
+			/* calculate rotation */
+			unit_m3(mat);
+			if (done) {
+				float angle;
+
+				normalize_v3_v3(vec, ofs);
+
+				angle = angle_normalized_v3v3(vec, nor);
+
+				if (angle != 0.0f) {
+					float axis[3];
+
+					cross_v3_v3v3(axis, nor, vec);
+
+					/* halve the rotation if its applied twice */
+					if (rot_src) {
+						angle *= 0.5f;
+					}
+
+					axis_angle_to_mat3(mat, axis, angle);
+				}
+			}
+
+			if (rot_src) {
+				EDBM_op_callf(vc.em, op, "rotate verts=%hv cent=%v matrix=%m3",
+				              BM_ELEM_SELECT, local_center, mat);
+
+				/* also project the source, for retopo workflow */
+				if (use_proj) {
+					EDBM_project_snap_verts(C, vc.ar, vc.em);
+				}
+			}
+
+			edbm_extrude_ex(vc.obedit, vc.em, extrude_htype, BM_ELEM_SELECT, false, true, true);
 			EDBM_op_callf(vc.em, op, "rotate verts=%hv cent=%v matrix=%m3",
-			              BM_ELEM_SELECT, center, mat);
+			              BM_ELEM_SELECT, local_center, mat);
+			EDBM_op_callf(vc.em, op, "translate verts=%hv vec=%v",
+			              BM_ELEM_SELECT, ofs);
+		}
+		else {
+			/* This only runs for the active object. */
+			const float *cursor = ED_view3d_cursor3d_get(vc.scene, vc.v3d)->location;
+			BMOperator bmop;
+			BMOIter oiter;
 
-			/* also project the source, for retopo workflow */
-			if (use_proj)
-				EMBM_project_snap_verts(C, vc.ar, vc.em);
+			copy_v3_v3(local_center, cursor);
+			ED_view3d_win_to_3d_int(vc.v3d, vc.ar, local_center, event->mval, local_center);
+
+			mul_m4_v3(vc.obedit->imat, local_center); // back in object space
+
+			EDBM_op_init(vc.em, &bmop, op, "create_vert co=%v", local_center);
+			BMO_op_exec(vc.em->bm, &bmop);
+
+			BMO_ITER(v1, &oiter, bmop.slots_out, "vert.out", BM_VERT) {
+				BM_vert_select_set(vc.em->bm, v1, true);
+			}
+
+			if (!EDBM_op_finish(vc.em, &bmop, op, true)) {
+				continue;
+			}
 		}
 
-		edbm_extrude_ex(vc.obedit, vc.em, extrude_htype, BM_ELEM_SELECT, true, true);
-		EDBM_op_callf(vc.em, op, "rotate verts=%hv cent=%v matrix=%m3",
-		              BM_ELEM_SELECT, center, mat);
-		EDBM_op_callf(vc.em, op, "translate verts=%hv vec=%v",
-		              BM_ELEM_SELECT, ofs);
+		if (use_proj) {
+			EDBM_project_snap_verts(C, vc.ar, vc.em);
+		}
+
+		/* This normally happens when pushing undo but modal operators
+		 * like this one don't push undo data until after modal mode is
+		 * done. */
+		EDBM_mesh_normals_update(vc.em);
+
+		EDBM_update_generic(vc.em, true, true);
 	}
-	else {
-		const float *cursor = ED_view3d_cursor3d_get(vc.scene, vc.v3d);
-		BMOperator bmop;
-		BMOIter oiter;
-
-		copy_v3_v3(center, cursor);
-		ED_view3d_win_to_3d_int(vc.v3d, vc.ar, center, event->mval, center);
-
-		mul_m4_v3(vc.obedit->imat, center); // back in object space
-
-		EDBM_op_init(vc.em, &bmop, op, "create_vert co=%v", center);
-		BMO_op_exec(vc.em->bm, &bmop);
-
-		BMO_ITER (v1, &oiter, bmop.slots_out, "vert.out", BM_VERT) {
-			BM_vert_select_set(vc.em->bm, v1, true);
-		}
-
-		if (!EDBM_op_finish(vc.em, &bmop, op, true)) {
-			return OPERATOR_CANCELLED;
-		}
-	}
-
-	if (use_proj)
-		EMBM_project_snap_verts(C, vc.ar, vc.em);
-
-	/* This normally happens when pushing undo but modal operators
-	 * like this one don't push undo data until after modal mode is
-	 * done. */
-	EDBM_mesh_normals_update(vc.em);
-
-	EDBM_update_generic(vc.em, true, true);
+	MEM_freeN(objects);
 
 	return OPERATOR_FINISHED;
 }
@@ -733,630 +875,6 @@ void MESH_OT_dupli_extrude_cursor(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	RNA_def_boolean(ot->srna, "rotate_source", true, "Rotate Source", "Rotate initial selection giving better shape");
-}
-
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Spin Operator
- * \{ */
-
-static int edbm_spin_exec(bContext *C, wmOperator *op)
-{
-	Object *obedit = CTX_data_edit_object(C);
-	BMEditMesh *em = BKE_editmesh_from_object(obedit);
-	BMesh *bm = em->bm;
-	BMOperator spinop;
-	float cent[3], axis[3];
-	float d[3] = {0.0f, 0.0f, 0.0f};
-	int steps, dupli;
-	float angle;
-
-	RNA_float_get_array(op->ptr, "center", cent);
-	RNA_float_get_array(op->ptr, "axis", axis);
-	steps = RNA_int_get(op->ptr, "steps");
-	angle = RNA_float_get(op->ptr, "angle");
-	//if (ts->editbutflag & B_CLOCKWISE)
-	angle = -angle;
-	dupli = RNA_boolean_get(op->ptr, "dupli");
-
-	if (is_zero_v3(axis)) {
-		BKE_report(op->reports, RPT_ERROR, "Invalid/unset axis");
-		return OPERATOR_CANCELLED;
-	}
-
-	/* keep the values in worldspace since we're passing the obmat */
-	if (!EDBM_op_init(em, &spinop, op,
-	                  "spin geom=%hvef cent=%v axis=%v dvec=%v steps=%i angle=%f space=%m4 use_duplicate=%b",
-	                  BM_ELEM_SELECT, cent, axis, d, steps, angle, obedit->obmat, dupli))
-	{
-		return OPERATOR_CANCELLED;
-	}
-	BMO_op_exec(bm, &spinop);
-	EDBM_flag_disable_all(em, BM_ELEM_SELECT);
-	BMO_slot_buffer_hflag_enable(bm, spinop.slots_out, "geom_last.out", BM_ALL_NOLOOP, BM_ELEM_SELECT, true);
-	if (!EDBM_op_finish(em, &spinop, op, true)) {
-		return OPERATOR_CANCELLED;
-	}
-
-	EDBM_update_generic(em, true, true);
-
-	return OPERATOR_FINISHED;
-}
-
-/* get center and axis, in global coords */
-static int edbm_spin_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
-{
-	Scene *scene = CTX_data_scene(C);
-	View3D *v3d = CTX_wm_view3d(C);
-	RegionView3D *rv3d = ED_view3d_context_rv3d(C);
-
-	PropertyRNA *prop;
-	prop = RNA_struct_find_property(op->ptr, "center");
-	if (!RNA_property_is_set(op->ptr, prop)) {
-		RNA_property_float_set_array(op->ptr, prop, ED_view3d_cursor3d_get(scene, v3d));
-	}
-	if (rv3d) {
-		prop = RNA_struct_find_property(op->ptr, "axis");
-		if (!RNA_property_is_set(op->ptr, prop)) {
-			RNA_property_float_set_array(op->ptr, prop, rv3d->viewinv[2]);
-		}
-	}
-
-	int ret = edbm_spin_exec(C, op);
-
-#ifdef USE_MANIPULATOR
-	if (ret & OPERATOR_FINISHED) {
-		/* Setup manipulators */
-		if (v3d && (v3d->twtype & V3D_MANIPULATOR_DRAW)) {
-			WM_manipulator_group_type_ensure("MESH_WGT_spin");
-		}
-	}
-#endif
-
-	return ret;
-
-}
-
-#ifdef USE_MANIPULATOR
-static void MESH_WGT_spin(struct wmManipulatorGroupType *wgt);
-#endif
-
-void MESH_OT_spin(wmOperatorType *ot)
-{
-	PropertyRNA *prop;
-
-	/* identifiers */
-	ot->name = "Spin";
-	ot->description = "Extrude selected vertices in a circle around the cursor in indicated viewport";
-	ot->idname = "MESH_OT_spin";
-
-	/* api callbacks */
-	ot->invoke = edbm_spin_invoke;
-	ot->exec = edbm_spin_exec;
-	ot->poll = ED_operator_editmesh;
-
-	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-
-	/* props */
-	RNA_def_int(ot->srna, "steps", 9, 0, 1000000, "Steps", "Steps", 0, 1000);
-	RNA_def_boolean(ot->srna, "dupli", 0, "Dupli", "Make Duplicates");
-	prop = RNA_def_float(ot->srna, "angle", DEG2RADF(90.0f), -1e12f, 1e12f, "Angle", "Rotation for each step",
-	                     DEG2RADF(-360.0f), DEG2RADF(360.0f));
-	RNA_def_property_subtype(prop, PROP_ANGLE);
-
-	RNA_def_float_vector(ot->srna, "center", 3, NULL, -1e12f, 1e12f,
-	                     "Center", "Center in global view space", -1e4f, 1e4f);
-	RNA_def_float_vector(ot->srna, "axis", 3, NULL, -1.0f, 1.0f, "Axis", "Axis in global view space", -1.0f, 1.0f);
-
-#ifdef USE_MANIPULATOR
-	WM_manipulatorgrouptype_append(MESH_WGT_spin);
-#endif
-}
-
-
-#ifdef USE_MANIPULATOR
-
-/* -------------------------------------------------------------------- */
-/** \name Screw Operator
- * \{ */
-
-typedef struct ManipulatorSpinGroup {
-	/* Arrow to change plane depth. */
-	struct wmManipulator *translate_z;
-	/* Translate XYZ */
-	struct wmManipulator *translate_c;
-	/* For grabbing the manipulator and moving freely. */
-	struct wmManipulator *rotate_c;
-	/* Spin angle */
-	struct wmManipulator *angle_z;
-
-	/* We could store more vars here! */
-	struct {
-		bContext *context;
-		wmOperator *op;
-		PropertyRNA *prop_axis_co;
-		PropertyRNA *prop_axis_no;
-		PropertyRNA *prop_angle;
-
-		float rotate_axis[3];
-		float rotate_up[3];
-	} data;
-} ManipulatorSpinGroup;
-
-/**
- * XXX. calling redo from property updates is not great.
- * This is needed because changing the RNA doesn't cause a redo
- * and we're not using operator UI which does just this.
- */
-static void manipulator_spin_exec(ManipulatorSpinGroup *man)
-{
-	wmOperator *op = man->data.op;
-	if (op == WM_operator_last_redo((bContext *)man->data.context)) {
-		ED_undo_operator_repeat((bContext *)man->data.context, op);
-	}
-}
-
-static void manipulator_mesh_spin_update_from_op(ManipulatorSpinGroup *man)
-{
-	wmOperator *op = man->data.op;
-
-	float plane_co[3], plane_no[3];
-
-	RNA_property_float_get_array(op->ptr, man->data.prop_axis_co, plane_co);
-	RNA_property_float_get_array(op->ptr, man->data.prop_axis_no, plane_no);
-
-	WM_manipulator_set_matrix_location(man->translate_z, plane_co);
-	WM_manipulator_set_matrix_location(man->rotate_c, plane_co);
-	WM_manipulator_set_matrix_location(man->angle_z, plane_co);
-	/* translate_c location comes from the property. */
-
-	WM_manipulator_set_matrix_rotation_from_z_axis(man->translate_z, plane_no);
-	WM_manipulator_set_matrix_rotation_from_z_axis(man->angle_z, plane_no);
-
-	WM_manipulator_set_scale(man->translate_c, 0.2);
-
-	RegionView3D *rv3d = ED_view3d_context_rv3d(man->data.context);
-	if (rv3d) {
-		normalize_v3_v3(man->data.rotate_axis, rv3d->viewinv[2]);
-		normalize_v3_v3(man->data.rotate_up, rv3d->viewinv[1]);
-
-		/* ensure its orthogonal */
-		project_plane_normalized_v3_v3v3(man->data.rotate_up, man->data.rotate_up, man->data.rotate_axis);
-		normalize_v3(man->data.rotate_up);
-
-		WM_manipulator_set_matrix_rotation_from_z_axis(man->translate_c, plane_no);
-		WM_manipulator_set_matrix_rotation_from_yz_axis(man->rotate_c, plane_no, man->data.rotate_axis);
-
-		/* show the axis instead of mouse cursor */
-		RNA_enum_set(man->rotate_c->ptr, "draw_options",
-		             ED_MANIPULATOR_DIAL_DRAW_FLAG_ANGLE_MIRROR |
-		             ED_MANIPULATOR_DIAL_DRAW_FLAG_ANGLE_START_Y);
-
-	}
-}
-
-/* depth callbacks */
-static void manipulator_spin_prop_depth_get(
-        const wmManipulator *mpr, wmManipulatorProperty *mpr_prop,
-        void *value_p)
-{
-	ManipulatorSpinGroup *man = mpr->parent_mgroup->customdata;
-	wmOperator *op = man->data.op;
-	float *value = value_p;
-
-	BLI_assert(mpr_prop->type->array_length == 1);
-	UNUSED_VARS_NDEBUG(mpr_prop);
-
-	float plane_co[3], plane_no[3];
-	RNA_property_float_get_array(op->ptr, man->data.prop_axis_co, plane_co);
-	RNA_property_float_get_array(op->ptr, man->data.prop_axis_no, plane_no);
-
-	value[0] = dot_v3v3(plane_no, plane_co) - dot_v3v3(plane_no, mpr->matrix_basis[3]);
-}
-
-static void manipulator_spin_prop_depth_set(
-        const wmManipulator *mpr, wmManipulatorProperty *mpr_prop,
-        const void *value_p)
-{
-	ManipulatorSpinGroup *man = mpr->parent_mgroup->customdata;
-	wmOperator *op = man->data.op;
-	const float *value = value_p;
-
-	BLI_assert(mpr_prop->type->array_length == 1);
-	UNUSED_VARS_NDEBUG(mpr_prop);
-
-	float plane_co[3], plane[4];
-	RNA_property_float_get_array(op->ptr, man->data.prop_axis_co, plane_co);
-	RNA_property_float_get_array(op->ptr, man->data.prop_axis_no, plane);
-	normalize_v3(plane);
-
-	plane[3] = -value[0] - dot_v3v3(plane, mpr->matrix_basis[3]);
-
-	/* Keep our location, may be offset simply to be inside the viewport. */
-	closest_to_plane_normalized_v3(plane_co, plane, plane_co);
-
-	RNA_property_float_set_array(op->ptr, man->data.prop_axis_co, plane_co);
-
-	manipulator_spin_exec(man);
-}
-
-/* translate callbacks */
-static void manipulator_spin_prop_translate_get(
-        const wmManipulator *mpr, wmManipulatorProperty *mpr_prop,
-        void *value_p)
-{
-	ManipulatorSpinGroup *man = mpr->parent_mgroup->customdata;
-	wmOperator *op = man->data.op;
-	float *value = value_p;
-
-	BLI_assert(mpr_prop->type->array_length == 3);
-	UNUSED_VARS_NDEBUG(mpr_prop);
-
-	RNA_property_float_get_array(op->ptr, man->data.prop_axis_co, value);
-}
-
-static void manipulator_spin_prop_translate_set(
-        const wmManipulator *mpr, wmManipulatorProperty *mpr_prop,
-        const void *value)
-{
-	ManipulatorSpinGroup *man = mpr->parent_mgroup->customdata;
-	wmOperator *op = man->data.op;
-
-	BLI_assert(mpr_prop->type->array_length == 3);
-	UNUSED_VARS_NDEBUG(mpr_prop);
-
-	RNA_property_float_set_array(op->ptr, man->data.prop_axis_co, value);
-
-	manipulator_spin_exec(man);
-}
-
-/* angle callbacks */
-static void manipulator_spin_prop_axis_angle_get(
-        const wmManipulator *mpr, wmManipulatorProperty *mpr_prop,
-        void *value_p)
-{
-	ManipulatorSpinGroup *man = mpr->parent_mgroup->customdata;
-	wmOperator *op = man->data.op;
-	float *value = value_p;
-
-	BLI_assert(mpr_prop->type->array_length == 1);
-	UNUSED_VARS_NDEBUG(mpr_prop);
-
-	float plane_no[4];
-	RNA_property_float_get_array(op->ptr, man->data.prop_axis_no, plane_no);
-	normalize_v3(plane_no);
-
-	float plane_no_proj[3];
-	project_plane_normalized_v3_v3v3(plane_no_proj, plane_no, man->data.rotate_axis);
-
-	if (!is_zero_v3(plane_no_proj)) {
-		const float angle = -angle_signed_on_axis_v3v3_v3(plane_no_proj, man->data.rotate_up, man->data.rotate_axis);
-		value[0] = angle;
-	}
-	else {
-		value[0] = 0.0f;
-	}
-}
-
-static void manipulator_spin_prop_axis_angle_set(
-        const wmManipulator *mpr, wmManipulatorProperty *mpr_prop,
-        const void *value_p)
-{
-	ManipulatorSpinGroup *man = mpr->parent_mgroup->customdata;
-	wmOperator *op = man->data.op;
-	const float *value = value_p;
-
-	BLI_assert(mpr_prop->type->array_length == 1);
-	UNUSED_VARS_NDEBUG(mpr_prop);
-
-	float plane_no[4];
-	RNA_property_float_get_array(op->ptr, man->data.prop_axis_no, plane_no);
-	normalize_v3(plane_no);
-
-	float plane_no_proj[3];
-	project_plane_normalized_v3_v3v3(plane_no_proj, plane_no, man->data.rotate_axis);
-
-	if (!is_zero_v3(plane_no_proj)) {
-		const float angle = -angle_signed_on_axis_v3v3_v3(plane_no_proj, man->data.rotate_up, man->data.rotate_axis);
-		const float angle_delta = angle - angle_compat_rad(value[0], angle);
-		if (angle_delta != 0.0f) {
-			float mat[3][3];
-			axis_angle_normalized_to_mat3(mat, man->data.rotate_axis, angle_delta);
-			mul_m3_v3(mat, plane_no);
-
-			/* re-normalize - seems acceptable */
-			RNA_property_float_set_array(op->ptr, man->data.prop_axis_no, plane_no);
-
-			manipulator_spin_exec(man);
-		}
-	}
-}
-
-/* angle callbacks */
-static void manipulator_spin_prop_angle_get(
-        const wmManipulator *mpr, wmManipulatorProperty *mpr_prop,
-        void *value_p)
-{
-	ManipulatorSpinGroup *man = mpr->parent_mgroup->customdata;
-	wmOperator *op = man->data.op;
-	float *value = value_p;
-
-	BLI_assert(mpr_prop->type->array_length == 1);
-	UNUSED_VARS_NDEBUG(mpr_prop);
-	value[0] = RNA_property_float_get(op->ptr, man->data.prop_angle);
-}
-
-static void manipulator_spin_prop_angle_set(
-        const wmManipulator *mpr, wmManipulatorProperty *mpr_prop,
-        const void *value_p)
-{
-	ManipulatorSpinGroup *man = mpr->parent_mgroup->customdata;
-	wmOperator *op = man->data.op;
-	BLI_assert(mpr_prop->type->array_length == 1);
-	UNUSED_VARS_NDEBUG(mpr_prop);
-	const float *value = value_p;
-	RNA_property_float_set(op->ptr, man->data.prop_angle, value[0]);
-
-	manipulator_spin_exec(man);
-}
-
-static bool manipulator_mesh_spin_poll(const bContext *C, wmManipulatorGroupType *wgt)
-{
-	wmOperator *op = WM_operator_last_redo(C);
-	if (op == NULL || !STREQ(op->type->idname, "MESH_OT_spin")) {
-		WM_manipulator_group_type_unlink_delayed_ptr(wgt);
-		return false;
-	}
-	return true;
-}
-
-static void manipulator_mesh_spin_setup(const bContext *C, wmManipulatorGroup *mgroup)
-{
-	wmOperator *op = WM_operator_last_redo(C);
-
-	if (op == NULL || !STREQ(op->type->idname, "MESH_OT_spin")) {
-		return;
-	}
-
-	struct ManipulatorSpinGroup *man = MEM_callocN(sizeof(ManipulatorSpinGroup), __func__);
-	mgroup->customdata = man;
-
-	const wmManipulatorType *wt_arrow = WM_manipulatortype_find("MANIPULATOR_WT_arrow_3d", true);
-	const wmManipulatorType *wt_grab = WM_manipulatortype_find("MANIPULATOR_WT_grab_3d", true);
-	const wmManipulatorType *wt_dial = WM_manipulatortype_find("MANIPULATOR_WT_dial_3d", true);
-
-	man->translate_z = WM_manipulator_new_ptr(wt_arrow, mgroup, NULL);
-	man->translate_c = WM_manipulator_new_ptr(wt_grab, mgroup, NULL);
-	man->rotate_c = WM_manipulator_new_ptr(wt_dial, mgroup, NULL);
-	man->angle_z = WM_manipulator_new_ptr(wt_dial, mgroup, NULL);
-
-	UI_GetThemeColor3fv(TH_MANIPULATOR_PRIMARY, man->translate_z->color);
-	UI_GetThemeColor3fv(TH_MANIPULATOR_PRIMARY, man->translate_c->color);
-	UI_GetThemeColor3fv(TH_MANIPULATOR_SECONDARY, man->rotate_c->color);
-	UI_GetThemeColor3fv(TH_AXIS_Z, man->angle_z->color);
-
-
-	RNA_enum_set(man->translate_z->ptr, "draw_style", ED_MANIPULATOR_ARROW_STYLE_NORMAL);
-	RNA_enum_set(man->translate_c->ptr, "draw_style", ED_MANIPULATOR_GRAB_STYLE_RING_2D);
-
-	WM_manipulator_set_flag(man->translate_c, WM_MANIPULATOR_DRAW_VALUE, true);
-	WM_manipulator_set_flag(man->rotate_c, WM_MANIPULATOR_DRAW_VALUE, true);
-	WM_manipulator_set_flag(man->angle_z, WM_MANIPULATOR_DRAW_VALUE, true);
-
-	WM_manipulator_set_scale(man->angle_z, 0.5f);
-
-	{
-		man->data.context = (bContext *)C;
-		man->data.op = op;
-		man->data.prop_axis_co = RNA_struct_find_property(op->ptr, "center");
-		man->data.prop_axis_no = RNA_struct_find_property(op->ptr, "axis");
-		man->data.prop_angle = RNA_struct_find_property(op->ptr, "angle");
-	}
-
-	manipulator_mesh_spin_update_from_op(man);
-
-	/* Setup property callbacks */
-	{
-		WM_manipulator_target_property_def_func(
-		        man->translate_z, "offset",
-		        &(const struct wmManipulatorPropertyFnParams) {
-		            .value_get_fn = manipulator_spin_prop_depth_get,
-		            .value_set_fn = manipulator_spin_prop_depth_set,
-		            .range_get_fn = NULL,
-		            .user_data = NULL,
-		        });
-
-		WM_manipulator_target_property_def_func(
-		        man->translate_c, "offset",
-		        &(const struct wmManipulatorPropertyFnParams) {
-		            .value_get_fn = manipulator_spin_prop_translate_get,
-		            .value_set_fn = manipulator_spin_prop_translate_set,
-		            .range_get_fn = NULL,
-		            .user_data = NULL,
-		        });
-
-		WM_manipulator_target_property_def_func(
-		        man->rotate_c, "offset",
-		        &(const struct wmManipulatorPropertyFnParams) {
-		            .value_get_fn = manipulator_spin_prop_axis_angle_get,
-		            .value_set_fn = manipulator_spin_prop_axis_angle_set,
-		            .range_get_fn = NULL,
-		            .user_data = NULL,
-		        });
-
-		WM_manipulator_target_property_def_func(
-		        man->angle_z, "offset",
-		        &(const struct wmManipulatorPropertyFnParams) {
-		            .value_get_fn = manipulator_spin_prop_angle_get,
-		            .value_set_fn = manipulator_spin_prop_angle_set,
-		            .range_get_fn = NULL,
-		            .user_data = NULL,
-		        });
-
-	}
-}
-
-static void manipulator_mesh_spin_draw_prepare(
-        const bContext *UNUSED(C), wmManipulatorGroup *mgroup)
-{
-	ManipulatorSpinGroup *man = mgroup->customdata;
-	if (man->data.op->next) {
-		man->data.op = WM_operator_last_redo((bContext *)man->data.context);
-	}
-	manipulator_mesh_spin_update_from_op(man);
-}
-
-static void MESH_WGT_spin(struct wmManipulatorGroupType *wgt)
-{
-	wgt->name = "Mesh Spin";
-	wgt->idname = "MESH_WGT_spin";
-
-	wgt->flag = WM_MANIPULATORGROUPTYPE_3D;
-
-	wgt->mmap_params.spaceid = SPACE_VIEW3D;
-	wgt->mmap_params.regionid = RGN_TYPE_WINDOW;
-
-	wgt->poll = manipulator_mesh_spin_poll;
-	wgt->setup = manipulator_mesh_spin_setup;
-	wgt->draw_prepare = manipulator_mesh_spin_draw_prepare;
-}
-
-/** \} */
-
-#endif  /* USE_MANIPULATOR */
-
-
-static int edbm_screw_exec(bContext *C, wmOperator *op)
-{
-	Object *obedit = CTX_data_edit_object(C);
-	BMEditMesh *em = BKE_editmesh_from_object(obedit);
-	BMesh *bm = em->bm;
-	BMEdge *eed;
-	BMVert *eve, *v1, *v2;
-	BMIter iter, eiter;
-	BMOperator spinop;
-	float dvec[3], nor[3], cent[3], axis[3], v1_co_global[3], v2_co_global[3];
-	int steps, turns;
-	int valence;
-
-
-	turns = RNA_int_get(op->ptr, "turns");
-	steps = RNA_int_get(op->ptr, "steps");
-	RNA_float_get_array(op->ptr, "center", cent);
-	RNA_float_get_array(op->ptr, "axis", axis);
-
-	if (is_zero_v3(axis)) {
-		BKE_report(op->reports, RPT_ERROR, "Invalid/unset axis");
-		return OPERATOR_CANCELLED;
-	}
-
-	/* find two vertices with valence count == 1, more or less is wrong */
-	v1 = NULL;
-	v2 = NULL;
-
-	BM_ITER_MESH (eve, &iter, em->bm, BM_VERTS_OF_MESH) {
-		valence = 0;
-		BM_ITER_ELEM (eed, &eiter, eve, BM_EDGES_OF_VERT) {
-			if (BM_elem_flag_test(eed, BM_ELEM_SELECT)) {
-				valence++;
-			}
-		}
-
-		if (valence == 1) {
-			if (v1 == NULL) {
-				v1 = eve;
-			}
-			else if (v2 == NULL) {
-				v2 = eve;
-			}
-			else {
-				v1 = NULL;
-				break;
-			}
-		}
-	}
-
-	if (v1 == NULL || v2 == NULL) {
-		BKE_report(op->reports, RPT_ERROR, "You have to select a string of connected vertices too");
-		return OPERATOR_CANCELLED;
-	}
-
-	copy_v3_v3(nor, obedit->obmat[2]);
-
-	/* calculate dvec */
-	mul_v3_m4v3(v1_co_global, obedit->obmat, v1->co);
-	mul_v3_m4v3(v2_co_global, obedit->obmat, v2->co);
-	sub_v3_v3v3(dvec, v1_co_global, v2_co_global);
-	mul_v3_fl(dvec, 1.0f / steps);
-
-	if (dot_v3v3(nor, dvec) > 0.0f)
-		negate_v3(dvec);
-
-	if (!EDBM_op_init(em, &spinop, op,
-	                  "spin geom=%hvef cent=%v axis=%v dvec=%v steps=%i angle=%f space=%m4 use_duplicate=%b",
-	                  BM_ELEM_SELECT, cent, axis, dvec, turns * steps, DEG2RADF(360.0f * turns), obedit->obmat, false))
-	{
-		return OPERATOR_CANCELLED;
-	}
-	BMO_op_exec(bm, &spinop);
-	EDBM_flag_disable_all(em, BM_ELEM_SELECT);
-	BMO_slot_buffer_hflag_enable(bm, spinop.slots_out, "geom_last.out", BM_ALL_NOLOOP, BM_ELEM_SELECT, true);
-	if (!EDBM_op_finish(em, &spinop, op, true)) {
-		return OPERATOR_CANCELLED;
-	}
-
-	EDBM_update_generic(em, true, true);
-
-	return OPERATOR_FINISHED;
-}
-
-/* get center and axis, in global coords */
-static int edbm_screw_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
-{
-	Scene *scene = CTX_data_scene(C);
-	View3D *v3d = CTX_wm_view3d(C);
-	RegionView3D *rv3d = ED_view3d_context_rv3d(C);
-
-	PropertyRNA *prop;
-	prop = RNA_struct_find_property(op->ptr, "center");
-	if (!RNA_property_is_set(op->ptr, prop)) {
-		RNA_property_float_set_array(op->ptr, prop, ED_view3d_cursor3d_get(scene, v3d));
-	}
-	if (rv3d) {
-		prop = RNA_struct_find_property(op->ptr, "axis");
-		if (!RNA_property_is_set(op->ptr, prop)) {
-			RNA_property_float_set_array(op->ptr, prop, rv3d->viewinv[1]);
-		}
-	}
-
-	return edbm_screw_exec(C, op);
-}
-
-void MESH_OT_screw(wmOperatorType *ot)
-{
-	/* identifiers */
-	ot->name = "Screw";
-	ot->description = "Extrude selected vertices in screw-shaped rotation around the cursor in indicated viewport";
-	ot->idname = "MESH_OT_screw";
-
-	/* api callbacks */
-	ot->invoke = edbm_screw_invoke;
-	ot->exec = edbm_screw_exec;
-	ot->poll = ED_operator_editmesh;
-
-	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-
-	/* props */
-	RNA_def_int(ot->srna, "steps", 9, 1, 100000, "Steps", "Steps", 3, 256);
-	RNA_def_int(ot->srna, "turns", 1, 1, 100000, "Turns", "Turns", 1, 256);
-
-	RNA_def_float_vector(ot->srna, "center", 3, NULL, -1e12f, 1e12f,
-	                     "Center", "Center in global view space", -1e4f, 1e4f);
-	RNA_def_float_vector(ot->srna, "axis", 3, NULL, -1.0f, 1.0f,
-	                     "Axis", "Axis in global view space", -1.0f, 1.0f);
 }
 
 /** \} */

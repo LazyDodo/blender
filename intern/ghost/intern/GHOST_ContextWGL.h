@@ -131,21 +131,9 @@ private:
 	        int numOfAASamples,
 	        bool needAlpha,
 	        bool needStencil,
-	        bool sRGB,
-	        int *swapMethodOut);
-
-	int _choose_pixel_format_arb_2(bool stereoVisual,
-	        int *numOfAASamples,
-	        bool needAlpha,
-	        bool needStencil,
-	        bool sRGB,
-	        int  swapMethod);
+	        bool sRGB);
 
 	void initContextWGLEW(PIXELFORMATDESCRIPTOR &preferredPFD);
-
-	/* offscreen buffer with size of 1x1 pixel,
-	 * kept here to release the device constext when closing the program. */
-	HPBUFFERARB m_dummyPbuffer;
 
 	HWND m_hWnd;
 	HDC  m_hDC;
@@ -158,7 +146,7 @@ private:
 	const int m_contextResetNotificationStrategy;
 
 	HGLRC m_hGLRC;
-	
+
 #ifndef NDEBUG
 	const char *m_dummyVendor;
 	const char *m_dummyRenderer;

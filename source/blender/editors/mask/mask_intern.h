@@ -103,7 +103,7 @@ void MASK_OT_parent_clear(struct wmOperatorType *ot);
 void MASK_OT_select(struct wmOperatorType *ot);
 void MASK_OT_select_all(struct wmOperatorType *ot);
 
-void MASK_OT_select_border(struct wmOperatorType *ot);
+void MASK_OT_select_box(struct wmOperatorType *ot);
 void MASK_OT_select_lasso(struct wmOperatorType *ot);
 void MASK_OT_select_circle(struct wmOperatorType *ot);
 void MASK_OT_select_linked_pick(struct wmOperatorType *ot);
@@ -121,8 +121,8 @@ void ED_mask_select_toggle_all(struct Mask *mask, int action);
 void ED_mask_select_flush_all(struct Mask *mask);
 
 /* mask_editor.c */
-int ED_maskedit_poll(struct bContext *C);
-int ED_maskedit_mask_poll(struct bContext *C);
+bool ED_maskedit_poll(struct bContext *C);
+bool ED_maskedit_mask_poll(struct bContext *C);
 
 /* mask_shapekey.c */
 void MASK_OT_shape_key_insert(struct wmOperatorType *ot);

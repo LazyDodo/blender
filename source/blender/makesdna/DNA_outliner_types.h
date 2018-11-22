@@ -60,6 +60,10 @@ enum {
 	TSE_CHILDSEARCH = (1 << 3),
 	TSE_SEARCHMATCH = (1 << 4),
 	TSE_HIGHLIGHTED = (1 << 5),
+	TSE_DRAG_INTO   = (1 << 6),
+	TSE_DRAG_BEFORE = (1 << 7),
+	TSE_DRAG_AFTER  = (1 << 8),
+	TSE_DRAG_ANY    = (TSE_DRAG_INTO | TSE_DRAG_BEFORE | TSE_DRAG_AFTER),
 };
 
 /* TreeStoreElem->types */
@@ -84,7 +88,7 @@ enum {
 #define TSE_PROXY           18
 #define TSE_R_LAYER_BASE    19
 #define TSE_R_LAYER         20
-#define TSE_R_PASS          21
+/* #define TSE_R_PASS          21 */  /* UNUSED */
 #define TSE_LINKED_MAT      22
 /* NOTE, is used for light group */
 #define TSE_LINKED_LAMP     23
@@ -102,9 +106,10 @@ enum {
 #define TSE_KEYMAP_ITEM     35  /* NO ID */
 #define TSE_ID_BASE         36  /* NO ID */
 #define TSE_GP_LAYER        37  /* NO ID */
-#define TSE_LAYER_COLLECTION 38
-#define TSE_SCENE_COLLECTION 39
-#define TSE_LAYER_COLLECTION_BASE 40
+#define TSE_LAYER_COLLECTION      38
+#define TSE_SCENE_COLLECTION_BASE 39
+#define TSE_VIEW_COLLECTION_BASE  40
+#define TSE_SCENE_OBJECTS_BASE    41
 
 
 /* Check whether given TreeStoreElem should have a real ID in its ->id member. */
@@ -116,4 +121,3 @@ enum {
 
 
 #endif
-

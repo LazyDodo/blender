@@ -26,7 +26,7 @@
 
 extern "C" {
 	#include "BLI_utildefines.h"
-	#include "BKE_group.h"
+	#include "BKE_collection.h"
 	#include "BKE_object.h"
 	#include "BLI_listbase.h"
 }
@@ -39,18 +39,18 @@ SceneExporter::SceneExporter(COLLADASW::StreamWriter *sw, ArmatureExporter *arm,
 {
 }
 
-void SceneExporter::exportScene(const EvaluationContext *eval_ctx, Scene *sce)
+void SceneExporter::exportScene(bContext *C, Depsgraph *depsgraph, Scene *sce)
 {
 	// <library_visual_scenes> <visual_scene>
 	std::string id_naming = id_name(sce);
 	openVisualScene(translate_id(id_naming), id_naming);
-	exportHierarchy(eval_ctx, sce);
+	exportHierarchy(C, depsgraph, sce);
 	closeVisualScene();
 	closeLibrary();
 }
 
-void SceneExporter::exportHierarchy(const EvaluationContext *eval_ctx, Scene *sce)
-{	
+void SceneExporter::exportHierarchy(bContext *C, Depsgraph *depsgraph, Scene *sce)
+{
 	LinkNode *node;
 	std::vector<Object *> base_objects;
 
@@ -59,8 +59,8 @@ void SceneExporter::exportHierarchy(const EvaluationContext *eval_ctx, Scene *sc
 		Object *ob = (Object *) node->link;
 		ob->id.tag |= LIB_TAG_DOIT;
 	}
-	
-	// Now find all exportable base ojects (highest in export hierarchy)
+
+	// Now find all exportable base objects (highest in export hierarchy)
 	for (node = this->export_settings->export_set; node; node = node->next) {
 		Object *ob = (Object *) node->link;
 		if (bc_is_base_node(this->export_settings->export_set, ob)) {
@@ -69,6 +69,7 @@ void SceneExporter::exportHierarchy(const EvaluationContext *eval_ctx, Scene *sc
 				case OB_CAMERA:
 				case OB_LAMP:
 				case OB_EMPTY:
+				case OB_GPENCIL:
 				case OB_ARMATURE:
 					base_objects.push_back(ob);
 					break;
@@ -81,13 +82,13 @@ void SceneExporter::exportHierarchy(const EvaluationContext *eval_ctx, Scene *sc
 		Object *ob = base_objects[index];
 		if (bc_is_marked(ob)) {
 			bc_remove_mark(ob);
-			writeNodes(eval_ctx, ob, sce);
+			writeNodes(C, depsgraph, ob, sce);
 		}
 	}
 }
 
 
-void SceneExporter::writeNodes(const EvaluationContext *eval_ctx, Object *ob, Scene *sce)
+void SceneExporter::writeNodes(bContext *C, Depsgraph *depsgraph, Object *ob, Scene *sce)
 {
 	// Add associated armature first if available
 	bool armature_exported = false;
@@ -96,7 +97,7 @@ void SceneExporter::writeNodes(const EvaluationContext *eval_ctx, Object *ob, Sc
 		armature_exported = bc_is_in_Export_set(this->export_settings->export_set, ob_arm);
 		if (armature_exported && bc_is_marked(ob_arm)) {
 			bc_remove_mark(ob_arm);
-			writeNodes(eval_ctx, ob_arm, sce);
+			writeNodes(C, depsgraph, ob_arm, sce);
 			armature_exported = true;
 		}
 	}
@@ -122,6 +123,7 @@ void SceneExporter::writeNodes(const EvaluationContext *eval_ctx, Object *ob, Sc
 				case OB_CAMERA:
 				case OB_LAMP:
 				case OB_EMPTY:
+				case OB_GPENCIL:
 				case OB_ARMATURE:
 					if (bc_is_marked(cob))
 						child_objects.push_back(cob);
@@ -155,7 +157,7 @@ void SceneExporter::writeNodes(const EvaluationContext *eval_ctx, Object *ob, Sc
 
 	// <instance_controller>
 	else if (ob->type == OB_ARMATURE) {
-		arm_exporter->add_armature_bones(eval_ctx, ob, sce, this, child_objects);
+		arm_exporter->add_armature_bones(C, depsgraph, ob, sce, this, child_objects);
 	}
 
 	// <instance_camera>
@@ -171,15 +173,15 @@ void SceneExporter::writeNodes(const EvaluationContext *eval_ctx, Object *ob, Sc
 	}
 
 	// empty object
-	else if (ob->type == OB_EMPTY) { // TODO: handle groups (OB_DUPLIGROUP
-		if ((ob->transflag & OB_DUPLIGROUP) == OB_DUPLIGROUP && ob->dup_group) {
-			Group *group = ob->dup_group;
+	else if (ob->type == OB_EMPTY) { // TODO: handle groups (OB_DUPLICOLLECTION
+		if ((ob->transflag & OB_DUPLICOLLECTION) == OB_DUPLICOLLECTION && ob->dup_group) {
+			Collection *collection = ob->dup_group;
 			/* printf("group detected '%s'\n", group->id.name + 2); */
-			FOREACH_GROUP_OBJECT_BEGIN(group, object)
+			FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(collection, object)
 			{
 				printf("\t%s\n", object->id.name);
 			}
-			FOREACH_GROUP_OBJECT_END;
+			FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 		}
 	}
 
@@ -203,17 +205,17 @@ void SceneExporter::writeNodes(const EvaluationContext *eval_ctx, Object *ob, Sc
 			colladaNode.addExtraTechniqueChildParameter("blender",con_tag,"rot_error",con->rot_error);
 			colladaNode.addExtraTechniqueChildParameter("blender",con_tag,"tar_space",con->tarspace);
 			colladaNode.addExtraTechniqueChildParameter("blender",con_tag,"lin_error",con->lin_error);
-			
-			//not ideal: add the target object name as another parameter. 
+
+			//not ideal: add the target object name as another parameter.
 			//No real mapping in the .dae
 			//Need support for multiple target objects also.
 			const bConstraintTypeInfo *cti = BKE_constraint_typeinfo_get(con);
 			ListBase targets = {NULL, NULL};
 			if (cti && cti->get_constraint_targets) {
-			
+
 				bConstraintTarget *ct;
 				Object *obtar;
-			
+
 				cti->get_constraint_targets(con, &targets);
 
 				for (ct = (bConstraintTarget *)targets.first; ct; ct = ct->next) {
@@ -234,11 +236,10 @@ void SceneExporter::writeNodes(const EvaluationContext *eval_ctx, Object *ob, Sc
 	for (std::list<Object *>::iterator i = child_objects.begin(); i != child_objects.end(); ++i) {
 		if (bc_is_marked(*i)) {
 			bc_remove_mark(*i);
-			writeNodes(eval_ctx, *i, sce);
+			writeNodes(C, depsgraph, *i, sce);
 		}
 	}
 
 	if (ob->type != OB_ARMATURE)
 		colladaNode.end();
 }
-

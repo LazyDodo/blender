@@ -16,9 +16,9 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
  * Contributor:
- *		Jeroen Bakker
- *		Monique Dewanchand
- *		Thomas Beck (plasmasolutions.de)
+ *      Jeroen Bakker
+ *      Monique Dewanchand
+ *      Thomas Beck (plasmasolutions.de)
  */
 
 #include "COM_TranslateOperation.h"
@@ -81,4 +81,3 @@ void TranslateOperation::setFactorXY(float factorX, float factorY)
 	m_factorX = factorX;
 	m_factorY = factorY;
 }
-

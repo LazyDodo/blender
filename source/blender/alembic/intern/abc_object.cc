@@ -58,16 +58,12 @@ using Alembic::AbcGeom::OStringProperty;
 
 /* ************************************************************************** */
 
-AbcObjectWriter::AbcObjectWriter(EvaluationContext *eval_ctx,
-                                 Scene *scene,
-                                 Object *ob,
+AbcObjectWriter::AbcObjectWriter(Object *ob,
                                  uint32_t time_sampling,
                                  ExportSettings &settings,
                                  AbcObjectWriter *parent)
     : m_object(ob)
     , m_settings(settings)
-    , m_eval_ctx(eval_ctx)
-    , m_scene(scene)
     , m_time_sampling(time_sampling)
     , m_first_frame(true)
 {
@@ -248,12 +244,12 @@ Imath::M44d get_matrix(const IXformSchema &schema, const float time)
 	return s0.getMatrix();
 }
 
-DerivedMesh *AbcObjectReader::read_derivedmesh(DerivedMesh *dm,
-                                               const Alembic::Abc::ISampleSelector &UNUSED(sample_sel),
-                                               int UNUSED(read_flag),
-                                               const char **UNUSED(err_str))
+struct Mesh *AbcObjectReader::read_mesh(struct Mesh *existing_mesh,
+                                        const Alembic::Abc::ISampleSelector &UNUSED(sample_sel),
+                                        int UNUSED(read_flag),
+                                        const char **UNUSED(err_str))
 {
-	return dm;
+	return existing_mesh;
 }
 
 void AbcObjectReader::setupObjectTransform(const float time)
@@ -291,7 +287,8 @@ Alembic::AbcGeom::IXform AbcObjectReader::xform()
 
 	/* The archive's top object can be recognised by not having a parent. */
 	if (abc_parent.getParent()
-	        && IXform::matches(abc_parent.getMetaData())) {
+	        && IXform::matches(abc_parent.getMetaData()))
+	{
 		return IXform(abc_parent, Alembic::AbcGeom::kWrapExisting);
 	}
 

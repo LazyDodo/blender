@@ -15,7 +15,7 @@ Reference API Scope
 The reference API covers :mod:`bpy.types`, which stores types accessed via :mod:`bpy.context` - *The user context*
 or :mod:`bpy.data` - *Blend file data*.
 
-Other modules such as :mod:`bge`, :mod:`bmesh` and :mod:`aud` are not using Blenders data API
+Other modules such as :mod:`bmesh` and :mod:`aud` are not using Blenders data API
 so this document doesn't apply to those modules.
 
 
@@ -53,7 +53,7 @@ Here are some characteristics ID Data-Blocks share.
 Simple Data Access
 ------------------
 
-Lets start with a simple case, say you want a python script to adjust the objects location.
+Lets start with a simple case, say you want a python script to adjust the object's location.
 
 Start by finding this setting in the interface ``Properties Window -> Object -> Transform -> Location``
 

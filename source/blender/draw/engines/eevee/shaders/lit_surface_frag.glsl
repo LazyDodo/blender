@@ -21,6 +21,16 @@ in vec3 worldNormal;
 in vec3 viewNormal;
 #endif
 
+#ifdef HAIR_SHADER
+in vec3 hairTangent; /* world space */
+in float hairThickTime;
+in float hairThickness;
+in float hairTime;
+flat in int hairStrandID;
+
+uniform int hairThicknessRes = 1;
+#endif
+
 #endif /* LIT_SURFACE_UNIFORM */
 
 /** AUTO CONFIG
@@ -44,6 +54,13 @@ in vec3 viewNormal;
 	#define CLOSURE_SUBSURFACE
 #endif /* SURFACE_PRINCIPLED */
 
+#if !defined(SURFACE_CLEARCOAT) && !defined(CLOSURE_NAME)
+	#define SURFACE_CLEARCOAT
+	#define CLOSURE_NAME eevee_closure_clearcoat
+	#define CLOSURE_GLOSSY
+	#define CLOSURE_CLEARCOAT
+#endif /* SURFACE_CLEARCOAT */
+
 #if !defined(SURFACE_DIFFUSE) && !defined(CLOSURE_NAME)
 	#define SURFACE_DIFFUSE
 	#define CLOSURE_NAME eevee_closure_diffuse
@@ -56,6 +73,14 @@ in vec3 viewNormal;
 	#define CLOSURE_DIFFUSE
 	#define CLOSURE_SUBSURFACE
 #endif /* SURFACE_SUBSURFACE */
+
+#if !defined(SURFACE_SKIN) && !defined(CLOSURE_NAME)
+	#define SURFACE_SKIN
+	#define CLOSURE_NAME eevee_closure_skin
+	#define CLOSURE_DIFFUSE
+	#define CLOSURE_SUBSURFACE
+	#define CLOSURE_GLOSSY
+#endif /* SURFACE_SKIN */
 
 #if !defined(SURFACE_GLOSSY) && !defined(CLOSURE_NAME)
 	#define SURFACE_GLOSSY
@@ -172,9 +197,15 @@ void CLOSURE_NAME(
 	/* -------------------- SCENE LAMPS LIGHTING ---------------------- */
 	/* ---------------------------------------------------------------- */
 
-#ifdef HAIR_SHADER
-	vec3 norm_view = cross(V, N);
-	norm_view = normalize(cross(norm_view, N)); /* Normal facing view */
+#ifdef CLOSURE_GLOSSY
+	vec2 lut_uv = lut_coords(dot(N, V), roughness);
+	vec4 ltc_mat = texture(utilTex, vec3(lut_uv, 0.0)).rgba;
+#endif
+
+#ifdef CLOSURE_CLEARCOAT
+	vec2 lut_uv_clear = lut_coords(dot(C_N, V), C_roughness);
+	vec4 ltc_mat_clear = texture(utilTex, vec3(lut_uv_clear, 0.0)).rgba;
+	vec3 out_spec_clear = vec3(0.0);
 #endif
 
 	for (int i = 0; i < MAX_LIGHT && i < laNumLight; ++i) {
@@ -184,30 +215,12 @@ void CLOSURE_NAME(
 		l_vector.xyz = ld.l_position - worldPosition;
 		l_vector.w = length(l_vector.xyz);
 
-		vec3 l_color_vis = ld.l_color * light_visibility(ld, worldPosition, viewPosition, viewNormal, l_vector);
+		float l_vis = light_visibility(ld, worldPosition, viewPosition, viewNormal, l_vector);
 
-#ifdef HAIR_SHADER
-		vec3 norm_lamp, view_vec;
-		float occlu_trans, occlu;
-		light_hair_common(ld, N, V, l_vector, norm_view, occlu_trans, occlu, norm_lamp, view_vec);
+		if (l_vis < 1e-8)
+			continue;
 
-	#ifdef CLOSURE_DIFFUSE
-		out_diff += l_color_vis * light_diffuse(ld, -norm_lamp, V, l_vector) * occlu_trans;
-	#endif
-
-	#ifdef CLOSURE_SUBSURFACE
-		out_trans += ld.l_color * light_translucent(ld, worldPosition, -norm_lamp, l_vector, sss_scale) * occlu_trans;
-	#endif
-
-	#ifdef CLOSURE_GLOSSY
-		out_spec += l_color_vis * light_specular(ld, N, view_vec, l_vector, roughnessSquared, f0) * occlu;
-	#endif
-
-	#ifdef CLOSURE_CLEARCOAT
-		out_spec += l_color_vis * light_specular(ld, C_N, view_vec, l_vector, C_roughnessSquared, f0) * C_intensity * occlu;
-	#endif
-
-#else /* HAIR_SHADER */
+		vec3 l_color_vis = ld.l_color * l_vis;
 
 	#ifdef CLOSURE_DIFFUSE
 		out_diff += l_color_vis * light_diffuse(ld, N, V, l_vector);
@@ -218,27 +231,30 @@ void CLOSURE_NAME(
 	#endif
 
 	#ifdef CLOSURE_GLOSSY
-		out_spec += l_color_vis * light_specular(ld, N, V, l_vector, roughnessSquared, f0);
+		out_spec += l_color_vis * light_specular(ld, ltc_mat, N, V, l_vector) * ld.l_spec;
 	#endif
 
 	#ifdef CLOSURE_CLEARCOAT
-		out_spec += l_color_vis * light_specular(ld, C_N, V, l_vector, C_roughnessSquared, f0) * C_intensity;
+		out_spec_clear += l_color_vis * light_specular(ld, ltc_mat_clear, C_N, V, l_vector) * ld.l_spec;
 	#endif
-
-#endif /* HAIR_SHADER */
 	}
 
-#ifdef HAIR_SHADER
-	N = -norm_view;
+#ifdef CLOSURE_GLOSSY
+	vec3 brdf_lut_lamps = texture(utilTex, vec3(lut_uv, 1.0)).rgb;
+	out_spec *= F_area(f0, brdf_lut_lamps.xy) * brdf_lut_lamps.z;
 #endif
 
-
+#ifdef CLOSURE_CLEARCOAT
+	vec3 brdf_lut_lamps_clear = texture(utilTex, vec3(lut_uv_clear, 1.0)).rgb;
+	out_spec_clear *= F_area(vec3(0.04), brdf_lut_lamps_clear.xy) * brdf_lut_lamps_clear.z;
+	out_spec += out_spec_clear * C_intensity;
+#endif
 
 	/* ---------------------------------------------------------------- */
 	/* ---------------- SPECULAR ENVIRONMENT LIGHTING ----------------- */
 	/* ---------------------------------------------------------------- */
 
-	/* Accumulate incomming light from all sources until accumulator is full. Then apply Occlusion and BRDF. */
+	/* Accumulate incoming light from all sources until accumulator is full. Then apply Occlusion and BRDF. */
 #ifdef CLOSURE_GLOSSY
 	vec4 spec_accum = vec4(0.0);
 #endif
@@ -260,7 +276,7 @@ void CLOSURE_NAME(
 		PlanarData pd = planars_data[i];
 
 		/* Fade on geometric normal. */
-		float fade = probe_attenuation_planar(pd, worldPosition, worldNormal, roughness);
+		float fade = probe_attenuation_planar(pd, worldPosition, (gl_FrontFacing) ? worldNormal : -worldNormal, roughness);
 
 		if (fade > 0.0) {
 			if (!(ssrToggle && ssr_id == outputSsrId)) {
@@ -319,39 +335,55 @@ void CLOSURE_NAME(
 	/* ---------------------------- */
 #if defined(CLOSURE_GLOSSY) || defined(CLOSURE_REFRACTION)
 
-	#ifdef CLOSURE_REFRACTION
-		#define ACCUM refr_accum
+	#if defined(CLOSURE_GLOSSY) && defined(CLOSURE_REFRACTION)
+		#define GLASS_ACCUM 1
+		#define ACCUM min(refr_accum.a, spec_accum.a)
+	#elif defined(CLOSURE_REFRACTION)
+		#define GLASS_ACCUM 0
+		#define ACCUM refr_accum.a
 	#else
-		#define ACCUM spec_accum
+		#define GLASS_ACCUM 0
+		#define ACCUM spec_accum.a
 	#endif
 
 	/* Starts at 1 because 0 is world probe */
-	for (int i = 1; ACCUM.a < 0.999 && i < prbNumRenderCube && i < MAX_PROBE; ++i) {
-		CubeData cd = probes_data[i];
-
-		float fade = probe_attenuation_cube(cd, worldPosition);
+	for (int i = 1; ACCUM < 0.999 && i < prbNumRenderCube && i < MAX_PROBE; ++i) {
+		float fade = probe_attenuation_cube(i, worldPosition);
 
 		if (fade > 0.0) {
 
-	#ifdef CLOSURE_GLOSSY
-			if (!(ssrToggle && ssr_id == outputSsrId)) {
-				vec3 spec = probe_evaluate_cube(float(i), cd, worldPosition, spec_dir, roughness);
-				accumulate_light(spec, fade, spec_accum);
+	#if GLASS_ACCUM
+			if (spec_accum.a < 0.999) {
+	#endif
+		#ifdef CLOSURE_GLOSSY
+				if (!(ssrToggle && ssr_id == outputSsrId)) {
+					vec3 spec = probe_evaluate_cube(i, worldPosition, spec_dir, roughness);
+					accumulate_light(spec, fade, spec_accum);
+				}
+		#endif
+
+		#ifdef CLOSURE_CLEARCOAT
+				vec3 C_spec = probe_evaluate_cube(i, worldPosition, C_spec_dir, C_roughness);
+				accumulate_light(C_spec, fade, C_spec_accum);
+		#endif
+	#if GLASS_ACCUM
 			}
 	#endif
 
-	#ifdef CLOSURE_CLEARCOAT
-			vec3 C_spec = probe_evaluate_cube(float(i), cd, worldPosition, C_spec_dir, C_roughness);
-			accumulate_light(C_spec, fade, C_spec_accum);
+	#if GLASS_ACCUM
+			if (refr_accum.a < 0.999) {
 	#endif
-
-	#ifdef CLOSURE_REFRACTION
-			vec3 trans = probe_evaluate_cube(float(i), cd, refr_pos, refr_dir, roughnessSquared);
-			accumulate_light(trans, fade, refr_accum);
+		#ifdef CLOSURE_REFRACTION
+				vec3 trans = probe_evaluate_cube(i, refr_pos, refr_dir, roughnessSquared);
+				accumulate_light(trans, fade, refr_accum);
+		#endif
+	#if GLASS_ACCUM
+			}
 	#endif
 		}
 	}
 
+	#undef GLASS_ACCUM
 	#undef ACCUM
 
 	/* ---------------------------- */
@@ -378,7 +410,7 @@ void CLOSURE_NAME(
 		accumulate_light(trans, 1.0, refr_accum);
 	}
 	#endif
-#endif /* Specular probes */ 
+#endif /* Specular probes */
 
 
 	/* ---------------------------- */
@@ -398,7 +430,7 @@ void CLOSURE_NAME(
 	vec2 uv = lut_coords(NV, roughness);
 	vec2 brdf_lut = texture(utilTex, vec3(uv, 1.0)).rg;
 
-	/* This factor is outputed to be used by SSR in order
+	/* This factor is outputted to be used by SSR in order
 	 * to match the intensity of the regular reflections. */
 	ssr_spec = F_ibl(f0, brdf_lut);
 	float spec_occlu = specular_occlusion(NV, final_ao, roughness);
@@ -408,7 +440,7 @@ void CLOSURE_NAME(
 		spec_occlu = 1.0;
 	}
 
-	out_spec += spec_accum.rgb * ssr_spec * spec_occlu * float(specToggle);
+	out_spec += spec_accum.rgb * ssr_spec * spec_occlu;
 #endif
 
 #ifdef CLOSURE_REFRACTION
@@ -421,9 +453,14 @@ void CLOSURE_NAME(
 	NV = dot(C_N, V);
 	vec2 C_uv = lut_coords(NV, C_roughness);
 	vec2 C_brdf_lut = texture(utilTex, vec3(C_uv, 1.0)).rg;
-	vec3 C_fresnel = F_ibl(vec3(0.04), brdf_lut) * specular_occlusion(NV, final_ao, C_roughness);
+	vec3 C_fresnel = F_ibl(vec3(0.04), C_brdf_lut) * specular_occlusion(NV, final_ao, C_roughness);
 
-	out_spec += C_spec_accum.rgb * C_fresnel * float(specToggle) * C_intensity;
+	out_spec += C_spec_accum.rgb * C_fresnel * C_intensity;
+#endif
+
+#ifdef CLOSURE_GLOSSY
+	/* Global toggle for lightprobe baking. */
+	out_spec *= float(specToggle);
 #endif
 
 	/* ---------------------------------------------------------------- */
@@ -442,7 +479,7 @@ void CLOSURE_NAME(
 		GridData gd = grids_data[i];
 
 		vec3 localpos;
-		float fade = probe_attenuation_grid(gd, worldPosition, localpos);
+		float fade = probe_attenuation_grid(gd, grids_data[i].localmat, worldPosition, localpos);
 
 		if (fade > 0.0) {
 			vec3 diff = probe_evaluate_grid(gd, worldPosition, bent_normal, localpos);

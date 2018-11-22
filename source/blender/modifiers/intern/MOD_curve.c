@@ -34,36 +34,30 @@
 
 #include <string.h>
 
+#include "DNA_mesh_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_object_types.h"
 
 #include "BLI_utildefines.h"
 
-
-#include "BKE_cdderivedmesh.h"
+#include "BKE_editmesh.h"
 #include "BKE_lattice.h"
+#include "BKE_library.h"
 #include "BKE_library_query.h"
+#include "BKE_mesh.h"
 #include "BKE_modifier.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
 
 #include "MOD_modifiertypes.h"
+#include "MOD_util.h"
 
 static void initData(ModifierData *md)
 {
 	CurveModifierData *cmd = (CurveModifierData *) md;
 
 	cmd->defaxis = MOD_CURVE_POSX;
-}
-
-static void copyData(ModifierData *md, ModifierData *target)
-{
-#if 0
-	CurveModifierData *cmd = (CurveModifierData *) md;
-	CurveModifierData *tcmd = (CurveModifierData *) target;
-#endif
-	modifier_copyData_generic(md, target);
 }
 
 static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
@@ -77,7 +71,7 @@ static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
 	return dataMask;
 }
 
-static bool isDisabled(ModifierData *md, int UNUSED(userRenderParams))
+static bool isDisabled(const Scene *UNUSED(scene), ModifierData *md, bool UNUSED(userRenderParams))
 {
 	CurveModifierData *cmd = (CurveModifierData *) md;
 
@@ -103,39 +97,51 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 		/* TODO(sergey): Currently path is evaluated as a part of modifier stack,
 		 * might be changed in the future.
 		 */
-		struct Depsgraph *depsgraph = DEG_get_graph_from_handle(ctx->node);
 		DEG_add_object_relation(ctx->node, cmd->object, DEG_OB_COMP_GEOMETRY, "Curve Modifier");
-		DEG_add_special_eval_flag(depsgraph, &cmd->object->id, DAG_EVAL_NEED_CURVE_PATH);
+		DEG_add_special_eval_flag(ctx->node, &cmd->object->id, DAG_EVAL_NEED_CURVE_PATH);
 	}
 
 	DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "Curve Modifier");
 }
 
-static void deformVerts(ModifierData *md, const struct EvaluationContext *UNUSED(eval_ctx),
-                        Object *ob, DerivedMesh *derivedData,
-                        float (*vertexCos)[3],
-                        int numVerts,
-                        ModifierApplyFlag UNUSED(flag))
+static void deformVerts(
+        ModifierData *md,
+        const ModifierEvalContext *ctx,
+        Mesh *mesh,
+        float (*vertexCos)[3],
+        int numVerts)
 {
 	CurveModifierData *cmd = (CurveModifierData *) md;
+	Mesh *mesh_src = MOD_get_mesh_eval(ctx->object, NULL, mesh, NULL, false, false);
+
+	BLI_assert(mesh_src->totvert == numVerts);
 
 	/* silly that defaxis and curve_deform_verts are off by 1
 	 * but leave for now to save having to call do_versions */
-	curve_deform_verts(cmd->object, ob, derivedData, vertexCos, numVerts,
-	                   cmd->name, cmd->defaxis - 1);
+	curve_deform_verts(cmd->object, ctx->object, mesh_src, vertexCos, numVerts, cmd->name, cmd->defaxis - 1);
+
+	if (mesh_src != mesh) {
+		BKE_id_free(NULL, mesh_src);
+	}
 }
 
 static void deformVertsEM(
-        ModifierData *md, const struct EvaluationContext *eval_ctx, Object *ob, struct BMEditMesh *em,
-        DerivedMesh *derivedData, float (*vertexCos)[3], int numVerts)
+        ModifierData *md,
+        const ModifierEvalContext *ctx,
+        struct BMEditMesh *em,
+        Mesh *mesh,
+        float (*vertexCos)[3],
+        int numVerts)
 {
-	DerivedMesh *dm = derivedData;
+	Mesh *mesh_src = MOD_get_mesh_eval(ctx->object, em, mesh, NULL, false, false);
 
-	if (!derivedData) dm = CDDM_from_editbmesh(em, false, false);
+	BLI_assert(mesh_src->totvert == numVerts);
 
-	deformVerts(md, eval_ctx, ob, dm, vertexCos, numVerts, 0);
+	deformVerts(md, ctx, mesh_src, vertexCos, numVerts);
 
-	if (!derivedData) dm->release(dm);
+	if (mesh_src != mesh) {
+		BKE_id_free(NULL, mesh_src);
+	}
 }
 
 
@@ -148,13 +154,20 @@ ModifierTypeInfo modifierType_Curve = {
 	                        eModifierTypeFlag_AcceptsLattice |
 	                        eModifierTypeFlag_SupportsEditmode,
 
-	/* copyData */          copyData,
+	/* copyData */          modifier_copyData_generic,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+
 	/* deformVerts */       deformVerts,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     deformVertsEM,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
-	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          NULL,

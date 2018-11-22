@@ -45,16 +45,18 @@
 static void metaball_batch_cache_clear(MetaBall *mb);
 
 /* ---------------------------------------------------------------------- */
-/* MetaBall Gwn_Batch Cache */
+/* MetaBall GPUBatch Cache */
 
 typedef struct MetaBallBatchCache {
-	Gwn_Batch *batch;
+	GPUBatch *batch;
+	GPUBatch **shaded_triangles;
 
+	int mat_len;
 	/* settings to determine if cache is invalid */
 	bool is_dirty;
 } MetaBallBatchCache;
 
-/* Gwn_Batch cache management. */
+/* GPUBatch cache management. */
 
 static bool metaball_batch_cache_valid(MetaBall *mb)
 {
@@ -75,6 +77,8 @@ static void metaball_batch_cache_init(MetaBall *mb)
 		cache = mb->batch_cache = MEM_mallocN(sizeof(*cache), __func__);
 	}
 	cache->batch = NULL;
+	cache->mat_len = 0;
+	cache->shaded_triangles = NULL;
 	cache->is_dirty = false;
 }
 
@@ -87,7 +91,7 @@ static MetaBallBatchCache *metaball_batch_cache_get(MetaBall *mb)
 	return mb->batch_cache;
 }
 
-void DRW_mball_batch_cache_dirty(MetaBall *mb, int mode)
+void DRW_mball_batch_cache_dirty_tag(MetaBall *mb, int mode)
 {
 	MetaBallBatchCache *cache = mb->batch_cache;
 	if (cache == NULL) {
@@ -109,7 +113,10 @@ static void metaball_batch_cache_clear(MetaBall *mb)
 		return;
 	}
 
-	GWN_BATCH_DISCARD_SAFE(cache->batch);
+	GPU_BATCH_DISCARD_SAFE(cache->batch);
+	/* Note: shaded_triangles[0] is already freed by cache->batch */
+	MEM_SAFE_FREE(cache->shaded_triangles);
+	cache->mat_len = 0;
 }
 
 void DRW_mball_batch_cache_free(MetaBall *mb)
@@ -123,22 +130,42 @@ void DRW_mball_batch_cache_free(MetaBall *mb)
 /** \name Public Object/MetaBall API
  * \{ */
 
-Gwn_Batch *DRW_metaball_batch_cache_get_triangles_with_normals(Object *ob)
+GPUBatch *DRW_metaball_batch_cache_get_triangles_with_normals(Object *ob)
 {
-	if (!BKE_mball_is_basis(ob))
+	if (!BKE_mball_is_basis(ob)) {
 		return NULL;
+	}
 
 	MetaBall *mb = ob->data;
 	MetaBallBatchCache *cache = metaball_batch_cache_get(mb);
 
 	if (cache->batch == NULL) {
-		ListBase *lb = &ob->curve_cache->disp;
-		cache->batch = GWN_batch_create_ex(
-		        GWN_PRIM_TRIS,
+		ListBase *lb = &ob->runtime.curve_cache->disp;
+		cache->batch = GPU_batch_create_ex(
+		        GPU_PRIM_TRIS,
 		        DRW_displist_vertbuf_calc_pos_with_normals(lb),
 		        DRW_displist_indexbuf_calc_triangles_in_order(lb),
-		        GWN_BATCH_OWNS_VBO | GWN_BATCH_OWNS_INDEX);
+		        GPU_BATCH_OWNS_VBO | GPU_BATCH_OWNS_INDEX);
 	}
 
 	return cache->batch;
+}
+
+GPUBatch **DRW_metaball_batch_cache_get_surface_shaded(Object *ob, MetaBall *mb, struct GPUMaterial **UNUSED(gpumat_array), uint gpumat_array_len)
+{
+	if (!BKE_mball_is_basis(ob)) {
+		return NULL;
+	}
+
+	MetaBallBatchCache *cache = metaball_batch_cache_get(mb);
+	if (cache->shaded_triangles == NULL) {
+		cache->mat_len = gpumat_array_len;
+		cache->shaded_triangles = MEM_callocN(sizeof(*cache->shaded_triangles) * cache->mat_len, __func__);
+		cache->shaded_triangles[0] = DRW_metaball_batch_cache_get_triangles_with_normals(ob);
+		for (int i = 1; i < cache->mat_len; ++i) {
+			cache->shaded_triangles[i] = NULL;
+		}
+	}
+	return cache->shaded_triangles;
+
 }

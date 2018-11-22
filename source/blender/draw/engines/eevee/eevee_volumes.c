@@ -41,9 +41,12 @@
 
 #include "ED_screen.h"
 
+#include "DEG_depsgraph_query.h"
+
 #include "eevee_private.h"
 #include "GPU_draw.h"
 #include "GPU_texture.h"
+#include "GPU_material.h"
 
 static struct {
 	char *volumetric_common_lib;
@@ -63,7 +66,6 @@ static struct {
 } e_data = {NULL}; /* Engine data */
 
 extern char datatoc_bsdf_common_lib_glsl[];
-extern char datatoc_bsdf_direct_lib_glsl[];
 extern char datatoc_common_uniforms_lib_glsl[];
 extern char datatoc_common_view_lib_glsl[];
 extern char datatoc_octahedron_lib_glsl[];
@@ -90,7 +92,6 @@ static void eevee_create_shader_volumes(void)
 	        datatoc_common_view_lib_glsl,
 	        datatoc_common_uniforms_lib_glsl,
 	        datatoc_bsdf_common_lib_glsl,
-	        datatoc_bsdf_direct_lib_glsl,
 	        datatoc_octahedron_lib_glsl,
 	        datatoc_irradiance_lib_glsl,
 	        datatoc_lamps_lib_glsl,
@@ -131,13 +132,13 @@ static void eevee_create_shader_volumes(void)
 	        e_data.volumetric_common_lib, NULL);
 }
 
-void EEVEE_volumes_set_jitter(EEVEE_ViewLayerData *sldata, unsigned int current_sample)
+void EEVEE_volumes_set_jitter(EEVEE_ViewLayerData *sldata, uint current_sample)
 {
 	EEVEE_CommonUniformBuffer *common_data = &sldata->common_data;
 
 	double ht_point[3];
 	double ht_offset[3] = {0.0, 0.0};
-	unsigned int ht_primes[3] = {3, 7, 2};
+	uint ht_primes[3] = {3, 7, 2};
 
 	BLI_halton_3D(ht_primes, ht_offset, current_sample, ht_point);
 
@@ -155,28 +156,27 @@ int EEVEE_volumes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 	EEVEE_CommonUniformBuffer *common_data = &sldata->common_data;
 
 	const DRWContextState *draw_ctx = DRW_context_state_get();
-	ViewLayer *view_layer = draw_ctx->view_layer;
-	IDProperty *props = BKE_view_layer_engine_evaluated_get(view_layer, COLLECTION_MODE_NONE, RE_engine_id_BLENDER_EEVEE);
+	const Scene *scene_eval = DEG_get_evaluated_scene(draw_ctx->depsgraph);
 
 	const float *viewport_size = DRW_viewport_size_get();
 
 	BLI_listbase_clear(&e_data.smoke_domains);
 
-	if (BKE_collection_engine_property_value_get_bool(props, "volumetric_enable")) {
+	if (scene_eval->eevee.flag & SCE_EEVEE_VOLUMETRIC_ENABLED) {
 
 		/* Shaders */
 		if (!e_data.volumetric_scatter_sh) {
 			eevee_create_shader_volumes();
 		}
 
-		int tile_size = BKE_collection_engine_property_value_get_int(props, "volumetric_tile_size");
+		const int tile_size = scene_eval->eevee.volumetric_tile_size;
 
 		/* Find Froxel Texture resolution. */
 		int tex_size[3];
 
 		tex_size[0] = (int)ceilf(fmaxf(1.0f, viewport_size[0] / (float)tile_size));
 		tex_size[1] = (int)ceilf(fmaxf(1.0f, viewport_size[1] / (float)tile_size));
-		tex_size[2] = max_ii(BKE_collection_engine_property_value_get_int(props, "volumetric_samples"), 1);
+		tex_size[2] = max_ii(scene_eval->eevee.volumetric_samples, 1);
 
 		common_data->vol_coord_scale[0] = viewport_size[0] / (float)(tile_size * tex_size[0]);
 		common_data->vol_coord_scale[1] = viewport_size[1] / (float)(tile_size * tex_size[1]);
@@ -214,35 +214,35 @@ int EEVEE_volumes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 			/* Volume properties: We evaluate all volumetric objects
 			 * and store their final properties into each froxel */
 			txl->volume_prop_scattering = DRW_texture_create_3D(tex_size[0], tex_size[1], tex_size[2],
-			                                                    DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER, NULL);
+			                                                    GPU_R11F_G11F_B10F, DRW_TEX_FILTER, NULL);
 			txl->volume_prop_extinction = DRW_texture_create_3D(tex_size[0], tex_size[1], tex_size[2],
-			                                                    DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER, NULL);
+			                                                    GPU_R11F_G11F_B10F, DRW_TEX_FILTER, NULL);
 			txl->volume_prop_emission = DRW_texture_create_3D(tex_size[0], tex_size[1], tex_size[2],
-			                                                  DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER, NULL);
+			                                                  GPU_R11F_G11F_B10F, DRW_TEX_FILTER, NULL);
 			txl->volume_prop_phase = DRW_texture_create_3D(tex_size[0], tex_size[1], tex_size[2],
-			                                               DRW_TEX_RG_16, DRW_TEX_FILTER, NULL);
+			                                               GPU_RG16F, DRW_TEX_FILTER, NULL);
 
 			/* Volume scattering: We compute for each froxel the
 			 * Scattered light towards the view. We also resolve temporal
 			 * super sampling during this stage. */
 			txl->volume_scatter = DRW_texture_create_3D(tex_size[0], tex_size[1], tex_size[2],
-			                                            DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER, NULL);
+			                                            GPU_R11F_G11F_B10F, DRW_TEX_FILTER, NULL);
 			txl->volume_transmittance = DRW_texture_create_3D(tex_size[0], tex_size[1], tex_size[2],
-			                                                  DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER, NULL);
+			                                                  GPU_R11F_G11F_B10F, DRW_TEX_FILTER, NULL);
 
 			/* Final integration: We compute for each froxel the
 			 * amount of scattered light and extinction coef at this
 			 * given depth. We use theses textures as double buffer
 			 * for the volumetric history. */
 			txl->volume_scatter_history = DRW_texture_create_3D(tex_size[0], tex_size[1], tex_size[2],
-			                                                    DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER, NULL);
+			                                                    GPU_R11F_G11F_B10F, DRW_TEX_FILTER, NULL);
 			txl->volume_transmittance_history = DRW_texture_create_3D(tex_size[0], tex_size[1], tex_size[2],
-			                                                          DRW_TEX_RGB_11_11_10, DRW_TEX_FILTER, NULL);
+			                                                          GPU_R11F_G11F_B10F, DRW_TEX_FILTER, NULL);
 		}
 
 		/* Temporal Super sampling jitter */
-		unsigned int ht_primes[3] = {3, 7, 2};
-		unsigned int current_sample = 0;
+		uint ht_primes[3] = {3, 7, 2};
+		uint current_sample = 0;
 
 		/* If TAA is in use do not use the history buffer. */
 		bool do_taa = ((effects->enabled_effects & EFFECT_TAA) != 0);
@@ -258,7 +258,7 @@ int EEVEE_volumes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 			effects->volume_current_sample = -1;
 		}
 		else {
-			const unsigned int max_sample = (ht_primes[0] * ht_primes[1] * ht_primes[2]);
+			const uint max_sample = (ht_primes[0] * ht_primes[1] * ht_primes[2]);
 			current_sample = effects->volume_current_sample = (effects->volume_current_sample + 1) % max_sample;
 			if (current_sample != max_sample - 1) {
 				DRW_viewport_request_redraw();
@@ -286,19 +286,16 @@ int EEVEE_volumes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 			GPU_ATTACHMENT_TEXTURE(txl->volume_transmittance_history)
 		});
 
-		float integration_start = BKE_collection_engine_property_value_get_float(props, "volumetric_start");
-		float integration_end = BKE_collection_engine_property_value_get_float(props, "volumetric_end");
-		common_data->vol_light_clamp = BKE_collection_engine_property_value_get_float(props, "volumetric_light_clamp");
-
-		common_data->vol_shadow_steps = (float)BKE_collection_engine_property_value_get_int(props, "volumetric_shadow_samples");
-		if (BKE_collection_engine_property_value_get_bool(props, "volumetric_shadows")) {
-		}
-		else {
+		float integration_start = scene_eval->eevee.volumetric_start;
+		float integration_end = scene_eval->eevee.volumetric_end;
+		common_data->vol_light_clamp = scene_eval->eevee.volumetric_light_clamp;
+		common_data->vol_shadow_steps = (float)scene_eval->eevee.volumetric_shadow_samples;
+		if ((scene_eval->eevee.flag & SCE_EEVEE_VOLUMETRIC_SHADOWS) == 0) {
 			common_data->vol_shadow_steps = 0;
 		}
 
 		if (DRW_viewport_is_persp_get()) {
-			float sample_distribution = BKE_collection_engine_property_value_get_float(props, "volumetric_sample_distribution");
+			float sample_distribution = scene_eval->eevee.volumetric_sample_distribution;
 			sample_distribution = 4.0f * (1.00001f - sample_distribution);
 
 			const float clip_start = common_data->view_vecs[0][2];
@@ -326,7 +323,7 @@ int EEVEE_volumes_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 			common_data->vol_light_clamp = FLT_MAX;
 		}
 
-		common_data->vol_use_lights = BKE_collection_engine_property_value_get_bool(props, "volumetric_lights");
+		common_data->vol_use_lights = (scene_eval->eevee.flag & SCE_EEVEE_VOLUMETRIC_LIGHTS) != 0;
 
 		return EFFECT_VOLUMETRIC | EFFECT_POST_BUFFER;
 	}
@@ -353,6 +350,7 @@ void EEVEE_volumes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 	EEVEE_StorageList *stl = vedata->stl;
 	EEVEE_TextureList *txl = vedata->txl;
 	EEVEE_EffectsInfo *effects = stl->effects;
+	LightCache *lcache = stl->g_data->light_cache;
 	EEVEE_CommonUniformBuffer *common_data = &sldata->common_data;
 
 	if ((effects->enabled_effects & EFFECT_VOLUMETRIC) != 0) {
@@ -373,16 +371,16 @@ void EEVEE_volumes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 		 *
 		 * - Light Scattering : the volume properties then are sampled
 		 *   and light scattering is evaluated for each cell of the
-		 *   volume texture. Temporal supersampling (if enabled) occurs here.
+		 *   volume texture. Temporal super-sampling (if enabled) occurs here.
 		 *
 		 * - Volume Integration : the scattered light and extinction is
-		 *   integrated (accumulated) along the viewrays. The result is stored
+		 *   integrated (accumulated) along the view-rays. The result is stored
 		 *   for every cell in another texture.
 		 *
-		 * - Fullscreen Resolve : From the previous stage, we get two
-		 *   3D textures that contains integrated scatered light and extinction
+		 * - Full-screen Resolve : From the previous stage, we get two
+		 *   3D textures that contains integrated scattered light and extinction
 		 *   for "every" positions in the frustum. We only need to sample
-		 *   them and blend the scene color with thoses factors. This also
+		 *   them and blend the scene color with those factors. This also
 		 *   work for alpha blended materials.
 		 **/
 
@@ -400,6 +398,12 @@ void EEVEE_volumes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 
 			if (grp) {
 				DRW_shgroup_uniform_block(grp, "common_block", sldata->common_ubo);
+				/* TODO (fclem): remove those (need to clean the GLSL files). */
+				DRW_shgroup_uniform_block(grp, "grid_block", sldata->grid_ubo);
+				DRW_shgroup_uniform_block(grp, "probe_block", sldata->probe_ubo);
+				DRW_shgroup_uniform_block(grp, "planar_block", sldata->planar_ubo);
+				DRW_shgroup_uniform_block(grp, "light_block", sldata->light_ubo);
+				DRW_shgroup_uniform_block(grp, "shadow_block", sldata->shadow_ubo);
 			}
 		}
 
@@ -421,8 +425,9 @@ void EEVEE_volumes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 		psl->volumetric_scatter_ps = DRW_pass_create("Volumetric Scattering", DRW_STATE_WRITE_COLOR);
 		grp = DRW_shgroup_empty_tri_batch_create(scatter_sh, psl->volumetric_scatter_ps,
 		                                         common_data->vol_tex_size[2]);
-		DRW_shgroup_uniform_texture_ref(grp, "irradianceGrid", &sldata->irradiance_pool);
-		DRW_shgroup_uniform_texture_ref(grp, "shadowTexture", &sldata->shadow_pool);
+		DRW_shgroup_uniform_texture_ref(grp, "irradianceGrid", &lcache->grid_tx.tex);
+		DRW_shgroup_uniform_texture_ref(grp, "shadowCubeTexture", &sldata->shadow_cube_pool);
+		DRW_shgroup_uniform_texture_ref(grp, "shadowCascadeTexture", &sldata->shadow_cascade_pool);
 		DRW_shgroup_uniform_texture_ref(grp, "volumeScattering", &txl->volume_prop_scattering);
 		DRW_shgroup_uniform_texture_ref(grp, "volumeExtinction", &txl->volume_prop_extinction);
 		DRW_shgroup_uniform_texture_ref(grp, "volumeEmission", &txl->volume_prop_emission);
@@ -454,6 +459,8 @@ void EEVEE_volumes_cache_init(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata)
 
 void EEVEE_volumes_cache_object_add(EEVEE_ViewLayerData *sldata, EEVEE_Data *vedata, Scene *scene, Object *ob)
 {
+	const DRWContextState *draw_ctx = DRW_context_state_get();
+
 	float *texcoloc = NULL;
 	float *texcosize = NULL;
 	struct ModifierData *md = NULL;
@@ -465,20 +472,27 @@ void EEVEE_volumes_cache_object_add(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 
 	struct GPUMaterial *mat = EEVEE_material_mesh_volume_get(scene, ma);
 
-	DRWShadingGroup *grp = DRW_shgroup_material_empty_tri_batch_create(mat, vedata->psl->volumetric_objects_ps, sldata->common_data.vol_tex_size[2]);
-
 	/* If shader failed to compile or is currently compiling. */
-	if (grp == NULL) {
+	if (GPU_material_status(mat) != GPU_MAT_SUCCESS) {
 		return;
 	}
+
+	DRWShadingGroup *grp = DRW_shgroup_material_empty_tri_batch_create(mat, vedata->psl->volumetric_objects_ps, sldata->common_data.vol_tex_size[2]);
 
 	/* Making sure it's updated. */
 	invert_m4_m4(ob->imat, ob->obmat);
 
 	BKE_mesh_texspace_get_reference((struct Mesh *)ob->data, NULL, &texcoloc, NULL, &texcosize);
 
+	/* TODO(fclem) remove those "unnecessary" UBOs */
+	DRW_shgroup_uniform_block(grp, "planar_block", sldata->planar_ubo);
+	DRW_shgroup_uniform_block(grp, "probe_block", sldata->probe_ubo);
+	DRW_shgroup_uniform_block(grp, "shadow_block", sldata->shadow_ubo);
+	DRW_shgroup_uniform_block(grp, "light_block", sldata->light_ubo);
+	DRW_shgroup_uniform_block(grp, "grid_block", sldata->grid_ubo);
+
 	DRW_shgroup_uniform_block(grp, "common_block", sldata->common_ubo);
-	DRW_shgroup_uniform_mat4(grp, "volumeObjectMatrix", (float *)ob->imat);
+	DRW_shgroup_uniform_mat4(grp, "volumeObjectMatrix", ob->imat);
 	DRW_shgroup_uniform_vec3(grp, "volumeOrcoLoc", texcoloc, 1);
 	DRW_shgroup_uniform_vec3(grp, "volumeOrcoSize", texcosize, 1);
 
@@ -489,8 +503,13 @@ void EEVEE_volumes_cache_object_add(EEVEE_ViewLayerData *sldata, EEVEE_Data *ved
 	{
 		SmokeModifierData *smd = (SmokeModifierData *)md;
 		SmokeDomainSettings *sds = smd->domain;
+
+		if (sds == NULL) {
+			return;
+		}
+
 		/* Don't show smoke before simulation starts, this could be made an option in the future. */
-		const bool show_smoke = (CFRA >= sds->point_cache[0]->startframe);
+		const bool show_smoke = ((int)DEG_get_ctime(draw_ctx->depsgraph) >= sds->point_cache[0]->startframe);
 
 		if (sds->fluid && show_smoke) {
 			if (!sds->wt || !(sds->viewsettings & MOD_SMOKE_VIEW_SHOWBIG)) {
@@ -571,7 +590,11 @@ void EEVEE_volumes_resolve(EEVEE_ViewLayerData *UNUSED(sldata), EEVEE_Data *veda
 		SWAP(GPUFrameBuffer *, fbl->main_fb, fbl->effect_fb);
 		SWAP(GPUFrameBuffer *, fbl->main_color_fb, fbl->effect_color_fb);
 		SWAP(GPUTexture *, txl->color, txl->color_post);
+
+		/* Restore */
+		GPU_framebuffer_texture_detach(fbl->effect_fb, dtxl->depth);
 		GPU_framebuffer_texture_attach(fbl->main_fb, dtxl->depth, 0, 0);
+		GPU_framebuffer_bind(fbl->main_fb);
 	}
 }
 

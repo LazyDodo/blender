@@ -37,6 +37,7 @@ extern "C" {
 #endif
 
 #include "DNA_listBase.h"
+#include "DNA_defs.h"
 
 /* pd->forcefield:  Effector Fields types */
 typedef enum ePFieldType {
@@ -67,7 +68,7 @@ typedef struct PartDeflect {
 	short tex_mode;		/* texture effector												*/
 	short kink, kink_axis; /* for curve guide											*/
 	short zdir;
-	
+
 	/* Main effector values */
 	float f_strength;	/* The strength of the force (+ or - )					*/
 	float f_damp;		/* Damping ratio of the harmonic effector.				*/
@@ -93,7 +94,7 @@ typedef struct PartDeflect {
 	float pdef_stickness;/* surface particle stickiness				*/
 
 	float absorption;	/* used for forces */
-	
+
 	/* softbody collisions */
 	float pdef_sbdamp;	/* Damping factor for softbody deflection       */
 	float pdef_sbift;	/* inner face thickness for softbody deflection */
@@ -119,11 +120,14 @@ typedef struct PartDeflect {
 	float drawvec_falloff_max[3], pad2; /* Runtime only */
 
 	struct Object *f_source; /* force source object */
+
+	float pdef_cfrict;	/* Friction of cloth collisions. */
+	float pad;
 } PartDeflect;
 
 typedef struct EffectorWeights {
-	struct Group *group;		/* only use effectors from this group of objects */
-	
+	struct Collection *group;		/* only use effectors from this group of objects */
+
 	float weight[14];			/* effector type specific weights */
 	float global_gravity;
 	short flag, rt[3];
@@ -136,8 +140,8 @@ typedef struct EffectorWeights {
 /* Point cache file data types:
  * - used as (1<<flag) so poke jahka if you reach the limit of 15
  * - to add new data types update:
- *		* BKE_ptcache_data_size()
- *		* ptcache_file_init_pointers()
+ *   - BKE_ptcache_data_size()
+ *   - ptcache_file_init_pointers()
  */
 #define BPHYS_DATA_INDEX		0
 #define BPHYS_DATA_LOCATION		1
@@ -176,7 +180,7 @@ typedef struct PTCacheMem {
 typedef struct PointCache {
 	struct PointCache *next, *prev;
 	int flag;		/* generic flag */
-	
+
 	int step;		/* The number of frames between cached frames.
 					 * This should probably be an upper bound for a per point adaptive step in the future,
 					 * buf for now it's the same for all points. Without adaptivity this can effect the perceived
@@ -201,7 +205,7 @@ typedef struct PointCache {
 	int totpoint;   /* number of cached points */
 	int index;	/* modifier stack index */
 	short compression, rt;
-	
+
 	char name[64];
 	char prev_name[64];
 	char info[64];
@@ -218,58 +222,14 @@ typedef struct SBVertex {
 	float vec[4];
 } SBVertex;
 
-typedef struct BulletSoftBody {
-	int flag;				/* various boolean options */
-	float linStiff;			/* linear stiffness 0..1 */
-	float	angStiff;		/* angular stiffness 0..1 */
-	float	volume;			/* volume preservation 0..1 */
-
-	int	viterations;		/* Velocities solver iterations */
-	int	piterations;		/* Positions solver iterations */
-	int	diterations;		/* Drift solver iterations */
-	int	citerations;		/* Cluster solver iterations */
-
-	float	kSRHR_CL;		/* Soft vs rigid hardness [0,1] (cluster only) */
-	float	kSKHR_CL;		/* Soft vs kinetic hardness [0,1] (cluster only) */
-	float	kSSHR_CL;		/* Soft vs soft hardness [0,1] (cluster only) */
-	float	kSR_SPLT_CL;	/* Soft vs rigid impulse split [0,1] (cluster only) */
-
-	float	kSK_SPLT_CL;	/* Soft vs rigid impulse split [0,1] (cluster only) */
-	float	kSS_SPLT_CL;	/* Soft vs rigid impulse split [0,1] (cluster only) */
-	float	kVCF;			/* Velocities correction factor (Baumgarte) */
-	float	kDP;			/* Damping coefficient [0,1] */
-
-	float	kDG;			/* Drag coefficient [0,+inf] */
-	float	kLF;			/* Lift coefficient [0,+inf] */
-	float	kPR;			/* Pressure coefficient [-inf,+inf] */
-	float	kVC;			/* Volume conversation coefficient [0,+inf] */
-
-	float	kDF;			/* Dynamic friction coefficient [0,1] */
-	float	kMT;			/* Pose matching coefficient [0,1] */
-	float	kCHR;			/* Rigid contacts hardness [0,1] */
-	float	kKHR;			/* Kinetic contacts hardness [0,1] */
-
-	float	kSHR;			/* Soft contacts hardness [0,1] */
-	float	kAHR;			/* Anchors hardness [0,1] */
-	int		collisionflags;	/* Vertex/Face or Signed Distance Field(SDF) or Clusters, Soft versus Soft or Rigid */
-	int		numclusteriterations;	/* number of iterations to refine collision clusters*/
-	float	welding;		/* welding limit to remove duplicate/nearby vertices, 0.0..0.01 */
-	float   margin;			/* margin specific to softbody */
-} BulletSoftBody;
-
-/* BulletSoftBody.flag */
-#define OB_BSB_SHAPE_MATCHING	2
-// #define OB_BSB_UNUSED 4
-#define OB_BSB_BENDING_CONSTRAINTS 8
-#define OB_BSB_AERO_VPOINT 16 /* aero model, Vertex normals are oriented toward velocity*/
-// #define OB_BSB_AERO_VTWOSIDE 32 /* aero model, Vertex normals are flipped to match velocity */
-
-/* BulletSoftBody.collisionflags */
-#define OB_BSB_COL_SDF_RS	2 /* SDF based rigid vs soft */
-#define OB_BSB_COL_CL_RS	4 /* Cluster based rigid vs soft */
-#define OB_BSB_COL_CL_SS	8 /* Cluster based soft vs soft */
-#define OB_BSB_COL_VF_SS	16 /* Vertex/Face based soft vs soft */
-
+/* Container for data that is shared among CoW copies.
+ *
+ * This is placed in a separate struct so that values can be changed
+ * without having to update all CoW copies. */
+typedef struct SoftBody_Shared {
+	struct PointCache *pointcache;
+	struct ListBase ptcaches;
+} SoftBody_Shared;
 
 typedef struct SoftBody {
 	/* dynamic data */
@@ -279,9 +239,9 @@ typedef struct SoftBody {
 	char   pad;
 	char   msg_lock;
 	short  msg_value;
-	
+
 	/* part of UI: */
-	
+
 	/* general options */
 	float nodemass;		/* softbody mass of *vertex* */
 	char  namedVG_Mass[64]; /* MAX_VGROUP_NAME */
@@ -292,7 +252,7 @@ typedef struct SoftBody {
 	float mediafrict;	/* friction to env */
 	float rklimit;		/* error limit for ODE solver */
 	float physics_speed;/* user control over simulation speed */
-	
+
 	/* goal */
 	float goalspring;	/* softbody goal springs */
 	float goalfrict;	/* softbody goal springs friction */
@@ -305,7 +265,7 @@ typedef struct SoftBody {
 	                             * rather find them by name tag to find it -> jow20090613 */
 
 	short fuzzyness;      /* */
-	
+
 	/* springs */
 	float inspring;		/* softbody inner springs */
 	float infrict;		/* softbody inner springs friction */
@@ -313,12 +273,12 @@ typedef struct SoftBody {
 	                            /* along with it introduce Spring_K painting
 	                             * starting to fix old bug .. nastiness that VG are indexes
 	                             * rather find them by name tag to find it -> jow20090613 */
-	
+
 	/* baking */
 	int sfra, efra;
 	int interval;
 	short local, solverflags;		/* local==1: use local coords for baking */
-	
+
 	/* -- these must be kept for backwards compatibility -- */
 	SBVertex **keys;			/* array of size totpointkey */
 	int totpointkey, totkey;	/* if totpointkey != totpoint or totkey!- (efra-sfra)/interval -> free keys */
@@ -342,13 +302,14 @@ typedef struct SoftBody {
 	float shearstiff;
 	float inpush;
 
-	struct PointCache *pointcache;
-	struct ListBase ptcaches;
+	struct SoftBody_Shared *shared;
+	struct PointCache *pointcache DNA_DEPRECATED;  /* Moved to SoftBody_Shared */
+	struct ListBase ptcaches DNA_DEPRECATED;  /* Moved to SoftBody_Shared */
 
-	struct Group *collision_group;
+	struct Collection *collision_group;
 
 	struct EffectorWeights *effector_weights;
-	/* reverse esimated obmatrix .. no need to store in blend file .. how ever who cares */ 
+	/* reverse esimated obmatrix .. no need to store in blend file .. how ever who cares */
 	float lcom[3];
 	float lrot[3][3];
 	float lscale[3][3];
@@ -379,6 +340,8 @@ typedef struct SoftBody {
 #define PFIELD_GUIDE_PATH_WEIGHT (1<<16)	/* apply curve weights */
 #define PFIELD_SMOKE_DENSITY    (1<<17)		/* multiply smoke force by density */
 #define PFIELD_GRAVITATION		(1<<18)             /* used for (simple) force */
+#define PFIELD_CLOTH_USE_CULLING (1<<19)	/* Enable cloth collision side detection based on normal. */
+#define PFIELD_CLOTH_USE_NORMAL (1<<20)		/* Replace collision direction with collider normal. */
 
 /* pd->falloff */
 #define PFIELD_FALL_SPHERE		0
@@ -390,6 +353,7 @@ typedef struct SoftBody {
 #define PFIELD_SHAPE_PLANE		1
 #define PFIELD_SHAPE_SURFACE	2
 #define PFIELD_SHAPE_POINTS		3
+#define PFIELD_SHAPE_LINE		4
 
 /* pd->tex_mode */
 #define PFIELD_TEX_RGB	0
@@ -444,9 +408,9 @@ typedef struct SoftBody {
 #define OB_SB_AERO_ANGLE	16384
 
 /* sb->solverflags */
-#define SBSO_MONITOR		1 
-#define SBSO_OLDERR			2 
-#define SBSO_ESTIMATEIPO    4 
+#define SBSO_MONITOR		1
+#define SBSO_OLDERR			2
+#define SBSO_ESTIMATEIPO    4
 
 /* sb->sbc_mode */
 #define SBC_MODE_MANUAL		0
@@ -460,4 +424,3 @@ typedef struct SoftBody {
 #endif
 
 #endif  /* __DNA_OBJECT_FORCE_TYPES_H__ */
-

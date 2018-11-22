@@ -35,9 +35,8 @@
 #include "BLI_bitmap.h"
 
 #include "BKE_global.h"
-#include "BKE_main.h"
-#include "BKE_library.h"
 #include "BKE_library_query.h"
+#include "BKE_main.h"
 
 #include "DNA_ID.h"
 /* Those folowing are only to support hack of not listing some internal 'backward' pointers in generated user_map... */
@@ -160,7 +159,7 @@ static PyObject *bpy_user_map(PyObject *UNUSED(self), PyObject *args, PyObject *
 	BPy_StructRNA *pyrna = (BPy_StructRNA *)self;
 	Main *bmain = pyrna->ptr.data;
 #else
-	Main *bmain = G.main;  /* XXX Ugly, but should work! */
+	Main *bmain = G_MAIN;  /* XXX Ugly, but should work! */
 #endif
 
 	PyObject *subset = NULL;
@@ -230,7 +229,6 @@ static PyObject *bpy_user_map(PyObject *UNUSED(self), PyObject *args, PyObject *
 	lb_index = set_listbasepointers(bmain, lb_array);
 
 	while (lb_index--) {
-
 		if (val_types_bitmap && lb_array[lb_index]->first) {
 			if (!id_check_type(lb_array[lb_index]->first, val_types_bitmap)) {
 				continue;

@@ -28,24 +28,24 @@ if "bpy" in locals():
 
 _modules = [
     "properties_animviz",
-    "properties_collection",
     "properties_constraint",
     "properties_data_armature",
     "properties_data_bone",
     "properties_data_camera",
     "properties_data_curve",
     "properties_data_empty",
-    "properties_data_lamp",
+    "properties_data_gpencil",
+    "properties_data_light",
     "properties_data_lattice",
     "properties_data_mesh",
     "properties_data_metaball",
     "properties_data_modifier",
+    "properties_data_shaderfx",
     "properties_data_lightprobe",
     "properties_data_speaker",
-    "properties_data_workspace",
-    "properties_game",
     "properties_mask_common",
     "properties_material",
+    "properties_material_gpencil",
     "properties_object",
     "properties_paint_common",
     "properties_grease_pencil_common",
@@ -60,6 +60,7 @@ _modules = [
     "properties_physics_smoke",
     "properties_physics_softbody",
     "properties_render",
+    "properties_output",
     "properties_view_layer",
     "properties_scene",
     "properties_texture",
@@ -78,18 +79,22 @@ _modules = [
     "space_graph",
     "space_image",
     "space_info",
-    "space_logic",
     "space_nla",
     "space_node",
     "space_outliner",
     "space_properties",
     "space_sequencer",
+    "space_statusbar",
     "space_text",
     "space_time",
+    "space_topbar",
     "space_userpref",
     "space_view3d",
     "space_view3d_toolbar",
-    ]
+
+    # XXX, keep last so panels show after all other tool options.
+    "properties_workspace",
+]
 
 import bpy
 
@@ -168,6 +173,8 @@ def unregister():
 
 # Define a default UIList, when a list does not need any custom drawing...
 # Keep in sync with its #defined name in UI_interface.h
+
+
 class UI_UL_list(bpy.types.UIList):
     # These are common filtering or ordering operations (same as the default C ones!).
     @staticmethod

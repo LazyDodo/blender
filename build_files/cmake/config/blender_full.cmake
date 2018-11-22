@@ -1,4 +1,4 @@
-# Turn everything ON thats expected for an official release builds.
+# Turn everything ON that's expected for an official release builds.
 #
 # Example usage:
 #   cmake -C../blender/build_files/cmake/config/blender_full.cmake  ../blender
@@ -16,7 +16,6 @@ set(WITH_CYCLES_OPENSUBDIV   ON  CACHE BOOL "" FORCE)
 set(WITH_FFTW3               ON  CACHE BOOL "" FORCE)
 set(WITH_LIBMV               ON  CACHE BOOL "" FORCE)
 set(WITH_LIBMV_SCHUR_SPECIALIZATIONS ON CACHE BOOL "" FORCE)
-set(WITH_GAMEENGINE          ON  CACHE BOOL "" FORCE)
 set(WITH_COMPOSITOR          ON  CACHE BOOL "" FORCE)
 set(WITH_FREESTYLE           ON  CACHE BOOL "" FORCE)
 set(WITH_GHOST_XDND          ON  CACHE BOOL "" FORCE)
@@ -24,7 +23,6 @@ set(WITH_IK_SOLVER           ON  CACHE BOOL "" FORCE)
 set(WITH_IK_ITASC            ON  CACHE BOOL "" FORCE)
 set(WITH_IMAGE_CINEON        ON  CACHE BOOL "" FORCE)
 set(WITH_IMAGE_DDS           ON  CACHE BOOL "" FORCE)
-set(WITH_IMAGE_FRAMESERVER   ON  CACHE BOOL "" FORCE)
 set(WITH_IMAGE_HDR           ON  CACHE BOOL "" FORCE)
 set(WITH_IMAGE_OPENEXR       ON  CACHE BOOL "" FORCE)
 set(WITH_IMAGE_OPENJPEG      ON  CACHE BOOL "" FORCE)
@@ -51,7 +49,6 @@ set(WITH_SDL                 ON  CACHE BOOL "" FORCE)
 set(WITH_X11_XINPUT          ON  CACHE BOOL "" FORCE)
 set(WITH_X11_XF86VMODE       ON  CACHE BOOL "" FORCE)
 
-set(WITH_PLAYER              ON  CACHE BOOL "" FORCE)
 set(WITH_MEM_JEMALLOC        ON  CACHE BOOL "" FORCE)
 
 

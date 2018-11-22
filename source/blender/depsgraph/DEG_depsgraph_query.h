@@ -34,6 +34,7 @@
 #define __DEG_DEPSGRAPH_QUERY_H__
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_build.h"
 
 struct ID;
 
@@ -49,11 +50,28 @@ struct ViewLayer;
 extern "C" {
 #endif
 
+/* *********************** DEG input data ********************* */
+
+/* Get scene that depsgraph was built for. */
+struct Scene *DEG_get_input_scene(const Depsgraph *graph);
+
+/* Get view layer that depsgraph was built for. */
+struct ViewLayer *DEG_get_input_view_layer(const Depsgraph *graph);
+
+/* Get evaluation mode that depsgraph was built for. */
+eEvaluationMode DEG_get_mode(const Depsgraph *graph);
+
+/* Get time that depsgraph is being evaluated or was last evaluated at. */
+float DEG_get_ctime(const Depsgraph *graph);
+
+/* ********************* DEG evaluated data ******************* */
+
 /* Check if given ID type was tagged for update. */
-bool DEG_id_type_tagged(struct Main *bmain, short id_type);
+bool DEG_id_type_updated(const struct Depsgraph *depsgraph, short id_type);
+bool DEG_id_type_any_updated(const struct Depsgraph *depsgraph);
 
 /* Get additional evaluation flags for the given ID. */
-short DEG_get_eval_flags_for_id(const struct Depsgraph *graph, struct ID *id);
+uint32_t DEG_get_eval_flags_for_id(const struct Depsgraph *graph, struct ID *id);
 
 /* Get scene the despgraph is created for. */
 struct Scene *DEG_get_evaluated_scene(const struct Depsgraph *graph);
@@ -69,7 +87,18 @@ struct Object *DEG_get_evaluated_object(const struct Depsgraph *depsgraph,
 struct ID *DEG_get_evaluated_id(const struct Depsgraph *depsgraph,
                                 struct ID *id);
 
-/* ************************ DEG iterators ********************* */
+/* Get evaluated version of data pointed to by RNA pointer */
+void DEG_get_evaluated_rna_pointer(const struct Depsgraph *depsgraph,
+                                   struct PointerRNA *ptr,
+                                   struct PointerRNA *r_ptr_eval);
+
+/* Get original version of object for given evaluated one. */
+struct Object *DEG_get_original_object(struct Object *object);
+
+/* Get original version of given evaluated ID datablock. */
+struct ID *DEG_get_original_id(struct ID *id);
+
+/* ************************ DEG object iterators ********************* */
 
 enum {
 	DEG_ITER_OBJECT_FLAG_LINKED_DIRECTLY   = (1 << 0),
@@ -79,18 +108,12 @@ enum {
 	DEG_ITER_OBJECT_FLAG_DUPLI             = (1 << 4),
 };
 
-typedef enum eDepsObjectIteratorMode {
-	DEG_ITER_OBJECT_MODE_VIEWPORT = 0,
-	DEG_ITER_OBJECT_MODE_RENDER   = 1,
-} eDepsObjectIteratorMode;
-
 typedef struct DEGObjectIterData {
 	struct Depsgraph *graph;
-	struct Scene *scene;
-	struct EvaluationContext eval_ctx;
-
 	int flag;
-	eDepsObjectIteratorMode mode;
+
+	struct Scene *scene;
+
 	int visibility_check; /* eObjectVisibilityCheck. */
 
 	/* **** Iteration over dupli-list. *** */
@@ -110,7 +133,7 @@ typedef struct DEGObjectIterData {
 	 */
 	struct Object temp_dupli_object;
 
-	/* **** Iteration ober ID nodes **** */
+	/* **** Iteration over ID nodes **** */
 	size_t id_node_index;
 	size_t num_id_nodes;
 } DEGObjectIterData;
@@ -124,12 +147,11 @@ void DEG_iterator_objects_end(struct BLI_Iterator *iter);
  * Although they are available they have no overrides (collection_properties)
  * and will crash if you try to access it.
  */
-#define DEG_OBJECT_ITER_BEGIN(graph_, instance_, mode_, flag_)                    \
+#define DEG_OBJECT_ITER_BEGIN(graph_, instance_, flag_)                           \
 	{                                                                             \
 		DEGObjectIterData data_ = {                                               \
-			.graph = (graph_),                                                    \
-			.mode = (mode_),                                                      \
-			.flag = (flag_),                                                      \
+			graph_,                                                               \
+			flag_                                                                 \
 		};                                                                        \
                                                                                   \
 		ITER_BEGIN(DEG_iterator_objects_begin,                                    \
@@ -144,8 +166,8 @@ void DEG_iterator_objects_end(struct BLI_Iterator *iter);
 /**
   * Depsgraph objects iterator for draw manager and final render
   */
-#define DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(graph_, instance_, mode_) \
-	DEG_OBJECT_ITER_BEGIN(graph_, instance_, mode_,                       \
+#define DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(graph_, instance_)        \
+	DEG_OBJECT_ITER_BEGIN(graph_, instance_,                              \
 	        DEG_ITER_OBJECT_FLAG_LINKED_DIRECTLY |                        \
 	        DEG_ITER_OBJECT_FLAG_LINKED_VIA_SET |                         \
 	        DEG_ITER_OBJECT_FLAG_VISIBLE |                                \
@@ -154,6 +176,21 @@ void DEG_iterator_objects_end(struct BLI_Iterator *iter);
 #define DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END                             \
 	DEG_OBJECT_ITER_END
 
+
+/* ************************ DEG ID iterators ********************* */
+
+typedef struct DEGIDIterData {
+	struct Depsgraph *graph;
+	bool only_updated;
+
+	size_t id_node_index;
+	size_t num_id_nodes;
+} DEGIDIterData;
+
+void DEG_iterator_ids_begin(struct BLI_Iterator *iter, DEGIDIterData *data);
+void DEG_iterator_ids_next(struct BLI_Iterator *iter);
+void DEG_iterator_ids_end(struct BLI_Iterator *iter);
+
 /* ************************ DEG traversal ********************* */
 
 typedef void (*DEGForeachIDCallback)(ID *id, void *user_data);
@@ -161,9 +198,46 @@ typedef void (*DEGForeachIDCallback)(ID *id, void *user_data);
 /* NOTE: Modifies runtime flags in depsgraph nodes, so can not be used in
  * parallel. Keep an eye on that!
  */
+void DEG_foreach_ancestor_ID(const Depsgraph *depsgraph,
+                             const ID *id,
+                             DEGForeachIDCallback callback, void *user_data);
 void DEG_foreach_dependent_ID(const Depsgraph *depsgraph,
                               const ID *id,
                               DEGForeachIDCallback callback, void *user_data);
+
+void DEG_foreach_ID(const Depsgraph *depsgraph,
+                    DEGForeachIDCallback callback, void *user_data);
+
+/* ********************* DEG graph filtering ****************** */
+
+/* ComponentKey for nodes we want to be able to evaluate in the filtered graph */
+typedef struct DEG_FilterTarget {
+	struct DEG_FilterTarget *next, *prev;
+
+	struct ID *id;
+	/* TODO: component identifiers - Component Type, Subdata/Component Name */
+} DEG_FilterTarget;
+
+typedef enum eDEG_FilterQuery_Granularity {
+	DEG_FILTER_NODES_ALL           = 0,
+	DEG_FILTER_NODES_NO_OPS        = 1,
+	DEG_FILTER_NODES_ID_ONLY       = 2,
+} eDEG_FilterQuery_Granularity;
+
+
+typedef struct DEG_FilterQuery {
+	/* List of DEG_FilterTarget's */
+	struct ListBase targets;
+
+	/* Level of detail in the resulting graph */
+	eDEG_FilterQuery_Granularity detail_level;
+} DEG_FilterQuery;
+
+/* Obtain a new graph instance that only contains the subset of desired nodes
+ * WARNING: Do NOT pass an already filtered depsgraph through this function again,
+ *          as we are currently unable to accurately recreate it.
+ */
+Depsgraph *DEG_graph_filter(const Depsgraph *depsgraph, struct Main *bmain, DEG_FilterQuery *query);
 
 
 #ifdef __cplusplus

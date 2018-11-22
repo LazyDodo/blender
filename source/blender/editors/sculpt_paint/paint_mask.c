@@ -45,7 +45,6 @@
 #include "BKE_pbvh.h"
 #include "BKE_ccg.h"
 #include "BKE_context.h"
-#include "BKE_DerivedMesh.h"
 #include "BKE_multires.h"
 #include "BKE_paint.h"
 #include "BKE_subsurf.h"
@@ -76,9 +75,10 @@ static const EnumPropertyItem mode_items[] = {
 	{0}};
 
 
-static void mask_flood_fill_set_elem(float *elem,
-                                     PaintMaskFloodMode mode,
-                                     float value)
+static void mask_flood_fill_set_elem(
+        float *elem,
+        PaintMaskFloodMode mode,
+        float value)
 {
 	switch (mode) {
 		case PAINT_MASK_FLOOD_VALUE:
@@ -134,7 +134,7 @@ static int mask_flood_fill_exec(bContext *C, wmOperator *op)
 	ARegion *ar = CTX_wm_region(C);
 	struct Scene *scene = CTX_data_scene(C);
 	Object *ob = CTX_data_active_object(C);
-	EvaluationContext eval_ctx;
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	PaintMaskFloodMode mode;
 	float value;
 	PBVH *pbvh;
@@ -143,12 +143,10 @@ static int mask_flood_fill_exec(bContext *C, wmOperator *op)
 	bool multires;
 	Sculpt *sd = CTX_data_tool_settings(C)->sculpt;
 
-	CTX_data_eval_ctx(C, &eval_ctx);
-
 	mode = RNA_enum_get(op->ptr, "mode");
 	value = RNA_float_get(op->ptr, "value");
 
-	BKE_sculpt_update_mesh_elements(&eval_ctx, scene, sd, ob, false, true);
+	BKE_sculpt_update_mesh_elements(depsgraph, scene, sd, ob, false, true);
 	pbvh = ob->sculpt->pbvh;
 	multires = (BKE_pbvh_type(pbvh) == PBVH_GRIDS);
 
@@ -165,8 +163,9 @@ static int mask_flood_fill_exec(bContext *C, wmOperator *op)
 	BLI_parallel_range_settings_defaults(&settings);
 	settings.use_threading = ((sd->flags & SCULPT_USE_OPENMP) && totnode > SCULPT_THREADED_LIMIT);
 	BLI_task_parallel_range(
-	            0, totnode, &data, mask_flood_fill_task_cb,
-	            &settings);
+
+	        0, totnode, &data, mask_flood_fill_task_cb,
+	        &settings);
 
 	if (multires)
 		multires_mark_as_modified(ob, MULTIRES_COORDS_MODIFIED);
@@ -202,7 +201,7 @@ void PAINT_OT_mask_flood_fill(struct wmOperatorType *ot)
 	              "Mask level to use when mode is 'Value'; zero means no masking and one is fully masked", 0, 1);
 }
 
-/* Box select, operator is VIEW3D_OT_select_border, defined in view3d_select.c */
+/* Box select, operator is VIEW3D_OT_select_box, defined in view3d_select.c */
 
 static bool is_effected(float planes[4][4], const float co[3])
 {
@@ -259,9 +258,9 @@ static void mask_box_select_task_cb(
 	} BKE_pbvh_vertex_iter_end;
 }
 
-int ED_sculpt_mask_box_select(struct bContext *C, ViewContext *vc, const rcti *rect, bool select, bool UNUSED(extend))
+int ED_sculpt_mask_box_select(struct bContext *C, ViewContext *vc, const rcti *rect, bool select)
 {
-	EvaluationContext eval_ctx;
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Sculpt *sd = vc->scene->toolsettings->sculpt;
 	BoundBox bb;
 	float clip_planes[4][4];
@@ -277,8 +276,6 @@ int ED_sculpt_mask_box_select(struct bContext *C, ViewContext *vc, const rcti *r
 	int totnode, symmpass;
 	int symm = sd->paint.symmetry_flags & PAINT_SYMM_AXIS_ALL;
 
-	CTX_data_eval_ctx(C, &eval_ctx);
-
 	mode = PAINT_MASK_FLOOD_VALUE;
 	value = select ? 1.0 : 0.0;
 
@@ -286,7 +283,7 @@ int ED_sculpt_mask_box_select(struct bContext *C, ViewContext *vc, const rcti *r
 	ED_view3d_clipping_calc(&bb, clip_planes, vc->ar, vc->obact, rect);
 	negate_m4(clip_planes);
 
-	BKE_sculpt_update_mesh_elements(&eval_ctx, scene, sd, ob, false, true);
+	BKE_sculpt_update_mesh_elements(depsgraph, scene, sd, ob, false, true);
 	pbvh = ob->sculpt->pbvh;
 	multires = (BKE_pbvh_type(pbvh) == PBVH_GRIDS);
 
@@ -428,7 +425,7 @@ static int paint_mask_gesture_lasso_exec(bContext *C, wmOperator *op)
 	const int (*mcords)[2] = WM_gesture_lasso_path_to_array(C, op, &mcords_tot);
 
 	if (mcords) {
-		EvaluationContext eval_ctx;
+		Depsgraph *depsgraph = CTX_data_depsgraph(C);
 		float clip_planes[4][4], clip_planes_final[4][4];
 		BoundBox bb;
 		Object *ob;
@@ -443,8 +440,6 @@ static int paint_mask_gesture_lasso_exec(bContext *C, wmOperator *op)
 		bool multires;
 		PaintMaskFloodMode mode = RNA_enum_get(op->ptr, "mode");
 		float value = RNA_float_get(op->ptr, "value");
-
-		CTX_data_eval_ctx(C, &eval_ctx);
 
 		/* Calculations of individual vertices are done in 2D screen space to diminish the amount of
 		 * calculations done. Bounding box PBVH collision is not computed against enclosing rectangle
@@ -468,7 +463,7 @@ static int paint_mask_gesture_lasso_exec(bContext *C, wmOperator *op)
 		ED_view3d_clipping_calc(&bb, clip_planes, vc.ar, vc.obact, &data.rect);
 		negate_m4(clip_planes);
 
-		BKE_sculpt_update_mesh_elements(&eval_ctx, scene, sd, ob, false, true);
+		BKE_sculpt_update_mesh_elements(depsgraph, scene, sd, ob, false, true);
 		pbvh = ob->sculpt->pbvh;
 		multires = (BKE_pbvh_type(pbvh) == PBVH_GRIDS);
 

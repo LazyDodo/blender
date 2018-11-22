@@ -28,6 +28,7 @@
 #include <stdlib.h>
 
 #include "DNA_screen_types.h"
+#include "DNA_space_types.h"
 
 #include "BLT_translation.h"
 
@@ -41,6 +42,7 @@
 #include "UI_interface.h"
 
 #include "WM_types.h"
+#include "WM_toolsystem.h"
 
 /* see WM_types.h */
 const EnumPropertyItem rna_enum_operator_context_items[] = {
@@ -93,7 +95,7 @@ static ARegionType *region_type_find(ReportList *reports, int space_type, int re
 		if (art->regionid == region_type)
 			break;
 	}
-	
+
 	/* region type not found? abort */
 	if (art == NULL) {
 		BKE_report(reports, RPT_ERROR, "Region not found in space type");
@@ -105,7 +107,7 @@ static ARegionType *region_type_find(ReportList *reports, int space_type, int re
 
 /* Panel */
 
-static int panel_poll(const bContext *C, PanelType *pt)
+static bool panel_poll(const bContext *C, PanelType *pt)
 {
 	extern FunctionRNA rna_Panel_poll_func;
 
@@ -113,7 +115,7 @@ static int panel_poll(const bContext *C, PanelType *pt)
 	ParameterList list;
 	FunctionRNA *func;
 	void *ret;
-	int visible;
+	bool visible;
 
 	RNA_pointer_create(NULL, pt->ext.srna, NULL, &ptr); /* dummy */
 	func = &rna_Panel_poll_func; /* RNA_struct_find_function(&ptr, "poll"); */
@@ -123,7 +125,7 @@ static int panel_poll(const bContext *C, PanelType *pt)
 	pt->ext.call((bContext *)C, &ptr, func, &list);
 
 	RNA_parameter_get_lookup(&list, "visible", &ret);
-	visible = *(int *)ret;
+	visible = *(bool *)ret;
 
 	RNA_parameter_list_free(&list);
 
@@ -166,6 +168,24 @@ static void panel_draw_header(const bContext *C, Panel *pnl)
 	RNA_parameter_list_free(&list);
 }
 
+static void panel_draw_header_preset(const bContext *C, Panel *pnl)
+{
+	extern FunctionRNA rna_Panel_draw_header_preset_func;
+
+	PointerRNA ptr;
+	ParameterList list;
+	FunctionRNA *func;
+
+	RNA_pointer_create(&CTX_wm_screen(C)->id, pnl->type->ext.srna, pnl, &ptr);
+	func = &rna_Panel_draw_header_preset_func;
+
+	RNA_parameter_list_create(&list, &ptr, func);
+	RNA_parameter_set_lookup(&list, "context", &C);
+	pnl->type->ext.call((bContext *)C, &ptr, func, &list);
+
+	RNA_parameter_list_free(&list);
+}
+
 static void rna_Panel_unregister(Main *UNUSED(bmain), StructRNA *type)
 {
 	ARegionType *art;
@@ -175,10 +195,23 @@ static void rna_Panel_unregister(Main *UNUSED(bmain), StructRNA *type)
 		return;
 	if (!(art = region_type_find(NULL, pt->space_type, pt->region_type)))
 		return;
-	
+
 	RNA_struct_free_extension(type, &pt->ext);
 	RNA_struct_free(&BLENDER_RNA, type);
 
+	if (pt->parent) {
+		LinkData *link = BLI_findptr(&pt->parent->children, pt, offsetof(LinkData, data));
+		BLI_freelinkN(&pt->parent->children, link);
+	}
+
+	WM_paneltype_remove(pt);
+
+	for (LinkData *link = pt->children.first; link; link = link->next) {
+		PanelType *child_pt = link->data;
+		child_pt->parent = NULL;
+	}
+
+	BLI_freelistN(&pt->children);
 	BLI_freelinkN(&art->paneltypes, pt);
 
 	/* update while blender is running */
@@ -190,10 +223,10 @@ static StructRNA *rna_Panel_register(
         StructValidateFunc validate, StructCallbackFunc call, StructFreeFunc free)
 {
 	ARegionType *art;
-	PanelType *pt, dummypt = {NULL};
+	PanelType *pt, *parent = NULL, dummypt = {NULL};
 	Panel dummypanel = {NULL};
 	PointerRNA dummyptr;
-	int have_function[3];
+	int have_function[4];
 
 	/* setup dummy panel & panel type to store static properties in */
 	dummypanel.type = &dummypt;
@@ -205,16 +238,30 @@ static StructRNA *rna_Panel_register(
 	/* validate the python class */
 	if (validate(&dummyptr, data, have_function) != 0)
 		return NULL;
-		
+
 	if (strlen(identifier) >= sizeof(dummypt.idname)) {
 		BKE_reportf(reports, RPT_ERROR, "Registering panel class: '%s' is too long, maximum length is %d",
 		            identifier, (int)sizeof(dummypt.idname));
 		return NULL;
 	}
 
-	if ((dummypt.category[0] == '\0') && (dummypt.region_type == RGN_TYPE_TOOLS)) {
-		/* Use a fallback, otherwise an empty value will draw the panel in every category. */
-		strcpy(dummypt.category, PNL_CATEGORY_FALLBACK);
+	if ((1 << dummypt.region_type) & RGN_TYPE_HAS_CATEGORY_MASK) {
+		if (dummypt.category[0] == '\0') {
+			/* Use a fallback, otherwise an empty value will draw the panel in every category. */
+			strcpy(dummypt.category, PNL_CATEGORY_FALLBACK);
+#ifndef NDEBUG
+			printf("Registering panel class: '%s' misses category, please update the script\n", dummypt.idname);
+#endif
+		}
+	}
+	else {
+		if (dummypt.category[0] != '\0') {
+			if ((1 << dummypt.space_type) & WM_TOOLSYSTEM_SPACE_MASK) {
+				BKE_reportf(reports, RPT_ERROR, "Registering panel class: '%s' has category '%s' ",
+				            dummypt.idname, dummypt.category);
+				return NULL;
+			}
+		}
 	}
 
 	if (!(art = region_type_find(reports, dummypt.space_type, dummypt.region_type)))
@@ -229,6 +276,10 @@ static StructRNA *rna_Panel_register(
 				BLI_freelinkN(&art->paneltypes, pt);
 			break;
 		}
+
+		if (dummypt.parent_id[0] && STREQ(pt->idname, dummypt.parent_id)) {
+			parent = pt;
+		}
 	}
 	if (!RNA_struct_available_or_report(reports, dummypt.idname)) {
 		return NULL;
@@ -236,7 +287,12 @@ static StructRNA *rna_Panel_register(
 	if (!RNA_struct_bl_idname_ok_or_report(reports, dummypt.idname, "_PT_")) {
 		return NULL;
 	}
-	
+	if (dummypt.parent_id[0] && !parent) {
+		BKE_reportf(reports, RPT_ERROR, "Registering panel class: parent '%s' for '%s' not found",
+		            dummypt.parent_id, dummypt.idname);
+		return NULL;
+	}
+
 	/* create a new panel type */
 	pt = MEM_callocN(sizeof(PanelType), "python buttons panel");
 	memcpy(pt, &dummypt, sizeof(dummypt));
@@ -252,6 +308,7 @@ static StructRNA *rna_Panel_register(
 	pt->poll = (have_function[0]) ? panel_poll : NULL;
 	pt->draw = (have_function[1]) ? panel_draw : NULL;
 	pt->draw_header = (have_function[2]) ? panel_draw_header : NULL;
+	pt->draw_header_preset = (have_function[3]) ? panel_draw_header_preset : NULL;
 
 	/* XXX use "no header" flag for some ordering of panels until we have real panel ordering */
 	if (pt->flag & PNL_NO_HEADER) {
@@ -267,6 +324,11 @@ static StructRNA *rna_Panel_register(
 	else
 		BLI_addtail(&art->paneltypes, pt);
 
+	if (parent) {
+		pt->parent = parent;
+		BLI_addtail(&parent->children, BLI_genericNodeN(pt));
+	}
+
 	{
 		const char *owner_id = RNA_struct_state_owner_get();
 		if (owner_id) {
@@ -274,16 +336,18 @@ static StructRNA *rna_Panel_register(
 		}
 	}
 
+	WM_paneltype_add(pt);
+
 	/* update while blender is running */
 	WM_main_add_notifier(NC_WINDOW, NULL);
-	
+
 	return pt->ext.srna;
 }
 
 static StructRNA *rna_Panel_refine(PointerRNA *ptr)
 {
-	Panel *hdr = (Panel *)ptr->data;
-	return (hdr->type && hdr->type->ext.srna) ? hdr->type->ext.srna : &RNA_Panel;
+	Panel *menu = (Panel *)ptr->data;
+	return (menu->type && menu->type->ext.srna) ? menu->type->ext.srna : &RNA_Panel;
 }
 
 /* UIList */
@@ -330,7 +394,7 @@ static void uilist_draw_item(uiList *ui_list, bContext *C, uiLayout *layout, Poi
 	RNA_parameter_list_free(&list);
 }
 
-static void uilist_draw_filter(uiList *ui_list, bContext *C, uiLayout *layout)
+static void uilist_draw_filter(uiList *ui_list, bContext *C, uiLayout *layout, bool reverse)
 {
 	extern FunctionRNA rna_UIList_draw_filter_func;
 
@@ -344,6 +408,7 @@ static void uilist_draw_filter(uiList *ui_list, bContext *C, uiLayout *layout)
 	RNA_parameter_list_create(&list, &ul_ptr, func);
 	RNA_parameter_set_lookup(&list, "context", &C);
 	RNA_parameter_set_lookup(&list, "layout", &layout);
+	RNA_parameter_set_lookup(&list, "reverse", &reverse);
 	ui_list->type->ext.call((bContext *)C, &ul_ptr, func, &list);
 
 	RNA_parameter_list_free(&list);
@@ -568,9 +633,9 @@ static void rna_Header_unregister(Main *UNUSED(bmain), StructRNA *type)
 
 	if (!ht)
 		return;
-	if (!(art = region_type_find(NULL, ht->space_type, RGN_TYPE_HEADER)))
+	if (!(art = region_type_find(NULL, ht->space_type, ht->region_type)))
 		return;
-	
+
 	RNA_struct_free_extension(type, &ht->ext);
 	RNA_struct_free(&BLENDER_RNA, type);
 
@@ -592,6 +657,7 @@ static StructRNA *rna_Header_register(
 
 	/* setup dummy header & header type to store static properties in */
 	dummyheader.type = &dummyht;
+	dummyht.region_type = RGN_TYPE_HEADER; /* RGN_TYPE_HEADER by default, may be overridden */
 	RNA_pointer_create(NULL, &RNA_Header, &dummyheader, &dummyhtr);
 
 	/* validate the python class */
@@ -604,7 +670,7 @@ static StructRNA *rna_Header_register(
 		return NULL;
 	}
 
-	if (!(art = region_type_find(reports, dummyht.space_type, RGN_TYPE_HEADER)))
+	if (!(art = region_type_find(reports, dummyht.space_type, dummyht.region_type)))
 		return NULL;
 
 	/* check if we have registered this header type before, and remove it */
@@ -621,7 +687,7 @@ static StructRNA *rna_Header_register(
 	if (!RNA_struct_bl_idname_ok_or_report(reports, dummyht.idname, "_HT_")) {
 		return NULL;
 	}
-	
+
 	/* create a new header type */
 	ht = MEM_callocN(sizeof(HeaderType), "python buttons header");
 	memcpy(ht, &dummyht, sizeof(dummyht));
@@ -638,7 +704,7 @@ static StructRNA *rna_Header_register(
 
 	/* update while blender is running */
 	WM_main_add_notifier(NC_WINDOW, NULL);
-	
+
 	return ht->ext.srna;
 }
 
@@ -650,7 +716,7 @@ static StructRNA *rna_Header_refine(PointerRNA *htr)
 
 /* Menu */
 
-static int menu_poll(const bContext *C, MenuType *pt)
+static bool menu_poll(const bContext *C, MenuType *pt)
 {
 	extern FunctionRNA rna_Menu_poll_func;
 
@@ -658,7 +724,7 @@ static int menu_poll(const bContext *C, MenuType *pt)
 	ParameterList list;
 	FunctionRNA *func;
 	void *ret;
-	int visible;
+	bool visible;
 
 	RNA_pointer_create(NULL, pt->ext.srna, NULL, &ptr); /* dummy */
 	func = &rna_Menu_poll_func; /* RNA_struct_find_function(&ptr, "poll"); */
@@ -668,14 +734,14 @@ static int menu_poll(const bContext *C, MenuType *pt)
 	pt->ext.call((bContext *)C, &ptr, func, &list);
 
 	RNA_parameter_get_lookup(&list, "visible", &ret);
-	visible = *(int *)ret;
+	visible = *(bool *)ret;
 
 	RNA_parameter_list_free(&list);
 
 	return visible;
 }
 
-static void menu_draw(const bContext *C, Menu *hdr)
+static void menu_draw(const bContext *C, Menu *menu)
 {
 	extern FunctionRNA rna_Menu_draw_func;
 
@@ -683,12 +749,12 @@ static void menu_draw(const bContext *C, Menu *hdr)
 	ParameterList list;
 	FunctionRNA *func;
 
-	RNA_pointer_create(&CTX_wm_screen(C)->id, hdr->type->ext.srna, hdr, &mtr);
+	RNA_pointer_create(&CTX_wm_screen(C)->id, menu->type->ext.srna, menu, &mtr);
 	func = &rna_Menu_draw_func; /* RNA_struct_find_function(&mtr, "draw"); */
 
 	RNA_parameter_list_create(&list, &mtr, func);
 	RNA_parameter_set_lookup(&list, "context", &C);
-	hdr->type->ext.call((bContext *)C, &mtr, func, &list);
+	menu->type->ext.call((bContext *)C, &mtr, func, &list);
 
 	RNA_parameter_list_free(&list);
 }
@@ -699,7 +765,7 @@ static void rna_Menu_unregister(Main *UNUSED(bmain), StructRNA *type)
 
 	if (!mt)
 		return;
-	
+
 	RNA_struct_free_extension(type, &mt->ext);
 	RNA_struct_free(&BLENDER_RNA, type);
 
@@ -733,7 +799,7 @@ static StructRNA *rna_Menu_register(
 	/* validate the python class */
 	if (validate(&dummymtr, data, have_function) != 0)
 		return NULL;
-	
+
 	if (strlen(identifier) >= sizeof(dummymt.idname)) {
 		BKE_reportf(reports, RPT_ERROR, "Registering menu class: '%s' is too long, maximum length is %d",
 		            identifier, (int)sizeof(dummymt.idname));
@@ -751,7 +817,7 @@ static StructRNA *rna_Menu_register(
 	if (!RNA_struct_bl_idname_ok_or_report(reports, dummymt.idname, "_MT_")) {
 		return NULL;
 	}
-	
+
 	/* create a new menu type */
 	if (_menu_descr[0]) {
 		description_size = strlen(_menu_descr) + 1;
@@ -766,8 +832,9 @@ static StructRNA *rna_Menu_register(
 		memcpy(buf, _menu_descr, description_size);
 		mt->description = buf;
 	}
-	else
-		mt->description = "";
+	else {
+		mt->description = NULL;
+	}
 
 	mt->ext.srna = RNA_def_struct_ptr(&BLENDER_RNA, mt->idname, &RNA_Menu);
 	RNA_def_struct_translation_context(mt->ext.srna, mt->translation_context);
@@ -791,14 +858,14 @@ static StructRNA *rna_Menu_register(
 
 	/* update while blender is running */
 	WM_main_add_notifier(NC_WINDOW, NULL);
-	
+
 	return mt->ext.srna;
 }
 
 static StructRNA *rna_Menu_refine(PointerRNA *mtr)
 {
-	Menu *hdr = (Menu *)mtr->data;
-	return (hdr->type && hdr->type->ext.srna) ? hdr->type->ext.srna : &RNA_Menu;
+	Menu *menu = (Menu *)mtr->data;
+	return (menu->type && menu->type->ext.srna) ? menu->type->ext.srna : &RNA_Menu;
 }
 
 static void rna_Menu_bl_description_set(PointerRNA *ptr, const char *value)
@@ -811,22 +878,22 @@ static void rna_Menu_bl_description_set(PointerRNA *ptr, const char *value)
 
 /* UILayout */
 
-static int rna_UILayout_active_get(PointerRNA *ptr)
+static bool rna_UILayout_active_get(PointerRNA *ptr)
 {
 	return uiLayoutGetActive(ptr->data);
 }
 
-static void rna_UILayout_active_set(PointerRNA *ptr, int value)
+static void rna_UILayout_active_set(PointerRNA *ptr, bool value)
 {
 	uiLayoutSetActive(ptr->data, value);
 }
 
-static int rna_UILayout_alert_get(PointerRNA *ptr)
+static bool rna_UILayout_alert_get(PointerRNA *ptr)
 {
 	return uiLayoutGetRedAlert(ptr->data);
 }
 
-static void rna_UILayout_alert_set(PointerRNA *ptr, int value)
+static void rna_UILayout_alert_set(PointerRNA *ptr, bool value)
 {
 	uiLayoutSetRedAlert(ptr->data, value);
 }
@@ -841,12 +908,12 @@ static int rna_UILayout_op_context_get(PointerRNA *ptr)
 	return uiLayoutGetOperatorContext(ptr->data);
 }
 
-static int rna_UILayout_enabled_get(PointerRNA *ptr)
+static bool rna_UILayout_enabled_get(PointerRNA *ptr)
 {
 	return uiLayoutGetEnabled(ptr->data);
 }
 
-static void rna_UILayout_enabled_set(PointerRNA *ptr, int value)
+static void rna_UILayout_enabled_set(PointerRNA *ptr, bool value)
 {
 	uiLayoutSetEnabled(ptr->data, value);
 }
@@ -857,12 +924,12 @@ static int rna_UILayout_red_alert_get(PointerRNA *ptr)
 	return uiLayoutGetRedAlert(ptr->data);
 }
 
-static void rna_UILayout_red_alert_set(PointerRNA *ptr, int value)
+static void rna_UILayout_red_alert_set(PointerRNA *ptr, bool value)
 {
 	uiLayoutSetRedAlert(ptr->data, value);
 }
 
-static int rna_UILayout_keep_aspect_get(PointerRNA *ptr)
+static bool rna_UILayout_keep_aspect_get(PointerRNA *ptr)
 {
 	return uiLayoutGetKeepAspect(ptr->data);
 }
@@ -903,6 +970,56 @@ static void rna_UILayout_scale_y_set(PointerRNA *ptr, float value)
 	uiLayoutSetScaleY(ptr->data, value);
 }
 
+static float rna_UILayout_units_x_get(PointerRNA *ptr)
+{
+	return uiLayoutGetUnitsX(ptr->data);
+}
+
+static void rna_UILayout_units_x_set(PointerRNA *ptr, float value)
+{
+	uiLayoutSetUnitsX(ptr->data, value);
+}
+
+static float rna_UILayout_units_y_get(PointerRNA *ptr)
+{
+	return uiLayoutGetUnitsY(ptr->data);
+}
+
+static void rna_UILayout_units_y_set(PointerRNA *ptr, float value)
+{
+	uiLayoutSetUnitsY(ptr->data, value);
+}
+
+static int rna_UILayout_emboss_get(PointerRNA *ptr)
+{
+	return uiLayoutGetEmboss(ptr->data);
+}
+
+static void rna_UILayout_emboss_set(PointerRNA *ptr, int value)
+{
+	uiLayoutSetEmboss(ptr->data, value);
+}
+
+static bool rna_UILayout_property_split_get(PointerRNA *ptr)
+{
+	return uiLayoutGetPropSep(ptr->data);
+}
+
+static void rna_UILayout_property_split_set(PointerRNA *ptr, bool value)
+{
+	uiLayoutSetPropSep(ptr->data, value);
+}
+
+static bool rna_UILayout_property_decorate_get(PointerRNA *ptr)
+{
+	return uiLayoutGetPropDecorate(ptr->data);
+}
+
+static void rna_UILayout_property_decorate_set(PointerRNA *ptr, bool value)
+{
+	uiLayoutSetPropDecorate(ptr->data, value);
+}
+
 #else /* RNA_RUNTIME */
 
 static void rna_def_ui_layout(BlenderRNA *brna)
@@ -917,7 +1034,15 @@ static void rna_def_ui_layout(BlenderRNA *brna)
 		{UI_LAYOUT_ALIGN_RIGHT, "RIGHT", 0, "Right", ""},
 		{0, NULL, 0, NULL, NULL}
 	};
-	
+
+	static const EnumPropertyItem emboss_items[] = {
+		{UI_EMBOSS, "NORMAL", 0, "Normal", "Draw standard button emboss style"},
+		{UI_EMBOSS_NONE, "NONE", 0, "None", "Draw only text and icons"},
+		{UI_EMBOSS_PULLDOWN, "PULLDOWN_MENU", 0, "Pulldown Menu", "Draw pulldown menu style"},
+		{UI_EMBOSS_RADIAL, "RADIAL_MENU", 0, "Radial Menu", "Draw radial menu style"},
+		{0, NULL, 0, NULL, NULL}
+	};
+
 	/* layout */
 
 	srna = RNA_def_struct(brna, "UILayout", NULL);
@@ -926,15 +1051,15 @@ static void rna_def_ui_layout(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "active", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_funcs(prop, "rna_UILayout_active_get", "rna_UILayout_active_set");
-	
+
 	prop = RNA_def_property(srna, "operator_context", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_items(prop, rna_enum_operator_context_items);
 	RNA_def_property_enum_funcs(prop, "rna_UILayout_op_context_get", "rna_UILayout_op_context_set", NULL);
-	
+
 	prop = RNA_def_property(srna, "enabled", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_funcs(prop, "rna_UILayout_enabled_get", "rna_UILayout_enabled_set");
 	RNA_def_property_ui_text(prop, "Enabled", "When false, this (sub)layout is grayed out");
-	
+
 	prop = RNA_def_property(srna, "alert", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_funcs(prop, "rna_UILayout_alert_get", "rna_UILayout_alert_set");
 
@@ -950,11 +1075,29 @@ static void rna_def_ui_layout(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "scale_x", PROP_FLOAT, PROP_UNSIGNED);
 	RNA_def_property_float_funcs(prop, "rna_UILayout_scale_x_get", "rna_UILayout_scale_x_set", NULL);
 	RNA_def_property_ui_text(prop, "Scale X", "Scale factor along the X for items in this (sub)layout");
-	
+
 	prop = RNA_def_property(srna, "scale_y", PROP_FLOAT, PROP_UNSIGNED);
 	RNA_def_property_float_funcs(prop, "rna_UILayout_scale_y_get", "rna_UILayout_scale_y_set", NULL);
 	RNA_def_property_ui_text(prop, "Scale Y", "Scale factor along the Y for items in this (sub)layout");
+
+	prop = RNA_def_property(srna, "ui_units_x", PROP_FLOAT, PROP_UNSIGNED);
+	RNA_def_property_float_funcs(prop, "rna_UILayout_units_x_get", "rna_UILayout_units_x_set", NULL);
+	RNA_def_property_ui_text(prop, "Units X", "Fixed Size along the X for items in this (sub)layout");
+
+	prop = RNA_def_property(srna, "ui_units_y", PROP_FLOAT, PROP_UNSIGNED);
+	RNA_def_property_float_funcs(prop, "rna_UILayout_units_y_get", "rna_UILayout_units_y_set", NULL);
+	RNA_def_property_ui_text(prop, "Units Y", "Fixed Size along the Y for items in this (sub)layout");
 	RNA_api_ui_layout(srna);
+
+	prop = RNA_def_property(srna, "emboss", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, emboss_items);
+	RNA_def_property_enum_funcs(prop, "rna_UILayout_emboss_get", "rna_UILayout_emboss_set", NULL);
+
+	prop = RNA_def_property(srna, "use_property_split", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_funcs(prop, "rna_UILayout_property_split_get", "rna_UILayout_property_split_set");
+
+	prop = RNA_def_property(srna, "use_property_decorate", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_funcs(prop, "rna_UILayout_property_decorate_get", "rna_UILayout_property_decorate_set");
 }
 
 static void rna_def_panel(BlenderRNA *brna)
@@ -963,7 +1106,7 @@ static void rna_def_panel(BlenderRNA *brna)
 	PropertyRNA *prop;
 	PropertyRNA *parm;
 	FunctionRNA *func;
-	
+
 	static const EnumPropertyItem panel_flag_items[] = {
 		{PNL_DEFAULT_CLOSED, "DEFAULT_CLOSED", 0, "Default Closed",
 		                     "Defines if the panel has to be open or collapsed at the time of its creation"},
@@ -972,7 +1115,7 @@ static void rna_def_panel(BlenderRNA *brna)
 		                "arrow to collapse the panel and the label (see bl_label)"},
 		{0, NULL, 0, NULL, NULL}
 	};
-	
+
 	srna = RNA_def_struct(brna, "Panel", NULL);
 	RNA_def_struct_ui_text(srna, "Panel", "Panel containing UI elements");
 	RNA_def_struct_sdna(srna, "Panel");
@@ -1002,14 +1145,20 @@ static void rna_def_panel(BlenderRNA *brna)
 	parm = RNA_def_pointer(func, "context", "Context", "", "");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED);
 
+	func = RNA_def_function(srna, "draw_header_preset", NULL);
+	RNA_def_function_ui_description(func, "Draw UI elements for presets in the panel's header");
+	RNA_def_function_flag(func, FUNC_REGISTER_OPTIONAL);
+	parm = RNA_def_pointer(func, "context", "Context", "", "");
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED);
+
 	prop = RNA_def_property(srna, "layout", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "UILayout");
 	RNA_def_property_ui_text(prop, "Layout", "Defines the structure of the panel in the UI");
-	
+
 	prop = RNA_def_property(srna, "text", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "drawname");
 	RNA_def_property_ui_text(prop, "Text", "XXX todo");
-	
+
 	/* registration */
 	prop = RNA_def_property(srna, "bl_idname", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "type->idname");
@@ -1046,7 +1195,7 @@ static void rna_def_panel(BlenderRNA *brna)
 	RNA_def_property_enum_items(prop, rna_enum_space_type_items);
 	RNA_def_property_flag(prop, PROP_REGISTER);
 	RNA_def_property_ui_text(prop, "Space type", "The space where the panel is going to be used in");
-	
+
 	prop = RNA_def_property(srna, "bl_region_type", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "type->region_type");
 	RNA_def_property_enum_items(prop, rna_enum_region_type_items);
@@ -1059,18 +1208,33 @@ static void rna_def_panel(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Context",
 	                         "The context in which the panel belongs to. (TODO: explain the "
 	                         "possible combinations bl_context/bl_region_type/bl_space_type)");
-	
+
 	prop = RNA_def_property(srna, "bl_options", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "type->flag");
 	RNA_def_property_enum_items(prop, panel_flag_items);
 	RNA_def_property_flag(prop, PROP_REGISTER_OPTIONAL | PROP_ENUM_FLAG);
 	RNA_def_property_ui_text(prop, "Options",  "Options for this panel type");
 
+	prop = RNA_def_property(srna, "bl_parent_id", PROP_STRING, PROP_NONE);
+	RNA_def_property_string_sdna(prop, NULL, "type->parent_id");
+	RNA_def_property_flag(prop, PROP_REGISTER_OPTIONAL);
+	RNA_def_property_ui_text(prop, "Parent ID Name", "If this is set, the panel becomes a subpanel");
+
+	prop = RNA_def_property(srna, "bl_ui_units_x", PROP_INT, PROP_UNSIGNED);
+	RNA_def_property_int_sdna(prop, NULL, "type->ui_units_x");
+	RNA_def_property_flag(prop, PROP_REGISTER_OPTIONAL);
+	RNA_def_property_ui_text(prop, "Units X", "When set, defines popup panel width");
+
 	prop = RNA_def_property(srna, "use_pin", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", PNL_PIN);
 	RNA_def_property_ui_text(prop, "Pin",  "");
 	/* XXX, should only tag region for redraw */
 	RNA_def_property_update(prop, NC_WINDOW, NULL);
+
+	prop = RNA_def_property(srna, "is_popover", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", PNL_POPOVER);
+	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+	RNA_def_property_ui_text(prop, "Popover",  "");
 }
 
 static void rna_def_uilist(BlenderRNA *brna)
@@ -1161,6 +1325,7 @@ static void rna_def_uilist(BlenderRNA *brna)
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	parm = RNA_def_pointer(func, "layout", "UILayout", "", "Layout to draw the item");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED);
+	RNA_def_boolean(func, "reverse", false, "", "Display items in reverse order");
 
 	/* filter */
 	func = RNA_def_function(srna, "filter_items", NULL);
@@ -1202,7 +1367,7 @@ static void rna_def_header(BlenderRNA *brna)
 	PropertyRNA *prop;
 	PropertyRNA *parm;
 	FunctionRNA *func;
-	
+
 	srna = RNA_def_struct(brna, "Header", NULL);
 	RNA_def_struct_ui_text(srna, "Header", "Editor header containing UI elements");
 	RNA_def_struct_sdna(srna, "Header");
@@ -1240,6 +1405,14 @@ static void rna_def_header(BlenderRNA *brna)
 	RNA_def_property_flag(prop, PROP_REGISTER);
 	RNA_def_property_ui_text(prop, "Space type", "The space where the header is going to be used in");
 
+	prop = RNA_def_property(srna, "bl_region_type", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "type->region_type");
+	RNA_def_property_enum_default(prop, RGN_TYPE_HEADER);
+	RNA_def_property_enum_items(prop, rna_enum_region_type_items);
+	RNA_def_property_flag(prop, PROP_REGISTER_OPTIONAL);
+	RNA_def_property_ui_text(prop, "Region Type", "The region where the header is going to be used in "
+	                         "(defaults to header region)");
+
 	RNA_define_verify_sdna(1);
 }
 
@@ -1249,7 +1422,7 @@ static void rna_def_menu(BlenderRNA *brna)
 	PropertyRNA *prop;
 	PropertyRNA *parm;
 	FunctionRNA *func;
-	
+
 	srna = RNA_def_struct(brna, "Menu", NULL);
 	RNA_def_struct_ui_text(srna, "Menu", "Editor menu containing buttons");
 	RNA_def_struct_sdna(srna, "Menu");
@@ -1325,4 +1498,3 @@ void RNA_def_ui(BlenderRNA *brna)
 }
 
 #endif /* RNA_RUNTIME */
-

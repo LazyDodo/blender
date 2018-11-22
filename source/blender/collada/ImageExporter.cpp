@@ -34,14 +34,16 @@ extern "C" {
 #include "DNA_image_types.h"
 #include "DNA_meshdata_types.h"
 
-#include "BKE_customdata.h" 
+#include "BKE_customdata.h"
 #include "BKE_global.h"
 #include "BKE_image.h"
 #include "BKE_main.h"
 #include "BKE_mesh.h"
+
 #include "BLI_fileops.h"
 #include "BLI_path_util.h"
 #include "BLI_string.h"
+
 #include "IMB_imbuf_types.h"
 }
 
@@ -53,7 +55,7 @@ ImagesExporter::ImagesExporter(COLLADASW::StreamWriter *sw, const ExportSettings
 {
 }
 
-void ImagesExporter::export_UV_Image(Image *image, bool use_copies) 
+void ImagesExporter::export_UV_Image(Image *image, bool use_copies)
 {
 	std::string name(id_name(image));
 	std::string translated_name(translate_id(name));
@@ -113,11 +115,11 @@ void ImagesExporter::export_UV_Image(Image *image, bool use_copies)
 
 			// make absolute source path
 			BLI_strncpy(source_path, image->name, sizeof(source_path));
-			BLI_path_abs(source_path, G.main->name);
+			BLI_path_abs(source_path, BKE_main_blendfile_path_from_global());
 			BLI_cleanup_path(NULL, source_path);
 
 			if (use_copies) {
-			
+
 				// This image is already located on the file system.
 				// But we want to create copies here.
 				// To move images into the same export directory.
@@ -155,7 +157,7 @@ void ImagesExporter::export_UV_Image(Image *image, bool use_copies)
 bool ImagesExporter::hasImages(Scene *sce)
 {
 	LinkNode *node;
-	
+
 	for (node = this->export_settings->export_set; node; node = node->next) {
 		Object *ob = (Object *)node->link;
 
@@ -164,12 +166,7 @@ bool ImagesExporter::hasImages(Scene *sce)
 
 			// no material, but check all of the slots
 			if (!ma) continue;
-			int b;
-			for (b = 0; b < MAX_MTEX; b++) {
-				MTex *mtex = ma->mtex[b];
-				if (mtex && mtex->tex && mtex->tex->ima) return true;
-			}
-
+			// TODO: find image textures in shader nodes
 		}
 	}
 	return false;
@@ -191,13 +188,6 @@ void ImagesExporter::exportImages(Scene *sce)
 
 void ImagesExporter::operator()(Material *ma, Object *ob)
 {
-	int a;
-	bool use_texture_copies = this->export_settings->use_texture_copies;
-	for (a = 0; a < MAX_MTEX; a++) {
-		MTex *mtex = ma->mtex[a];
-		if (mtex && mtex->tex && mtex->tex->ima) {
-			Image *image = mtex->tex->ima;
-			export_UV_Image(image, use_texture_copies);
-		}
-	}
+	// bool use_texture_copies = this->export_settings->use_texture_copies;
+	// TODO call export_UV_Image for every image in shader nodes
 }

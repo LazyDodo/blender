@@ -16,7 +16,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
  * Contributor:
- *		Dalai Felinto
+ *      Dalai Felinto
  */
 
 #include "COM_ConvertAlphaNode.h"
@@ -35,9 +35,9 @@ void ConvertAlphaNode::convertToOperations(NodeConverter &converter, const Compo
 	else {
 		operation = new ConvertStraightToPremulOperation();
 	}
-	
+
 	converter.addOperation(operation);
-	
+
 	converter.mapInputSocket(getInputSocket(0), operation->getInputSocket(0));
 	converter.mapOutputSocket(getOutputSocket(0), operation->getOutputSocket());
 }

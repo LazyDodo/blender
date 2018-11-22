@@ -120,31 +120,31 @@ static int node_shader_gpu_volume_principled(GPUMaterial *mat, bNode *node, bNod
 	/* Default values if attributes not found. */
 	if (!density) {
 		static float one = 1.0f;
-		density = GPU_uniform(&one);
+		density = GPU_constant(&one);
 	}
 	if (!color) {
 		static float white[4] = {1.0f, 1.0f, 1.0f, 1.0f};
-		color = GPU_uniform(white);
+		color = GPU_constant(white);
 	}
 	if (!temperature) {
 		static float one = 1.0f;
-		temperature = GPU_uniform(&one);
+		temperature = GPU_constant(&one);
 	}
 
 	/* Create blackbody spectrum. */
-	GPUNodeLink *spectrummap;
+	const int size = CM_TABLE + 1;
+	float *data, layer;
 	if (use_blackbody) {
-		const int size = 256;
-		float *data = MEM_mallocN(sizeof(float) * size * 4, "blackbody texture");
+		data = MEM_mallocN(sizeof(float) * size * 4, "blackbody texture");
 		blackbody_temperature_to_rgb_table(data, size, 965.0f, 12000.0f);
-		spectrummap = GPU_texture(size, data);
 	}
 	else {
-		float *data = MEM_callocN(sizeof(float) * 4, "blackbody black");
-		spectrummap = GPU_texture(1, data);
+		data = MEM_callocN(sizeof(float) * size * 4, "blackbody black");
 	}
+	GPUNodeLink *spectrummap = GPU_color_band(mat, size, data, &layer);
 
-	return GPU_stack_link(mat, node, "node_volume_principled", in, out, density, color, temperature, spectrummap);
+	return GPU_stack_link(mat, node, "node_volume_principled", in, out, density, color, temperature, spectrummap,
+	                                                           GPU_constant(&layer));
 }
 
 /* node type definition */
@@ -153,7 +153,6 @@ void register_node_type_sh_volume_principled(void)
 	static bNodeType ntype;
 
 	sh_node_type_base(&ntype, SH_NODE_VOLUME_PRINCIPLED, "Principled Volume", NODE_CLASS_SHADER, 0);
-	node_type_compatibility(&ntype, NODE_NEW_SHADING);
 	node_type_socket_templates(&ntype, sh_node_volume_principled_in, sh_node_volume_principled_out);
 	node_type_size_preset(&ntype, NODE_SIZE_LARGE);
 	node_type_init(&ntype, node_shader_init_volume_principled);
@@ -162,4 +161,3 @@ void register_node_type_sh_volume_principled(void)
 
 	nodeRegisterType(&ntype);
 }
-

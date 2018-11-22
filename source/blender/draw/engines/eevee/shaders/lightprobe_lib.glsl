@@ -27,6 +27,7 @@ struct PlanarData {
 	vec4 clip_edges;
 	vec4 facing_scale_bias;
 	mat4 reflectionmat; /* transform world space into reflection texture space */
+	mat4 unused;
 };
 
 #define pl_plane_eq      plane_equation
@@ -72,6 +73,12 @@ struct GridData {
 #define MAX_PLANAR 1
 #endif
 
+#ifndef UTIL_TEX
+#define UTIL_TEX
+uniform sampler2DArray utilTex;
+#define texelfetch_noise_tex(coord) texelFetch(utilTex, ivec3(ivec2(coord) % LUT_SIZE, 2.0), 0)
+#endif /* UTIL_TEX */
+
 layout(std140) uniform probe_block {
 	CubeData probes_data[MAX_PROBE];
 };
@@ -86,17 +93,18 @@ layout(std140) uniform planar_block {
 
 /* ----------- Functions --------- */
 
-float probe_attenuation_cube(CubeData pd, vec3 W)
+float probe_attenuation_cube(int pd_id, vec3 W)
 {
-	vec3 localpos = transform_point(pd.influencemat, W);
+	vec3 localpos = transform_point(probes_data[pd_id].influencemat, W);
 
+	float probe_atten_fac = probes_data[pd_id].p_atten_fac;
 	float fac;
-	if (pd.p_atten_type == PROBE_ATTENUATION_BOX) {
-		vec3 axes_fac = saturate(pd.p_atten_fac - pd.p_atten_fac * abs(localpos));
+	if (probes_data[pd_id].p_atten_type == PROBE_ATTENUATION_BOX) {
+		vec3 axes_fac = saturate(probe_atten_fac - probe_atten_fac * abs(localpos));
 		fac = min_v3(axes_fac);
 	}
 	else {
-		fac = saturate(pd.p_atten_fac - pd.p_atten_fac * length(localpos));
+		fac = saturate(probe_atten_fac - probe_atten_fac * length(localpos));
 	}
 
 	return fac;
@@ -114,7 +122,8 @@ float probe_attenuation_planar(PlanarData pd, vec3 W, vec3 N, float roughness)
 	vec2 dist_to_clip;
 	dist_to_clip.x = dot(pd.pl_clip_pos_x, W);
 	dist_to_clip.y = dot(pd.pl_clip_pos_y, W);
-	fac *= step(2.0, dot(step(pd.pl_clip_edges, dist_to_clip.xxyy), vec2(-1.0, 1.0).xyxy)); /* compare and add all tests */
+	/* compare and add all tests */
+	fac *= step(2.0, dot(step(pd.pl_clip_edges, dist_to_clip.xxyy), vec2(-1.0, 1.0).xyxy));
 
 	/* Decrease influence for high roughness */
 	fac *= saturate(1.0 - roughness * 10.0);
@@ -122,22 +131,22 @@ float probe_attenuation_planar(PlanarData pd, vec3 W, vec3 N, float roughness)
 	return fac;
 }
 
-float probe_attenuation_grid(GridData gd, vec3 W, out vec3 localpos)
+float probe_attenuation_grid(GridData gd, mat4 localmat, vec3 W, out vec3 localpos)
 {
-	localpos = transform_point(gd.localmat, W);
-
-	float fade = min(1.0, min_v3(1.0 - abs(localpos)));
-	return saturate(fade * gd.g_atten_scale + gd.g_atten_bias);
+	localpos = transform_point(localmat, W);
+	vec3 pos_to_edge = max(vec3(0.0), abs(localpos) - 1.0);
+	float fade = length(pos_to_edge);
+	return saturate(-fade * gd.g_atten_scale + gd.g_atten_bias);
 }
 
-vec3 probe_evaluate_cube(float id, CubeData cd, vec3 W, vec3 R, float roughness)
+vec3 probe_evaluate_cube(int pd_id, vec3 W, vec3 R, float roughness)
 {
 	/* Correct reflection ray using parallax volume intersection. */
-	vec3 localpos = transform_point(cd.parallaxmat, W);
-	vec3 localray = transform_direction(cd.parallaxmat, R);
+	vec3 localpos = transform_point(probes_data[pd_id].parallaxmat, W);
+	vec3 localray = transform_direction(probes_data[pd_id].parallaxmat, R);
 
 	float dist;
-	if (cd.p_parallax_type == PROBE_PARALLAX_BOX) {
+	if (probes_data[pd_id].p_parallax_type == PROBE_PARALLAX_BOX) {
 		dist = line_unit_box_intersect_dist(localpos, localray);
 	}
 	else {
@@ -145,7 +154,7 @@ vec3 probe_evaluate_cube(float id, CubeData cd, vec3 W, vec3 R, float roughness)
 	}
 
 	/* Use Distance in WS directly to recover intersection */
-	vec3 intersection = W + R * dist - cd.p_position;
+	vec3 intersection = W + R * dist - probes_data[pd_id].p_position;
 
 	/* From Frostbite PBR Course
 	 * Distance based roughness
@@ -159,7 +168,7 @@ vec3 probe_evaluate_cube(float id, CubeData cd, vec3 W, vec3 R, float roughness)
 	float fac = saturate(original_roughness * 2.0 - 1.0);
 	R = mix(intersection, R, fac * fac);
 
-	return textureLod_octahedron(probeCubes, vec4(R, id), roughness * prbLodCubeMax, prbLodCubeMax).rgb;
+	return textureLod_octahedron(probeCubes, vec4(R, float(pd_id)), roughness * prbLodCubeMax, prbLodCubeMax).rgb;
 }
 
 vec3 probe_evaluate_world_spec(vec3 R, float roughness)
@@ -194,6 +203,38 @@ vec3 probe_evaluate_planar(
 	vec3 sample = textureLod(probePlanars, vec3(refco.xy * 0.5 + 0.5, id), 0.0).rgb;
 
 	return sample;
+}
+
+void fallback_cubemap(
+        vec3 N, vec3 V, vec3 W, vec3 viewPosition, float roughness, float roughnessSquared, inout vec4 spec_accum)
+{
+	/* Specular probes */
+	vec3 spec_dir = get_specular_reflection_dominant_dir(N, V, roughnessSquared);
+
+#ifdef SSR_AO
+	vec4 rand = texelfetch_noise_tex(gl_FragCoord.xy);
+	vec3 bent_normal;
+	float final_ao = occlusion_compute(N, viewPosition, 1.0, rand, bent_normal);
+	final_ao = specular_occlusion(dot(N, V), final_ao, roughness);
+#else
+	const float final_ao = 1.0;
+#endif
+
+	/* Starts at 1 because 0 is world probe */
+	for (int i = 1; i < MAX_PROBE && i < prbNumRenderCube && spec_accum.a < 0.999; ++i) {
+		float fade = probe_attenuation_cube(i, W);
+
+		if (fade > 0.0) {
+			vec3 spec = final_ao * probe_evaluate_cube(i, W, spec_dir, roughness);
+			accumulate_light(spec, fade, spec_accum);
+		}
+	}
+
+	/* World Specular */
+	if (spec_accum.a < 0.999) {
+		vec3 spec = final_ao * probe_evaluate_world_spec(spec_dir, roughness);
+		accumulate_light(spec, 1.0, spec_accum);
+	}
 }
 
 #ifdef IRRADIANCE_LIB
@@ -232,14 +273,18 @@ vec3 probe_evaluate_grid(GridData gd, vec3 W, vec3 N, vec3 localpos)
 		float ws_dist_point_to_cell = length(ws_point_to_cell);
 		vec3 ws_light = ws_point_to_cell / ws_dist_point_to_cell;
 
-		vec3 trilinear = mix(1 - trilinear_weight, trilinear_weight, offset);
-		float weight = trilinear.x * trilinear.y * trilinear.z;
+		/* Smooth backface test */
+		float weight = saturate(dot(ws_light, N));
 
 		/* Precomputed visibility */
 		weight *= load_visibility_cell(cell, ws_light, ws_dist_point_to_cell, gd.g_vis_bias, gd.g_vis_bleed, gd.g_vis_range);
 
-		/* Smooth backface test */
-		weight *= sqrt(max(0.002, dot(ws_light, N)));
+		/* Smoother transition */
+		weight += prbIrradianceSmooth;
+
+		/* Trilinear weights */
+		vec3 trilinear = mix(1.0 - trilinear_weight, trilinear_weight, offset);
+		weight *= trilinear.x * trilinear.y * trilinear.z;
 
 		/* Avoid zero weight */
 		weight = max(0.00001, weight);

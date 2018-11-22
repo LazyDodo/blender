@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -102,7 +102,7 @@ void DPAINT_OT_surface_slot_add(wmOperatorType *ot)
 	ot->name = "Add Surface Slot";
 	ot->idname = "DPAINT_OT_surface_slot_add";
 	ot->description = "Add a new Dynamic Paint surface slot";
-	
+
 	/* api callbacks */
 	ot->exec = surface_slot_add_exec;
 	ot->poll = ED_operator_object_active_editable;
@@ -130,7 +130,7 @@ static int surface_slot_remove_exec(bContext *C, wmOperator *UNUSED(op))
 	for (; surface; surface = surface->next) {
 		if (id == canvas->active_sur) {
 				canvas->active_sur -= 1;
-				dynamicPaint_freeSurface(surface);
+				dynamicPaint_freeSurface(pmd, surface);
 				break;
 			}
 		id++;
@@ -150,7 +150,7 @@ void DPAINT_OT_surface_slot_remove(wmOperatorType *ot)
 	ot->name = "Remove Surface Slot";
 	ot->idname = "DPAINT_OT_surface_slot_remove";
 	ot->description = "Remove the selected surface slot";
-	
+
 	/* api callbacks */
 	ot->exec = surface_slot_remove_exec;
 	ot->poll = ED_operator_object_active_editable;
@@ -181,7 +181,7 @@ static int type_toggle_exec(bContext *C, wmOperator *op)
 		if (!dynamicPaint_createType(pmd, type, scene))
 			return OPERATOR_CANCELLED;
 	}
-	
+
 	/* update dependency */
 	DEG_id_tag_update(&cObject->id, OB_RECALC_DATA);
 	DEG_relations_tag_update(CTX_data_main(C));
@@ -198,14 +198,14 @@ void DPAINT_OT_type_toggle(wmOperatorType *ot)
 	ot->name = "Toggle Type Active";
 	ot->idname = "DPAINT_OT_type_toggle";
 	ot->description = "Toggle whether given type is active or not";
-	
+
 	/* api callbacks */
 	ot->exec = type_toggle_exec;
 	ot->poll = ED_operator_object_active_editable;
-	
+
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-	
+
 	/* properties */
 	prop = RNA_def_enum(ot->srna, "type", rna_enum_prop_dynamicpaint_type_items, MOD_DYNAMICPAINT_TYPE_CANVAS, "Type", "");
 	ot->prop = prop;
@@ -225,7 +225,7 @@ static int output_toggle_exec(bContext *C, wmOperator *op)
 	if (surface->format == MOD_DPAINT_SURFACE_F_VERTEX) {
 		int exists = dynamicPaint_outputLayerExists(surface, ob, output);
 		const char *name;
-		
+
 		if (output == 0)
 			name = surface->output_name;
 		else
@@ -235,7 +235,7 @@ static int output_toggle_exec(bContext *C, wmOperator *op)
 		if (surface->type == MOD_DPAINT_SURFACE_T_PAINT) {
 			if (!exists)
 				ED_mesh_color_add(ob->data, name, true);
-			else 
+			else
 				ED_mesh_color_remove_named(ob->data, name);
 		}
 		/* Vertex Weight Layer */
@@ -265,14 +265,14 @@ void DPAINT_OT_output_toggle(wmOperatorType *ot)
 	ot->name = "Toggle Output Layer";
 	ot->idname = "DPAINT_OT_output_toggle";
 	ot->description = "Add or remove Dynamic Paint output data layer";
-	
+
 	/* api callbacks */
 	ot->exec = output_toggle_exec;
 	ot->poll = ED_operator_object_active_editable;
-	
+
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
-	
+
 	/* properties */
 	ot->prop = RNA_def_enum(ot->srna, "output", prop_output_toggle_types, 0, "Output Toggle", "");
 }
@@ -288,14 +288,11 @@ typedef struct DynamicPaintBakeJob {
 
 	struct Main *bmain;
 	Scene *scene;
-	ViewLayer *view_layer;
 	Depsgraph *depsgraph;
 	Object *ob;
 
 	DynamicPaintSurface *surface;
 	DynamicPaintCanvasSettings *canvas;
-
-	EvaluationContext *eval_ctx;
 
 	int success;
 	double start;
@@ -316,15 +313,13 @@ static void dpaint_bake_endjob(void *customdata)
 
 	dynamicPaint_freeSurfaceData(job->surface);
 
-	MEM_freeN(job->eval_ctx);
-
 	G.is_rendering = false;
 	BKE_spacedata_draw_locks(false);
 
-	WM_set_locked_interface(G.main->wm.first, false);
+	WM_set_locked_interface(G_MAIN->wm.first, false);
 
 	/* Bake was successful:
-	 *  Report for ended bake and how long it took */
+	 * Report for ended bake and how long it took */
 	if (job->success) {
 		/* Show bake info */
 		WM_reportf(RPT_INFO, "DynamicPaint: Bake complete! (%.2f)", PIL_check_seconds_timer() - job->start);
@@ -365,7 +360,7 @@ static void dynamicPaint_bakeImageSequence(DynamicPaintBakeJob *job)
 	frame = surface->start_frame;
 	orig_frame = scene->r.cfra;
 	scene->r.cfra = (int)frame;
-	ED_update_for_newframe(job->bmain, scene, job->view_layer, job->depsgraph);
+	ED_update_for_newframe(job->bmain, job->depsgraph);
 
 	/* Init surface */
 	if (!dynamicPaint_createUVSurface(scene, surface, job->progress, job->do_update)) {
@@ -391,8 +386,8 @@ static void dynamicPaint_bakeImageSequence(DynamicPaintBakeJob *job)
 
 		/* calculate a frame */
 		scene->r.cfra = (int)frame;
-		ED_update_for_newframe(job->bmain, scene, job->view_layer, job->depsgraph);
-		if (!dynamicPaint_calculateFrame(surface, job->eval_ctx, scene, cObject, frame)) {
+		ED_update_for_newframe(job->bmain, job->depsgraph);
+		if (!dynamicPaint_calculateFrame(surface, job->depsgraph, scene, cObject, frame)) {
 			job->success = 0;
 			return;
 		}
@@ -460,10 +455,6 @@ static int dynamicpaint_bake_exec(struct bContext *C, struct wmOperator *op)
 	DynamicPaintCanvasSettings *canvas;
 	Object *ob = ED_object_context(C);
 	Scene *scene = CTX_data_scene(C);
-	ViewLayer *view_layer = CTX_data_view_layer(C);
-	EvaluationContext *eval_ctx = MEM_mallocN(sizeof(*eval_ctx), "EvaluationContext");
-
-	CTX_data_eval_ctx(C, eval_ctx);
 
 	DynamicPaintSurface *surface;
 
@@ -491,12 +482,10 @@ static int dynamicpaint_bake_exec(struct bContext *C, struct wmOperator *op)
 	DynamicPaintBakeJob *job = MEM_mallocN(sizeof(DynamicPaintBakeJob), "DynamicPaintBakeJob");
 	job->bmain = CTX_data_main(C);
 	job->scene = scene;
-	job->view_layer = view_layer;
 	job->depsgraph = CTX_data_depsgraph(C);
 	job->ob = ob;
 	job->canvas = canvas;
 	job->surface = surface;
-	job->eval_ctx = eval_ctx;
 
 	wmJob *wm_job = WM_jobs_get(CTX_wm_manager(C), CTX_wm_window(C), scene,
 	                            "Dynamic Paint Bake", WM_JOB_PROGRESS,
@@ -520,7 +509,7 @@ void DPAINT_OT_bake(wmOperatorType *ot)
 	ot->name = "Dynamic Paint Bake";
 	ot->description = "Bake dynamic paint image sequence surface";
 	ot->idname = "DPAINT_OT_bake";
-	
+
 	/* api callbacks */
 	ot->exec = dynamicpaint_bake_exec;
 	ot->poll = ED_operator_object_active_editable;

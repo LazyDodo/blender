@@ -56,7 +56,9 @@
 #include "GPU_draw.h"
 #include "GPU_shader.h"
 #include "GPU_matrix.h"
+#include "GPU_state.h"
 
+#include "UI_interface.h"
 #include "UI_resources.h"
 #include "UI_view2d.h"
 
@@ -123,8 +125,8 @@ static void draw_single_handle(const MaskLayer *mask_layer, const MaskSplinePoin
 		return;
 	}
 
-	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	const unsigned char rgb_gray[4] = {0x60, 0x60, 0x60, 0xff};
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
@@ -132,8 +134,8 @@ static void draw_single_handle(const MaskLayer *mask_layer, const MaskSplinePoin
 
 	/* this could be split into its own loop */
 	if (draw_type == MASK_DT_OUTLINE) {
-		glLineWidth(3.0f);
-		immBegin(GWN_PRIM_LINES, 2);
+		GPU_line_width(3.0f);
+		immBegin(GPU_PRIM_LINES, 2);
 		immVertex2fv(pos, point_pos);
 		immVertex2fv(pos, handle_pos);
 		immEnd();
@@ -152,8 +154,8 @@ static void draw_single_handle(const MaskLayer *mask_layer, const MaskSplinePoin
 			break;
 	}
 
-	glLineWidth(1.0f);
-	immBegin(GWN_PRIM_LINES, 2);
+	GPU_line_width(1.0f);
+	immBegin(GPU_PRIM_LINES, 2);
 	immVertex2fv(pos, point_pos);
 	immVertex2fv(pos, handle_pos);
 	immEnd();
@@ -177,7 +179,7 @@ static void draw_single_handle(const MaskLayer *mask_layer, const MaskSplinePoin
 	immUniform4fv("outlineColor", point_color);
 	immUniformColor3fvAlpha(point_color, 0.25f);
 
-	immBegin(GWN_PRIM_POINTS, 1);
+	immBegin(GPU_PRIM_POINTS, 1);
 	immVertex2fv(pos, handle_pos);
 	immEnd();
 
@@ -211,8 +213,8 @@ static void draw_spline_points(const bContext *C, MaskLayer *masklay, MaskSpline
 
 	mask_spline_color_get(masklay, spline, is_spline_sel, rgb_spline);
 
-	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_POINT_UNIFORM_SIZE_UNIFORM_COLOR_AA);
 	immUniform1f("size", 0.7f * handle_size);
@@ -250,7 +252,7 @@ static void draw_spline_points(const bContext *C, MaskLayer *masklay, MaskSpline
 				immUniformThemeColor(TH_HANDLE_VERTEX);
 			}
 
-			immBegin(GWN_PRIM_POINTS, 1);
+			immBegin(GPU_PRIM_POINTS, 1);
 			immVertex2fv(pos, feather_point);
 			immEnd();
 
@@ -262,7 +264,7 @@ static void draw_spline_points(const bContext *C, MaskLayer *masklay, MaskSpline
 	immUnbindProgram();
 
 	if (is_smooth) {
-		glEnable(GL_LINE_SMOOTH);
+		GPU_line_smooth(true);
 	}
 
 	/* control points */
@@ -319,7 +321,7 @@ static void draw_spline_points(const bContext *C, MaskLayer *masklay, MaskSpline
 		else
 			immUniformThemeColor(TH_HANDLE_VERTEX);
 
-		immBegin(GWN_PRIM_POINTS, 1);
+		immBegin(GPU_PRIM_POINTS, 1);
 		immVertex2fv(pos, vert);
 		immEnd();
 
@@ -329,7 +331,7 @@ static void draw_spline_points(const bContext *C, MaskLayer *masklay, MaskSpline
 	}
 
 	if (is_smooth) {
-		glDisable(GL_LINE_SMOOTH);
+		GPU_line_smooth(false);
 	}
 
 	if (is_spline_sel) {
@@ -349,7 +351,7 @@ static void draw_spline_points(const bContext *C, MaskLayer *masklay, MaskSpline
 		immUniform4f("outlineColor", 0.0f, 0.0f, 0.0f, 1.0f);
 		immUniform1f("size", 12.0f);
 
-		immBegin(GWN_PRIM_POINTS, 1);
+		immBegin(GPU_PRIM_POINTS, 1);
 		immVertex2f(pos, x, y);
 		immEnd();
 
@@ -370,10 +372,10 @@ static void mask_color_active_tint(unsigned char r_rgb[4], const unsigned char r
 	}
 }
 
-static void mask_draw_array(unsigned int pos, Gwn_PrimType prim_type, const float (*points)[2], unsigned int vertex_ct)
+static void mask_draw_array(unsigned int pos, GPUPrimType prim_type, const float (*points)[2], unsigned int vertex_len)
 {
-	immBegin(prim_type, vertex_ct);
-	for (unsigned int i = 0; i < vertex_ct; ++i) {
+	immBegin(prim_type, vertex_len);
+	for (unsigned int i = 0; i < vertex_len; ++i) {
 		immVertex2fv(pos, points[i]);
 	}
 	immEnd();
@@ -383,7 +385,7 @@ static void mask_draw_curve_type(const bContext *C, MaskSpline *spline, float (*
                                  const bool is_feather, const bool is_active,
                                  const unsigned char rgb_spline[4], const char draw_type)
 {
-	const Gwn_PrimType draw_method = (spline->flag & MASK_SPLINE_CYCLIC) ? GWN_PRIM_LINE_LOOP : GWN_PRIM_LINE_STRIP;
+	const GPUPrimType draw_method = (spline->flag & MASK_SPLINE_CYCLIC) ? GPU_PRIM_LINE_LOOP : GPU_PRIM_LINE_STRIP;
 	const unsigned char rgb_black[4] = {0x00, 0x00, 0x00, 0xff};
 	unsigned char rgb_tmp[4];
 	SpaceClip *sc = CTX_wm_space_clip(C);
@@ -401,8 +403,8 @@ static void mask_draw_curve_type(const bContext *C, MaskSpline *spline, float (*
 		}
 	}
 
-	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 	switch (draw_type) {
 
@@ -412,13 +414,13 @@ static void mask_draw_curve_type(const bContext *C, MaskSpline *spline, float (*
 			 */
 			immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
-			glLineWidth(3.0f);
+			GPU_line_width(3.0f);
 
 			mask_color_active_tint(rgb_tmp, rgb_black, is_active);
 			immUniformColor4ubv(rgb_tmp);
 			mask_draw_array(pos, draw_method, points, tot_point);
 
-			glLineWidth(1.0f);
+			GPU_line_width(1.0f);
 
 			mask_color_active_tint(rgb_tmp, rgb_spline, is_active);
 			immUniformColor4ubv(rgb_tmp);
@@ -430,7 +432,7 @@ static void mask_draw_curve_type(const bContext *C, MaskSpline *spline, float (*
 		case MASK_DT_BLACK:
 		case MASK_DT_WHITE:
 			immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
-			glLineWidth(1.0f);
+			GPU_line_width(1.0f);
 
 			if (draw_type == MASK_DT_BLACK) { rgb_tmp[0] = rgb_tmp[1] = rgb_tmp[2] = 0;   }
 			else                            { rgb_tmp[0] = rgb_tmp[1] = rgb_tmp[2] = 255; }
@@ -452,27 +454,30 @@ static void mask_draw_curve_type(const bContext *C, MaskSpline *spline, float (*
 			break;
 
 		case MASK_DT_DASH:
-			/* TODO(merwin): use dashed line shader here
-			 * probably better with geometry shader (after core profile switch)
-			 */
-#if 0
-			glLineWidth(1.0f);
-
-			GPU_basic_shader_bind_enable(GPU_SHADER_LINE | GPU_SHADER_STIPPLE);
-			GPU_basic_shader_line_stipple(3, 0xAAAA);
+		{
+			float colors[8];
 
 			mask_color_active_tint(rgb_tmp, rgb_spline, is_active);
-			immUniformColor4ubv(rgb_tmp);
-			mask_draw_array(pos, draw_method, points, tot_point);
-
+			rgba_uchar_to_float(colors, rgb_tmp);
 			mask_color_active_tint(rgb_tmp, rgb_black, is_active);
-			immUniformColor4ubv(rgb_tmp);
-			GPU_basic_shader_line_stipple(3, 0x5555);
+			rgba_uchar_to_float(colors + 4, rgb_tmp);
+
+			immBindBuiltinProgram(GPU_SHADER_2D_LINE_DASHED_UNIFORM_COLOR);
+
+			float viewport_size[4];
+			GPU_viewport_size_get_f(viewport_size);
+			immUniform2f("viewport_size", viewport_size[2] / UI_DPI_FAC, viewport_size[3] / UI_DPI_FAC);
+
+			immUniform1i("colors_len", 2);  /* "advanced" mode */
+			immUniformArray4fv("colors", colors, 2);
+			immUniform1f("dash_width", 4.0f);
+			GPU_line_width(1.0f);
+
 			mask_draw_array(pos, draw_method, points, tot_point);
 
-			GPU_basic_shader_bind_disable(GPU_SHADER_LINE | GPU_SHADER_STIPPLE);
-#endif
+			immUnbindProgram();
 			break;
+		}
 
 		default:
 			BLI_assert(false);
@@ -508,7 +513,7 @@ static void draw_spline_curve(const bContext *C, MaskLayer *masklay, MaskSpline 
 		return;
 
 	if (is_smooth) {
-		glEnable(GL_LINE_SMOOTH);
+		GPU_line_smooth(true);
 	}
 
 	feather_points = BKE_mask_spline_feather_differentiated_points_with_resolution(spline, &tot_feather_point, resol, (is_fill != false));
@@ -547,15 +552,15 @@ static void draw_spline_curve(const bContext *C, MaskLayer *masklay, MaskSpline 
 	MEM_freeN(diff_points);
 
 	if (is_smooth) {
-		glDisable(GL_LINE_SMOOTH);
+		GPU_line_smooth(false);
 	}
 }
 
 static void draw_masklays(const bContext *C, Mask *mask, const char draw_flag, const char draw_type,
                           const int width, const int height)
 {
-	glEnable(GL_BLEND);
-	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+	GPU_blend(true);
+	GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
 	GPU_enable_program_point_size();
 
 	MaskLayer *masklay;
@@ -592,7 +597,7 @@ static void draw_masklays(const bContext *C, Mask *mask, const char draw_flag, c
 	}
 
 	GPU_disable_program_point_size();
-	glDisable(GL_BLEND);
+	GPU_blend(false);
 }
 
 void ED_mask_draw(const bContext *C,
@@ -690,37 +695,37 @@ void ED_mask_draw_region(Mask *mask, ARegion *ar,
 
 		if (overlay_mode != MASK_OVERLAY_ALPHACHANNEL) {
 			/* More blending types could be supported in the future. */
-			glEnable(GL_BLEND);
-			glBlendFunc(GL_DST_COLOR, GL_ZERO);
+			GPU_blend(true);
+			GPU_blend_set_func(GPU_DST_COLOR, GPU_ZERO);
 		}
 
-		gpuPushMatrix();
-		gpuTranslate2f(x, y);
-		gpuScale2f(zoomx, zoomy);
+		GPU_matrix_push();
+		GPU_matrix_translate_2f(x, y);
+		GPU_matrix_scale_2f(zoomx, zoomy);
 		if (stabmat) {
-			gpuMultMatrix(stabmat);
+			GPU_matrix_mul(stabmat);
 		}
 		IMMDrawPixelsTexState state = immDrawPixelsTexSetup(GPU_SHADER_2D_IMAGE_SHUFFLE_COLOR);
 		GPU_shader_uniform_vector(state.shader, GPU_shader_get_uniform(state.shader, "shuffle"), 4, 1, red);
 		immDrawPixelsTex(&state, 0.0f, 0.0f, width, height, GL_RED, GL_FLOAT, GL_NEAREST, buffer, 1.0f, 1.0f, NULL);
 
-		gpuPopMatrix();
+		GPU_matrix_pop();
 
 		if (overlay_mode != MASK_OVERLAY_ALPHACHANNEL) {
-			glDisable(GL_BLEND);
+			GPU_blend(false);
 		}
 
 		MEM_freeN(buffer);
 	}
 
 	/* apply transformation so mask editing tools will assume drawing from the origin in normalized space */
-	gpuPushMatrix();
-	gpuTranslate2f(x + xofs, y + yofs);
-	gpuScale2f(zoomx, zoomy);
+	GPU_matrix_push();
+	GPU_matrix_translate_2f(x + xofs, y + yofs);
+	GPU_matrix_scale_2f(zoomx, zoomy);
 	if (stabmat) {
-		gpuMultMatrix(stabmat);
+		GPU_matrix_mul(stabmat);
 	}
-	gpuScale2f(maxdim, maxdim);
+	GPU_matrix_scale_2f(maxdim, maxdim);
 
 	if (do_draw_cb) {
 		ED_region_draw_cb_draw(C, ar, REGION_DRAW_PRE_VIEW);
@@ -733,7 +738,7 @@ void ED_mask_draw_region(Mask *mask, ARegion *ar,
 		ED_region_draw_cb_draw(C, ar, REGION_DRAW_POST_VIEW);
 	}
 
-	gpuPopMatrix();
+	GPU_matrix_pop();
 }
 
 void ED_mask_draw_frames(Mask *mask, ARegion *ar, const int cfra, const int sfra, const int efra)
@@ -746,12 +751,12 @@ void ED_mask_draw_frames(Mask *mask, ARegion *ar, const int cfra, const int sfra
 		unsigned int num_lines = BLI_listbase_count(&masklay->splines_shapes);
 
 		if (num_lines > 0) {
-			unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_I32, 2, GWN_FETCH_INT_TO_FLOAT);
+			uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_I32, 2, GPU_FETCH_INT_TO_FLOAT);
 
 			immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 			immUniformColor4ub(255, 175, 0, 255);
 
-			immBegin(GWN_PRIM_LINES, 2 * num_lines);
+			immBegin(GPU_PRIM_LINES, 2 * num_lines);
 
 			for (MaskLayerShape *masklay_shape = masklay->splines_shapes.first;
 			     masklay_shape;

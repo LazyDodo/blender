@@ -240,6 +240,28 @@ float BM_face_calc_area(const BMFace *f)
 }
 
 /**
+ * Get the area of the face in world space.
+ */
+float BM_face_calc_area_with_mat3(const BMFace *f, const float mat3[3][3])
+{
+	/* inline 'area_poly_v3' logic, avoid creating a temp array */
+	const BMLoop *l_iter, *l_first;
+	float co[3];
+	float n[3];
+
+	zero_v3(n);
+	l_iter = l_first = BM_FACE_FIRST_LOOP(f);
+	mul_v3_m3v3(co, mat3, l_iter->v->co);
+	do {
+		float co_next[3];
+		mul_v3_m3v3(co_next, mat3, l_iter->next->v->co);
+		add_newell_cross_v3_v3v3(n, co, co_next);
+		copy_v3_v3(co, co_next);
+	} while ((l_iter = l_iter->next) != l_first);
+	return len_v3(n) * 0.5f;
+}
+
+/**
  * compute the perimeter of an ngon
  */
 float BM_face_calc_perimeter(const BMFace *f)
@@ -250,6 +272,27 @@ float BM_face_calc_perimeter(const BMFace *f)
 	l_iter = l_first = BM_FACE_FIRST_LOOP(f);
 	do {
 		perimeter += len_v3v3(l_iter->v->co, l_iter->next->v->co);
+	} while ((l_iter = l_iter->next) != l_first);
+
+	return perimeter;
+}
+
+/**
+ * Calculate the perimeter of a ngon in world space.
+ */
+float BM_face_calc_perimeter_with_mat3(const BMFace *f, const float mat3[3][3])
+{
+	const BMLoop *l_iter, *l_first;
+	float co[3];
+	float perimeter = 0.0f;
+
+	l_iter = l_first = BM_FACE_FIRST_LOOP(f);
+	mul_v3_m3v3(co, mat3, l_iter->v->co);
+	do {
+		float co_next[3];
+		mul_v3_m3v3(co_next, mat3, l_iter->next->v->co);
+		perimeter += len_v3v3(co, co_next);
+		copy_v3_v3(co, co_next);
 	} while ((l_iter = l_iter->next) != l_first);
 
 	return perimeter;
@@ -487,7 +530,7 @@ void  BM_face_calc_tangent_vert_diagonal(const BMFace *f, float r_tangent[3])
 }
 
 /**
- * Compute a meaningful direction along the face (use for manipulator axis).
+ * Compute a meaningful direction along the face (use for gizmo axis).
  *
  * \note Callers shouldn't depend on the *exact* method used here.
  */
@@ -611,7 +654,7 @@ void BM_edge_normals_update(BMEdge *e)
 {
 	BMIter iter;
 	BMFace *f;
-	
+
 	BM_ITER_ELEM (f, &iter, e, BM_FACES_OF_EDGE) {
 		BM_face_normal_update(f);
 	}
@@ -869,7 +912,7 @@ void BM_face_normal_flip(BMesh *bm, BMFace *f)
 }
 
 /**
- *  BM POINT IN FACE
+ * BM POINT IN FACE
  *
  * Projects co onto face f, and returns true if it is inside
  * the face bounds.
@@ -886,7 +929,7 @@ bool BM_face_point_inside_test(const BMFace *f, const float co[3])
 	float co_2d[2];
 	BMLoop *l_iter;
 	int i;
-	
+
 	BLI_assert(BM_face_is_normal_valid(f));
 
 	axis_dominant_v3_to_m3(axis_mat, f->no);
@@ -1199,7 +1242,7 @@ void BM_face_splits_check_legal(BMesh *bm, BMFace *f, BMLoop *(*loops)[2], int l
 		out[1] = max_ff(out[1], projverts[i][1]);
 	}
 	bm->elem_index_dirty |= BM_LOOP;
-	
+
 	/* ensure we are well outside the face bounds (value is arbitrary) */
 	add_v2_fl(out, 1.0f);
 
@@ -1212,7 +1255,7 @@ void BM_face_splits_check_legal(BMesh *bm, BMFace *f, BMLoop *(*loops)[2], int l
 	for (i = 0; i < len; i++) {
 		float mid[2];
 		mid_v2_v2v2(mid, edgeverts[i][0], edgeverts[i][1]);
-		
+
 		int isect = 0;
 		int j_prev;
 		for (j = 0, j_prev = f->len - 1; j < f->len; j_prev = j++) {
@@ -1284,7 +1327,7 @@ void BM_face_splits_check_optimal(BMFace *f, BMLoop *(*loops)[2], int len)
  * Small utility functions for fast access
  *
  * faster alternative to:
- *  BM_iter_as_array(bm, BM_VERTS_OF_FACE, f, (void **)v, 3);
+ * BM_iter_as_array(bm, BM_VERTS_OF_FACE, f, (void **)v, 3);
  */
 void BM_face_as_array_vert_tri(BMFace *f, BMVert *r_verts[3])
 {
@@ -1299,7 +1342,7 @@ void BM_face_as_array_vert_tri(BMFace *f, BMVert *r_verts[3])
 
 /**
  * faster alternative to:
- *  BM_iter_as_array(bm, BM_VERTS_OF_FACE, f, (void **)v, 4);
+ * BM_iter_as_array(bm, BM_VERTS_OF_FACE, f, (void **)v, 4);
  */
 void BM_face_as_array_vert_quad(BMFace *f, BMVert *r_verts[4])
 {
@@ -1318,7 +1361,7 @@ void BM_face_as_array_vert_quad(BMFace *f, BMVert *r_verts[4])
  * Small utility functions for fast access
  *
  * faster alternative to:
- *  BM_iter_as_array(bm, BM_LOOPS_OF_FACE, f, (void **)l, 3);
+ * BM_iter_as_array(bm, BM_LOOPS_OF_FACE, f, (void **)l, 3);
  */
 void BM_face_as_array_loop_tri(BMFace *f, BMLoop *r_loops[3])
 {
@@ -1333,7 +1376,7 @@ void BM_face_as_array_loop_tri(BMFace *f, BMLoop *r_loops[3])
 
 /**
  * faster alternative to:
- *  BM_iter_as_array(bm, BM_LOOPS_OF_FACE, f, (void **)l, 4);
+ * BM_iter_as_array(bm, BM_LOOPS_OF_FACE, f, (void **)l, 4);
  */
 void BM_face_as_array_loop_quad(BMFace *f, BMLoop *r_loops[4])
 {
@@ -1352,7 +1395,7 @@ void BM_face_as_array_loop_quad(BMFace *f, BMLoop *r_loops[4])
  * \brief BM_mesh_calc_tessellation get the looptris and its number from a certain bmesh
  * \param looptris
  *
- * \note \a looptris  Must be pre-allocated to at least the size of given by: poly_to_tri_count
+ * \note \a looptris Must be pre-allocated to at least the size of given by: poly_to_tri_count
  */
 void BM_mesh_calc_tessellation(BMesh *bm, BMLoop *(*looptris)[3], int *r_looptris_tot)
 {

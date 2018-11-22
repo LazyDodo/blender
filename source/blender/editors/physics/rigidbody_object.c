@@ -42,8 +42,9 @@
 
 #include "BLT_translation.h"
 
+#include "BKE_collection.h"
 #include "BKE_context.h"
-#include "BKE_group.h"
+#include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_report.h"
 #include "BKE_rigidbody.h"
@@ -67,7 +68,7 @@
 /* ********************************************** */
 /* Helper API's for RigidBody Objects Editing */
 
-static int ED_operator_rigidbody_active_poll(bContext *C)
+static bool ED_operator_rigidbody_active_poll(bContext *C)
 {
 	if (ED_operator_object_active_editable(C)) {
 		Object *ob = ED_object_active_context(C);
@@ -77,7 +78,7 @@ static int ED_operator_rigidbody_active_poll(bContext *C)
 		return 0;
 }
 
-static int ED_operator_rigidbody_add_poll(bContext *C)
+static bool ED_operator_rigidbody_add_poll(bContext *C)
 {
 	if (ED_operator_object_active_editable(C)) {
 		Object *ob = ED_object_active_context(C);
@@ -109,7 +110,8 @@ bool ED_rigidbody_object_add(Main *bmain, Scene *scene, Object *ob, int type, Re
 		scene->rigidbody_world = rbw;
 	}
 	if (rbw->group == NULL) {
-		rbw->group = BKE_group_add(bmain, "RigidBodyWorld");
+		rbw->group = BKE_collection_add(bmain, NULL, "RigidBodyWorld");
+		id_fake_user_set(&rbw->group->id);
 	}
 
 	/* make rigidbody object settings */
@@ -120,21 +122,18 @@ bool ED_rigidbody_object_add(Main *bmain, Scene *scene, Object *ob, int type, Re
 	ob->rigidbody_object->flag |= RBO_FLAG_NEEDS_VALIDATE;
 
 	/* add object to rigid body group */
-	BKE_group_object_add(rbw->group, ob);
+	BKE_collection_object_add(bmain, rbw->group, ob);
 
 	DEG_relations_tag_update(bmain);
 	DEG_id_tag_update(&ob->id, OB_RECALC_OB);
+	DEG_id_tag_update(&rbw->group->id, DEG_TAG_COPY_ON_WRITE);
 
 	return true;
 }
 
 void ED_rigidbody_object_remove(Main *bmain, Scene *scene, Object *ob)
 {
-	RigidBodyWorld *rbw = BKE_rigidbody_get_world(scene);
-
-	BKE_rigidbody_remove_object(scene, ob);
-	if (rbw)
-		BKE_group_object_unlink(rbw->group, ob);
+	BKE_rigidbody_remove_object(bmain, scene, ob);
 
 	DEG_relations_tag_update(bmain);
 	DEG_id_tag_update(&ob->id, OB_RECALC_OB);

@@ -15,9 +15,9 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Contributor: 
- *		Jeroen Bakker 
- *		Monique Dewanchand
+ * Contributor:
+ *      Jeroen Bakker
+ *      Monique Dewanchand
  */
 
 #include "COM_GaussianXBlurOperation.h"
@@ -170,7 +170,7 @@ void GaussianXBlurOperation::deinitExecution()
 bool GaussianXBlurOperation::determineDependingAreaOfInterest(rcti *input, ReadBufferOperation *readOperation, rcti *output)
 {
 	rcti newInput;
-	
+
 	if (!this->m_sizeavailable) {
 		rcti sizeInput;
 		sizeInput.xmin = 0;

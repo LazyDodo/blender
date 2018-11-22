@@ -59,8 +59,10 @@ static PyStructSequence_Field app_cb_info_fields[] = {
 	{(char *)"load_post",         (char *)"on loading a new blend file (after)"},
 	{(char *)"save_pre",          (char *)"on saving a blend file (before)"},
 	{(char *)"save_post",         (char *)"on saving a blend file (after)"},
-	{(char *)"game_pre",          (char *)"on starting the game engine"},
-	{(char *)"game_post",         (char *)"on ending the game engine"},
+	{(char *)"undo_pre",          (char *)"on loading an undo step (before)"},
+	{(char *)"undo_post",         (char *)"on loading an undo step (after)"},
+	{(char *)"redo_pre",          (char *)"on loading a redo step (before)"},
+	{(char *)"redo_post",         (char *)"on loading a redo step (after)"},
 	{(char *)"version_update",    (char *)"on ending the versioning code"},
 
 	/* sets the permanent tag */
@@ -231,7 +233,7 @@ PyObject *BPY_app_handlers_struct(void)
 			funcstore = &funcstore_array[pos];
 			funcstore->func = bpy_app_generic_callback;
 			funcstore->alloc = 0;
-			funcstore->arg = SET_INT_IN_POINTER(pos);
+			funcstore->arg = POINTER_FROM_INT(pos);
 			BLI_callback_add(funcstore, pos);
 		}
 	}
@@ -290,7 +292,7 @@ void BPY_app_handlers_reset(const short do_all)
 /* the actual callback - not necessarily called from py */
 void bpy_app_generic_callback(struct Main *UNUSED(main), struct ID *id, void *arg)
 {
-	PyObject *cb_list = py_cb_array[GET_INT_FROM_POINTER(arg)];
+	PyObject *cb_list = py_cb_array[POINTER_AS_INT(arg)];
 	if (PyList_GET_SIZE(cb_list) > 0) {
 		PyGILState_STATE gilstate = PyGILState_Ensure();
 

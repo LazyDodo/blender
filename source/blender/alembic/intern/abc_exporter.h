@@ -34,7 +34,6 @@ class AbcObjectWriter;
 class AbcTransformWriter;
 class ArchiveWriter;
 
-struct EvaluationContext;
 struct Depsgraph;
 struct Main;
 struct Object;
@@ -93,11 +92,6 @@ class AbcExporter {
 
 	unsigned int m_trans_sampling_index, m_shape_sampling_index;
 
-	EvaluationContext *m_eval_ctx;
-	Scene *m_scene;
-	ViewLayer *m_view_layer;
-	Depsgraph *m_depsgraph;
-
 	ArchiveWriter *m_writer;
 
 	/* mapping from name to transform writer */
@@ -107,12 +101,10 @@ class AbcExporter {
 	std::vector<AbcObjectWriter *> m_shapes;
 
 public:
-	AbcExporter(Main *bmain, EvaluationContext *eval_ctx, Scene *scene, ViewLayer *view_layer,
-	            Depsgraph *depsgraph,
-	            const char *filename, ExportSettings &settings);
+	AbcExporter(Main *bmain, const char *filename, ExportSettings &settings);
 	~AbcExporter();
 
-	void operator()(Main *bmain, float &progress, bool &was_canceled);
+	void operator()(float &progress, bool &was_canceled);
 
 protected:
 	void getShutterSamples(unsigned int nr_of_samples,
@@ -123,12 +115,12 @@ protected:
 private:
 	Alembic::Abc::TimeSamplingPtr createTimeSampling(double step);
 
-	void createTransformWritersHierarchy(EvaluationContext *eval_ctx);
-	AbcTransformWriter * createTransformWriter(EvaluationContext *eval_ctx, Object *ob,  Object *parent, Object *dupliObParent);
-	void exploreTransform(EvaluationContext *eval_ctx, Base *ob_base, Object *parent, Object *dupliObParent);
-	void exploreObject(EvaluationContext *eval_ctx, Base *ob_base, Object *dupliObParent);
-	void createShapeWriters(EvaluationContext *eval_ctx);
-	void createShapeWriter(Base *ob_base, Object *dupliObParent);
+	void createTransformWritersHierarchy();
+	AbcTransformWriter *createTransformWriter(Object *ob,  Object *parent, Object *dupliObParent);
+	void exploreTransform(Base *ob_base, Object *parent, Object *dupliObParent);
+	void exploreObject(Base *ob_base, Object *dupliObParent);
+	void createShapeWriters();
+	void createShapeWriter(Object *ob, Object *dupliObParent);
 	void createParticleSystemsWriters(Object *ob, AbcTransformWriter *xform);
 
 	AbcTransformWriter *getXForm(const std::string &name);

@@ -16,7 +16,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
  * Contributor:
- *		Dalai Felinto
+ *      Dalai Felinto
  */
 
 #include "COM_ChannelMatteOperation.h"
@@ -101,10 +101,10 @@ void ChannelMatteOperation::executePixelSampled(float output[4], float x, float 
 
 	/* matte operation */
 	alpha = inColor[this->m_ids[0]] - max(inColor[this->m_ids[1]], inColor[this->m_ids[2]]);
-		
+
 	/* flip because 0.0 is transparent, not 1.0 */
 	alpha = 1.0f - alpha;
-	
+
 	/* test range */
 	if (alpha > limit_max) {
 		alpha = inColor[3]; /*whatever it was prior */
@@ -119,8 +119,7 @@ void ChannelMatteOperation::executePixelSampled(float output[4], float x, float 
 	/* store matte(alpha) value in [0] to go with
 	 * COM_SetAlphaOperation and the Value output
 	 */
-	
+
 	/* don't make something that was more transparent less transparent */
 	output[0] = min(alpha, inColor[3]);
 }
-

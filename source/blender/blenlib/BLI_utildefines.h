@@ -224,29 +224,6 @@ extern "C" {
 	b = tmp;                                                                  \
 } (void)0
 
-
-#define FTOCHAR(val) ((CHECK_TYPE_INLINE(val, float)), \
-		(char)(((val) <= 0.0f) ? 0 : (((val) > (1.0f - 0.5f / 255.0f)) ? 255 : ((255.0f * (val)) + 0.5f))))
-#define FTOUSHORT(val) ((CHECK_TYPE_INLINE(val, float)), \
-		(unsigned short)((val >= 1.0f - 0.5f / 65535) ? 65535 : (val <= 0.0f) ? 0 : (val * 65535.0f + 0.5f)))
-#define USHORTTOUCHAR(val) ((unsigned char)(((val) >= 65535 - 128) ? 255 : ((val) + 128) >> 8))
-#define F3TOCHAR3(v2, v1) {                                                   \
-		(v1)[0] = FTOCHAR((v2[0]));                                           \
-		(v1)[1] = FTOCHAR((v2[1]));                                           \
-		(v1)[2] = FTOCHAR((v2[2]));                                           \
-} (void)0
-#define F3TOCHAR4(v2, v1) {                                                   \
-		(v1)[0] = FTOCHAR((v2[0]));                                           \
-		(v1)[1] = FTOCHAR((v2[1]));                                           \
-		(v1)[2] = FTOCHAR((v2[2]));                                           \
-		(v1)[3] = 255;                                                        \
-} (void)0
-#define F4TOCHAR4(v2, v1) {                                                   \
-		(v1)[0] = FTOCHAR((v2[0]));                                           \
-		(v1)[1] = FTOCHAR((v2[1]));                                           \
-		(v1)[2] = FTOCHAR((v2[2]));                                           \
-		(v1)[3] = FTOCHAR((v2[3]));                                           \
-} (void)0
 #define VECCOPY(v1, v2) {                                                     \
 		*(v1) =   *(v2);                                                      \
 		*(v1 + 1) = *(v2 + 1);                                                \
@@ -297,11 +274,15 @@ extern "C" {
 #define SQUARE(a)  ({ \
 	typeof(a) a_ = (a); \
 	((a_) * (a_)); })
+#define CUBE(a)  ({ \
+	typeof(a) a_ = (a); \
+	((a_) * (a_) * (a_)); })
 
 #else
 
 #define ABS(a)  ((a) < 0 ? (-(a)) : (a))
 #define SQUARE(a)  ((a) * (a))
+#define CUBE(a)  ((a) * (a) * (a))
 
 #endif
 
@@ -396,19 +377,48 @@ extern "C" {
 #define UNPACK4_EX(pre, a, post)  UNPACK3_EX(pre, a, post), (pre((a)[3])post)
 
 /* array helpers */
-#define ARRAY_LAST_ITEM(arr_start, arr_dtype, tot) \
-	(arr_dtype *)((char *)(arr_start) + (sizeof(*((arr_dtype *)NULL)) * (size_t)(tot - 1)))
+#define ARRAY_LAST_ITEM(arr_start, arr_dtype, arr_len) \
+	(arr_dtype *)((char *)(arr_start) + (sizeof(*((arr_dtype *)NULL)) * (size_t)(arr_len - 1)))
 
-#define ARRAY_HAS_ITEM(arr_item, arr_start, tot)  ( \
+#define ARRAY_HAS_ITEM(arr_item, arr_start, arr_len)  ( \
 	CHECK_TYPE_PAIR_INLINE(arr_start, arr_item), \
-	((unsigned int)((arr_item) - (arr_start)) < (unsigned int)(tot)))
+	((unsigned int)((arr_item) - (arr_start)) < (unsigned int)(arr_len)))
 
-#define ARRAY_DELETE(arr, index, tot_delete, tot)  { \
-		BLI_assert(index + tot_delete <= tot);  \
-		memmove(&(arr)[(index)], \
-		        &(arr)[(index) + (tot_delete)], \
-		         (((tot) - (index)) - (tot_delete)) * sizeof(*(arr))); \
-	} (void)0
+/**
+ * \note use faster #ARRAY_DELETE_REORDER_LAST when we can re-order.
+ */
+#define ARRAY_DELETE(arr, index, delete_len, arr_len) \
+	{ \
+		BLI_assert((&arr[index] >= arr) && ((index) + delete_len <= arr_len));  \
+		memmove(&(arr)[index], \
+		        &(arr)[(index) + (delete_len)], \
+		         (((arr_len) - (index)) - (delete_len)) * sizeof(*(arr))); \
+	} ((void)0)
+
+/**
+ * Re-ordering array removal.
+ *
+ * When removing single items this compiles down to:
+ * `if (index + 1 != arr_len) { arr[index] = arr[arr_len - 1]; }` (typical reordering removal),
+ * with removing multiple items, overlap is detected to avoid memcpy errors.
+ */
+#define ARRAY_DELETE_REORDER_LAST(arr, index, delete_len, arr_len) \
+	{ \
+		BLI_assert((&arr[index] >= arr) && ((index) + delete_len <= arr_len));  \
+		if ((index) + (delete_len) != (arr_len)) { \
+			if (((delete_len) == 1) || ((delete_len) <= ((arr_len) - ((index) + (delete_len))))) { \
+				memcpy(&(arr)[index], \
+				       &(arr)[(arr_len) - (delete_len)], \
+				       (delete_len) * sizeof(*(arr))); \
+			} \
+			else { \
+				memcpy(&(arr)[index], \
+				       &(arr)[(arr_len) - ((arr_len) - ((index) + (delete_len)))], \
+				       ((arr_len) - ((index) + (delete_len))) * sizeof(*(arr))); \
+			} \
+		} \
+	} ((void)0)
+
 
 /* assuming a static array */
 #if defined(__GNUC__) && !defined(__cplusplus) && !defined(__clang__) && !defined(__INTEL_COMPILER)
@@ -502,11 +512,11 @@ extern bool BLI_memory_is_zero(const void *arr, const size_t arr_size);
 
 /* Warning-free macros for storing ints in pointers. Use these _only_
  * for storing an int in a pointer, not a pointer in an int (64bit)! */
-#define SET_INT_IN_POINTER(i)    ((void *)(intptr_t)(i))
-#define GET_INT_FROM_POINTER(i)  ((void)0, ((int)(intptr_t)(i)))
+#define POINTER_FROM_INT(i)    ((void *)(intptr_t)(i))
+#define POINTER_AS_INT(i)  ((void)0, ((int)(intptr_t)(i)))
 
-#define SET_UINT_IN_POINTER(i)    ((void *)(uintptr_t)(i))
-#define GET_UINT_FROM_POINTER(i)  ((void)0, ((unsigned int)(uintptr_t)(i)))
+#define POINTER_FROM_UINT(i)    ((void *)(uintptr_t)(i))
+#define POINTER_AS_UINT(i)  ((void)0, ((unsigned int)(uintptr_t)(i)))
 
 /* Set flag from a single test */
 #define SET_FLAG_FROM_TEST(value, test, flag) \
@@ -546,13 +556,13 @@ extern bool BLI_memory_is_zero(const void *arr, const size_t arr_size);
 
 
 /* UNUSED macro, for function argument */
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined(__clang__)
 #  define UNUSED(x) UNUSED_ ## x __attribute__((__unused__))
 #else
 #  define UNUSED(x) UNUSED_ ## x
 #endif
 
-#ifdef __GNUC__
+#if defined(__GNUC__) || defined(__clang__)
 #  define UNUSED_FUNCTION(x) __attribute__((__unused__)) UNUSED_ ## x
 #else
 #  define UNUSED_FUNCTION(x) UNUSED_ ## x
@@ -622,6 +632,14 @@ extern bool BLI_memory_is_zero(const void *arr, const size_t arr_size);
 #  define LIKELY(x)       (x)
 #  define UNLIKELY(x)     (x)
 #endif
+
+/* Expands to an integer constant expression evaluating to a close upper bound
+ * on the number the number of decimal digits in a value expressible in the
+ * integer type given by the argument (if it is a type name) or the the integer
+ * type of the argument (if it is an expression). The meaning of the resulting
+ * expression is unspecified for other arguments.
+ * i.e: DECIMAL_DIGITS_BOUND(uchar) is equal to 3. */
+#define DECIMAL_DIGITS_BOUND(t) (241 * sizeof(t) / 100 + 1)
 
 #ifdef __cplusplus
 }

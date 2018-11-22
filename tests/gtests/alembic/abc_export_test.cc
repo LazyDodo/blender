@@ -1,12 +1,12 @@
 #include "testing/testing.h"
 
-// Keep first since utildefines defines AT which conflicts with fucking STL
+// Keep first since utildefines defines AT which conflicts with STL
 #include "intern/abc_util.h"
 #include "intern/abc_exporter.h"
 
 extern "C" {
 #include "BLI_utildefines.h"
-#include "BKE_library.h"
+#include "BKE_main.h"
 #include "BLI_math.h"
 #include "DNA_scene_types.h"
 }
@@ -15,10 +15,9 @@ extern "C" {
 
 class TestableAbcExporter : public AbcExporter {
 public:
-	TestableAbcExporter(Main *bmain, EvaluationContext *eval_ctx,
-	                    Scene *scene, ViewLayer *view_layer, Depsgraph *depsgraph,
+	TestableAbcExporter(Main *bmain,
 	                    const char *filename, ExportSettings &settings)
-	    : AbcExporter(bmain, eval_ctx, scene, view_layer, depsgraph, filename, settings)
+	    : AbcExporter(bmain, filename, settings)
 	{
 	}
 
@@ -40,7 +39,6 @@ class AlembicExportTest : public testing::Test
 protected:
 	ExportSettings settings;
 	Scene scene;
-	EvaluationContext eval_ctx;
 	Depsgraph *depsgraph;
 	TestableAbcExporter *exporter;
 	Main *bmain;
@@ -57,8 +55,11 @@ protected:
 		bmain = BKE_main_new();
 
 		/* TODO(sergey): Pass scene layer somehow? */
-		DEG_evaluation_context_init(&eval_ctx, DAG_EVAL_VIEWPORT);
-		depsgraph = DEG_graph_new();
+		ViewLayer *view_layer = (ViewLayer *)scene.view_layers.first;
+		settings.depsgraph = depsgraph = DEG_graph_new(&scene, view_layer, DAG_EVAL_VIEWPORT);
+
+		settings.scene = &scene;
+		settings.view_layer = view_layer;
 
 		exporter = NULL;
 	}
@@ -73,8 +74,7 @@ protected:
 	// Call after setting up the settings.
 	void createExporter()
 	{
-		ViewLayer *view_layer = (ViewLayer *)scene.view_layers.first;
-		exporter = new TestableAbcExporter(bmain, &eval_ctx, &scene, view_layer, depsgraph, "somefile.abc", settings);
+		exporter = new TestableAbcExporter(bmain, "somefile.abc", settings);
 	}
 };
 

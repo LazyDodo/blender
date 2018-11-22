@@ -53,6 +53,7 @@
 #include "BLO_undofile.h"
 #include "BLO_readfile.h"
 
+#include "BKE_library.h"
 #include "BKE_main.h"
 
 /* keep last */
@@ -64,7 +65,7 @@
 void BLO_memfile_free(MemFile *memfile)
 {
 	MemFileChunk *chunk;
-	
+
 	while ((chunk = BLI_pophead(&memfile->chunks))) {
 		if (chunk->is_identical == false) {
 			MEM_freeN((void *)chunk->buf);
@@ -79,7 +80,7 @@ void BLO_memfile_free(MemFile *memfile)
 void BLO_memfile_merge(MemFile *first, MemFile *second)
 {
 	MemFileChunk *fc, *sc;
-	
+
 	fc = first->chunks.first;
 	sc = second->chunks.first;
 	while (fc || sc) {
@@ -92,40 +93,30 @@ void BLO_memfile_merge(MemFile *first, MemFile *second)
 		if (fc) fc = fc->next;
 		if (sc) sc = sc->next;
 	}
-	
+
 	BLO_memfile_free(first);
 }
 
-void memfile_chunk_add(MemFile *compare, MemFile *current, const char *buf, unsigned int size)
+void memfile_chunk_add(
+        MemFile *memfile, const char *buf, unsigned int size,
+        MemFileChunk **compchunk_step)
 {
-	static MemFileChunk *compchunk = NULL;
-	MemFileChunk *curchunk;
-	
-	/* this function inits when compare != NULL or when current == NULL  */
-	if (compare) {
-		compchunk = compare->chunks.first;
-		return;
-	}
-	if (current == NULL) {
-		compchunk = NULL;
-		return;
-	}
-	
-	curchunk = MEM_mallocN(sizeof(MemFileChunk), "MemFileChunk");
+	MemFileChunk *curchunk = MEM_mallocN(sizeof(MemFileChunk), "MemFileChunk");
 	curchunk->size = size;
 	curchunk->buf = NULL;
 	curchunk->is_identical = false;
-	BLI_addtail(&current->chunks, curchunk);
-	
+	BLI_addtail(&memfile->chunks, curchunk);
+
 	/* we compare compchunk with buf */
-	if (compchunk) {
+	if (*compchunk_step != NULL) {
+		MemFileChunk *compchunk = *compchunk_step;
 		if (compchunk->size == curchunk->size) {
 			if (memcmp(compchunk->buf, buf, size) == 0) {
 				curchunk->buf = compchunk->buf;
 				curchunk->is_identical = true;
 			}
 		}
-		compchunk = compchunk->next;
+		*compchunk_step = compchunk->next;
 	}
 
 	/* not equal... */
@@ -133,14 +124,14 @@ void memfile_chunk_add(MemFile *compare, MemFile *current, const char *buf, unsi
 		char *buf_new = MEM_mallocN(size, "Chunk buffer");
 		memcpy(buf_new, buf, size);
 		curchunk->buf = buf_new;
-		current->size += size;
+		memfile->size += size;
 	}
 }
 
 struct Main *BLO_memfile_main_get(struct MemFile *memfile, struct Main *oldmain, struct Scene **r_scene)
 {
 	struct Main *bmain_undo = NULL;
-	BlendFileData *bfd = BLO_read_from_memfile(oldmain, oldmain->name, memfile, NULL, BLO_READ_SKIP_NONE);
+	BlendFileData *bfd = BLO_read_from_memfile(oldmain, BKE_main_blendfile_path(oldmain), memfile, BLO_READ_SKIP_NONE, NULL);
 
 	if (bfd) {
 		bmain_undo = bfd->main;

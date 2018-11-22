@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -17,7 +17,7 @@
  *
  * The Original Code is Copyright (C) 2008 Blender Foundation.
  * All rights reserved.
- * 
+ *
  * Contributor(s): Blender Foundation.
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -157,9 +157,12 @@ static void fill_locales(void)
 					}
 
 					if (id == 0) {
-						/* The DEFAULT item... */
+						/* The DEFAULT/Automatic item... */
 						if (BLI_strnlen(loc, 2)) {
-							locales[id] = locales_menu[idx].description = BLI_strdup("");
+							locales[id] = "";
+							/* Keep this tip in sync with the one in rna_userdef (rna_enum_language_default_items). */
+							locales_menu[idx].description = BLI_strdup("Automatically choose system's defined language "
+							                                           "if available, or fall-back to English");
 						}
 						/* Menu "label", not to be stored in locales! */
 						else {
@@ -214,7 +217,7 @@ void BLT_lang_init(void)
 	 *
 	 * Would also be good to find nicer way to check if LANG is correct.
 	 */
-	const char *lang = getenv("LANG");
+	const char *lang = BLI_getenv("LANG");
 	if (lang != NULL) {
 		char *old_locale = setlocale(LC_ALL, NULL);
 		/* Make a copy so subsequenct setlocale() doesn't interfere. */

@@ -89,23 +89,27 @@ typedef struct DRWUpdateContext {
 	struct RenderEngineType *engine_type;
 } DRWUpdateContext;
 void DRW_notify_view_update(const DRWUpdateContext *update_ctx);
-void DRW_notify_id_update(const DRWUpdateContext *update_ctx, struct ID *id);
 
 
 typedef enum eDRWSelectStage { DRW_SELECT_PASS_PRE = 1, DRW_SELECT_PASS_POST, } eDRWSelectStage;
 typedef bool (*DRW_SelectPassFn)(
         eDRWSelectStage stage, void *user_data);
+typedef bool (*DRW_ObjectFilterFn)(
+        struct Object *ob, void *user_data);
 
 void DRW_draw_view(const struct bContext *C);
+void DRW_draw_region_engine_info(int xoffset, int yoffset);
 
 void DRW_draw_render_loop_ex(
         struct Depsgraph *depsgraph,
         struct RenderEngineType *engine_type,
         struct ARegion *ar, struct View3D *v3d,
+        struct GPUViewport *viewport,
         const struct bContext *evil_C);
 void DRW_draw_render_loop(
         struct Depsgraph *depsgraph,
-        struct ARegion *ar, struct View3D *v3d);
+        struct ARegion *ar, struct View3D *v3d,
+        struct GPUViewport *viewport);
 void DRW_draw_render_loop_offscreen(
         struct Depsgraph *depsgraph,
         struct RenderEngineType *engine_type,
@@ -116,29 +120,40 @@ void DRW_draw_render_loop_offscreen(
 void DRW_draw_select_loop(
         struct Depsgraph *depsgraph,
         struct ARegion *ar, struct View3D *v3d,
-        bool use_obedit_skip, bool use_nearest, const struct rcti *rect,
-        DRW_SelectPassFn select_pass_fn, void *select_pass_user_data);
+        bool use_obedit_skip, bool draw_surface, bool use_nearest, const struct rcti *rect,
+        DRW_SelectPassFn select_pass_fn, void *select_pass_user_data,
+        DRW_ObjectFilterFn object_filter_fn, void *object_filter_user_data);
 void DRW_draw_depth_loop(
         struct Depsgraph *depsgraph,
         struct ARegion *ar, struct View3D *v3d);
+
+/* grease pencil render */
+bool DRW_render_check_grease_pencil(struct Depsgraph *depsgraph);
+void DRW_render_gpencil(struct RenderEngine *engine, struct Depsgraph *depsgraph);
+void DRW_gpencil_freecache(struct Object *ob);
 
 /* This is here because GPUViewport needs it */
 void DRW_pass_free(struct DRWPass *pass);
 struct DRWInstanceDataList *DRW_instance_data_list_create(void);
 void DRW_instance_data_list_free(struct DRWInstanceDataList *idatalist);
 
-/* Mode engines initialization */
-void OBJECT_collection_settings_create(struct IDProperty *properties);
-void EDIT_MESH_collection_settings_create(struct IDProperty *properties);
-void EDIT_ARMATURE_collection_settings_create(struct IDProperty *properties);
-void PAINT_WEIGHT_collection_settings_create(struct IDProperty *properties);
-void PAINT_VERTEX_collection_settings_create(struct IDProperty *properties);
-
 void DRW_opengl_context_create(void);
 void DRW_opengl_context_destroy(void);
 void DRW_opengl_context_enable(void);
 void DRW_opengl_context_disable(void);
 
+/* Never use this. Only for closing blender. */
+void DRW_opengl_context_enable_ex(bool restore);
+void DRW_opengl_context_disable_ex(bool restore);
+
+void DRW_opengl_render_context_enable(void *re_gl_context);
+void DRW_opengl_render_context_disable(void *re_gl_context);
+void DRW_gawain_render_context_enable(void *re_gpu_context);
+void DRW_gawain_render_context_disable(void *re_gpu_context);
+
 void DRW_deferred_shader_remove(struct GPUMaterial *mat);
+
+struct DrawDataList *DRW_drawdatalist_from_id(struct ID *id);
+void DRW_drawdata_free(struct ID *id);
 
 #endif /* __DRW_ENGINE_H__ */

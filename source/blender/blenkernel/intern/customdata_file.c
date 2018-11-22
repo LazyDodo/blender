@@ -110,16 +110,6 @@ static int cdf_endian(void)
 		return CDF_ENDIAN_BIG;
 }
 
-#if 0
-static int cdf_data_type_size(int datatype)
-{
-	if (datatype == CDF_DATA_FLOAT)
-		return sizeof(float);
-	
-	return 0;
-}
-#endif
-
 CDataFile *cdf_create(int type)
 {
 	CDataFile *cdf = MEM_callocN(sizeof(CDataFile), "CDataFile");
@@ -156,7 +146,7 @@ static int cdf_read_header(CDataFile *cdf)
 
 	if (!fread(header, sizeof(CDataFileHeader), 1, cdf->readf))
 		return 0;
-	
+
 	if (memcmp(header->ID, "BCDF", sizeof(header->ID)) != 0)
 		return 0;
 	if (header->version > CDF_VERSION)
@@ -179,7 +169,7 @@ static int cdf_read_header(CDataFile *cdf)
 
 	if (fseek(f, offset, SEEK_SET) != 0)
 		return 0;
-	
+
 	if (header->type == CDF_TYPE_IMAGE) {
 		image = &cdf->btype.image;
 		if (!fread(image, sizeof(CDataFileImageHeader), 1, f))
@@ -258,7 +248,7 @@ static int cdf_write_header(CDataFile *cdf)
 
 	if (!fwrite(header, sizeof(CDataFileHeader), 1, f))
 		return 0;
-	
+
 	if (header->type == CDF_TYPE_IMAGE) {
 		image = &cdf->btype.image;
 		if (!fwrite(image, sizeof(CDataFileImageHeader), 1, f))
@@ -287,7 +277,7 @@ bool cdf_read_open(CDataFile *cdf, const char *filename)
 	f = BLI_fopen(filename, "rb");
 	if (!f)
 		return 0;
-	
+
 	cdf->readf = f;
 
 	if (!cdf_read_header(cdf)) {
@@ -352,7 +342,7 @@ bool cdf_write_open(CDataFile *cdf, const char *filename)
 	f = BLI_fopen(filename, "wb");
 	if (!f)
 		return 0;
-	
+
 	cdf->writef = f;
 
 	/* fill header */
@@ -424,7 +414,7 @@ CDataFileLayer *cdf_layer_find(CDataFile *cdf, int type, const char *name)
 		if (layer->type == type && STREQ(layer->name, name))
 			return layer;
 	}
-	
+
 	return NULL;
 }
 
@@ -449,4 +439,3 @@ CDataFileLayer *cdf_layer_add(CDataFile *cdf, int type, const char *name, size_t
 
 	return layer;
 }
-

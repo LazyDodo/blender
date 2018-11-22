@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -26,10 +26,9 @@
 
 
 /*
- *  These define have its origin at sgi, where all device defines were written down in device.h.
- *  Blender copied the conventions quite some, and expanded it with internal new defines (ton)
- *
- */ 
+ * These define have its origin at sgi, where all device defines were written down in device.h.
+ * Blender copied the conventions quite some, and expanded it with internal new defines (ton)
+ */
 
 
 #ifndef __WM_EVENT_TYPES_H__
@@ -62,9 +61,6 @@ enum {
 	MIDDLEMOUSE         = 0x0002,
 	RIGHTMOUSE          = 0x0003,
 	MOUSEMOVE           = 0x0004,
-	/* only use if you want user option switch possible */
-	ACTIONMOUSE         = 0x0005,
-	SELECTMOUSE         = 0x0006,
 	/* Extra mouse buttons */
 	BUTTON4MOUSE        = 0x0007,
 	BUTTON5MOUSE        = 0x0008,
@@ -92,7 +88,7 @@ enum {
 	WM_IME_COMPOSITE_EVENT      = 0x0015,
 /* IME event, GHOST_kEventImeCompositionEnd in ghost */
 	WM_IME_COMPOSITE_END   = 0x0016,
-	
+
 	/* Tablet/Pen Specific Events */
 	TABLET_STYLUS       = 0x001a,
 	TABLET_ERASER       = 0x001b,
@@ -325,9 +321,6 @@ enum {
 	EVT_TWEAK_L           = 0x5002,
 	EVT_TWEAK_M           = 0x5003,
 	EVT_TWEAK_R           = 0x5004,
-	/* tweak events for action or select mousebutton */
-	EVT_TWEAK_A           = 0x5005,
-	EVT_TWEAK_S           = 0x5006,
 	EVT_GESTURE           = 0x5010,
 
 	/* 0x5011 is taken, see EVT_ACTIONZONE_FULLSCREEN */
@@ -339,8 +332,8 @@ enum {
 	EVT_DROP              = 0x5023,
 	EVT_BUT_CANCEL        = 0x5024,
 
-	/* could become manipulator callback */
-	EVT_MANIPULATOR_UPDATE     = 0x5025,
+	/* could become gizmo callback */
+	EVT_GIZMO_UPDATE     = 0x5025,
 	/* ********** End of Blender internal events. ********** */
 };
 
@@ -367,6 +360,13 @@ enum {
 
 /* test whether the event is a mouse button */
 #define ISMOUSE(event_type)  ((event_type) >= LEFTMOUSE && (event_type) <= BUTTON7MOUSE)
+
+#define ISMOUSE_WHEEL(event_type)  ((event_type) >= WHEELUPMOUSE && (event_type) <= WHEELOUTMOUSE)
+#define ISMOUSE_GESTURE(event_type)  ((event_type) >= MOUSEPAN && (event_type) <= MOUSEROTATE)
+#define ISMOUSE_BUTTON(event_type) \
+	(ELEM(event_type, \
+	      LEFTMOUSE, MIDDLEMOUSE, RIGHTMOUSE, \
+	      BUTTON4MOUSE, BUTTON5MOUSE, BUTTON6MOUSE, BUTTON7MOUSE))
 
 /* test whether the event is tweak event */
 #define ISTWEAK(event_type)  ((event_type) >= EVT_TWEAK_L && (event_type) <= EVT_GESTURE)
@@ -442,7 +442,7 @@ enum {
 	GESTURE_MODAL_CIRCLE_ADD  = 6, /* circle sel: larger brush */
 	GESTURE_MODAL_CIRCLE_SUB  = 7, /* circle sel: smaller brush */
 
-	GESTURE_MODAL_BEGIN       = 8, /* border select/straight line, activate, use release to detect which button */
+	GESTURE_MODAL_BEGIN       = 8, /* box select/straight line, activate, use release to detect which button */
 
 	/* Uses 'zoom_out' operator property. */
 	GESTURE_MODAL_IN          = 9,
@@ -453,4 +453,3 @@ enum {
 
 
 #endif	/* __WM_EVENT_TYPES_H__ */
-

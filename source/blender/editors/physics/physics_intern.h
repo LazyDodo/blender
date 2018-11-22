@@ -33,7 +33,7 @@
 #ifndef __PHYSICS_INTERN_H__
 #define __PHYSICS_INTERN_H__
 
-struct EvaluationContext;
+struct Depsgraph;
 struct Object;
 struct PTCacheEdit;
 struct ParticleSystem;
@@ -71,11 +71,11 @@ void PARTICLE_OT_edited_clear(struct wmOperatorType *ot);
 void PARTICLE_OT_unify_length(struct wmOperatorType *ot);
 
 void PE_create_particle_edit(
-        const struct EvaluationContext *eval_ctx, struct Scene *scene,
+        struct Depsgraph *depsgraph, struct Scene *scene,
         struct Object *ob, struct PointCache *cache, struct ParticleSystem *psys);
 void recalc_lengths(struct PTCacheEdit *edit);
-void recalc_emitter_field(struct Object *ob, struct ParticleSystem *psys);
-void update_world_cos(struct Object *ob, struct PTCacheEdit *edit);
+void recalc_emitter_field(struct Depsgraph *depsgraph, struct Object *ob, struct ParticleSystem *psys);
+void update_world_cos(struct Depsgraph *depsgraph, struct Object *ob, struct PTCacheEdit *edit);
 
 /* particle_object.c */
 void OBJECT_OT_particle_system_add(struct wmOperatorType *ot);
@@ -95,6 +95,7 @@ void PARTICLE_OT_dupliob_copy(struct wmOperatorType *ot);
 void PARTICLE_OT_dupliob_remove(struct wmOperatorType *ot);
 void PARTICLE_OT_dupliob_move_up(struct wmOperatorType *ot);
 void PARTICLE_OT_dupliob_move_down(struct wmOperatorType *ot);
+void PARTICLE_OT_dupliob_refresh(struct wmOperatorType *ot);
 
 /* particle_boids.c */
 void BOID_OT_rule_add(struct wmOperatorType *ot);

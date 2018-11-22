@@ -27,19 +27,19 @@ class UnitTesting(ViewLayerTesting):
             bl_label = "Sample Operator"
 
             view_layer = bpy.props.StringProperty(
-                    default="Not Set",
-                    options={'SKIP_SAVE'},
-                    )
+                default="Not Set",
+                options={'SKIP_SAVE'},
+            )
 
             scene_collection = bpy.props.StringProperty(
-                    default="",
-                    options={'SKIP_SAVE'},
-                    )
+                default="",
+                options={'SKIP_SAVE'},
+            )
 
             use_verbose = bpy.props.BoolProperty(
-                    default=False,
-                    options={'SKIP_SAVE'},
-                    )
+                default=False,
+                options={'SKIP_SAVE'},
+            )
 
             def execute(self, context):
                 view_layer = context.view_layer
@@ -90,8 +90,6 @@ class UnitTesting(ViewLayerTesting):
 
         # Change active scene layer (do it for window too just to don't get mangled in window bugs)
         scene = bpy.context.scene
-        scene.view_layers.active_index = len(scene.view_layers) - 2
-        self.assertEqual(scene.view_layers.active.name, "Viewport")
         bpy.context.window.view_layer = bpy.context.scene.view_layers['Viewport']
 
         # old layer

@@ -26,7 +26,7 @@ import bmesh
 __all__ = (
     "select_prev",
     "select_next",
-    )
+)
 
 
 def other_edges_over_face(e):
@@ -213,7 +213,6 @@ def find_next(ele_dst, ele_src):
     # ... So we have the highest chance of stepping onto the opposite element.
     diff_best = 0
     ele_best = None
-    ele_best_tot = 0
     ele_best_ls = []
     for ele_test in candidates:
         depth_test_a = elems_depth_measure(ele_dst, ele_test, other_edges_over_edge)
@@ -227,12 +226,10 @@ def find_next(ele_dst, ele_src):
         if diff_test > diff_best:
             diff_best = diff_test
             ele_best = ele_test
-            ele_best_tot = 1
             ele_best_ls[:] = [ele_best]
         elif diff_test == diff_best:
             if ele_best is None:
                 ele_best = ele_test
-            ele_best_tot += 1
             ele_best_ls.append(ele_test)
 
     if len(ele_best_ls) > 1:
@@ -306,8 +303,9 @@ def select_next(bm, report):
             for fn in (pass_fn, set, sum_set, len):
                 uuid_cmp_test = fn(uuid_cmp)
                 ele_pair_next_uuid_test = [
-                        (ele, uuid) for (ele, uuid) in ele_pair_next_uuid
-                        if uuid_cmp_test == fn(uuid)]
+                    (ele, uuid) for (ele, uuid) in ele_pair_next_uuid
+                    if uuid_cmp_test == fn(uuid)
+                ]
                 if len(ele_pair_next_uuid_test) > 1:
                     ele_pair_next_uuid = ele_pair_next_uuid_test
                 elif len(ele_pair_next_uuid_test) == 1:
@@ -353,4 +351,3 @@ def select_prev(bm, report):
             break
 
     return True
-

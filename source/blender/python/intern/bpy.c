@@ -34,7 +34,7 @@
 #include "BLI_string.h"
 
 #include "BKE_appdir.h"
-#include "BKE_global.h" /* XXX, G.main only */
+#include "BKE_global.h" /* XXX, G_MAIN only */
 #include "BKE_blender_version.h"
 #include "BKE_bpath.h"
 
@@ -46,7 +46,7 @@
 #include "bpy_rna.h"
 #include "bpy_app.h"
 #include "bpy_rna_id_collection.h"
-#include "bpy_rna_manipulator.h"
+#include "bpy_rna_gizmo.h"
 #include "bpy_props.h"
 #include "bpy_library.h"
 #include "bpy_operator.h"
@@ -138,7 +138,7 @@ static PyObject *bpy_blend_paths(PyObject *UNUSED(self), PyObject *args, PyObjec
 
 	list = PyList_New(0);
 
-	BKE_bpath_traverse_main(G.main, bpy_blend_paths_visit_cb, flag, (void *)list);
+	BKE_bpath_traverse_main(G_MAIN, bpy_blend_paths_visit_cb, flag, (void *)list);
 
 	return list;
 }
@@ -171,7 +171,7 @@ static PyObject *bpy_user_resource(PyObject *UNUSED(self), PyObject *args, PyObj
 		PyErr_SetString(PyExc_ValueError, "invalid resource argument");
 		return NULL;
 	}
-	
+
 	/* same logic as BKE_appdir_folder_id_create(), but best leave it up to the script author to create */
 	path = BKE_appdir_folder_id(folder_id, subdir);
 
@@ -340,7 +340,7 @@ void BPy_init_modules(void)
 
 	BPY_rna_id_collection_module(mod);
 
-	BPY_rna_manipulator_module(mod);
+	BPY_rna_gizmo_module(mod);
 
 	bpy_import_test("bpy_types");
 	PyModule_AddObject(mod, "data", BPY_rna_module()); /* imports bpy_types by running this */

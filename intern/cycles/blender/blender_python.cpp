@@ -203,10 +203,10 @@ static PyObject *exit_func(PyObject * /*self*/, PyObject * /*args*/)
 
 static PyObject *create_func(PyObject * /*self*/, PyObject *args)
 {
-	PyObject *pyengine, *pyuserpref, *pydata, *pyscene, *pyregion, *pyv3d, *pyrv3d;
+	PyObject *pyengine, *pyuserpref, *pydata, *pyregion, *pyv3d, *pyrv3d;
 	int preview_osl;
 
-	if(!PyArg_ParseTuple(args, "OOOOOOOi", &pyengine, &pyuserpref, &pydata, &pyscene,
+	if(!PyArg_ParseTuple(args, "OOOOOOi", &pyengine, &pyuserpref, &pydata,
 	                     &pyregion, &pyv3d, &pyrv3d, &preview_osl))
 	{
 		return NULL;
@@ -224,10 +224,6 @@ static PyObject *create_func(PyObject * /*self*/, PyObject *args)
 	PointerRNA dataptr;
 	RNA_main_pointer_create((Main*)PyLong_AsVoidPtr(pydata), &dataptr);
 	BL::BlendData data(dataptr);
-
-	PointerRNA sceneptr;
-	RNA_id_pointer_create((ID*)PyLong_AsVoidPtr(pyscene), &sceneptr);
-	BL::Scene scene(sceneptr);
 
 	PointerRNA regionptr;
 	RNA_pointer_create(NULL, &RNA_Region, pylong_as_voidptr_typesafe(pyregion), &regionptr);
@@ -249,26 +245,12 @@ static PyObject *create_func(PyObject * /*self*/, PyObject *args)
 		int width = region.width();
 		int height = region.height();
 
-		session = new BlenderSession(engine, userpref, data, scene, v3d, rv3d, width, height);
+		session = new BlenderSession(engine, userpref, data, v3d, rv3d, width, height);
 	}
 	else {
-		/* override some settings for preview */
-		if(engine.is_preview()) {
-			PointerRNA cscene = RNA_pointer_get(&sceneptr, "cycles");
-
-			RNA_boolean_set(&cscene, "shading_system", preview_osl);
-			RNA_boolean_set(&cscene, "use_progressive_refine", true);
-		}
-
 		/* offline session or preview render */
-		session = new BlenderSession(engine, userpref, data, scene);
+		session = new BlenderSession(engine, userpref, data, preview_osl);
 	}
-
-	python_thread_state_save(&session->python_thread_state);
-
-	session->create();
-
-	python_thread_state_restore(&session->python_thread_state);
 
 	return PyLong_FromVoidPtr(session);
 }
@@ -316,7 +298,7 @@ static PyObject *bake_func(PyObject * /*self*/, PyObject *args)
 	BlenderSession *session = (BlenderSession*)PyLong_AsVoidPtr(pysession);
 
 	PointerRNA depsgraphptr;
-	RNA_id_pointer_create((ID*)PyLong_AsVoidPtr(pydepsgraph), &depsgraphptr);
+	RNA_pointer_create(NULL, &RNA_Depsgraph, PyLong_AsVoidPtr(pydepsgraph), &depsgraphptr);
 	BL::Depsgraph b_depsgraph(depsgraphptr);
 
 	PointerRNA objectptr;
@@ -344,7 +326,7 @@ static PyObject *draw_func(PyObject * /*self*/, PyObject *args)
 
 	if(!PyArg_ParseTuple(args, "OOOO", &pysession, &pygraph, &pyv3d, &pyrv3d))
 		return NULL;
-	
+
 	BlenderSession *session = (BlenderSession*)PyLong_AsVoidPtr(pysession);
 
 	if(PyLong_AsVoidPtr(pyrv3d)) {
@@ -360,9 +342,9 @@ static PyObject *draw_func(PyObject * /*self*/, PyObject *args)
 
 static PyObject *reset_func(PyObject * /*self*/, PyObject *args)
 {
-	PyObject *pysession, *pydata, *pyscene;
+	PyObject *pysession, *pydata, *pydepsgraph;
 
-	if(!PyArg_ParseTuple(args, "OOO", &pysession, &pydata, &pyscene))
+	if(!PyArg_ParseTuple(args, "OOO", &pysession, &pydata, &pydepsgraph))
 		return NULL;
 
 	BlenderSession *session = (BlenderSession*)PyLong_AsVoidPtr(pysession);
@@ -371,13 +353,13 @@ static PyObject *reset_func(PyObject * /*self*/, PyObject *args)
 	RNA_main_pointer_create((Main*)PyLong_AsVoidPtr(pydata), &dataptr);
 	BL::BlendData b_data(dataptr);
 
-	PointerRNA sceneptr;
-	RNA_id_pointer_create((ID*)PyLong_AsVoidPtr(pyscene), &sceneptr);
-	BL::Scene b_scene(sceneptr);
+	PointerRNA depsgraphptr;
+	RNA_pointer_create(NULL, &RNA_Depsgraph, PyLong_AsVoidPtr(pydepsgraph), &depsgraphptr);
+	BL::Depsgraph b_depsgraph(depsgraphptr);
 
 	python_thread_state_save(&session->python_thread_state);
 
-	session->reset_session(b_data, b_scene);
+	session->reset_session(b_data, b_depsgraph);
 
 	python_thread_state_restore(&session->python_thread_state);
 
@@ -394,7 +376,7 @@ static PyObject *sync_func(PyObject * /*self*/, PyObject *args)
 	BlenderSession *session = (BlenderSession*)PyLong_AsVoidPtr(pysession);
 
 	PointerRNA depsgraphptr;
-	RNA_id_pointer_create((ID*)PyLong_AsVoidPtr(pydepsgraph), &depsgraphptr);
+	RNA_pointer_create(NULL, &RNA_Depsgraph, PyLong_AsVoidPtr(pydepsgraph), &depsgraphptr);
 	BL::Depsgraph b_depsgraph(depsgraphptr);
 
 	python_thread_state_save(&session->python_thread_state);
@@ -428,13 +410,17 @@ static PyObject *available_devices_func(PyObject * /*self*/, PyObject * /*args*/
 
 static PyObject *osl_update_node_func(PyObject * /*self*/, PyObject *args)
 {
-	PyObject *pynodegroup, *pynode;
+	PyObject *pydata, *pynodegroup, *pynode;
 	const char *filepath = NULL;
 
-	if(!PyArg_ParseTuple(args, "OOs", &pynodegroup, &pynode, &filepath))
+	if(!PyArg_ParseTuple(args, "OOOs", &pydata, &pynodegroup, &pynode, &filepath))
 		return NULL;
 
 	/* RNA */
+	PointerRNA dataptr;
+	RNA_main_pointer_create((Main*)PyLong_AsVoidPtr(pydata), &dataptr);
+	BL::BlendData b_data(dataptr);
+
 	PointerRNA nodeptr;
 	RNA_pointer_create((ID*)PyLong_AsVoidPtr(pynodegroup), &RNA_ShaderNodeScript, (void*)PyLong_AsVoidPtr(pynode), &nodeptr);
 	BL::ShaderNodeScript b_node(nodeptr);
@@ -532,7 +518,7 @@ static PyObject *osl_update_node_func(PyObject * /*self*/, PyObject *args)
 			b_sock = b_node.outputs[param->name.string()];
 			/* remove if type no longer matches */
 			if(b_sock && b_sock.bl_idname() != socket_type) {
-				b_node.outputs.remove(b_sock);
+				b_node.outputs.remove(b_data, b_sock);
 				b_sock = BL::NodeSocket(PointerRNA_NULL);
 			}
 		}
@@ -540,7 +526,7 @@ static PyObject *osl_update_node_func(PyObject * /*self*/, PyObject *args)
 			b_sock = b_node.inputs[param->name.string()];
 			/* remove if type no longer matches */
 			if(b_sock && b_sock.bl_idname() != socket_type) {
-				b_node.inputs.remove(b_sock);
+				b_node.inputs.remove(b_data, b_sock);
 				b_sock = BL::NodeSocket(PointerRNA_NULL);
 			}
 		}
@@ -548,9 +534,9 @@ static PyObject *osl_update_node_func(PyObject * /*self*/, PyObject *args)
 		if(!b_sock) {
 			/* create new socket */
 			if(param->isoutput)
-				b_sock = b_node.outputs.create(socket_type.c_str(), param->name.c_str(), param->name.c_str());
+				b_sock = b_node.outputs.create(b_data, socket_type.c_str(), param->name.c_str(), param->name.c_str());
 			else
-				b_sock = b_node.inputs.create(socket_type.c_str(), param->name.c_str(), param->name.c_str());
+				b_sock = b_node.inputs.create(b_data, socket_type.c_str(), param->name.c_str(), param->name.c_str());
 
 			/* set default value */
 			if(data_type == BL::NodeSocket::type_VALUE) {
@@ -584,7 +570,7 @@ static PyObject *osl_update_node_func(PyObject * /*self*/, PyObject *args)
 
 		for(b_node.inputs.begin(b_input); b_input != b_node.inputs.end(); ++b_input) {
 			if(used_sockets.find(b_input->ptr.data) == used_sockets.end()) {
-				b_node.inputs.remove(*b_input);
+				b_node.inputs.remove(b_data, *b_input);
 				removed = true;
 				break;
 			}
@@ -592,7 +578,7 @@ static PyObject *osl_update_node_func(PyObject * /*self*/, PyObject *args)
 
 		for(b_node.outputs.begin(b_output); b_output != b_node.outputs.end(); ++b_output) {
 			if(used_sockets.find(b_output->ptr.data) == used_sockets.end()) {
-				b_node.outputs.remove(*b_output);
+				b_node.outputs.remove(b_data, *b_output);
 				removed = true;
 				break;
 			}
@@ -608,7 +594,7 @@ static PyObject *osl_compile_func(PyObject * /*self*/, PyObject *args)
 
 	if(!PyArg_ParseTuple(args, "ss", &inputfile, &outputfile))
 		return NULL;
-	
+
 	/* return */
 	if(!OSLShaderManager::osl_compile(inputfile, outputfile))
 		Py_RETURN_FALSE;
@@ -752,6 +738,12 @@ static PyObject *set_resumable_chunk_range_func(PyObject * /*self*/, PyObject *a
 	Py_RETURN_NONE;
 }
 
+static PyObject *enable_print_stats_func(PyObject * /*self*/, PyObject * /*args*/)
+{
+	BlenderSession::print_render_stats = true;
+	Py_RETURN_NONE;
+}
+
 static PyObject *get_device_types_func(PyObject * /*self*/, PyObject * /*args*/)
 {
 	vector<DeviceInfo>& devices = Device::available_devices();
@@ -789,6 +781,9 @@ static PyMethodDef methods[] = {
 	/* Debugging routines */
 	{"debug_flags_update", debug_flags_update_func, METH_VARARGS, ""},
 	{"debug_flags_reset", debug_flags_reset_func, METH_NOARGS, ""},
+
+	/* Statistics. */
+	{"enable_print_stats", enable_print_stats_func, METH_NOARGS, ""},
 
 	/* Resumable render */
 	{"set_resumable_chunk", set_resumable_chunk_func, METH_VARARGS, ""},
@@ -848,10 +843,18 @@ void *CCL_python_module_init()
 #ifdef WITH_NETWORK
 	PyModule_AddObject(mod, "with_network", Py_True);
 	Py_INCREF(Py_True);
-#else /* WITH_NETWORK */
+#else  /* WITH_NETWORK */
 	PyModule_AddObject(mod, "with_network", Py_False);
 	Py_INCREF(Py_False);
-#endif /* WITH_NETWORK */
+#endif  /* WITH_NETWORK */
+
+#ifdef WITH_EMBREE
+	PyModule_AddObject(mod, "with_embree", Py_True);
+	Py_INCREF(Py_True);
+#else  /* WITH_EMBREE */
+	PyModule_AddObject(mod, "with_embree", Py_False);
+	Py_INCREF(Py_False);
+#endif  /* WITH_EMBREE */
 
 	return (void*)mod;
 }

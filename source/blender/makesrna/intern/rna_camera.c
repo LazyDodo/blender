@@ -156,7 +156,7 @@ static void rna_def_camera_background_image(BlenderRNA *brna)
 		{0, NULL, 0, NULL, NULL}
 	};
 
-	static const EnumPropertyItem bgpic_draw_depth_items[] = {
+	static const EnumPropertyItem bgpic_display_depth_items[] = {
 		{0, "BACK", 0, "Back", ""},
 		{CAM_BGIMG_FLAG_FOREGROUND, "FRONT", 0, "Front", ""},
 		{0, NULL, 0, NULL, NULL}
@@ -233,7 +233,7 @@ static void rna_def_camera_background_image(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "show_expanded", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", CAM_BGIMG_FLAG_EXPANDED);
 	RNA_def_property_ui_text(prop, "Show Expanded", "Show the expanded in the user interface");
-	RNA_def_property_ui_icon(prop, ICON_TRIA_RIGHT, 1);
+	RNA_def_property_ui_icon(prop, ICON_DISCLOSURE_TRI_RIGHT, 1);
 
 	prop = RNA_def_property(srna, "use_camera_clip", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", CAM_BGIMG_FLAG_CAMERACLIP);
@@ -251,10 +251,10 @@ static void rna_def_camera_background_image(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	/* expose 1 flag as a enum of 2 items */
-	prop = RNA_def_property(srna, "draw_depth", PROP_ENUM, PROP_NONE);
+	prop = RNA_def_property(srna, "display_depth", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_bitflag_sdna(prop, NULL, "flag");
-	RNA_def_property_enum_items(prop, bgpic_draw_depth_items);
-	RNA_def_property_ui_text(prop, "Depth", "Draw under or over everything");
+	RNA_def_property_enum_items(prop, bgpic_display_depth_items);
+	RNA_def_property_ui_text(prop, "Depth", "Display under or over everything");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	/* expose 2 flags as a enum of 3 items */
@@ -378,7 +378,7 @@ void RNA_def_camera(BlenderRNA *brna)
 		{CAM_PANO, "PANO", 0, "Panoramic", ""},
 		{0, NULL, 0, NULL, NULL}
 	};
-	static const EnumPropertyItem prop_draw_type_extra_items[] = {
+	static const EnumPropertyItem prop_display_type_extra_items[] = {
 		{CAM_DTX_CENTER, "CENTER", 0, "Center", ""},
 		{CAM_DTX_CENTER_DIAG, "CENTER_DIAGONAL", 0, "Center Diagonal", ""},
 		{CAM_DTX_THIRDS, "THIRDS", 0, "Thirds", ""},
@@ -413,9 +413,9 @@ void RNA_def_camera(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "show_guide", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "dtx");
-	RNA_def_property_enum_items(prop, prop_draw_type_extra_items);
+	RNA_def_property_enum_items(prop, prop_display_type_extra_items);
 	RNA_def_property_flag(prop, PROP_ENUM_FLAG);
-	RNA_def_property_ui_text(prop, "Composition Guides",  "Draw overlay");
+	RNA_def_property_ui_text(prop, "Composition Guides",  "Display overlay");
 	RNA_def_property_update(prop, NC_CAMERA | ND_DRAW_RENDER_VIEWPORT, NULL);
 
 	prop = RNA_def_property(srna, "sensor_fit", PROP_ENUM, PROP_NONE);
@@ -428,6 +428,7 @@ void RNA_def_camera(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "passepartout_alpha", PROP_FLOAT, PROP_FACTOR);
 	RNA_def_property_float_sdna(prop, NULL, "passepartalpha");
+	RNA_def_property_float_default(prop, 0.5f);
 	RNA_def_property_ui_text(prop, "Passepartout Alpha", "Opacity (alpha) of the darkened overlay in Camera view");
 	RNA_def_property_update(prop, NC_CAMERA | ND_DRAW_RENDER_VIEWPORT, NULL);
 
@@ -454,6 +455,7 @@ void RNA_def_camera(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "clip_start", PROP_FLOAT, PROP_DISTANCE);
 	RNA_def_property_float_sdna(prop, NULL, "clipsta");
+	RNA_def_property_float_default(prop, 0.1f);
 	RNA_def_property_range(prop, 1e-6f, FLT_MAX);
 	RNA_def_property_ui_range(prop, 0.001f, FLT_MAX, 10, 3);
 	RNA_def_property_ui_text(prop, "Clip Start", "Camera near clipping distance");
@@ -461,6 +463,7 @@ void RNA_def_camera(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "clip_end", PROP_FLOAT, PROP_DISTANCE);
 	RNA_def_property_float_sdna(prop, NULL, "clipend");
+	RNA_def_property_float_default(prop, 1000.0f);
 	RNA_def_property_range(prop, 1e-6f, FLT_MAX);
 	RNA_def_property_ui_range(prop, 0.001f, FLT_MAX, 10, 3);
 	RNA_def_property_ui_text(prop, "Clip End", "Camera far clipping distance");
@@ -468,6 +471,7 @@ void RNA_def_camera(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "lens", PROP_FLOAT, PROP_DISTANCE_CAMERA);
 	RNA_def_property_float_sdna(prop, NULL, "lens");
+	RNA_def_property_float_default(prop, 50.0f);
 	RNA_def_property_range(prop, 1.0f, FLT_MAX);
 	RNA_def_property_ui_range(prop, 1.0f, 5000.0f, 1, 2);
 	RNA_def_property_ui_text(prop, "Focal Length", "Perspective Camera lens value in millimeters");
@@ -475,6 +479,7 @@ void RNA_def_camera(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "sensor_width", PROP_FLOAT, PROP_DISTANCE_CAMERA);
 	RNA_def_property_float_sdna(prop, NULL, "sensor_x");
+	RNA_def_property_float_default(prop, 36.0f);
 	RNA_def_property_range(prop, 1.0f, FLT_MAX);
 	RNA_def_property_ui_range(prop, 1.0f, 100.f, 1, 2);
 	RNA_def_property_ui_text(prop, "Sensor Width", "Horizontal size of the image sensor area in millimeters");
@@ -482,6 +487,7 @@ void RNA_def_camera(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "sensor_height", PROP_FLOAT, PROP_DISTANCE_CAMERA);
 	RNA_def_property_float_sdna(prop, NULL, "sensor_y");
+	RNA_def_property_float_default(prop, 34.0f);
 	RNA_def_property_range(prop, 1.0f, FLT_MAX);
 	RNA_def_property_ui_range(prop, 1.0f, 100.f, 1, 2);
 	RNA_def_property_ui_text(prop, "Sensor Height", "Vertical size of the image sensor area in millimeters");
@@ -489,16 +495,18 @@ void RNA_def_camera(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "ortho_scale", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "ortho_scale");
+	RNA_def_property_float_default(prop, 6.0f);
 	RNA_def_property_range(prop, FLT_MIN, FLT_MAX);
 	RNA_def_property_ui_range(prop, 0.001f, 10000.0f, 10, 3);
 	RNA_def_property_ui_text(prop, "Orthographic Scale", "Orthographic Camera scale (similar to zoom)");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_Camera_update");
 
-	prop = RNA_def_property(srna, "draw_size", PROP_FLOAT, PROP_DISTANCE);
+	prop = RNA_def_property(srna, "display_size", PROP_FLOAT, PROP_DISTANCE);
 	RNA_def_property_float_sdna(prop, NULL, "drawsize");
+	RNA_def_property_float_default(prop, 1.0f);
 	RNA_def_property_range(prop, 0.01f, 1000.0f);
 	RNA_def_property_ui_range(prop, 0.01, 100, 1, 2);
-	RNA_def_property_ui_text(prop, "Draw Size", "Apparent size of the Camera object in the 3D View");
+	RNA_def_property_ui_text(prop, "Display Size", "Apparent size of the Camera object in the 3D View");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
 
 	prop = RNA_def_property(srna, "shift_x", PROP_FLOAT, PROP_NONE);
@@ -532,16 +540,17 @@ void RNA_def_camera(BlenderRNA *brna)
 	/* flag */
 	prop = RNA_def_property(srna, "show_limits", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", CAM_SHOWLIMITS);
-	RNA_def_property_ui_text(prop, "Show Limits", "Draw the clipping range and focus point on the camera");
+	RNA_def_property_ui_text(prop, "Show Limits", "Display the clipping range and focus point on the camera");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
 
 	prop = RNA_def_property(srna, "show_mist", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", CAM_SHOWMIST);
-	RNA_def_property_ui_text(prop, "Show Mist", "Draw a line from the Camera to indicate the mist area");
+	RNA_def_property_ui_text(prop, "Show Mist", "Display a line from the Camera to indicate the mist area");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
 
 	prop = RNA_def_property(srna, "show_passepartout", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", CAM_SHOWPASSEPARTOUT);
+	RNA_def_property_boolean_default(prop, true);
 	RNA_def_property_ui_text(prop, "Show Passepartout",
 	                         "Show a darkened overlay outside the image area in Camera view");
 	RNA_def_property_update(prop, NC_CAMERA | ND_DRAW_RENDER_VIEWPORT, NULL);

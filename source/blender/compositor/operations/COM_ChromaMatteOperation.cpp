@@ -16,7 +16,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
  * Contributor:
- *		Dalai Felinto
+ *      Dalai Felinto
  */
 
 #include "COM_ChromaMatteOperation.h"
@@ -108,4 +108,3 @@ void ChromaMatteOperation::executePixelSampled(float output[4], float x, float y
 		output[0] = inImage[3]; /* make pixel just as transparent as it was before */
 	}
 }
-

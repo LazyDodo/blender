@@ -35,27 +35,30 @@
 #include <stdio.h>
 
 #include "DNA_scene_types.h"
+#include "DNA_mesh_types.h"
 #include "DNA_object_force_types.h"
 
 #include "BLI_utildefines.h"
 
-#include "BKE_cdderivedmesh.h"
 #include "BKE_layer.h"
 #include "BKE_particle.h"
 #include "BKE_softbody.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
+#include "DEG_depsgraph_physics.h"
+#include "DEG_depsgraph_query.h"
 
 #include "MOD_modifiertypes.h"
 
-static void deformVerts(ModifierData *md, const EvaluationContext *eval_ctx, Object *ob,
-                        DerivedMesh *UNUSED(derivedData),
-                        float (*vertexCos)[3],
-                        int numVerts,
-                        ModifierApplyFlag UNUSED(flag))
+static void deformVerts(
+        ModifierData *UNUSED(md), const ModifierEvalContext *ctx,
+        Mesh *UNUSED(derivedData),
+        float (*vertexCos)[3],
+        int numVerts)
 {
-	sbObjectStep(eval_ctx, md->scene, ob, (float)md->scene->r.cfra, vertexCos, numVerts);
+	Scene *scene = DEG_get_evaluated_scene(ctx->depsgraph);
+	sbObjectStep(ctx->depsgraph, scene, ctx->object, DEG_get_ctime(ctx->depsgraph), vertexCos, numVerts);
 }
 
 static bool dependsOnTime(ModifierData *UNUSED(md))
@@ -67,9 +70,8 @@ static void updateDepsgraph(ModifierData *UNUSED(md), const ModifierUpdateDepsgr
 {
 	if (ctx->object->soft) {
 		/* Actual code uses ccd_build_deflector_hash */
-		DEG_add_collision_relations(ctx->node, ctx->scene, ctx->object, ctx->object->soft->collision_group, eModifierType_Collision, NULL, false, "Softbody Collision");
-
-		DEG_add_forcefield_relations(ctx->node, ctx->scene, ctx->object, ctx->object->soft->effector_weights, true, 0, "Softbody Field");
+		DEG_add_collision_relations(ctx->node, ctx->object, ctx->object->soft->collision_group, eModifierType_Collision, NULL, "Softbody Collision");
+		DEG_add_forcefield_relations(ctx->node, ctx->object, ctx->object->soft->effector_weights, true, 0, "Softbody Field");
 	}
 }
 
@@ -84,12 +86,19 @@ ModifierTypeInfo modifierType_Softbody = {
 	                        eModifierTypeFlag_Single,
 
 	/* copyData */          NULL,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+
 	/* deformVerts */       deformVerts,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
-	/* applyModifierEM */   NULL,
+
 	/* initData */          NULL,
 	/* requiredDataMask */  NULL,
 	/* freeData */          NULL,

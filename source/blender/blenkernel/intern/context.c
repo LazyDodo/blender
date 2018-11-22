@@ -30,6 +30,7 @@
 
 #include "MEM_guardedalloc.h"
 
+#include "DNA_collection_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_screen_types.h"
 #include "DNA_space_types.h"
@@ -79,11 +80,11 @@ struct bContext {
 		struct ScrArea *area;
 		struct ARegion *region;
 		struct ARegion *menu;
-		struct wmManipulatorGroup *manipulator_group;
+		struct wmGizmoGroup *gizmo_group;
 		struct bContextStore *store;
 		const char *operator_poll_msg; /* reason for poll failing */
 	} wm;
-	
+
 	/* data context */
 	struct {
 		struct Main *main;
@@ -93,13 +94,6 @@ struct bContext {
 		int py_init; /* true if python is initialized */
 		void *py_context;
 	} data;
-	
-	/* data evaluation */
-#if 0
-	struct {
-		int render;
-	} eval;
-#endif
 };
 
 /* context */
@@ -107,7 +101,7 @@ struct bContext {
 bContext *CTX_create(void)
 {
 	bContext *C;
-	
+
 	C = MEM_callocN(sizeof(bContext), "bContext");
 
 	return C;
@@ -216,7 +210,7 @@ void CTX_store_free_list(ListBase *contexts)
 	}
 }
 
-/* is python initialied? */
+/* is python initialized? */
 
 int CTX_py_init_get(bContext *C)
 {
@@ -423,7 +417,7 @@ PointerRNA CTX_data_pointer_get_type(const bContext *C, const char *member, Stru
 			       __func__, member, RNA_struct_identifier(ptr.type), RNA_struct_identifier(type));
 		}
 	}
-	
+
 	return PointerRNA_NULL;
 }
 
@@ -464,13 +458,13 @@ int CTX_data_get(const bContext *C, const char *member, PointerRNA *r_ptr, ListB
 static void data_dir_add(ListBase *lb, const char *member, const bool use_all)
 {
 	LinkData *link;
-	
+
 	if ((use_all == false) && STREQ(member, "scene")) /* exception */
 		return;
 
 	if (BLI_findstring(lb, member, offsetof(LinkData, data)))
 		return;
-	
+
 	link = MEM_callocN(sizeof(LinkData), "LinkData");
 	link->data = (void *)member;
 	BLI_addtail(lb, link);
@@ -674,9 +668,9 @@ struct ARegion *CTX_wm_menu(const bContext *C)
 	return C->wm.menu;
 }
 
-struct wmManipulatorGroup *CTX_wm_manipulator_group(const bContext *C)
+struct wmGizmoGroup *CTX_wm_gizmo_group(const bContext *C)
 {
-	return C->wm.manipulator_group;
+	return C->wm.gizmo_group;
 }
 
 struct wmMsgBus *CTX_wm_message_bus(const bContext *C)
@@ -775,26 +769,10 @@ struct SpaceNla *CTX_wm_space_nla(const bContext *C)
 	return NULL;
 }
 
-struct SpaceTime *CTX_wm_space_time(const bContext *C)
-{
-	ScrArea *sa = CTX_wm_area(C);
-	if (sa && sa->spacetype == SPACE_TIME)
-		return sa->spacedata.first;
-	return NULL;
-}
-
 struct SpaceNode *CTX_wm_space_node(const bContext *C)
 {
 	ScrArea *sa = CTX_wm_area(C);
 	if (sa && sa->spacetype == SPACE_NODE)
-		return sa->spacedata.first;
-	return NULL;
-}
-
-struct SpaceLogic *CTX_wm_space_logic(const bContext *C)
-{
-	ScrArea *sa = CTX_wm_area(C);
-	if (sa && sa->spacetype == SPACE_LOGIC)
 		return sa->spacedata.first;
 	return NULL;
 }
@@ -835,6 +813,14 @@ struct SpaceClip *CTX_wm_space_clip(const bContext *C)
 {
 	ScrArea *sa = CTX_wm_area(C);
 	if (sa && sa->spacetype == SPACE_CLIP)
+		return sa->spacedata.first;
+	return NULL;
+}
+
+struct SpaceTopBar *CTX_wm_space_topbar(const bContext *C)
+{
+	ScrArea *sa = CTX_wm_area(C);
+	if (sa && sa->spacetype == SPACE_TOPBAR)
 		return sa->spacedata.first;
 	return NULL;
 }
@@ -883,9 +869,9 @@ void CTX_wm_menu_set(bContext *C, ARegion *menu)
 	C->wm.menu = menu;
 }
 
-void CTX_wm_manipulator_group_set(bContext *C, struct wmManipulatorGroup *mgroup)
+void CTX_wm_gizmo_group_set(bContext *C, struct wmGizmoGroup *gzgroup)
 {
-	C->wm.manipulator_group = mgroup;
+	C->wm.gizmo_group = gzgroup;
 }
 
 void CTX_wm_operator_poll_msg_set(bContext *C, const char *msg)
@@ -933,29 +919,23 @@ ViewLayer *CTX_data_view_layer(const bContext *C)
 	if (ctx_data_pointer_verify(C, "view_layer", (void *)&view_layer)) {
 		return view_layer;
 	}
-	else {
-		return BKE_view_layer_from_workspace_get(CTX_data_scene(C), CTX_wm_workspace(C));
-	}
-}
 
-ViewRender *CTX_data_view_render(const bContext *C)
-{
-	ViewRender *view_render;
+	wmWindow *win = CTX_wm_window(C);
+	Scene *scene = CTX_data_scene(C);
+	if (win) {
+		view_layer = BKE_view_layer_find(scene, win->view_layer_name);
+		if (view_layer) {
+			return view_layer;
+		}
+	}
 
-	if (ctx_data_pointer_verify(C, "view_render", (void *)&view_render)) {
-		return view_render;
-	}
-	else {
-		Scene *scene = CTX_data_scene(C);
-		WorkSpace *workspace = CTX_wm_workspace(C);
-		return BKE_viewrender_get(scene, workspace);
-	}
+	return BKE_view_layer_default_view(scene);
 }
 
 RenderEngineType *CTX_data_engine_type(const bContext *C)
 {
-	ViewRender *view_render = CTX_data_view_render(C);
-	return RE_engines_find(view_render->engine_id);
+	Scene *scene = CTX_data_scene(C);
+	return RE_engines_find(scene->r.engine);
 }
 
 /**
@@ -971,7 +951,7 @@ LayerCollection *CTX_data_layer_collection(const bContext *C)
 	LayerCollection *layer_collection;
 
 	if (ctx_data_pointer_verify(C, "layer_collection", (void *)&layer_collection)) {
-		if (BKE_view_layer_has_collection(view_layer, layer_collection->scene_collection)) {
+		if (BKE_view_layer_has_collection(view_layer, layer_collection->collection)) {
 			return layer_collection;
 		}
 	}
@@ -980,21 +960,21 @@ LayerCollection *CTX_data_layer_collection(const bContext *C)
 	return BKE_layer_collection_get_active(view_layer);
 }
 
-SceneCollection *CTX_data_scene_collection(const bContext *C)
+Collection *CTX_data_collection(const bContext *C)
 {
-	SceneCollection *scene_collection;
-	if (ctx_data_pointer_verify(C, "scene_collection", (void *)&scene_collection)) {
-		return scene_collection;
+	Collection *collection;
+	if (ctx_data_pointer_verify(C, "collection", (void *)&collection)) {
+		return collection;
 	}
 
 	LayerCollection *layer_collection = CTX_data_layer_collection(C);
 	if (layer_collection) {
-		return layer_collection->scene_collection;
+		return layer_collection->collection;
 	}
 
 	/* fallback */
 	Scene *scene = CTX_data_scene(C);
-	return BKE_collection_master(&scene->id);
+	return BKE_collection_master(scene);
 }
 
 int CTX_data_mode_enum_ex(const Object *obedit, const Object *ob, const eObjectMode object_mode)
@@ -1027,6 +1007,10 @@ int CTX_data_mode_enum_ex(const Object *obedit, const Object *ob, const eObjectM
 			else if (object_mode & OB_MODE_VERTEX_PAINT) return CTX_MODE_PAINT_VERTEX;
 			else if (object_mode & OB_MODE_TEXTURE_PAINT) return CTX_MODE_PAINT_TEXTURE;
 			else if (object_mode & OB_MODE_PARTICLE_EDIT) return CTX_MODE_PARTICLE;
+			else if (object_mode & OB_MODE_GPENCIL_PAINT) return CTX_MODE_GPENCIL_PAINT;
+			else if (object_mode & OB_MODE_GPENCIL_EDIT) return CTX_MODE_GPENCIL_EDIT;
+			else if (object_mode & OB_MODE_GPENCIL_SCULPT) return CTX_MODE_GPENCIL_SCULPT;
+			else if (object_mode & OB_MODE_GPENCIL_WEIGHT) return CTX_MODE_GPENCIL_WEIGHT;
 		}
 	}
 
@@ -1057,6 +1041,10 @@ static const char *data_mode_strings[] = {
 	"imagepaint",
 	"particlemode",
 	"objectmode",
+	"greasepencil_paint",
+	"greasepencil_edit",
+	"greasepencil_sculpt",
+	"greasepencil_weight",
 	NULL
 };
 BLI_STATIC_ASSERT(ARRAY_SIZE(data_mode_strings) == CTX_MODE_NUM + 1, "Must have a string for each context mode")
@@ -1210,6 +1198,11 @@ int CTX_data_selected_pose_bones(const bContext *C, ListBase *list)
 	return ctx_data_collection_get(C, "selected_pose_bones", list);
 }
 
+int CTX_data_selected_pose_bones_from_active_object(const bContext *C, ListBase *list)
+{
+	return ctx_data_collection_get(C, "selected_pose_bones_from_active_object", list);
+}
+
 int CTX_data_visible_pose_bones(const bContext *C, ListBase *list)
 {
 	return ctx_data_collection_get(C, "visible_pose_bones", list);
@@ -1225,17 +1218,7 @@ bGPDlayer *CTX_data_active_gpencil_layer(const bContext *C)
 	return ctx_data_pointer_get(C, "active_gpencil_layer");
 }
 
-bGPDpalette *CTX_data_active_gpencil_palette(const bContext *C)
-{
-	return ctx_data_pointer_get(C, "active_gpencil_palette");
-}
-
-bGPDpalettecolor *CTX_data_active_gpencil_palettecolor(const bContext *C)
-{
-	return ctx_data_pointer_get(C, "active_gpencil_palettecolor");
-}
-
-bGPDbrush *CTX_data_active_gpencil_brush(const bContext *C)
+Brush *CTX_data_active_gpencil_brush(const bContext *C)
 {
 	return ctx_data_pointer_get(C, "active_gpencil_brush");
 }
@@ -1267,15 +1250,9 @@ Depsgraph *CTX_data_depsgraph(const bContext *C)
 	return BKE_scene_get_depsgraph(scene, view_layer, true);
 }
 
-void CTX_data_eval_ctx(const bContext *C, EvaluationContext *eval_ctx)
+Depsgraph *CTX_data_depsgraph_on_load(const bContext *C)
 {
-	BLI_assert(C != NULL);
-
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
-	RenderEngineType *engine_type = CTX_data_engine_type(C);
-	DEG_evaluation_context_init_from_scene(
-	        eval_ctx,
-	        scene, view_layer, engine_type,
-	        DAG_EVAL_VIEWPORT);
+	return BKE_scene_get_depsgraph(scene, view_layer, false);
 }

@@ -41,13 +41,12 @@ class UnitTesting(ViewLayerTesting):
             layer = scene.view_layers.new('Fresh new Layer')
             layer.collections.link(subzero)
 
-            scene.view_layers.active_index = len(scene.view_layers) - 1
             bpy.context.window.view_layer = bpy.context.scene.view_layers['Fresh new Layer']
 
             if mode == 'DUPLICATE':
                 # assuming the latest layer is the active layer
                 bpy.ops.object.select_all(action='DESELECT')
-                three_c.select_set(action='SELECT')
+                three_c.select_set(True)
                 bpy.ops.object.duplicate()
 
             elif mode == 'NAMED':
@@ -69,7 +68,7 @@ class UnitTesting(ViewLayerTesting):
             self.assertTrue(compare_files(
                 filepath_objects_json,
                 filepath_json,
-                ),
+            ),
                 "Scene dump files differ")
 
     def test_copy_object(self):

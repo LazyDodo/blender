@@ -38,6 +38,8 @@ set(INC
 	../makesrna
 	../bmesh
 	../modifiers
+	../gpencil_modifiers
+	../shader_fx
 	../nodes
 	../physics
 	../render/extern/include
@@ -51,6 +53,7 @@ set(INC
 	../../../intern/atomic
 	../../../intern/clog
 	../../../intern/libmv
+	../../../intern/opensubdiv
 	../../../extern/curve_fit_nd
 )
 
@@ -77,12 +80,11 @@ set(SRC
 	intern/blender.c
 	intern/blender_copybuffer.c
 	intern/blender_undo.c
+	intern/blender_user_menu.c
 	intern/blendfile.c
-	intern/bmfont.c
 	intern/boids.c
 	intern/bpath.c
 	intern/brush.c
-	intern/bullet.c
 	intern/bvhutils.c
 	intern/cachefile.c
 	intern/camera.c
@@ -107,6 +109,7 @@ set(SRC
 	intern/editlattice.c
 	intern/editmesh.c
 	intern/editmesh_bvh.c
+	intern/editmesh_cache.c
 	intern/editmesh_tangent.c
 	intern/effect.c
 	intern/fcurve.c
@@ -115,14 +118,17 @@ set(SRC
 	intern/font.c
 	intern/freestyle.c
 	intern/gpencil.c
-	intern/group.c
+	intern/gpencil_modifier.c
 	intern/icons.c
+	intern/icons_rasterize.c
 	intern/idcode.c
 	intern/idprop.c
+	intern/idprop_utils.c
 	intern/image.c
 	intern/image_gen.c
 	intern/ipo.c
 	intern/key.c
+	intern/keyconfig.c
 	intern/lamp.c
 	intern/lattice.c
 	intern/library.c
@@ -131,6 +137,7 @@ set(SRC
 	intern/library_query.c
 	intern/library_remap.c
 	intern/linestyle.c
+	intern/main.c
 	intern/mask.c
 	intern/mask_evaluate.c
 	intern/mask_rasterize.c
@@ -138,15 +145,20 @@ set(SRC
 	intern/mball.c
 	intern/mball_tessellate.c
 	intern/mesh.c
+	intern/mesh_convert.c
 	intern/mesh_evaluate.c
+	intern/mesh_iterators.c
 	intern/mesh_mapping.c
+	intern/mesh_merge.c
 	intern/mesh_remap.c
+	intern/mesh_runtime.c
 	intern/mesh_tangent.c
 	intern/mesh_validate.c
 	intern/modifier.c
-	intern/modifiers_bmesh.c
 	intern/movieclip.c
 	intern/multires.c
+	intern/multires_reshape.c
+	intern/multires_subdiv.c
 	intern/nla.c
 	intern/node.c
 	intern/object.c
@@ -158,6 +170,7 @@ set(SRC
 	intern/outliner_treehash.c
 	intern/packedFile.c
 	intern/paint.c
+	intern/paint_toolslots.c
 	intern/particle.c
 	intern/particle_child.c
 	intern/particle_distribute.c
@@ -165,24 +178,35 @@ set(SRC
 	intern/pbvh.c
 	intern/pbvh_bmesh.c
 	intern/pointcache.c
-	intern/property.c
 	intern/layer.c
+	intern/layer_utils.c
 	intern/lightprobe.c
 	intern/report.c
 	intern/rigidbody.c
-	intern/sca.c
 	intern/scene.c
 	intern/screen.c
 	intern/seqcache.c
 	intern/seqeffects.c
 	intern/seqmodifier.c
 	intern/sequencer.c
+	intern/shader_fx.c
 	intern/shrinkwrap.c
-	intern/sketch.c
 	intern/smoke.c
 	intern/softbody.c
 	intern/sound.c
 	intern/speaker.c
+	intern/studiolight.c
+	intern/subdiv.c
+	intern/subdiv_ccg.c
+	intern/subdiv_ccg_mask.c
+	intern/subdiv_converter.c
+	intern/subdiv_converter_mesh.c
+	intern/subdiv_displacement.c
+	intern/subdiv_displacement_multires.c
+	intern/subdiv_eval.c
+	intern/subdiv_foreach.c
+	intern/subdiv_mesh.c
+	intern/subdiv_stats.c
 	intern/subsurf_ccg.c
 	intern/suggestions.c
 	intern/text.c
@@ -200,7 +224,6 @@ set(SRC
 	intern/workspace.c
 	intern/world.c
 	intern/writeavi.c
-	intern/writeframeserver.c
 
 	BKE_DerivedMesh.h
 	BKE_action.h
@@ -213,14 +236,12 @@ set(SRC
 	BKE_blender.h
 	BKE_blender_copybuffer.h
 	BKE_blender_undo.h
+	BKE_blender_user_menu.h
 	BKE_blender_version.h
 	BKE_blendfile.h
-	BKE_bmfont.h
-	BKE_bmfont_types.h
 	BKE_boids.h
 	BKE_bpath.h
 	BKE_brush.h
-	BKE_bullet.h
 	BKE_bvhutils.h
 	BKE_cachefile.h
 	BKE_camera.h
@@ -244,6 +265,7 @@ set(SRC
 	BKE_editlattice.h
 	BKE_editmesh.h
 	BKE_editmesh_bvh.h
+	BKE_editmesh_cache.h
 	BKE_editmesh_tangent.h
 	BKE_effect.h
 	BKE_fcurve.h
@@ -252,13 +274,14 @@ set(SRC
 	BKE_freestyle.h
 	BKE_global.h
 	BKE_gpencil.h
-	BKE_group.h
+	BKE_gpencil_modifier.h
 	BKE_icons.h
 	BKE_idcode.h
 	BKE_idprop.h
 	BKE_image.h
 	BKE_ipo.h
 	BKE_key.h
+	BKE_keyconfig.h
 	BKE_lamp.h
 	BKE_lattice.h
 	BKE_library.h
@@ -273,8 +296,10 @@ set(SRC
 	BKE_mball.h
 	BKE_mball_tessellate.h
 	BKE_mesh.h
+	BKE_mesh_iterators.h
 	BKE_mesh_mapping.h
 	BKE_mesh_remap.h
+	BKE_mesh_runtime.h
 	BKE_mesh_tangent.h
 	BKE_modifier.h
 	BKE_movieclip.h
@@ -291,21 +316,25 @@ set(SRC
 	BKE_particle.h
 	BKE_pbvh.h
 	BKE_pointcache.h
-	BKE_property.h
 	BKE_layer.h
 	BKE_lightprobe.h
 	BKE_report.h
 	BKE_rigidbody.h
-	BKE_sca.h
 	BKE_scene.h
 	BKE_screen.h
 	BKE_sequencer.h
+	BKE_shader_fx.h
 	BKE_shrinkwrap.h
-	BKE_sketch.h
 	BKE_smoke.h
 	BKE_softbody.h
 	BKE_sound.h
 	BKE_speaker.h
+	BKE_studiolight.h
+	BKE_subdiv.h
+	BKE_subdiv_ccg.h
+	BKE_subdiv_eval.h
+	BKE_subdiv_foreach.h
+	BKE_subdiv_mesh.h
 	BKE_subsurf.h
 	BKE_suggestions.h
 	BKE_text.h
@@ -316,7 +345,6 @@ set(SRC
 	BKE_workspace.h
 	BKE_world.h
 	BKE_writeavi.h
-	BKE_writeframeserver.h
 
 	nla_private.h
 	tracking_private.h
@@ -324,8 +352,9 @@ set(SRC
 	intern/CCGSubSurf.h
 	intern/CCGSubSurf_inline.h
 	intern/CCGSubSurf_intern.h
-	intern/pbvh_intern.h
 	intern/data_transfer_intern.h
+	intern/pbvh_intern.h
+	intern/subdiv_converter.h
 )
 
 if(WITH_BINRELOC)
@@ -421,7 +450,7 @@ if(WITH_CODEC_FFMPEG)
 	)
 	add_definitions(-DWITH_FFMPEG)
 
-	remove_strict_flags_file(
+	remove_strict_c_flags_file(
 		intern/writeffmpeg.c
 	)
 endif()
@@ -488,18 +517,6 @@ if(WITH_LZMA)
 	add_definitions(-DWITH_LZMA)
 endif()
 
-if(WITH_GAMEENGINE)
-	list(APPEND INC_SYS
-		../../../extern/recastnavigation
-	)
-	list(APPEND SRC
-		intern/navmesh_conversion.c
-		BKE_navmesh_conversion.h
-	)
-
-	add_definitions(-DWITH_GAMEENGINE)
-endif()
-
 if(WITH_LIBMV)
 	add_definitions(-DWITH_LIBMV)
 endif()
@@ -529,9 +546,11 @@ endif()
 if(WITH_OPENSUBDIV)
 	add_definitions(-DWITH_OPENSUBDIV)
 	list(APPEND INC_SYS
-		../../../intern/opensubdiv
 		${OPENSUBDIV_INCLUDE_DIRS}
 	)
+	if(WITH_OPENSUBDIV_MODIFIER)
+		add_definitions(-DWITH_OPENSUBDIV_MODIFIER)
+	endif()
 endif()
 
 if(WITH_OPENVDB)

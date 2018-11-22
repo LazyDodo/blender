@@ -66,23 +66,28 @@ vec3 light_volume(LightData ld, vec4 l_vector)
 	/* XXX : Removing Area Power. */
 	/* TODO : put this out of the shader. */
 	/* See eevee_light_setup(). */
-	if (ld.l_type == AREA) {
+	if (ld.l_type == AREA_RECT || ld.l_type == AREA_ELLIPSE) {
 		power = (ld.l_sizex * ld.l_sizey * 4.0 * M_PI) * (1.0 / 80.0);
+		if (ld.l_type == AREA_ELLIPSE) {
+			power *= M_PI * 0.25;
+		}
 		power *= 20.0 * max(0.0, dot(-ld.l_forward, l_vector.xyz / l_vector.w)); /* XXX ad hoc, empirical */
 	}
 	else if (ld.l_type == SUN) {
-		power = (4.0f * ld.l_radius * ld.l_radius * M_2PI) * (1.0 / 12.5); /* Removing area light power*/
-		power *= M_2PI * 0.78; /* Matching cycles with point light. */
+		power = ld.l_radius * ld.l_radius * M_PI; /* Removing area light power*/
+		power /= 1.0f + (ld.l_radius * ld.l_radius * 0.5f);
+		power *= M_PI * 0.5; /* Matching cycles. */
 	}
 	else {
 		power = (4.0 * ld.l_radius * ld.l_radius) * (1.0 /10.0);
+		power *= M_2PI; /* Matching cycles with point light. */
 	}
+
+	power /= (l_vector.w * l_vector.w);
 
 	/* OPTI: find a better way than calculating this on the fly */
 	float lum = dot(ld.l_color, vec3(0.3, 0.6, 0.1)); /* luminance approx. */
 	vec3 tint = (lum > 0.0) ? ld.l_color / lum : vec3(1.0); /* normalize lum. to isolate hue+sat */
-
-	power /= (l_vector.w * l_vector.w);
 
 	lum = min(lum * power, volLightClamp);
 

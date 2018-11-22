@@ -39,6 +39,8 @@
 
 #include "BKE_context.h"
 #include "BKE_global.h"
+#include "BKE_library.h"
+#include "BKE_library_override.h"
 #include "BKE_main.h"
 #include "BKE_undo_system.h"
 
@@ -234,9 +236,27 @@ void BKE_undosys_stack_clear(UndoStack *ustack)
 	ustack->step_active = NULL;
 }
 
+void BKE_undosys_stack_clear_active(UndoStack *ustack)
+{
+	/* Remove active and all following undos. */
+	UndoStep *us = ustack->step_active;
+
+	if (us) {
+		ustack->step_active = us->prev;
+		bool is_not_empty = ustack->step_active != NULL;
+
+		while (ustack->steps.last != ustack->step_active) {
+			UndoStep *us_iter = ustack->steps.last;
+			undosys_step_free_and_unlink(ustack, us_iter);
+			undosys_stack_validate(ustack, is_not_empty);
+		}
+	}
+}
+
 static bool undosys_stack_push_main(UndoStack *ustack, const char *name, struct Main *bmain)
 {
 	UNDO_NESTED_ASSERT(false);
+	BLI_assert(ustack->step_init == NULL);
 	CLOG_INFO(&LOG, 1, "'%s'", name);
 	bContext *C_temp = CTX_create();
 	CTX_data_main_set(C_temp, bmain);
@@ -249,6 +269,15 @@ void BKE_undosys_stack_init_from_main(UndoStack *ustack, struct Main *bmain)
 {
 	UNDO_NESTED_ASSERT(false);
 	undosys_stack_push_main(ustack, "original", bmain);
+}
+
+/* called after 'BKE_undosys_stack_init_from_main' */
+void BKE_undosys_stack_init_from_context(UndoStack *ustack, bContext *C)
+{
+	const UndoType *ut = BKE_undosys_type_from_context(C);
+	if ((ut != NULL) && (ut != BKE_UNDOSYS_TYPE_MEMFILE) && (ut->mode == BKE_UNDOTYPE_MODE_STORE)) {
+		BKE_undosys_step_push_with_type(ustack, C, "original mode", ut);
+	}
 }
 
 /* name optional */
@@ -366,7 +395,7 @@ UndoStep *BKE_undosys_step_push_init_with_type(UndoStack *ustack, bContext *C, c
 		us->type = ut;
 		ustack->step_init = us;
 		ut->step_encode_init(C, us);
-		undosys_stack_validate(ustack, true);
+		undosys_stack_validate(ustack, false);
 		return us;
 	}
 	else {
@@ -386,11 +415,20 @@ UndoStep *BKE_undosys_step_push_init(UndoStack *ustack, bContext *C, const char 
 	return BKE_undosys_step_push_init_with_type(ustack, C, name, ut);
 }
 
+/**
+ * \param C: Can be NULL from some callers if their encoding function doesn't need it
+ */
 bool BKE_undosys_step_push_with_type(UndoStack *ustack, bContext *C, const char *name, const UndoType *ut)
 {
 	UNDO_NESTED_ASSERT(false);
 	undosys_stack_validate(ustack, false);
 	bool is_not_empty = ustack->step_active != NULL;
+
+	/* Might not be final place for this to be called - probably only want to call it from some
+	 * undo handlers, not all of them? */
+	if (BKE_override_static_is_enabled()) {
+		BKE_main_override_static_operations_create(G.main, false);
+	}
 
 	/* Remove all undos after (also when 'ustack->step_active == NULL'). */
 	while (ustack->steps.last != ustack->step_active) {
@@ -408,7 +446,13 @@ bool BKE_undosys_step_push_with_type(UndoStack *ustack, bContext *C, const char 
 		Main *bmain = G.main;
 		if (bmain->is_memfile_undo_written == false) {
 			const char *name_internal = "MemFile Internal";
-			if (undosys_stack_push_main(ustack, name_internal, bmain)) {
+			/* Don't let 'step_init' cause issues when adding memfile undo step. */
+			void *step_init = ustack->step_init;
+			ustack->step_init = NULL;
+			const bool ok = undosys_stack_push_main(ustack, name_internal, bmain);
+			/* Restore 'step_init'. */
+			ustack->step_init = step_init;
+			if (ok) {
 				UndoStep *us = ustack->steps.last;
 				BLI_assert(STREQ(us->name, name_internal));
 				us->skip = true;
@@ -498,6 +542,16 @@ UndoStep *BKE_undosys_step_find_by_name_with_type(UndoStack *ustack, const char 
 UndoStep *BKE_undosys_step_find_by_name(UndoStack *ustack, const char *name)
 {
 	return BLI_rfindstring(&ustack->steps, name, offsetof(UndoStep, name));
+}
+
+UndoStep *BKE_undosys_step_find_by_type(UndoStack *ustack, const UndoType *ut)
+{
+	for (UndoStep *us = ustack->steps.last; us; us = us->prev) {
+		if (us->type == ut) {
+			return us;
+		}
+	}
+	return NULL;
 }
 
 bool BKE_undosys_step_undo_with_data_ex(
@@ -821,7 +875,7 @@ ID *BKE_undosys_ID_map_lookup_with_prev(const UndoIDPtrMap *map, ID *id_src, ID 
 		return id_prev_match[1];
 	}
 	else {
-		ID *id_dst = BKE_undosys_ID_map_lookup(map, id_src);
+		ID *id_dst = (id_src->lib == NULL) ? BKE_undosys_ID_map_lookup(map, id_src) : id_src;
 		id_prev_match[0] = id_src;
 		id_prev_match[1] = id_dst;
 		return id_dst;

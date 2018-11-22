@@ -25,8 +25,8 @@
 
 set(INC
 	.
-	manipulators
-	manipulators/intern
+	gizmo
+	gizmo/intern
 	../blenfont
 	../blenkernel
 	../blenlib
@@ -42,7 +42,6 @@ set(INC
 	../makesrna
 	../nodes
 	../render/extern/include
-	../../gameengine/BlenderRoutines
 	../../../intern/clog
 	../../../intern/ghost
 	../../../intern/guardedalloc
@@ -57,7 +56,6 @@ set(INC_SYS
 
 set(SRC
 	intern/wm.c
-	intern/wm_playanim.c
 	intern/wm_cursors.c
 	intern/wm_dragdrop.c
 	intern/wm_draw.c
@@ -69,25 +67,33 @@ set(SRC
 	intern/wm_init_exit.c
 	intern/wm_jobs.c
 	intern/wm_keymap.c
+	intern/wm_keymap_utils.c
+	intern/wm_menu_type.c
 	intern/wm_operator_props.c
+	intern/wm_operator_type.c
 	intern/wm_operators.c
-	intern/wm_subwindow.c
-	intern/wm_window.c
+	intern/wm_panel_type.c
+	intern/wm_playanim.c
 	intern/wm_stereo.c
+	intern/wm_subwindow.c
 	intern/wm_toolsystem.c
 	intern/wm_tooltip.c
-	manipulators/intern/wm_manipulator.c
-	manipulators/intern/wm_manipulator_group.c
-	manipulators/intern/wm_manipulator_group_type.c
-	manipulators/intern/wm_manipulator_map.c
-	manipulators/intern/wm_manipulator_target_props.c
-	manipulators/intern/wm_manipulator_type.c
+	intern/wm_uilist_type.c
+	intern/wm_window.c
+	gizmo/intern/wm_gizmo.c
+	gizmo/intern/wm_gizmo_group.c
+	gizmo/intern/wm_gizmo_group_type.c
+	gizmo/intern/wm_gizmo_map.c
+	gizmo/intern/wm_gizmo_target_props.c
+	gizmo/intern/wm_gizmo_type.c
 	message_bus/intern/wm_message_bus.c
 	message_bus/intern/wm_message_bus_rna.c
 	message_bus/intern/wm_message_bus_static.c
 
 	WM_api.h
 	WM_keymap.h
+	WM_message.h
+	WM_toolsystem.h
 	WM_types.h
 	wm.h
 	wm_cursors.h
@@ -96,11 +102,11 @@ set(SRC
 	wm_event_types.h
 	wm_files.h
 	wm_window.h
-	manipulators/WM_manipulator_api.h
-	manipulators/WM_manipulator_types.h
-	manipulators/wm_manipulator_fn.h
-	manipulators/wm_manipulator_wmapi.h
-	manipulators/intern/wm_manipulator_intern.h
+	gizmo/WM_gizmo_api.h
+	gizmo/WM_gizmo_types.h
+	gizmo/wm_gizmo_fn.h
+	gizmo/wm_gizmo_wmapi.h
+	gizmo/intern/wm_gizmo_intern.h
 	message_bus/intern/wm_message_bus_intern.h
 	message_bus/wm_message_bus.h
 )
@@ -141,10 +147,6 @@ if(WITH_PYTHON)
 		../python
 	)
 	add_definitions(-DWITH_PYTHON)
-endif()
-
-if(WITH_GAMEENGINE)
-	add_definitions(-DWITH_GAMEENGINE)
 endif()
 
 if(WITH_BUILDINFO)

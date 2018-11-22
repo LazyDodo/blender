@@ -16,11 +16,11 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
  * Contributor:
- *		Dalai Felinto
+ *      Dalai Felinto
  */
 
-#ifndef _COM_DisplaceOperation_h
-#define _COM_DisplaceOperation_h
+#ifndef __COM_DISPLACEOPERATION_H__
+#define __COM_DISPLACEOPERATION_H__
 #include "COM_NodeOperation.h"
 
 
@@ -49,14 +49,14 @@ public:
 	 * the inner loop of this program
 	 */
 	void executePixelSampled(float output[4], float x, float y, PixelSampler sampler);
-	
+
 	void pixelTransform(const float xy[2], float r_uv[2], float r_deriv[2][2]);
-	
+
 	/**
 	 * Initialize the execution
 	 */
 	void initExecution();
-	
+
 	/**
 	 * Deinitialize the execution
 	 */

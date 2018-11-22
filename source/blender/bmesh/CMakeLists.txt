@@ -70,7 +70,6 @@ set(SRC
 	operators/bmo_primitive.c
 	operators/bmo_removedoubles.c
 	operators/bmo_rotate_edges.c
-	operators/bmo_similar.c
 	operators/bmo_smooth_laplacian.c
 	operators/bmo_split_edges.c
 	operators/bmo_subdivide.c
@@ -119,9 +118,9 @@ set(SRC
 	intern/bmesh_polygon_edgenet.c
 	intern/bmesh_polygon_edgenet.h
 	intern/bmesh_private.h
-	intern/bmesh_queries.c
-	intern/bmesh_queries.h
-	intern/bmesh_queries_inline.h
+	intern/bmesh_query.c
+	intern/bmesh_query.h
+	intern/bmesh_query_inline.h
 	intern/bmesh_structure.c
 	intern/bmesh_structure.h
 	intern/bmesh_structure_inline.h
@@ -169,7 +168,7 @@ set(SRC
 	bmesh_tools.h
 )
 
-if(MSVC)
+if(MSVC AND NOT MSVC_CLANG)
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX /wd4101")
 endif()
 

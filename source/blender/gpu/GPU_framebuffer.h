@@ -43,7 +43,7 @@ typedef struct GPUAttachment {
 	int mip, layer;
 } GPUAttachment;
 
-typedef enum GPUFrameBufferBits{
+typedef enum GPUFrameBufferBits {
 	GPU_COLOR_BIT    = (1 << 0),
 	GPU_DEPTH_BIT    = (1 << 1),
 	GPU_STENCIL_BIT  = (1 << 2),
@@ -69,8 +69,7 @@ void GPU_framebuffer_restore(void);
 bool GPU_framebuffer_bound(GPUFrameBuffer *fb);
 bool GPU_framebuffer_check_valid(GPUFrameBuffer *fb, char err_out[256]);
 
-/* internal use only */
-unsigned int GPU_framebuffer_current_get(void);
+GPUFrameBuffer *GPU_framebuffer_active_get(void);
 
 #define GPU_FRAMEBUFFER_FREE_SAFE(fb) do { \
 	if (fb != NULL) { \
@@ -117,7 +116,7 @@ void GPU_framebuffer_texture_detach_slot(
 	GPU_framebuffer_config_array(*(_fb), config, (sizeof(config) / sizeof(GPUAttachment))); \
 } while (0)
 
-void GPU_framebuffer_config_array(GPUFrameBuffer *fb, const GPUAttachment *config, int config_ct);
+void GPU_framebuffer_config_array(GPUFrameBuffer *fb, const GPUAttachment *config, int config_len);
 
 #define GPU_ATTACHMENT_NONE \
         {.tex = NULL, .layer = -1, .mip = 0}
@@ -179,12 +178,14 @@ void GPU_framebuffer_recursive_downsample(
  * - wrapper around framebuffer and texture for simple offscreen drawing
  */
 
-GPUOffScreen *GPU_offscreen_create(int width, int height, int samples,
+GPUOffScreen *GPU_offscreen_create(
+        int width, int height, int samples,
         bool depth, bool high_bitdepth, char err_out[256]);
 void GPU_offscreen_free(GPUOffScreen *ofs);
 void GPU_offscreen_bind(GPUOffScreen *ofs, bool save);
 void GPU_offscreen_unbind(GPUOffScreen *ofs, bool restore);
 void GPU_offscreen_read_pixels(GPUOffScreen *ofs, int type, void *pixels);
+void GPU_offscreen_draw_to_screen(GPUOffScreen *ofs, int x, int y);
 int GPU_offscreen_width(const GPUOffScreen *ofs);
 int GPU_offscreen_height(const GPUOffScreen *ofs);
 struct GPUTexture *GPU_offscreen_color_texture(const GPUOffScreen *ofs);
@@ -192,6 +193,9 @@ struct GPUTexture *GPU_offscreen_color_texture(const GPUOffScreen *ofs);
 void GPU_offscreen_viewport_data_get(
         GPUOffScreen *ofs,
         GPUFrameBuffer **r_fb, struct GPUTexture **r_color, struct GPUTexture **r_depth);
+
+void GPU_clear_color(float red, float green, float blue, float alpha);
+void GPU_clear(GPUFrameBufferBits flags);
 
 #ifdef __cplusplus
 }

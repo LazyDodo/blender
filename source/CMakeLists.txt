@@ -28,8 +28,3 @@ if(WITH_LEGACY_OPENGL)
 endif()
 
 add_subdirectory(blender)
-
-if(WITH_GAMEENGINE)
-	add_subdirectory(gameengine)
-endif()
-

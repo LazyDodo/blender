@@ -37,11 +37,12 @@
 
 #include "MEM_guardedalloc.h"
 
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_smoke_types.h"
 #include "DNA_object_force_types.h"
+#include "DNA_mesh_types.h"
 
 #include "BLI_utildefines.h"
 
@@ -55,13 +56,15 @@
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
+#include "DEG_depsgraph_physics.h"
+#include "DEG_depsgraph_query.h"
 
 #include "MOD_modifiertypes.h"
 
-static void initData(ModifierData *md) 
+static void initData(ModifierData *md)
 {
 	SmokeModifierData *smd = (SmokeModifierData *) md;
-	
+
 	smd->domain = NULL;
 	smd->flow = NULL;
 	smd->coll = NULL;
@@ -69,18 +72,19 @@ static void initData(ModifierData *md)
 	smd->time = -1;
 }
 
-static void copyData(ModifierData *md, ModifierData *target)
+static void copyData(const ModifierData *md, ModifierData *target, const int flag)
 {
-	SmokeModifierData *smd  = (SmokeModifierData *)md;
+	const SmokeModifierData *smd  = (const SmokeModifierData *)md;
 	SmokeModifierData *tsmd = (SmokeModifierData *)target;
-	
-	smokeModifier_copy(smd, tsmd);
+
+	smokeModifier_free(tsmd);
+	smokeModifier_copy(smd, tsmd, flag);
 }
 
 static void freeData(ModifierData *md)
 {
 	SmokeModifierData *smd = (SmokeModifierData *) md;
-	
+
 	smokeModifier_free(smd);
 }
 
@@ -102,16 +106,18 @@ static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
 	return dataMask;
 }
 
-static DerivedMesh *applyModifier(ModifierData *md, const EvaluationContext *eval_ctx,
-                                  Object *ob, DerivedMesh *dm,
-                                  ModifierApplyFlag flag)
+static Mesh *applyModifier(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        Mesh *me)
 {
 	SmokeModifierData *smd = (SmokeModifierData *) md;
 
-	if (flag & MOD_APPLY_ORCO)
-		return dm;
+	if (ctx->flag & MOD_APPLY_ORCO) {
+		return me;
+	}
 
-	return smokeModifier_do(smd, eval_ctx, md->scene, ob, dm);
+	Scene *scene = DEG_get_evaluated_scene(ctx->depsgraph);
+	return smokeModifier_do(smd, ctx->depsgraph, scene, ctx->object, me);
 }
 
 static bool dependsOnTime(ModifierData *UNUSED(md))
@@ -136,16 +142,15 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 	SmokeModifierData *smd = (SmokeModifierData *)md;
 
 	if (smd && (smd->type & MOD_SMOKE_TYPE_DOMAIN) && smd->domain) {
-		/* Actual code uses get_collisionobjects */
-		DEG_add_collision_relations(ctx->node, ctx->scene, ctx->object, smd->domain->fluid_group, eModifierType_Smoke, is_flow_cb, true, "Smoke Flow");
-		DEG_add_collision_relations(ctx->node, ctx->scene, ctx->object, smd->domain->coll_group, eModifierType_Smoke, is_coll_cb, true, "Smoke Coll");
-
-		DEG_add_forcefield_relations(ctx->node, ctx->scene, ctx->object, smd->domain->effector_weights, true, PFIELD_SMOKEFLOW, "Smoke Force Field");
+		DEG_add_collision_relations(ctx->node, ctx->object, smd->domain->fluid_group, eModifierType_Smoke, is_flow_cb, "Smoke Flow");
+		DEG_add_collision_relations(ctx->node, ctx->object, smd->domain->coll_group, eModifierType_Smoke, is_coll_cb, "Smoke Coll");
+		DEG_add_forcefield_relations(ctx->node, ctx->object, smd->domain->effector_weights, true, PFIELD_SMOKEFLOW, "Smoke Force Field");
 	}
 }
 
-static void foreachIDLink(ModifierData *md, Object *ob,
-                          IDWalkFunc walk, void *userData)
+static void foreachIDLink(
+        ModifierData *md, Object *ob,
+        IDWalkFunc walk, void *userData)
 {
 	SmokeModifierData *smd = (SmokeModifierData *) md;
 
@@ -174,12 +179,19 @@ ModifierTypeInfo modifierType_Smoke = {
 	                        eModifierTypeFlag_Single,
 
 	/* copyData */          copyData,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
-	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          freeData,

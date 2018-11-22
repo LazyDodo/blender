@@ -15,9 +15,9 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Contributor: 
- *		Dalai Felinto
- *		Daniel Salazar
+ * Contributor:
+ *      Dalai Felinto
+ *      Daniel Salazar
  */
 
 #include "COM_MapRangeNode.h"
@@ -38,11 +38,11 @@ void MapRangeNode::convertToOperations(NodeConverter &converter, const Composito
 	NodeInput *destMinSocket = this->getInputSocket(3);
 	NodeInput *destMaxSocket = this->getInputSocket(4);
 	NodeOutput *outputSocket = this->getOutputSocket(0);
-	
+
 	MapRangeOperation *operation = new MapRangeOperation();
 	operation->setUseClamp(this->getbNode()->custom1);
 	converter.addOperation(operation);
-	
+
 	converter.mapInputSocket(valueSocket, operation->getInputSocket(0));
 	converter.mapInputSocket(sourceMinSocket, operation->getInputSocket(1));
 	converter.mapInputSocket(sourceMaxSocket, operation->getInputSocket(2));

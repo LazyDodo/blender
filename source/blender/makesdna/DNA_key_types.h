@@ -58,7 +58,7 @@ typedef struct KeyBlock {
 
 	int totelem;       /* total number if items in the keyblock (compare with mesh/curve verts to check we match) */
 	int uid;           /* for meshes only, match the unique number with the customdata layer */
-	
+
 	void  *data;       /* array of shape key values, size is (Key->elemsize * KeyBlock->totelem) */
 	char   name[64];   /* MAX_NAME (unique name, user assigned) */
 	char   vgroup[64]; /* MAX_VGROUP_NAME (optional vertex group), array gets allocated into 'weights' when set */
@@ -72,7 +72,7 @@ typedef struct KeyBlock {
 
 typedef struct Key {
 	ID id;
-	struct AnimData *adt;	/* animation data (must be immediately after id for utilities to use it) */ 
+	struct AnimData *adt;	/* animation data (must be immediately after id for utilities to use it) */
 
 	/* commonly called 'Basis', (Key->type == KEY_RELATIVE) only.
 	 * Looks like this is  _always_ 'key->block.first',
@@ -85,7 +85,7 @@ typedef struct Key {
 	char elemstr[32];
 	int elemsize;  /* size of each element in #KeyBlock.data, use for allocation and stride */
 	int pad;
-	
+
 	ListBase block;  /* list of KeyBlock's */
 	struct Ipo *ipo  DNA_DEPRECATED;  /* old animation system, deprecated for 2.5 */
 
@@ -134,5 +134,16 @@ enum {
 	KEYBLOCK_SEL        = (1 << 1),
 	KEYBLOCK_LOCKED     = (1 << 2)
 };
+
+#define KEYELEM_FLOAT_LEN_COORD 3
+
+/* Curve key data layout constants */
+#define KEYELEM_ELEM_SIZE_CURVE 3
+
+#define KEYELEM_ELEM_LEN_BPOINT 2
+#define KEYELEM_FLOAT_LEN_BPOINT (KEYELEM_ELEM_LEN_BPOINT * KEYELEM_ELEM_SIZE_CURVE)
+
+#define KEYELEM_ELEM_LEN_BEZTRIPLE 4
+#define KEYELEM_FLOAT_LEN_BEZTRIPLE (KEYELEM_ELEM_LEN_BEZTRIPLE * KEYELEM_ELEM_SIZE_CURVE)
 
 #endif /* __DNA_KEY_TYPES_H__  */

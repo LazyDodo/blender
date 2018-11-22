@@ -36,7 +36,16 @@
 
 #pragma once
 
+#include <stdlib.h>
+
+#include "DNA_ID.h" /* for ID_Type */
+
+#include "BKE_main.h" /* for MAX_LIBARRAY */
+
 #include "BLI_threads.h"  /* for SpinLock */
+
+#include "DEG_depsgraph.h"
+#include "DEG_depsgraph_physics.h"
 
 #include "intern/depsgraph_types.h"
 
@@ -62,13 +71,16 @@ struct OperationDepsNode;
 
 /* Settings/Tags on Relationship */
 typedef enum eDepsRelation_Flag {
-	/* "touched" tag is used when filtering, to know which to collect */
-	DEPSREL_FLAG_TEMP_TAG   = (1 << 0),
-
 	/* "cyclic" link - when detecting cycles, this relationship was the one
-	 * which triggers a cyclic relationship to exist in the graph
-	 */
-	DEPSREL_FLAG_CYCLIC     = (1 << 1),
+	 * which triggers a cyclic relationship to exist in the graph. */
+	DEPSREL_FLAG_CYCLIC               = (1 << 0),
+	/* Update flush will not go through this relation. */
+	DEPSREL_FLAG_NO_FLUSH             = (1 << 1),
+	/* Only flush along the relation is update comes from a node which was
+	 * affected by user input. */
+	DEPSREL_FLAG_FLUSH_USER_EDIT_ONLY = (1 << 2),
+	/* The relation can not be killed by the cyclic dependencies solver. */
+	DEPSREL_FLAG_GODMODE              = (1 << 3),
 } eDepsRelation_Flag;
 
 /* B depends on A (A -> B) */
@@ -100,7 +112,9 @@ struct Depsgraph {
 	typedef vector<OperationDepsNode *> OperationNodes;
 	typedef vector<IDDepsNode *> IDDepsNodes;
 
-	Depsgraph();
+	Depsgraph(Scene *scene,
+	          ViewLayer *view_layer,
+	          eEvaluationMode mode);
 	~Depsgraph();
 
 	/**
@@ -121,6 +135,7 @@ struct Depsgraph {
 	IDDepsNode *find_id_node(const ID *id) const;
 	IDDepsNode *add_id_node(ID *id, ID *id_cow_hint = NULL);
 	void clear_id_nodes();
+	void clear_id_nodes_conditional(const std::function <bool (ID_Type id_type)>& filter);
 
 	/* Add new relationship between two nodes. */
 	DepsRelation *add_new_relation(OperationDepsNode *from,
@@ -171,6 +186,9 @@ struct Depsgraph {
 	/* Indicates whether relations needs to be updated. */
 	bool need_update;
 
+	/* Indicates which ID types were updated. */
+	char id_type_updated[MAX_LIBARRAY];
+
 	/* Quick-Access Temp Data ............. */
 
 	/* Nodes which have been tagged as "directly modified". */
@@ -187,9 +205,36 @@ struct Depsgraph {
 	 */
 	SpinLock lock;
 
-	/* Scene and layer this dependency graph is built for. */
+	/* Scene, layer, mode this dependency graph is built for. */
 	Scene *scene;
 	ViewLayer *view_layer;
+	eEvaluationMode mode;
+
+	/* Time at which dependency graph is being or was last evaluated. */
+	float ctime;
+
+	/* Evaluated version of datablocks we access a lot.
+	 * Stored here to save us form doing hash lookup.
+	 */
+	Scene *scene_cow;
+
+	/* Active dependency graph is a dependency graph which is used by the
+	 * currently active window. When dependency graph is active, it is allowed
+	 * for evaluation functions to write animation f-curve result, drivers
+	 * result and other selective things (object matrix?) to original object.
+	 *
+	 * This way we simplify operators, which don't need to worry about where
+	 * to read stuff from.
+	 */
+	bool is_active;
+
+	/* NITE: Corresponds to G_DEBUG_DEPSGRAPH_* flags. */
+	int debug_flags;
+	string debug_name;
+
+	/* Cached list of colliders/effectors for collections and the scene
+	 * created along with relations, for fast lookup during evaluation. */
+	GHash *physics_relations[DEG_PHYSICS_RELATIONS_NUM];
 };
 
 }  // namespace DEG

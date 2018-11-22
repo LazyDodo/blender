@@ -42,7 +42,6 @@
 
 #include "BKE_context.h"
 #include "BKE_curve.h"
-#include "BKE_library.h"
 
 #include "DEG_depsgraph.h"
 
@@ -398,11 +397,11 @@ Nurb *ED_curve_add_nurbs_primitive(bContext *C, Object *obedit, float mat[4][4],
 				BLI_addtail(editnurb, nu); /* temporal for spin */
 
 				if (newob && (U.flag & USER_ADD_VIEWALIGNED) == 0)
-					ed_editnurb_spin(umat, obedit, tmp_vec, tmp_cent);
+					ed_editnurb_spin(umat, NULL, obedit, tmp_vec, tmp_cent);
 				else if ((U.flag & USER_ADD_VIEWALIGNED))
-					ed_editnurb_spin(viewmat, obedit, zvec, mat[3]);
+					ed_editnurb_spin(viewmat, NULL, obedit, zvec, mat[3]);
 				else
-					ed_editnurb_spin(umat, obedit, tmp_vec, mat[3]);
+					ed_editnurb_spin(umat, NULL, obedit, tmp_vec, mat[3]);
 
 				BKE_nurb_knot_calc_v(nu);
 
@@ -430,11 +429,11 @@ Nurb *ED_curve_add_nurbs_primitive(bContext *C, Object *obedit, float mat[4][4],
 
 				/* same as above */
 				if (newob && (U.flag & USER_ADD_VIEWALIGNED) == 0)
-					ed_editnurb_spin(umat, obedit, tmp_vec, tmp_cent);
+					ed_editnurb_spin(umat, NULL, obedit, tmp_vec, tmp_cent);
 				else if ((U.flag & USER_ADD_VIEWALIGNED))
-					ed_editnurb_spin(viewmat, obedit, zvec, mat[3]);
+					ed_editnurb_spin(viewmat, NULL, obedit, zvec, mat[3]);
 				else
-					ed_editnurb_spin(umat, obedit, tmp_vec, mat[3]);
+					ed_editnurb_spin(umat, NULL, obedit, tmp_vec, mat[3]);
 
 
 				BLI_remlink(editnurb, nu);
@@ -465,7 +464,7 @@ Nurb *ED_curve_add_nurbs_primitive(bContext *C, Object *obedit, float mat[4][4],
 		cu->actnu = BLI_listbase_count(editnurb);
 		cu->actvert = CU_ACT_NONE;
 
-		BKE_nurb_test2D(nu);
+		BKE_nurb_test_2d(nu);
 	}
 
 	return nu;
@@ -478,14 +477,13 @@ static int curvesurf_prim_add(bContext *C, wmOperator *op, int type, int isSurf)
 	Nurb *nu;
 	bool newob = false;
 	bool enter_editmode;
-	unsigned int layer;
 	float dia;
 	float loc[3], rot[3];
 	float mat[4][4];
 
 	WM_operator_view3d_unit_defaults(C, op);
 
-	if (!ED_object_add_generic_get_opts(C, op, 'Z', loc, rot, &enter_editmode, &layer, NULL))
+	if (!ED_object_add_generic_get_opts(C, op, 'Z', loc, rot, &enter_editmode, NULL))
 		return OPERATOR_CANCELLED;
 
 	if (!isSurf) { /* adding curve */
@@ -493,7 +491,7 @@ static int curvesurf_prim_add(bContext *C, wmOperator *op, int type, int isSurf)
 			const char *name = get_curve_defname(type);
 			Curve *cu;
 
-			obedit = ED_object_add_type(C, OB_CURVE, name, loc, rot, true, layer);
+			obedit = ED_object_add_type(C, OB_CURVE, name, loc, rot, true);
 			newob = true;
 
 			cu = (Curve *)obedit->data;
@@ -509,17 +507,13 @@ static int curvesurf_prim_add(bContext *C, wmOperator *op, int type, int isSurf)
 	else { /* adding surface */
 		if (obedit == NULL || obedit->type != OB_SURF) {
 			const char *name = get_surf_defname(type);
-			obedit = ED_object_add_type(C, OB_SURF, name, loc, rot, true, layer);
+			obedit = ED_object_add_type(C, OB_SURF, name, loc, rot, true);
 			newob = true;
 		}
 		else {
 			DEG_id_tag_update(&obedit->id, OB_RECALC_DATA);
 		}
 	}
-
-	/* ED_object_add_type doesnt do an undo, is needed for redo operator on primitive */
-	if (newob && enter_editmode)
-		ED_undo_push(C, "Enter Editmode");
 
 	ED_object_new_primitive_matrix(C, obedit, loc, rot, mat);
 	dia = RNA_float_get(op->ptr, "radius");
@@ -570,7 +564,7 @@ void CURVE_OT_primitive_bezier_curve_add(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
-	ED_object_add_unit_props(ot);
+	ED_object_add_unit_props_radius(ot);
 	ED_object_add_generic_props(ot, true);
 }
 
@@ -593,7 +587,7 @@ void CURVE_OT_primitive_bezier_circle_add(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
-	ED_object_add_unit_props(ot);
+	ED_object_add_unit_props_radius(ot);
 	ED_object_add_generic_props(ot, true);
 }
 
@@ -616,7 +610,7 @@ void CURVE_OT_primitive_nurbs_curve_add(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
-	ED_object_add_unit_props(ot);
+	ED_object_add_unit_props_radius(ot);
 	ED_object_add_generic_props(ot, true);
 }
 
@@ -639,7 +633,7 @@ void CURVE_OT_primitive_nurbs_circle_add(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
-	ED_object_add_unit_props(ot);
+	ED_object_add_unit_props_radius(ot);
 	ED_object_add_generic_props(ot, true);
 }
 
@@ -662,7 +656,7 @@ void CURVE_OT_primitive_nurbs_path_add(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
-	ED_object_add_unit_props(ot);
+	ED_object_add_unit_props_radius(ot);
 	ED_object_add_generic_props(ot, true);
 }
 
@@ -686,7 +680,7 @@ void SURFACE_OT_primitive_nurbs_surface_curve_add(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
-	ED_object_add_unit_props(ot);
+	ED_object_add_unit_props_radius(ot);
 	ED_object_add_generic_props(ot, true);
 }
 
@@ -709,7 +703,7 @@ void SURFACE_OT_primitive_nurbs_surface_circle_add(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
-	ED_object_add_unit_props(ot);
+	ED_object_add_unit_props_radius(ot);
 	ED_object_add_generic_props(ot, true);
 }
 
@@ -732,7 +726,7 @@ void SURFACE_OT_primitive_nurbs_surface_surface_add(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
-	ED_object_add_unit_props(ot);
+	ED_object_add_unit_props_radius(ot);
 	ED_object_add_generic_props(ot, true);
 }
 
@@ -755,7 +749,7 @@ void SURFACE_OT_primitive_nurbs_surface_cylinder_add(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
-	ED_object_add_unit_props(ot);
+	ED_object_add_unit_props_radius(ot);
 	ED_object_add_generic_props(ot, true);
 }
 
@@ -778,7 +772,7 @@ void SURFACE_OT_primitive_nurbs_surface_sphere_add(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
-	ED_object_add_unit_props(ot);
+	ED_object_add_unit_props_radius(ot);
 	ED_object_add_generic_props(ot, true);
 }
 
@@ -801,6 +795,6 @@ void SURFACE_OT_primitive_nurbs_surface_torus_add(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
-	ED_object_add_unit_props(ot);
+	ED_object_add_unit_props_radius(ot);
 	ED_object_add_generic_props(ot, true);
 }

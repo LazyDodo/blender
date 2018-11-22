@@ -45,6 +45,7 @@
 #include "WM_types.h"
 
 #include "ED_screen.h"
+#include "ED_select_utils.h"
 #include "ED_mask.h"  /* own include */
 
 #include "RNA_access.h"
@@ -395,9 +396,9 @@ void MASK_OT_select(wmOperatorType *ot)
 
 
 
-/********************** border select operator *********************/
+/********************** box select operator *********************/
 
-static int border_select_exec(bContext *C, wmOperator *op)
+static int box_select_exec(bContext *C, wmOperator *op)
 {
 	ScrArea *sa = CTX_wm_area(C);
 	ARegion *ar = CTX_wm_region(C);
@@ -461,27 +462,27 @@ static int border_select_exec(bContext *C, wmOperator *op)
 	return OPERATOR_CANCELLED;
 }
 
-void MASK_OT_select_border(wmOperatorType *ot)
+void MASK_OT_select_box(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name = "Border Select";
-	ot->description = "Select curve points using border selection";
-	ot->idname = "MASK_OT_select_border";
+	ot->name = "Box Select";
+	ot->description = "Select curve points using box selection";
+	ot->idname = "MASK_OT_select_box";
 
 	/* api callbacks */
-	ot->invoke = WM_gesture_border_invoke;
-	ot->exec = border_select_exec;
-	ot->modal = WM_gesture_border_modal;
+	ot->invoke = WM_gesture_box_invoke;
+	ot->exec = box_select_exec;
+	ot->modal = WM_gesture_box_modal;
 	ot->poll = ED_maskedit_mask_poll;
 
 	/* flags */
 	ot->flag = OPTYPE_UNDO;
 
 	/* properties */
-	WM_operator_properties_gesture_border_select(ot);
+	WM_operator_properties_gesture_box_select(ot);
 }
 
-static bool do_lasso_select_mask(bContext *C, const int mcords[][2], short moves, short select)
+static bool do_lasso_select_mask(bContext *C, const int mcords[][2], short moves, bool select, bool extend)
 {
 	ScrArea *sa = CTX_wm_area(C);
 	ARegion *ar = CTX_wm_region(C);
@@ -514,6 +515,10 @@ static bool do_lasso_select_mask(bContext *C, const int mcords[][2], short moves
 				/* TODO: handles? */
 				/* TODO: uw? */
 
+				if (MASKPOINT_ISSEL_ANY(point) && select && extend) {
+					continue;
+				}
+
 				float screen_co[2];
 
 				/* point in screen coords */
@@ -526,9 +531,13 @@ static bool do_lasso_select_mask(bContext *C, const int mcords[][2], short moves
 				{
 					BKE_mask_point_select_set(point, select);
 					BKE_mask_point_select_set_handle(point, MASK_WHICH_HANDLE_BOTH, select);
+					changed = true;
 				}
-
-				changed = true;
+				else if (select && !extend) {
+					BKE_mask_point_select_set(point, false);
+					BKE_mask_point_select_set_handle(point, MASK_WHICH_HANDLE_BOTH, false);
+					changed = true;
+				}
 			}
 		}
 	}
@@ -548,10 +557,9 @@ static int clip_lasso_select_exec(bContext *C, wmOperator *op)
 	const int (*mcords)[2] = WM_gesture_lasso_path_to_array(C, op, &mcords_tot);
 
 	if (mcords) {
-		short select;
-
-		select = !RNA_boolean_get(op->ptr, "deselect");
-		do_lasso_select_mask(C, mcords, mcords_tot, select);
+		const bool select = !RNA_boolean_get(op->ptr, "deselect");
+		const bool extend = RNA_boolean_get(op->ptr, "extend");
+		do_lasso_select_mask(C, mcords, mcords_tot, select, extend);
 
 		MEM_freeN((void *)mcords);
 

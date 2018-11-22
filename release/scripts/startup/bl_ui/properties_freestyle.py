@@ -33,13 +33,13 @@ class RenderFreestyleButtonsPanel:
     def poll(cls, context):
         scene = context.scene
         with_freestyle = bpy.app.build_options.freestyle
-        return scene and with_freestyle and(scene.view_render.engine in cls.COMPAT_ENGINES)
+        return scene and with_freestyle and(context.engine in cls.COMPAT_ENGINES)
 
 
 class RENDER_PT_freestyle(RenderFreestyleButtonsPanel, Panel):
     bl_label = "Freestyle"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     def draw_header(self, context):
         rd = context.scene.render
@@ -47,14 +47,14 @@ class RENDER_PT_freestyle(RenderFreestyleButtonsPanel, Panel):
 
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False  # No animation.
 
         rd = context.scene.render
 
         layout.active = rd.use_freestyle
 
-        row = layout.row()
-        row.label(text="Line Thickness:")
-        row.prop(rd, "line_thickness_mode", expand=True)
+        layout.prop(rd, "line_thickness_mode", expand=True)
 
         if (rd.line_thickness_mode == 'ABSOLUTE'):
             layout.prop(rd, "line_thickness")
@@ -71,11 +71,11 @@ class ViewLayerFreestyleButtonsPanel:
     @classmethod
     def poll(cls, context):
         scene = context.scene
-        rd = context.scene.render
+        rd = scene.render
         with_freestyle = bpy.app.build_options.freestyle
 
         return (scene and with_freestyle and rd.use_freestyle and
-                scene.view_layers.active and(scene.view_render.engine in cls.COMPAT_ENGINES))
+                (context.engine in cls.COMPAT_ENGINES))
 
 
 class ViewLayerFreestyleEditorButtonsPanel(ViewLayerFreestyleButtonsPanel):
@@ -85,7 +85,7 @@ class ViewLayerFreestyleEditorButtonsPanel(ViewLayerFreestyleButtonsPanel):
     def poll(cls, context):
         if not super().poll(context):
             return False
-        view_layer = context.scene.view_layers.active
+        view_layer = context.view_layer
         return view_layer and view_layer.freestyle_settings.mode == 'EDITOR'
 
 
@@ -97,7 +97,7 @@ class VIEWLAYER_UL_linesets(UIList):
             layout.prop(lineset, "show_render", text="", index=index)
         elif self.layout_type == 'GRID':
             layout.alignment = 'CENTER'
-            layout.label("", icon_value=icon)
+            layout.label(text="", icon_value=icon)
 
 
 class RENDER_MT_lineset_specials(Menu):
@@ -111,13 +111,12 @@ class RENDER_MT_lineset_specials(Menu):
 
 class VIEWLAYER_PT_freestyle(ViewLayerFreestyleButtonsPanel, Panel):
     bl_label = "Freestyle"
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     def draw(self, context):
         layout = self.layout
 
-        scene = context.scene
-        view_layer = scene.view_layers.active
+        view_layer = context.view_layer
         freestyle = view_layer.freestyle_settings
 
         layout.active = view_layer.use_freestyle
@@ -151,15 +150,15 @@ class VIEWLAYER_PT_freestyle(ViewLayerFreestyleButtonsPanel, Panel):
 
         if freestyle.mode == 'SCRIPT':
             row = layout.row()
-            row.label("Style modules:")
+            row.label(text="Style modules:")
             row.operator("scene.freestyle_module_add", text="Add")
-            for i, module in enumerate(freestyle.modules):
+            for module in freestyle.modules:
                 box = layout.box()
                 box.context_pointer_set("freestyle_module", module)
                 row = box.row(align=True)
                 row.prop(module, "use", text="")
                 row.prop(module, "script", text="")
-                row.operator("scene.freestyle_module_open", icon='FILESEL', text="")
+                row.operator("scene.freestyle_module_open", icon='FILEBROWSER', text="")
                 row.operator("scene.freestyle_module_remove", icon='X', text="")
                 row.operator("scene.freestyle_module_move", icon='TRIA_UP', text="").direction = 'UP'
                 row.operator("scene.freestyle_module_move", icon='TRIA_DOWN', text="").direction = 'DOWN'
@@ -167,7 +166,7 @@ class VIEWLAYER_PT_freestyle(ViewLayerFreestyleButtonsPanel, Panel):
 
 class VIEWLAYER_PT_freestyle_lineset(ViewLayerFreestyleEditorButtonsPanel, Panel):
     bl_label = "Freestyle Line Set"
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     def draw_edge_type_buttons(self, box, lineset, edge_type):
         # property names
@@ -183,11 +182,7 @@ class VIEWLAYER_PT_freestyle_lineset(ViewLayerFreestyleEditorButtonsPanel, Panel
     def draw(self, context):
         layout = self.layout
 
-        scene = context.scene
-        rd = scene.render
-        view_render = scene.view_render
-
-        view_layer = scene.view_layers.active
+        view_layer = context.view_layer
         freestyle = view_layer.freestyle_settings
         lineset = freestyle.linesets.active
 
@@ -198,8 +193,8 @@ class VIEWLAYER_PT_freestyle_lineset(ViewLayerFreestyleEditorButtonsPanel, Panel
         row.template_list("VIEWLAYER_UL_linesets", "", freestyle, "linesets", freestyle.linesets, "active_index", rows=rows)
 
         sub = row.column(align=True)
-        sub.operator("scene.freestyle_lineset_add", icon='ZOOMIN', text="")
-        sub.operator("scene.freestyle_lineset_remove", icon='ZOOMOUT', text="")
+        sub.operator("scene.freestyle_lineset_add", icon='ADD', text="")
+        sub.operator("scene.freestyle_lineset_remove", icon='REMOVE', text="")
         sub.menu("RENDER_MT_lineset_specials", icon='DOWNARROW_HLT', text="")
         if lineset:
             sub.separator()
@@ -262,7 +257,7 @@ class VIEWLAYER_PT_freestyle_lineset(ViewLayerFreestyleEditorButtonsPanel, Panel
 class VIEWLAYER_PT_freestyle_linestyle(ViewLayerFreestyleEditorButtonsPanel, Panel):
     bl_label = "Freestyle Line Style"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     def draw_modifier_box_header(self, box, modifier):
         row = box.row()
@@ -379,7 +374,7 @@ class VIEWLAYER_PT_freestyle_linestyle(ViewLayerFreestyleEditorButtonsPanel, Pan
                 row = box.row(align=True)
                 row.prop(modifier, "curvature_min")
                 row.prop(modifier, "curvature_max")
-                freestyle = context.scene.view_layers.active.freestyle_settings
+                freestyle = context.view_layer.freestyle_settings
                 if not freestyle.use_smoothness:
                     message = "Enable Face Smoothness to use this modifier"
                     self.draw_modifier_box_error(col.box(), modifier, message)
@@ -434,7 +429,7 @@ class VIEWLAYER_PT_freestyle_linestyle(ViewLayerFreestyleEditorButtonsPanel, Pan
                 row = box.row(align=True)
                 row.prop(modifier, "curvature_min")
                 row.prop(modifier, "curvature_max")
-                freestyle = context.scene.view_layers.active.freestyle_settings
+                freestyle = context.view_layer.freestyle_settings
                 if not freestyle.use_smoothness:
                     message = "Enable Face Smoothness to use this modifier"
                     self.draw_modifier_box_error(col.box(), modifier, message)
@@ -506,7 +501,7 @@ class VIEWLAYER_PT_freestyle_linestyle(ViewLayerFreestyleEditorButtonsPanel, Pan
                 row = box.row(align=True)
                 row.prop(modifier, "curvature_min")
                 row.prop(modifier, "curvature_max")
-                freestyle = context.scene.view_layers.active.freestyle_settings
+                freestyle = context.view_layer.freestyle_settings
                 if not freestyle.use_smoothness:
                     message = "Enable Face Smoothness to use this modifier"
                     self.draw_modifier_box_error(col.box(), modifier, message)
@@ -614,8 +609,7 @@ class VIEWLAYER_PT_freestyle_linestyle(ViewLayerFreestyleEditorButtonsPanel, Pan
     def draw(self, context):
         layout = self.layout
 
-        scene = context.scene
-        view_layer = scene.view_layers.active
+        view_layer = context.view_layer
         lineset = view_layer.freestyle_settings.linesets.active
 
         layout.active = view_layer.use_freestyle
@@ -630,7 +624,7 @@ class VIEWLAYER_PT_freestyle_linestyle(ViewLayerFreestyleEditorButtonsPanel, Pan
         row = layout.row(align=True)
         row.prop(linestyle, "panel", expand=True)
         if linestyle.panel == 'STROKES':
-            ## Chaining
+            # Chaining
             layout.prop(linestyle, "use_chaining", text="Chaining:")
             split = layout.split(align=True)
             split.active = linestyle.use_chaining
@@ -644,7 +638,7 @@ class VIEWLAYER_PT_freestyle_linestyle(ViewLayerFreestyleEditorButtonsPanel, Pan
             col = split.column()
             col.prop(linestyle, "use_same_object")
 
-            ## Splitting
+            # Splitting
             layout.label(text="Splitting:")
             split = layout.split(align=True)
             # First column
@@ -680,7 +674,7 @@ class VIEWLAYER_PT_freestyle_linestyle(ViewLayerFreestyleEditorButtonsPanel, Pan
             sub.prop(linestyle, "split_dash3", text="D3")
             sub.prop(linestyle, "split_gap3", text="G3")
 
-            ## Sorting
+            # Sorting
             layout.prop(linestyle, "use_sorting", text="Sorting:")
             col = layout.column()
             col.active = linestyle.use_sorting
@@ -694,7 +688,7 @@ class VIEWLAYER_PT_freestyle_linestyle(ViewLayerFreestyleEditorButtonsPanel, Pan
             row = col.row(align=True)
             row.prop(linestyle, "sort_order", expand=True)
 
-            ## Selection
+            # Selection
             layout.label(text="Selection:")
             split = layout.split(align=True)
             # First column
@@ -717,12 +711,12 @@ class VIEWLAYER_PT_freestyle_linestyle(ViewLayerFreestyleEditorButtonsPanel, Pan
             sub.active = linestyle.use_chain_count
             sub.prop(linestyle, "chain_count")
 
-            ## Caps
+            # Caps
             layout.label(text="Caps:")
             row = layout.row(align=True)
             row.prop(linestyle, "caps", expand=True)
 
-            ## Dashed lines
+            # Dashed lines
             layout.prop(linestyle, "use_dashed_line", text="Dashed Line:")
             row = layout.row(align=True)
             row.active = linestyle.use_dashed_line
@@ -782,17 +776,15 @@ class VIEWLAYER_PT_freestyle_linestyle(ViewLayerFreestyleEditorButtonsPanel, Pan
             layout.separator()
 
             row = layout.row()
-            if view_render.use_shading_nodes:
-                row.prop(linestyle, "use_nodes")
-            else:
-                row.prop(linestyle, "use_texture")
+            row.prop(linestyle, "use_nodes")
             row.prop(linestyle, "texture_spacing", text="Spacing Along Stroke")
 
             row = layout.row()
             props = row.operator(
-                    "wm.properties_context_change",
-                    text="Go to Linestyle Textures Properties",
-                    icon='TEXTURE')
+                "wm.properties_context_change",
+                text="Go to Linestyle Textures Properties",
+                icon='TEXTURE',
+            )
             props.context = 'TEXTURE'
 
         elif linestyle.panel == 'MISC':
@@ -812,14 +804,16 @@ class MaterialFreestyleButtonsPanel:
         scene = context.scene
         material = context.material
         with_freestyle = bpy.app.build_options.freestyle
-        return with_freestyle and material and scene and scene.render.use_freestyle and \
-            (scene.view_render.engine in cls.COMPAT_ENGINES)
+        return (
+            with_freestyle and material and scene and scene.render.use_freestyle and
+            (context.engine in cls.COMPAT_ENGINES)
+        )
 
 
 class MATERIAL_PT_freestyle_line(MaterialFreestyleButtonsPanel, Panel):
     bl_label = "Freestyle Line"
     bl_options = {'DEFAULT_CLOSED'}
-    COMPAT_ENGINES = {'BLENDER_RENDER'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
 
     def draw(self, context):
         layout = self.layout

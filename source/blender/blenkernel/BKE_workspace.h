@@ -28,7 +28,7 @@
 #include "BLI_compiler_attrs.h"
 
 struct bScreen;
-struct EvaluationContext;
+struct bToolRef;
 struct Main;
 struct Scene;
 struct TransformOrientation;
@@ -45,6 +45,7 @@ struct WorkSpaceInstanceHook *BKE_workspace_instance_hook_create(const struct Ma
 void BKE_workspace_instance_hook_free(const struct Main *bmain, struct WorkSpaceInstanceHook *hook);
 
 struct WorkSpaceLayout *BKE_workspace_layout_add(
+        struct Main *bmain,
         struct WorkSpace *workspace,
         struct bScreen *screen,
         const char *name) ATTR_NONNULL();
@@ -59,17 +60,6 @@ void BKE_workspace_relations_free(
 /* -------------------------------------------------------------------- */
 /* General Utils */
 
-void BKE_workspace_view_layer_remove_references(
-        const struct Main *bmain,
-        const struct ViewLayer *view_layer) ATTR_NONNULL();
-
-void BKE_workspace_transform_orientation_remove(
-        struct WorkSpace *workspace, struct TransformOrientation *orientation) ATTR_NONNULL();
-struct TransformOrientation *BKE_workspace_transform_orientation_find(
-        const struct WorkSpace *workspace, const int index) ATTR_NONNULL();
-int BKE_workspace_transform_orientation_get_index(
-        const struct WorkSpace *workspace, const struct TransformOrientation *orientation) ATTR_NONNULL();
-
 struct WorkSpaceLayout *BKE_workspace_layout_find(
         const struct WorkSpace *workspace, const struct bScreen *screen) ATTR_NONNULL() ATTR_WARN_UNUSED_RESULT;
 struct WorkSpaceLayout *BKE_workspace_layout_find_global(
@@ -81,6 +71,8 @@ struct WorkSpaceLayout *BKE_workspace_layout_iter_circular(
         bool (*callback)(const struct WorkSpaceLayout *layout, void *arg),
         void *arg, const bool iter_backward);
 
+void BKE_workspace_tool_remove(
+        struct WorkSpace *workspace, struct bToolRef *tref) ATTR_NONNULL(1, 2);
 
 /* -------------------------------------------------------------------- */
 /* Getters/Setters */
@@ -96,15 +88,6 @@ struct bScreen *BKE_workspace_active_screen_get(const struct WorkSpaceInstanceHo
 void            BKE_workspace_active_screen_set(
         struct WorkSpaceInstanceHook *hook, struct WorkSpace *workspace, struct bScreen *screen) SETTER_ATTRS;
 
-struct Base *BKE_workspace_active_base_get(const struct WorkSpace *workspace, const struct Scene *scene);
-struct ListBase *BKE_workspace_transform_orientations_get(struct WorkSpace *workspace) GETTER_ATTRS;
-struct ViewLayer *BKE_workspace_view_layer_get(
-        const struct WorkSpace *workspace,
-        const struct Scene *scene) GETTER_ATTRS;
-void BKE_workspace_view_layer_set(
-        struct WorkSpace *workspace,
-        struct ViewLayer *layer,
-        struct Scene *scene) SETTER_ATTRS;
 struct ListBase *BKE_workspace_layouts_get(struct WorkSpace *workspace) GETTER_ATTRS;
 
 const char *BKE_workspace_layout_name_get(const struct WorkSpaceLayout *layout) GETTER_ATTRS;
@@ -117,18 +100,6 @@ struct WorkSpaceLayout *BKE_workspace_hook_layout_for_workspace_get(
         const struct WorkSpaceInstanceHook *hook, const struct WorkSpace *workspace) GETTER_ATTRS;
 void             BKE_workspace_hook_layout_for_workspace_set(
         struct WorkSpaceInstanceHook *hook, struct WorkSpace *workspace, struct WorkSpaceLayout *layout) ATTR_NONNULL();
-
-struct ViewRender *BKE_workspace_view_render_get(struct WorkSpace *workspace) GETTER_ATTRS;
-
-/* flags */
-bool BKE_workspace_use_scene_settings_get(const struct WorkSpace *workspace) GETTER_ATTRS;
-void BKE_workspace_use_scene_settings_set(struct WorkSpace *workspace, bool value) SETTER_ATTRS;
-
-/* Update / evaluate */
-void BKE_workspace_update_tagged(struct EvaluationContext *eval_ctx,
-                                 struct Main *bmain,
-                                 struct WorkSpace *workspace,
-                                 struct Scene *scene);
 
 bool BKE_workspace_owner_id_check(
         const struct WorkSpace *workspace, const char *owner_id) ATTR_NONNULL();

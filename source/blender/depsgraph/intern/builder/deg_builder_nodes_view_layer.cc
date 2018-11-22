@@ -65,64 +65,63 @@ extern "C" {
 
 namespace DEG {
 
+void DepsgraphNodeBuilder::build_layer_collections(ListBase *lb)
+{
+	const int restrict_flag = (graph_->mode == DAG_EVAL_VIEWPORT) ?
+		COLLECTION_RESTRICT_VIEW : COLLECTION_RESTRICT_RENDER;
+
+	for (LayerCollection *lc = (LayerCollection *)lb->first; lc; lc = lc->next) {
+		if (lc->collection->flag & restrict_flag) {
+			continue;
+		}
+		if ((lc->flag & LAYER_COLLECTION_EXCLUDE) == 0) {
+			build_collection(lc, lc->collection);
+		}
+		build_layer_collections(&lc->layer_collections);
+	}
+}
+
 void DepsgraphNodeBuilder::build_view_layer(
         Scene *scene,
         ViewLayer *view_layer,
         eDepsNode_LinkedState_Type linked_state)
 {
+	/* NOTE: Pass view layer index of 0 since after scene CoW there is
+	 * only one view layer in there. */
+	view_layer_index_ = 0;
 	/* Scene ID block. */
 	add_id_node(&scene->id);
 	/* Time source. */
 	add_time_source();
 	/* Setup currently building context. */
 	scene_ = scene;
-	/* Expand Scene Cow datablock to get proper pointers to bases. */
-	Scene *scene_cow;
-	ViewLayer *view_layer_cow;
-	if (DEG_depsgraph_use_copy_on_write()) {
-		/* NOTE: We need to create ID nodes for all objects coming from bases,
-		 * otherwise remapping will not replace objects with their CoW versions
-		 * for CoW bases.
-		 */
-		LISTBASE_FOREACH (Base *, base, &view_layer->object_bases) {
-			Object *object = base->object;
-			add_id_node(&object->id);
-		}
-		/* Create ID node for nested ID of nodetree as well, otherwise remapping
-		 * will not work correct either.
-		 */
-		if (scene->nodetree != NULL) {
-			add_id_node(&scene->nodetree->id);
-		}
-		/* Make sure we've got ID node, so we can get pointer to CoW datablock.
-		 */
-		scene_cow = expand_cow_datablock(scene);
-		view_layer_cow = (ViewLayer *)BLI_findstring(
-		        &scene_cow->view_layers,
-		        view_layer->name,
-		        offsetof(ViewLayer, name));
-	}
-	else {
-		scene_cow = scene;
-		view_layer_cow = view_layer;
-	}
+	view_layer_ = view_layer;
+	/* Get pointer to a CoW version of scene ID. */
+	Scene *scene_cow = get_cow_datablock(scene);
 	/* Scene objects. */
 	int select_color = 1;
 	/* NOTE: Base is used for function bindings as-is, so need to pass CoW base,
 	 * but object is expected to be an original one. Hence we go into some
 	 * tricks here iterating over the view layer.
 	 */
-	for (Base *base_orig = (Base *)view_layer->object_bases.first,
-	          *base_cow = (Base *)view_layer_cow->object_bases.first;
-	     base_orig != NULL;
-	     base_orig = base_orig->next, base_cow = base_cow->next)
-	{
+	int base_index = 0;
+	const int base_flag = (graph_->mode == DAG_EVAL_VIEWPORT) ?
+		BASE_ENABLED_VIEWPORT : BASE_ENABLED_RENDER;
+	LISTBASE_FOREACH(Base *, base, &view_layer->object_bases) {
 		/* object itself */
-		build_object(base_cow, base_orig->object, linked_state);
-		base_orig->object->select_color = select_color++;
+		const bool is_object_visible = (base->flag & base_flag);
+		if (is_object_visible) {
+			build_object(base_index,
+			             base->object,
+			             linked_state,
+			             is_object_visible);
+			++base_index;
+		}
+		base->object->select_color = select_color++;
 	}
+	build_layer_collections(&view_layer->layer_collections);
 	if (scene->camera != NULL) {
-		build_object(NULL, scene->camera, DEG_ID_LINKED_INDIRECTLY);
+		build_object(-1, scene->camera, DEG_ID_LINKED_INDIRECTLY, true);
 	}
 	/* Rigidbody. */
 	if (scene->rigidbody_world != NULL) {
@@ -140,10 +139,6 @@ void DepsgraphNodeBuilder::build_view_layer(
 	if (scene->nodetree != NULL) {
 		build_compositor(scene);
 	}
-	/* Grease pencil. */
-	if (scene->gpd != NULL) {
-		build_gpencil(scene->gpd);
-	}
 	/* Cache file. */
 	LISTBASE_FOREACH (CacheFile *, cachefile, &bmain_->cachefiles) {
 		build_cachefile(cachefile);
@@ -157,7 +152,13 @@ void DepsgraphNodeBuilder::build_view_layer(
 		build_movieclip(clip);
 	}
 	/* Collections. */
-	build_view_layer_collections(&scene->id, view_layer_cow);
+	add_operation_node(&scene->id,
+	                   DEG_NODE_TYPE_LAYER_COLLECTIONS,
+	                   function_bind(BKE_layer_eval_view_layer_indexed,
+	                                 _1,
+	                                 scene_cow,
+	                                 view_layer_index_),
+	                   DEG_OPCODE_VIEW_LAYER_EVAL);
 	/* Parameters evaluation for scene relations mainly. */
 	add_operation_node(&scene->id,
 	                   DEG_NODE_TYPE_PARAMETERS,
@@ -166,7 +167,7 @@ void DepsgraphNodeBuilder::build_view_layer(
 	                   "Scene Eval");
 	/* Build all set scenes. */
 	if (scene->set != NULL) {
-		ViewLayer *set_view_layer = BKE_view_layer_from_scene_get(scene->set);
+		ViewLayer *set_view_layer = BKE_view_layer_default_render(scene->set);
 		build_view_layer(scene->set, set_view_layer, DEG_ID_LINKED_VIA_SET);
 	}
 }

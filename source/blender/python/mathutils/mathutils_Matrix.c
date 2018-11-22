@@ -33,6 +33,7 @@
 #include "BLI_utildefines.h"
 
 #include "../generic/python_utildefines.h"
+#include "../generic/py_capi_utils.h"
 
 #ifndef MATH_STANDALONE
 #  include "BLI_string.h"
@@ -1945,8 +1946,9 @@ static PyObject *Matrix_copy(MatrixObject *self)
 }
 static PyObject *Matrix_deepcopy(MatrixObject *self, PyObject *args)
 {
-	if (!mathutils_deepcopy_args_check(args))
+	if (!PyC_CheckArgs_DeepCopy(args)) {
 		return NULL;
+	}
 	return Matrix_copy(self);
 }
 
@@ -2319,7 +2321,7 @@ static PyObject *Matrix_sub(PyObject *m1, PyObject *m2)
 	return Matrix_CreatePyObject(mat, mat1->num_col, mat1->num_row, Py_TYPE(mat1));
 }
 /*------------------------obj * obj------------------------------
- * multiplication */
+ * element-wise multiplication */
 static PyObject *matrix_mul_float(MatrixObject *mat, const float scalar)
 {
 	float tmat[MATRIX_MAX_DIM * MATRIX_MAX_DIM];
@@ -2330,6 +2332,114 @@ static PyObject *matrix_mul_float(MatrixObject *mat, const float scalar)
 static PyObject *Matrix_mul(PyObject *m1, PyObject *m2)
 {
 	float scalar;
+
+	MatrixObject *mat1 = NULL, *mat2 = NULL;
+
+	if (MatrixObject_Check(m1)) {
+		mat1 = (MatrixObject *)m1;
+		if (BaseMath_ReadCallback(mat1) == -1)
+			return NULL;
+	}
+	if (MatrixObject_Check(m2)) {
+		mat2 = (MatrixObject *)m2;
+		if (BaseMath_ReadCallback(mat2) == -1)
+			return NULL;
+	}
+
+	if (mat1 && mat2) {
+#ifdef USE_MATHUTILS_ELEM_MUL
+		/* MATRIX * MATRIX */
+		float mat[MATRIX_MAX_DIM * MATRIX_MAX_DIM];
+
+		if ((mat1->num_row != mat2->num_row) || (mat1->num_col != mat2->num_col)) {
+			PyErr_SetString(PyExc_ValueError,
+			                "matrix1 * matrix2: matrix1 number of rows/columns "
+			                "and the matrix2 number of rows/columns must be the same");
+			return NULL;
+		}
+
+		mul_vn_vnvn(mat, mat1->matrix, mat2->matrix, mat1->num_col * mat1->num_row);
+
+		return Matrix_CreatePyObject(mat, mat2->num_col, mat1->num_row, Py_TYPE(mat1));
+#endif
+	}
+	else if (mat2) {
+		/*FLOAT/INT * MATRIX */
+		if (((scalar = PyFloat_AsDouble(m1)) == -1.0f && PyErr_Occurred()) == 0) {
+			return matrix_mul_float(mat2, scalar);
+		}
+	}
+	else if (mat1) {
+		/* MATRIX * FLOAT/INT */
+		if (((scalar = PyFloat_AsDouble(m2)) == -1.0f && PyErr_Occurred()) == 0) {
+			return matrix_mul_float(mat1, scalar);
+		}
+	}
+
+	PyErr_Format(PyExc_TypeError,
+	             "Element-wise multiplication: "
+	             "not supported between '%.200s' and '%.200s' types",
+	             Py_TYPE(m1)->tp_name, Py_TYPE(m2)->tp_name);
+	return NULL;
+}
+/*------------------------obj *= obj------------------------------
+ * Inplace element-wise multiplication */
+static PyObject *Matrix_imul(PyObject *m1, PyObject *m2)
+{
+	float scalar;
+
+	MatrixObject *mat1 = NULL, *mat2 = NULL;
+
+	if (MatrixObject_Check(m1)) {
+		mat1 = (MatrixObject *)m1;
+		if (BaseMath_ReadCallback(mat1) == -1)
+			return NULL;
+	}
+	if (MatrixObject_Check(m2)) {
+		mat2 = (MatrixObject *)m2;
+		if (BaseMath_ReadCallback(mat2) == -1)
+			return NULL;
+	}
+
+	if (mat1 && mat2) {
+#ifdef USE_MATHUTILS_ELEM_MUL
+		/* MATRIX *= MATRIX */
+		if ((mat1->num_row != mat2->num_row) || (mat1->num_col != mat2->num_col)) {
+			PyErr_SetString(PyExc_ValueError,
+			                "matrix1 *= matrix2: matrix1 number of rows/columns "
+			                "and the matrix2 number of rows/columns must be the same");
+			return NULL;
+		}
+
+		mul_vn_vn(mat1->matrix, mat2->matrix, mat1->num_col * mat1->num_row);
+#else
+		PyErr_Format(PyExc_TypeError,
+		             "Inplace element-wise multiplication: "
+		             "not supported between '%.200s' and '%.200s' types",
+		             Py_TYPE(m1)->tp_name, Py_TYPE(m2)->tp_name);
+		return NULL;
+#endif
+	}
+	else if (mat1 && (((scalar = PyFloat_AsDouble(m2)) == -1.0f && PyErr_Occurred()) == 0)) {
+		/* MATRIX *= FLOAT/INT */
+		mul_vn_fl(mat1->matrix, mat1->num_row * mat1->num_col, scalar);
+	}
+	else {
+		PyErr_Format(PyExc_TypeError,
+		             "Inplace element-wise multiplication: "
+		             "not supported between '%.200s' and '%.200s' types",
+		             Py_TYPE(m1)->tp_name, Py_TYPE(m2)->tp_name);
+		return NULL;
+	}
+
+	(void)BaseMath_WriteCallback(mat1);
+	Py_INCREF(m1);
+	return m1;
+}
+/*------------------------obj @ obj------------------------------
+ * matrix multiplication */
+static PyObject *Matrix_matmul(PyObject *m1, PyObject *m2)
+{
 	int vec_size;
 
 	MatrixObject *mat1 = NULL, *mat2 = NULL;
@@ -2346,7 +2456,7 @@ static PyObject *Matrix_mul(PyObject *m1, PyObject *m2)
 	}
 
 	if (mat1 && mat2) {
-		/* MATRIX * MATRIX */
+		/* MATRIX @ MATRIX */
 		float mat[MATRIX_MAX_DIM * MATRIX_MAX_DIM];
 
 		int col, row, item;
@@ -2370,14 +2480,8 @@ static PyObject *Matrix_mul(PyObject *m1, PyObject *m2)
 
 		return Matrix_CreatePyObject(mat, mat2->num_col, mat1->num_row, Py_TYPE(mat1));
 	}
-	else if (mat2) {
-		/*FLOAT/INT * MATRIX */
-		if (((scalar = PyFloat_AsDouble(m1)) == -1.0f && PyErr_Occurred()) == 0) {
-			return matrix_mul_float(mat2, scalar);
-		}
-	}
 	else if (mat1) {
-		/* MATRIX * VECTOR */
+		/* MATRIX @ VECTOR */
 		if (VectorObject_Check(m2)) {
 			VectorObject *vec2 = (VectorObject *)m2;
 			float tvec[MATRIX_MAX_DIM];
@@ -2396,13 +2500,6 @@ static PyObject *Matrix_mul(PyObject *m1, PyObject *m2)
 
 			return Vector_CreatePyObject(tvec, vec_size, Py_TYPE(m2));
 		}
-		/*FLOAT/INT * MATRIX */
-		else if (((scalar = PyFloat_AsDouble(m2)) == -1.0f && PyErr_Occurred()) == 0) {
-			return matrix_mul_float(mat1, scalar);
-		}
-	}
-	else {
-		BLI_assert(!"internal error");
 	}
 
 	PyErr_Format(PyExc_TypeError,
@@ -2410,6 +2507,62 @@ static PyObject *Matrix_mul(PyObject *m1, PyObject *m2)
 	             "not supported between '%.200s' and '%.200s' types",
 	             Py_TYPE(m1)->tp_name, Py_TYPE(m2)->tp_name);
 	return NULL;
+}
+/*------------------------obj @= obj------------------------------
+ * inplace matrix multiplication */
+static PyObject *Matrix_imatmul(PyObject *m1, PyObject *m2)
+{
+	MatrixObject *mat1 = NULL, *mat2 = NULL;
+
+	if (MatrixObject_Check(m1)) {
+		mat1 = (MatrixObject *)m1;
+		if (BaseMath_ReadCallback(mat1) == -1)
+			return NULL;
+	}
+	if (MatrixObject_Check(m2)) {
+		mat2 = (MatrixObject *)m2;
+		if (BaseMath_ReadCallback(mat2) == -1)
+			return NULL;
+	}
+
+	if (mat1 && mat2) {
+		/* MATRIX @= MATRIX */
+		float mat[MATRIX_MAX_DIM * MATRIX_MAX_DIM];
+		int col, row, item;
+
+		if (mat1->num_col != mat2->num_row) {
+			PyErr_SetString(PyExc_ValueError,
+			                "matrix1 * matrix2: matrix1 number of columns "
+			                "and the matrix2 number of rows must be the same");
+			return NULL;
+		}
+
+		for (col = 0; col < mat2->num_col; col++) {
+			for (row = 0; row < mat1->num_row; row++) {
+				double dot = 0.0f;
+				for (item = 0; item < mat1->num_col; item++) {
+					dot += (double)(MATRIX_ITEM(mat1, row, item) * MATRIX_ITEM(mat2, item, col));
+				}
+				/* store in new matrix as overwriting original at this point will cause
+				 * subsequent iterations to use incorrect values */
+				mat[(col * mat1->num_row) + row] = (float)dot;
+			}
+		}
+
+		/* copy matrix back */
+		memcpy(mat1->matrix, mat, mat1->num_row * mat1->num_col);
+	}
+	else {
+		PyErr_Format(PyExc_TypeError,
+		             "Inplace matrix multiplication: "
+		             "not supported between '%.200s' and '%.200s' types",
+		             Py_TYPE(m1)->tp_name, Py_TYPE(m2)->tp_name);
+		return NULL;
+	}
+
+	(void)BaseMath_WriteCallback(mat1);
+	Py_INCREF(m1);
+	return m1;
 }
 
 /*-----------------PROTOCOL DECLARATIONS--------------------------*/
@@ -2525,7 +2678,7 @@ static PyNumberMethods Matrix_NumMethods = {
 	NULL,                   /*nb_float*/
 	NULL,                   /* nb_inplace_add */
 	NULL,                   /* nb_inplace_subtract */
-	NULL,                   /* nb_inplace_multiply */
+	(binaryfunc) Matrix_imul,  /* nb_inplace_multiply */
 	NULL,                   /* nb_inplace_remainder */
 	NULL,                   /* nb_inplace_power */
 	NULL,                   /* nb_inplace_lshift */
@@ -2538,6 +2691,8 @@ static PyNumberMethods Matrix_NumMethods = {
 	NULL,                   /* nb_inplace_floor_divide */
 	NULL,                   /* nb_inplace_true_divide */
 	NULL,                   /* nb_index */
+	(binaryfunc) Matrix_matmul,  /* nb_matrix_multiply */
+	(binaryfunc) Matrix_imatmul, /* nb_inplace_matrix_multiply */
 };
 
 PyDoc_STRVAR(Matrix_translation_doc,
@@ -2590,7 +2745,7 @@ static int Matrix_translation_set(MatrixObject *self, PyObject *value, void *UNU
 }
 
 PyDoc_STRVAR(Matrix_row_doc,
-"Access the matix by rows (default), (read-only).\n\n:type: Matrix Access"
+"Access the matrix by rows (default), (read-only).\n\n:type: Matrix Access"
 );
 static PyObject *Matrix_row_get(MatrixObject *self, void *UNUSED(closure))
 {
@@ -2598,7 +2753,7 @@ static PyObject *Matrix_row_get(MatrixObject *self, void *UNUSED(closure))
 }
 
 PyDoc_STRVAR(Matrix_col_doc,
-"Access the matix by colums, 3x3 and 4x4 only, (read-only).\n\n:type: Matrix Access"
+"Access the matrix by columns, 3x3 and 4x4 only, (read-only).\n\n:type: Matrix Access"
 );
 static PyObject *Matrix_col_get(MatrixObject *self, void *UNUSED(closure))
 {
@@ -2768,7 +2923,7 @@ PyDoc_STRVAR(matrix_doc,
 "   matrices from 2x2 up to 4x4.\n"
 "\n"
 "   :param rows: Sequence of rows.\n"
-"      When ommitted, a 4x4 identity matrix is constructed.\n"
+"      When omitted, a 4x4 identity matrix is constructed.\n"
 "   :type rows: 2d number sequence\n"
 );
 PyTypeObject matrix_Type = {

@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2001-2002 by NaN Holding BV.
  * All rights reserved.
  *
- * Contributor(s): 
+ * Contributor(s):
  * - Blender Foundation, 2003-2009
  * - Peter Schlaile <peter [at] schlaile [dot] de> 2005/2006
  *
@@ -127,7 +127,7 @@ static ImBuf *prepare_effect_imbufs(const SeqRenderData *context, ImBuf *ibuf1, 
 	else {
 		out = IMB_allocImBuf(x, y, 32, IB_rect);
 	}
-	
+
 	if (out->rect_float) {
 		if (ibuf1 && !ibuf1->rect_float) {
 			BKE_sequencer_imbuf_to_sequencer_space(scene, ibuf1, true);
@@ -140,7 +140,7 @@ static ImBuf *prepare_effect_imbufs(const SeqRenderData *context, ImBuf *ibuf1, 
 		if (ibuf3 && !ibuf3->rect_float) {
 			BKE_sequencer_imbuf_to_sequencer_space(scene, ibuf3, true);
 		}
-	
+
 		IMB_colormanagement_assign_float_colorspace(out, scene->sequencer_colorspace_settings.name);
 	}
 	else {
@@ -369,7 +369,7 @@ static void do_alphaunder_effect_byte(
 					tempc[1] = (fac * rt1[1] + rt2[1]);
 					tempc[2] = (fac * rt1[2] + rt2[2]);
 					tempc[3] = (fac * rt1[3] + rt2[3]);
-					
+
 					premul_float_to_straight_uchar(rt, tempc);
 				}
 			}
@@ -384,10 +384,10 @@ static void do_alphaunder_effect_byte(
 		while (x--) {
 			straight_uchar_to_premul_float(rt1, cp1);
 			straight_uchar_to_premul_float(rt2, cp2);
-			
+
 			if      (rt2[3] <= 0.0f && fac4 >= 1.0f) *((unsigned int *) rt) = *((unsigned int *) cp1);
 			else if (rt2[3] >= 1.0f)                 *((unsigned int *) rt) = *((unsigned int *) cp2);
-			else {				
+			else {
 				fac = (fac4 * (1.0f - rt2[3]));
 
 				if (fac <= 0) *((unsigned int *)rt) = *((unsigned int *)cp2);
@@ -396,7 +396,7 @@ static void do_alphaunder_effect_byte(
 					tempc[1] = (fac * rt1[1] + rt2[1]);
 					tempc[2] = (fac * rt1[2] + rt2[2]);
 					tempc[3] = (fac * rt1[3] + rt2[3]);
-					
+
 					premul_float_to_straight_uchar(rt, tempc);
 				}
 			}
@@ -628,7 +628,7 @@ static float gamma_range_table[RE_GAMMA_TABLE_SIZE + 1];
 static float gamfactor_table[RE_GAMMA_TABLE_SIZE];
 static float inv_gamma_range_table[RE_GAMMA_TABLE_SIZE + 1];
 static float inv_gamfactor_table[RE_GAMMA_TABLE_SIZE];
-static float color_domain_table[RE_GAMMA_TABLE_SIZE + 1]; 
+static float color_domain_table[RE_GAMMA_TABLE_SIZE + 1];
 static float color_step;
 static float inv_color_step;
 static float valid_gamma;
@@ -642,7 +642,7 @@ static void makeGammaTables(float gamma)
 	valid_gamma       = gamma;
 	valid_inv_gamma   = 1.0f / gamma;
 	color_step        = 1.0f / RE_GAMMA_TABLE_SIZE;
-	inv_color_step    = (float) RE_GAMMA_TABLE_SIZE; 
+	inv_color_step    = (float) RE_GAMMA_TABLE_SIZE;
 
 	/* We could squeeze out the two range tables to gain some memory */
 	for (i = 0; i < RE_GAMMA_TABLE_SIZE; i++) {
@@ -674,7 +674,7 @@ static float gammaCorrect(float c)
 {
 	int i;
 	float res;
-	
+
 	i = floorf(c * inv_color_step);
 	/* Clip to range [0, 1]: outside, just do the complete calculation.
 	 * We may have some performance problems here. Stretching up the LUT
@@ -685,7 +685,7 @@ static float gammaCorrect(float c)
 	else if (i >= RE_GAMMA_TABLE_SIZE) res =  powf(c,  valid_gamma);
 	else                               res =  gamma_range_table[i] +
 	                                          ((c - color_domain_table[i]) * gamfactor_table[i]);
-	
+
 	return res;
 }
 
@@ -710,17 +710,17 @@ static void gamtabs(float gamma)
 {
 	float val, igamma = 1.0f / gamma;
 	int a;
-	
+
 	/* gamtab: in short, out short */
 	for (a = 0; a < 65536; a++) {
 		val = a;
 		val /= 65535.0f;
-		
+
 		if (gamma == 2.0f)
 			val = sqrtf(val);
 		else if (gamma != 1.0f)
 			val = powf(val, igamma);
-		
+
 		gamtab[a] = (65535.99f * val);
 	}
 	/* inverse gamtab1 : in byte, out short */
@@ -1202,8 +1202,8 @@ static void do_mul_effect_byte(
 	fac3 = (int)(256.0f * facf1);
 
 	/* formula:
-	 *		fac * (a * b) + (1 - fac) * a  => fac * a * (b - 1) + axaux = c * px + py * s; //+centx
-	 *		yaux = -s * px + c * py; //+centy
+	 * fac * (a * b) + (1 - fac) * a  => fac * a * (b - 1) + axaux = c * px + py * s; //+centx
+	 * yaux = -s * px + c * py; //+centy
 	 */
 
 	while (y--) {
@@ -1317,7 +1317,7 @@ BLI_INLINE void apply_blend_function_byte(
 	rt1 = rect1;
 	rt2 = rect2;
 	rt = out;
-	while (y--) {		
+	while (y--) {
 		for (x = xo; x > 0; x--) {
 			achannel = rt2[3];
 			rt2[3] = (unsigned int) achannel * facf0;
@@ -1331,7 +1331,7 @@ BLI_INLINE void apply_blend_function_byte(
 		if (y == 0) {
 			break;
 		}
-		y--;		
+		y--;
 		for (x = xo; x > 0; x--) {
 			achannel = rt2[3];
 			rt2[3] = (unsigned int) achannel * facf1;
@@ -1356,7 +1356,7 @@ BLI_INLINE void apply_blend_function_float(
 	rt1 = rect1;
 	rt2 = rect2;
 	rt = out;
-	while (y--) {		
+	while (y--) {
 		for (x = xo; x > 0; x--) {
 			achannel = rt2[3];
 			rt2[3] = achannel * facf0;
@@ -1370,7 +1370,7 @@ BLI_INLINE void apply_blend_function_float(
 		if (y == 0) {
 			break;
 		}
-		y--;		
+		y--;
 		for (x = xo; x > 0; x--) {
 			achannel = rt2[3];
 			rt2[3] = achannel * facf1;
@@ -1727,10 +1727,10 @@ static float check_zone(WipeZone *wipezone, int x, int y, Sequence *seq, float f
 			break;
 		case DO_CLOCK_WIPE:
 			/*
-			 *  temp1: angle of effect center in rads
-			 *  temp2: angle of line through (halfx, halfy) and (x, y) in rads
-			 *  temp3: angle of low side of blur
-			 *  temp4: angle of high side of blur
+			 * temp1: angle of effect center in rads
+			 * temp2: angle of line through (halfx, halfy) and (x, y) in rads
+			 * temp3: angle of low side of blur
+			 * temp4: angle of high side of blur
 			 */
 			output = 1.0f - facf0;
 			widthf = wipe->edgeWidth * 2.0f * (float)M_PI;
@@ -1767,72 +1767,6 @@ static float check_zone(WipeZone *wipezone, int x, int y, Sequence *seq, float f
 			if (output != output) output = 1;
 			if (wipe->forward) output = 1 - output;
 			break;
-			/* BOX WIPE IS NOT WORKING YET */
-			/* case DO_CROSS_WIPE: */
-			/* BOX WIPE IS NOT WORKING YET */
-#if 0
-		case DO_BOX_WIPE: 
-			if (invert) facf0 = 1 - facf0;
-
-			width = (int)(wipe->edgeWidth * ((xo + yo) / 2.0));
-			hwidth = (float)width / 2.0;
-			if (angle == 0) angle = 0.000001;
-			b1 = posy / 2 - (-angle) * posx / 2;
-			b3 = (yo - posy / 2) - (-angle) * (xo - posx / 2);
-			b2 = y - (-angle) * x;
-
-			hyp = abs(angle * x + y + (-posy / 2 - angle * posx / 2)) * wipezone->pythangle;
-			hyp2 = abs(angle * x + y + (-(yo - posy / 2) - angle * (xo - posx / 2))) * wipezone->pythangle;
-
-			temp1 = xo * (1 - facf0 / 2) - xo * facf0 / 2;
-			temp2 = yo * (1 - facf0 / 2) - yo * facf0 / 2;
-			pointdist = hypot(temp1, temp2);
-
-			if (b2 < b1 && b2 < b3) {
-				if (hwidth < pointdist)
-					output = in_band(wipezone, hwidth, hyp, facf0, 0, 1);
-			}
-			else if (b2 > b1 && b2 > b3) {
-				if (hwidth < pointdist)
-					output = in_band(wipezone, hwidth, hyp2, facf0, 0, 1);
-			}
-			else {
-				if (hyp < hwidth && hyp2 > hwidth)
-					output = in_band(wipezone, hwidth, hyp, facf0, 1, 1);
-				else if (hyp > hwidth && hyp2 < hwidth)
-					output = in_band(wipezone, hwidth, hyp2, facf0, 1, 1);
-				else
-					output = in_band(wipezone, hwidth, hyp2, facf0, 1, 1) * in_band(wipezone, hwidth, hyp, facf0, 1, 1);
-			}
-
-			if (invert) facf0 = 1 - facf0;
-			angle = -1 / angle;
-			b1 = posy / 2 - (-angle) * posx / 2;
-			b3 = (yo - posy / 2) - (-angle) * (xo - posx / 2);
-			b2 = y - (-angle) * x;
-
-			hyp = abs(angle * x + y + (-posy / 2 - angle * posx / 2)) * wipezone->pythangle;
-			hyp2 = abs(angle * x + y + (-(yo - posy / 2) - angle * (xo - posx / 2))) * wipezone->pythangle;
-
-			if (b2 < b1 && b2 < b3) {
-				if (hwidth < pointdist)
-					output *= in_band(wipezone, hwidth, hyp, facf0, 0, 1);
-			}
-			else if (b2 > b1 && b2 > b3) {
-				if (hwidth < pointdist)
-					output *= in_band(wipezone, hwidth, hyp2, facf0, 0, 1);
-			}
-			else {
-				if (hyp < hwidth && hyp2 > hwidth)
-					output *= in_band(wipezone, hwidth, hyp, facf0, 1, 1);
-				else if (hyp > hwidth && hyp2 < hwidth)
-					output *= in_band(wipezone, hwidth, hyp2, facf0, 1, 1);
-				else
-					output *= in_band(wipezone, hwidth, hyp2, facf0, 1, 1) * in_band(wipezone, hwidth, hyp, facf0, 1, 1);
-			}
-
-			break;
-#endif
 		case DO_IRIS_WIPE:
 			if (xo > yo) yo = xo;
 			else xo = yo;
@@ -1850,7 +1784,7 @@ static float check_zone(WipeZone *wipezone, int x, int y, Sequence *seq, float f
 			else output = in_band(hwidth, fabsf(temp2 - pointdist), 1, 1);
 
 			if (!wipe->forward) output = 1 - output;
-			
+
 			break;
 	}
 	if (output < 0) output = 0;
@@ -2051,7 +1985,7 @@ static void init_transform_effect(Sequence *seq)
 	transform->yIni = 0.0f;
 
 	transform->rotIni = 0.0f;
-	
+
 	transform->interpolation = 1;
 	transform->percent = 1;
 	transform->uniform_scale = 0;
@@ -2083,7 +2017,7 @@ static void transform_image(
 
 	xo = x;
 	yo = y;
-	
+
 	/* Rotate */
 	s = sinf(rotate);
 	c = cosf(rotate);
@@ -2126,7 +2060,7 @@ static void do_transform(Scene *scene, Sequence *seq, float UNUSED(facf0), int x
 {
 	TransformVars *transform = (TransformVars *) seq->effectdata;
 	float scale_x, scale_y, translate_x, translate_y, rotate_radians;
-	
+
 	/* Scale */
 	if (transform->uniform_scale) {
 		scale_x = scale_y = transform->ScalexIni;
@@ -2171,7 +2105,7 @@ static ImBuf *do_transform_effect(
 static void RVBlurBitmap2_float(float *map, int width, int height, float blur, int quality)
 /*	MUUUCCH better than the previous blur. */
 /*	We do the blurring in two passes which is a whole lot faster. */
-/*	I changed the math arount to implement an actual Gaussian */
+/*	I changed the math around to implement an actual Gaussian */
 /*	distribution. */
 /* */
 /*	Watch out though, it tends to misbehaven with large blur values on */
@@ -2290,7 +2224,7 @@ static void RVBlurBitmap2_float(float *map, int width, int height, float blur, i
 			index = (x + (height - 1 - y) * width) * 4;
 			copy_v4_v4(temp + index, curColor2);
 		}
-	
+
 		/* Do the main body */
 		for (y = halfWidth; y < height - halfWidth; y++) {
 			fy = 0;
@@ -2459,12 +2393,12 @@ static ImBuf *do_glow_effect(
 static void init_solid_color(Sequence *seq)
 {
 	SolidColorVars *cv;
-	
+
 	if (seq->effectdata)
 		MEM_freeN(seq->effectdata);
 
 	seq->effectdata = MEM_callocN(sizeof(SolidColorVars), "solidcolor");
-	
+
 	cv = (SolidColorVars *)seq->effectdata;
 	cv->col[0] = cv->col[1] = cv->col[2] = 0.5;
 }
@@ -2518,7 +2452,7 @@ static ImBuf *do_solid_color(
 		col1[2] = facf1 * cv->col[2] * 255;
 
 		rect = (unsigned char *)out->rect;
-		
+
 		for (y = 0; y < out->y; y++) {
 			for (x = 0; x < out->x; x++, rect += 4) {
 				rect[0] = col0[0];
@@ -2551,7 +2485,7 @@ static ImBuf *do_solid_color(
 		col1[2] = facf1 * cv->col[2];
 
 		rect_float = out->rect_float;
-		
+
 		for (y = 0; y < out->y; y++) {
 			for (x = 0; x < out->x; x++, rect_float += 4) {
 				rect_float[0] = col0[0];
@@ -2620,7 +2554,7 @@ static ImBuf *do_multicam(
 	else {
 		out = i;
 	}
-	
+
 	return out;
 }
 
@@ -2695,7 +2629,7 @@ static ImBuf *do_adjustment(
 	else {
 		out = i;
 	}
-	
+
 	return out;
 }
 
@@ -2874,7 +2808,7 @@ void BKE_sequence_effect_speed_rebuild_map(Scene *scene, Sequence *seq, bool for
 				facf *= seq->seq1->len;
 			}
 			facf *= v->globalSpeed;
-			
+
 			if (facf >= seq->seq1->len) {
 				facf = seq->seq1->len - 1;
 			}
@@ -3017,7 +2951,7 @@ static void do_gaussian_blur_effect_byte_x(
 	const int size_x = (int) (data->size_x + 0.5f);
 	int i, j;
 
-	/* Make gaussian weight tabke. */
+	/* Make gaussian weight table. */
 	float *gausstab_x;
 	gausstab_x = make_gaussian_blur_kernel(data->size_x, size_x);
 
@@ -3070,7 +3004,7 @@ static void do_gaussian_blur_effect_byte_y(
 	const int size_y = (int) (data->size_y + 0.5f);
 	int i, j;
 
-	/* Make gaussian weight tabke. */
+	/* Make gaussian weight table. */
 	float *gausstab_y;
 	gausstab_y = make_gaussian_blur_kernel(data->size_y, size_y);
 
@@ -3123,7 +3057,7 @@ static void do_gaussian_blur_effect_float_x(
 	const int size_x = (int) (data->size_x + 0.5f);
 	int i, j;
 
-	/* Make gaussian weight tabke. */
+	/* Make gaussian weight table. */
 	float *gausstab_x;
 	gausstab_x = make_gaussian_blur_kernel(data->size_x, size_x);
 
@@ -3167,7 +3101,7 @@ static void do_gaussian_blur_effect_float_y(
 	const int size_y = (int) (data->size_y + 0.5f);
 	int i, j;
 
-	/* Make gaussian weight tabke. */
+	/* Make gaussian weight table. */
 	float *gausstab_y;
 	gausstab_y = make_gaussian_blur_kernel(data->size_y, size_y);
 

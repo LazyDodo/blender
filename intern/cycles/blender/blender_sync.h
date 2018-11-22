@@ -59,7 +59,7 @@ public:
 	~BlenderSync();
 
 	/* sync */
-	bool sync_recalc();
+	void sync_recalc(BL::Depsgraph& b_depsgraph);
 	void sync_data(BL::RenderSettings& b_render,
 	               BL::Depsgraph& b_depsgraph,
 	               BL::SpaceView3D& b_v3d,
@@ -67,9 +67,9 @@ public:
 	               int width, int height,
 	               void **python_thread_state);
 	void sync_view_layer(BL::SpaceView3D& b_v3d, BL::ViewLayer& b_view_layer);
-	array<Pass> sync_render_passes(BL::RenderLayer& b_render_layer,
-	                               BL::ViewLayer& b_view_layer,
-	                               const SessionParams &session_params);
+	vector<Pass> sync_render_passes(BL::RenderLayer& b_render_layer,
+	                                BL::ViewLayer& b_view_layer,
+	                                const SessionParams &session_params);
 	void sync_integrator();
 	void sync_camera(BL::RenderSettings& b_render,
 	                 BL::Object& b_override,
@@ -78,8 +78,6 @@ public:
 	void sync_view(BL::SpaceView3D& b_v3d,
 	               BL::RegionView3D& b_rv3d,
 	               int width, int height);
-	inline int get_layer_samples() { return view_layer.samples; }
-	inline int get_layer_bound_samples() { return view_layer.bound_samples; }
 
 	/* get parameters */
 	static SceneParams get_scene_params(BL::Scene& b_scene,
@@ -100,7 +98,7 @@ public:
 
 private:
 	/* sync */
-	void sync_lamps(BL::Depsgraph& b_depsgraph, bool update_all);
+	void sync_lights(BL::Depsgraph& b_depsgraph, bool update_all);
 	void sync_materials(BL::Depsgraph& b_depsgraph, bool update_all);
 	void sync_objects(BL::Depsgraph& b_depsgraph, float motion_time = 0.0f);
 	void sync_motion(BL::RenderSettings& b_render,
@@ -120,15 +118,14 @@ private:
 	                BL::Object& b_ob_instance,
 	                bool object_updated,
 	                bool hide_tris);
-	void sync_curves(BL::Depsgraph& b_depsgraph,
-	                 Mesh *mesh,
+	void sync_curves(Mesh *mesh,
 	                 BL::Mesh& b_mesh,
 	                 BL::Object& b_ob,
 	                 bool motion,
 	                 int motion_step = 0);
 	Object *sync_object(BL::Depsgraph& b_depsgraph,
-	                    BL::Depsgraph::duplis_iterator& b_dupli_iter,
-	                    uint layer_flag,
+	                    BL::ViewLayer& b_view_layer,
+	                    BL::DepsgraphObjectInstance& b_instance,
 	                    float motion_time,
 	                    bool hide_tris,
 	                    BlenderObjectCulling& culling,
@@ -152,11 +149,14 @@ private:
 
 	/* particles */
 	bool sync_dupli_particle(BL::Object& b_ob,
-	                         BL::DepsgraphIter& b_dup,
+	                         BL::DepsgraphObjectInstance& b_instance,
 	                         Object *object);
 
 	/* Images. */
 	void sync_images();
+
+	/* Early data free. */
+	void free_data_after_sync(BL::Depsgraph& b_depsgraph);
 
 	/* util */
 	void find_shader(BL::ID& id, vector<Shader*>& used_shaders, Shader *default_shader);
@@ -189,28 +189,18 @@ private:
 
 	struct RenderLayerInfo {
 		RenderLayerInfo()
-		: view_layer(0), layer(0),
-		  holdout_layer(0), exclude_layer(0),
-		  material_override(PointerRNA_NULL),
-		  use_background_shader(true),
+		: use_background_shader(true),
 		  use_background_ao(true),
 		  use_surfaces(true),
-		  use_hair(true),
-		  samples(0), bound_samples(false)
+		  use_hair(true)
 		{}
 
 		string name;
 		uint view_layer;
-		uint layer; /* This can be safely removed from Cycles. */
-		uint holdout_layer; /* This can be safely removed from Cycles. */
-		uint exclude_layer; /* This can be safely removed from Cycles. */
-		BL::Material material_override; /* This can be safely removed from Cycles. */
 		bool use_background_shader;
 		bool use_background_ao;
 		bool use_surfaces;
 		bool use_hair;
-		int samples; /* This can be safely removed from Cycles. */
-		bool bound_samples; /* This can be safely removed from Cycles. */
 	} view_layer;
 
 	Progress &progress;
@@ -218,5 +208,4 @@ private:
 
 CCL_NAMESPACE_END
 
-#endif /* __BLENDER_SYNC_H__ */
-
+#endif  /* __BLENDER_SYNC_H__ */

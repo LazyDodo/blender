@@ -49,42 +49,39 @@
 
 #ifdef RNA_RUNTIME
 
-#include "BKE_main.h"
-#include "BKE_camera.h"
-#include "BKE_curve.h"
-#include "BKE_DerivedMesh.h"
-#include "BKE_displist.h"
-#include "BKE_mesh.h"
+#include "BKE_action.h"
 #include "BKE_armature.h"
-#include "BKE_lamp.h"
-#include "BKE_library.h"
-#include "BKE_library_remap.h"
-#include "BKE_object.h"
-#include "BKE_material.h"
+#include "BKE_brush.h"
+#include "BKE_camera.h"
+#include "BKE_collection.h"
+#include "BKE_curve.h"
+#include "BKE_displist.h"
+#include "BKE_font.h"
+#include "BKE_gpencil.h"
 #include "BKE_icons.h"
 #include "BKE_idcode.h"
 #include "BKE_image.h"
-#include "BKE_texture.h"
+#include "BKE_lamp.h"
+#include "BKE_lattice.h"
+#include "BKE_library_remap.h"
+#include "BKE_lightprobe.h"
+#include "BKE_linestyle.h"
+#include "BKE_mask.h"
+#include "BKE_material.h"
+#include "BKE_mball.h"
+#include "BKE_mesh.h"
+#include "BKE_movieclip.h"
+#include "BKE_node.h"
+#include "BKE_object.h"
+#include "BKE_paint.h"
+#include "BKE_particle.h"
 #include "BKE_scene.h"
 #include "BKE_sound.h"
-#include "BKE_text.h"
-#include "BKE_action.h"
-#include "BKE_group.h"
-#include "BKE_brush.h"
-#include "BKE_lattice.h"
-#include "BKE_mball.h"
-#include "BKE_world.h"
-#include "BKE_particle.h"
-#include "BKE_paint.h"
-#include "BKE_font.h"
-#include "BKE_node.h"
 #include "BKE_speaker.h"
-#include "BKE_lightprobe.h"
-#include "BKE_movieclip.h"
-#include "BKE_mask.h"
-#include "BKE_gpencil.h"
-#include "BKE_linestyle.h"
+#include "BKE_text.h"
+#include "BKE_texture.h"
 #include "BKE_workspace.h"
+#include "BKE_world.h"
 
 #include "DEG_depsgraph_build.h"
 #include "DEG_depsgraph_query.h"
@@ -100,7 +97,7 @@
 #include "DNA_lightprobe_types.h"
 #include "DNA_text_types.h"
 #include "DNA_texture_types.h"
-#include "DNA_group_types.h"
+#include "DNA_collection_types.h"
 #include "DNA_brush_types.h"
 #include "DNA_lattice_types.h"
 #include "DNA_meta_types.h"
@@ -130,8 +127,9 @@ static void rna_idname_validate(const char *name, char *r_name)
 }
 
 
-static void rna_Main_ID_remove(Main *bmain, ReportList *reports, PointerRNA *id_ptr,
-                               int do_unlink, int do_id_user, int do_ui_user)
+static void rna_Main_ID_remove(
+        Main *bmain, ReportList *reports, PointerRNA *id_ptr,
+        bool do_unlink, bool do_id_user, bool do_ui_user)
 {
 	ID *id = id_ptr->data;
 	if (do_unlink) {
@@ -167,7 +165,7 @@ static Scene *rna_Main_scenes_new(Main *bmain, const char *name)
 
 	return BKE_scene_add(bmain, safe_name);
 }
-static void rna_Main_scenes_remove(Main *bmain, bContext *C, ReportList *reports, PointerRNA *scene_ptr, int do_unlink)
+static void rna_Main_scenes_remove(Main *bmain, bContext *C, ReportList *reports, PointerRNA *scene_ptr, bool do_unlink)
 {
 	/* don't call BKE_libblock_free(...) directly */
 	Scene *scene = scene_ptr->data;
@@ -185,7 +183,7 @@ static void rna_Main_scenes_remove(Main *bmain, bContext *C, ReportList *reports
 				BPy_BEGIN_ALLOW_THREADS;
 #endif
 
-				WM_window_change_active_scene(bmain, C, win, scene_new);
+				WM_window_set_active_scene(bmain, C, win, scene_new);
 
 #ifdef WITH_PYTHON
 				BPy_END_ALLOW_THREADS;
@@ -231,6 +229,9 @@ static Object *rna_Main_objects_new(Main *bmain, ReportList *reports, const char
 			case ID_LT:
 				type = OB_LATTICE;
 				break;
+			case ID_GD:
+				type = OB_GPENCIL;
+				break;
 			case ID_AR:
 				type = OB_ARMATURE;
 				break;
@@ -251,7 +252,7 @@ static Object *rna_Main_objects_new(Main *bmain, ReportList *reports, const char
 	ob = BKE_object_add_only_object(bmain, type, safe_name);
 
 	ob->data = data;
-	test_object_materials(ob, ob->data);
+	test_object_materials(bmain, ob, ob->data);
 
 	return ob;
 }
@@ -264,6 +265,13 @@ static Material *rna_Main_materials_new(Main *bmain, const char *name)
 	ID *id = (ID *)BKE_material_add(bmain, safe_name);
 	id_us_min(id);
 	return (Material *)id;
+}
+
+static void rna_Main_materials_gpencil_data(Main *UNUSED(bmain), PointerRNA *id_ptr)
+{
+	ID *id = id_ptr->data;
+	Material *ma = (Material *)id;
+	BKE_material_init_gpencil_settings(ma);
 }
 
 static const EnumPropertyItem *rna_Main_nodetree_type_itemf(bContext *UNUSED(C), PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
@@ -298,27 +306,11 @@ static Mesh *rna_Main_meshes_new(Main *bmain, const char *name)
 }
 
 /* copied from Mesh_getFromObject and adapted to RNA interface */
-/* settings: 1 - preview, 2 - render */
 Mesh *rna_Main_meshes_new_from_object(
-        Main *bmain, ReportList *reports, Scene *sce, ViewLayer *view_layer,
-        Object *ob, int apply_modifiers, int settings, int calc_tessface, int calc_undeformed)
+        Main *bmain, ReportList *reports, Depsgraph *depsgraph,
+        Object *ob, bool apply_modifiers, bool calc_undeformed)
 {
-	EvaluationContext eval_ctx;
-
-	/* XXX: This should never happen, but render pipeline is not ready to give
-	 * proper view_layer, and will always pass NULL here. For until we port
-	 * pipeline form SceneRenderLayer to ViewLayer we have this stub to prevent
-	 * some obvious crashes.
-	 *                                                         - sergey -
-	 */
-	if (view_layer == NULL) {
-		view_layer = sce->view_layers.first;
-	}
-
-	DEG_evaluation_context_init(&eval_ctx, settings);
-	eval_ctx.ctime = (float)sce->r.cfra + sce->r.subframe;
-	eval_ctx.view_layer = view_layer;
-	eval_ctx.depsgraph = BKE_scene_get_depsgraph(sce, view_layer, false);
+	Scene *sce = DEG_get_evaluated_scene(depsgraph);
 
 	switch (ob->type) {
 		case OB_FONT:
@@ -332,10 +324,10 @@ Mesh *rna_Main_meshes_new_from_object(
 			return NULL;
 	}
 
-	return BKE_mesh_new_from_object(&eval_ctx, bmain, sce, ob, apply_modifiers, settings, calc_tessface, calc_undeformed);
+	return BKE_mesh_new_from_object(depsgraph, bmain, sce, ob, apply_modifiers, calc_undeformed);
 }
 
-static Lamp *rna_Main_lamps_new(Main *bmain, const char *name, int type)
+static Lamp *rna_Main_lights_new(Main *bmain, const char *name, int type)
 {
 	char safe_name[MAX_ID_NAME - 2];
 	rna_idname_validate(name, safe_name);
@@ -346,7 +338,7 @@ static Lamp *rna_Main_lamps_new(Main *bmain, const char *name, int type)
 	return lamp;
 }
 
-static Image *rna_Main_images_new(Main *bmain, const char *name, int width, int height, int alpha, int float_buffer, int stereo3d)
+static Image *rna_Main_images_new(Main *bmain, const char *name, int width, int height, bool alpha, bool float_buffer, bool stereo3d)
 {
 	char safe_name[MAX_ID_NAME - 2];
 	rna_idname_validate(name, safe_name);
@@ -356,13 +348,13 @@ static Image *rna_Main_images_new(Main *bmain, const char *name, int width, int 
 	id_us_min(&image->id);
 	return image;
 }
-static Image *rna_Main_images_load(Main *bmain, ReportList *reports, const char *filepath, int check_existing)
+static Image *rna_Main_images_load(Main *bmain, ReportList *reports, const char *filepath, bool check_existing)
 {
 	Image *ima;
 
 	errno = 0;
 	if (check_existing) {
-		ima = BKE_image_load_exists(filepath);
+		ima = BKE_image_load_exists(bmain, filepath);
 	}
 	else {
 		ima = BKE_image_load(bmain, filepath);
@@ -407,7 +399,7 @@ static MetaBall *rna_Main_metaballs_new(Main *bmain, const char *name)
 	return mb;
 }
 
-static VFont *rna_Main_fonts_load(Main *bmain, ReportList *reports, const char *filepath, int check_existing)
+static VFont *rna_Main_fonts_load(Main *bmain, ReportList *reports, const char *filepath, bool check_existing)
 {
 	VFont *font;
 	errno = 0;
@@ -449,6 +441,14 @@ static Brush *rna_Main_brushes_new(Main *bmain, const char *name, int mode)
 	return brush;
 }
 
+static void rna_Main_brush_gpencil_data(Main *UNUSED(bmain), PointerRNA *id_ptr)
+{
+	ID *id = id_ptr->data;
+	Brush *brush = (Brush *)id;
+	BKE_brush_init_gpencil_settings(brush);
+}
+
+
 static World *rna_Main_worlds_new(Main *bmain, const char *name)
 {
 	char safe_name[MAX_ID_NAME - 2];
@@ -459,12 +459,12 @@ static World *rna_Main_worlds_new(Main *bmain, const char *name)
 	return world;
 }
 
-static Group *rna_Main_groups_new(Main *bmain, const char *name)
+static Collection *rna_Main_collections_new(Main *bmain, const char *name)
 {
 	char safe_name[MAX_ID_NAME - 2];
 	rna_idname_validate(name, safe_name);
 
-	return BKE_group_add(bmain, safe_name);
+	return BKE_collection_add(bmain, NULL, safe_name);
 }
 
 static Speaker *rna_Main_speakers_new(Main *bmain, const char *name)
@@ -477,7 +477,7 @@ static Speaker *rna_Main_speakers_new(Main *bmain, const char *name)
 	return speaker;
 }
 
-static bSound *rna_Main_sounds_load(Main *bmain, const char *name, int check_existing)
+static bSound *rna_Main_sounds_load(Main *bmain, const char *name, bool check_existing)
 {
 	bSound *sound;
 
@@ -500,12 +500,12 @@ static Text *rna_Main_texts_new(Main *bmain, const char *name)
 	return BKE_text_add(bmain, safe_name);
 }
 
-static Text *rna_Main_texts_load(Main *bmain, ReportList *reports, const char *filepath, int is_internal)
+static Text *rna_Main_texts_load(Main *bmain, ReportList *reports, const char *filepath, bool is_internal)
 {
 	Text *txt;
 
 	errno = 0;
-	txt = BKE_text_load_ex(bmain, filepath, bmain->name, is_internal);
+	txt = BKE_text_load_ex(bmain, filepath, BKE_main_blendfile_path(bmain), is_internal);
 
 	if (!txt)
 		BKE_reportf(reports, RPT_ERROR, "Cannot read '%s': %s", filepath,
@@ -554,7 +554,7 @@ static Palette *rna_Main_palettes_new(Main *bmain, const char *name)
 	return (Palette *)palette;
 }
 
-static MovieClip *rna_Main_movieclip_load(Main *bmain, ReportList *reports, const char *filepath, int check_existing)
+static MovieClip *rna_Main_movieclip_load(Main *bmain, ReportList *reports, const char *filepath, bool check_existing)
 {
 	MovieClip *clip;
 
@@ -607,14 +607,11 @@ static LightProbe *rna_Main_lightprobe_new(Main *bmain, const char *name)
 	return probe;
 }
 
-/* tag and is_updated functions, all the same */
+/* tag functions, all the same */
 #define RNA_MAIN_ID_TAG_FUNCS_DEF(_func_name, _listbase_name, _id_type)            \
-	static void rna_Main_##_func_name##_tag(Main *bmain, int value) {              \
+	static void rna_Main_##_func_name##_tag(Main *bmain, bool value) {             \
 		BKE_main_id_tag_listbase(&bmain->_listbase_name, LIB_TAG_DOIT, value);     \
 	}                                                                              \
-	static int rna_Main_##_func_name##_is_updated_get(PointerRNA *ptr) {           \
-		return DEG_id_type_tagged(ptr->data, _id_type) != 0;                       \
-	}
 
 RNA_MAIN_ID_TAG_FUNCS_DEF(cameras, camera, ID_CA)
 RNA_MAIN_ID_TAG_FUNCS_DEF(scenes, scene, ID_SCE)
@@ -622,7 +619,7 @@ RNA_MAIN_ID_TAG_FUNCS_DEF(objects, object, ID_OB)
 RNA_MAIN_ID_TAG_FUNCS_DEF(materials, mat, ID_MA)
 RNA_MAIN_ID_TAG_FUNCS_DEF(node_groups, nodetree, ID_NT)
 RNA_MAIN_ID_TAG_FUNCS_DEF(meshes, mesh, ID_ME)
-RNA_MAIN_ID_TAG_FUNCS_DEF(lamps, lamp, ID_LA)
+RNA_MAIN_ID_TAG_FUNCS_DEF(lights, lamp, ID_LA)
 RNA_MAIN_ID_TAG_FUNCS_DEF(libraries, library, ID_LI)
 RNA_MAIN_ID_TAG_FUNCS_DEF(screens, screen, ID_SCR)
 RNA_MAIN_ID_TAG_FUNCS_DEF(window_managers, wm, ID_WM)
@@ -634,7 +631,7 @@ RNA_MAIN_ID_TAG_FUNCS_DEF(fonts, vfont, ID_VF)
 RNA_MAIN_ID_TAG_FUNCS_DEF(textures, tex, ID_TE)
 RNA_MAIN_ID_TAG_FUNCS_DEF(brushes, brush, ID_BR)
 RNA_MAIN_ID_TAG_FUNCS_DEF(worlds, world, ID_WO)
-RNA_MAIN_ID_TAG_FUNCS_DEF(groups, group, ID_GR)
+RNA_MAIN_ID_TAG_FUNCS_DEF(collections, collection, ID_GR)
 //RNA_MAIN_ID_TAG_FUNCS_DEF(shape_keys, key, ID_KE)
 RNA_MAIN_ID_TAG_FUNCS_DEF(texts, text, ID_TXT)
 RNA_MAIN_ID_TAG_FUNCS_DEF(speakers, speaker, ID_SPK)
@@ -678,7 +675,6 @@ void RNA_def_main_cameras(BlenderRNA *brna, PropertyRNA *cprop)
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataCameras");
 	srna = RNA_def_struct(brna, "BlendDataCameras", NULL);
@@ -710,10 +706,6 @@ void RNA_def_main_cameras(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_cameras_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_cameras_is_updated_get", NULL);
 }
 
 void RNA_def_main_scenes(BlenderRNA *brna, PropertyRNA *cprop)
@@ -721,7 +713,6 @@ void RNA_def_main_scenes(BlenderRNA *brna, PropertyRNA *cprop)
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataScenes");
 	srna = RNA_def_struct(brna, "BlendDataScenes", NULL);
@@ -747,10 +738,6 @@ void RNA_def_main_scenes(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_scenes_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_scenes_is_updated_get", NULL);
 }
 
 void RNA_def_main_objects(BlenderRNA *brna, PropertyRNA *cprop)
@@ -758,7 +745,6 @@ void RNA_def_main_objects(BlenderRNA *brna, PropertyRNA *cprop)
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataObjects");
 	srna = RNA_def_struct(brna, "BlendDataObjects", NULL);
@@ -792,10 +778,6 @@ void RNA_def_main_objects(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_objects_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_objects_is_updated_get", NULL);
 }
 
 void RNA_def_main_materials(BlenderRNA *brna, PropertyRNA *cprop)
@@ -803,7 +785,6 @@ void RNA_def_main_materials(BlenderRNA *brna, PropertyRNA *cprop)
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataMaterials");
 	srna = RNA_def_struct(brna, "BlendDataMaterials", NULL);
@@ -817,6 +798,11 @@ void RNA_def_main_materials(BlenderRNA *brna, PropertyRNA *cprop)
 	/* return type */
 	parm = RNA_def_pointer(func, "material", "Material", "", "New material data-block");
 	RNA_def_function_return(func, parm);
+
+	func = RNA_def_function(srna, "create_gpencil_data", "rna_Main_materials_gpencil_data");
+	RNA_def_function_ui_description(func, "Add grease pencil material settings");
+	parm = RNA_def_pointer(func, "material", "Material", "", "Material");
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
 
 	func = RNA_def_function(srna, "remove", "rna_Main_ID_remove");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
@@ -833,17 +819,12 @@ void RNA_def_main_materials(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_materials_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_materials_is_updated_get", NULL);
 }
 void RNA_def_main_node_groups(BlenderRNA *brna, PropertyRNA *cprop)
 {
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	static const EnumPropertyItem dummy_items[] = {
 		{0, "DUMMY", 0, "", ""},
@@ -881,23 +862,12 @@ void RNA_def_main_node_groups(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_node_groups_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_node_groups_is_updated_get", NULL);
 }
 void RNA_def_main_meshes(BlenderRNA *brna, PropertyRNA *cprop)
 {
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
-
-	static const EnumPropertyItem mesh_type_items[] = {
-		{eModifierMode_Realtime, "PREVIEW", 0, "Preview", "Apply modifier preview settings"},
-		{eModifierMode_Render, "RENDER", 0, "Render", "Apply modifier render settings"},
-		{0, NULL, 0, NULL, NULL}
-	};
 
 	RNA_def_property_srna(cprop, "BlendDataMeshes");
 	srna = RNA_def_struct(brna, "BlendDataMeshes", NULL);
@@ -915,17 +885,12 @@ void RNA_def_main_meshes(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "new_from_object", "rna_Main_meshes_new_from_object");
 	RNA_def_function_ui_description(func, "Add a new mesh created from object with modifiers applied");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
-	parm = RNA_def_pointer(func, "scene", "Scene", "", "Scene within which to evaluate modifiers");
-	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED);
-	parm = RNA_def_pointer(func, "view_layer", "ViewLayer", "", "Scene layer within which to evaluate modifiers");
+	parm = RNA_def_pointer(func, "depsgraph", "Depsgraph", "Dependency Graph", "Evaluated dependency graph within which to evaluate modifiers");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED);
 	parm = RNA_def_pointer(func, "object", "Object", "", "Object to create mesh from");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED);
 	parm = RNA_def_boolean(func, "apply_modifiers", 0, "", "Apply modifiers");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-	parm = RNA_def_enum(func, "settings", mesh_type_items, 0, "", "Modifier settings to apply");
-	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-	RNA_def_boolean(func, "calc_tessface", true, "Calculate Tessellation", "Calculate tessellation faces");
 	RNA_def_boolean(func, "calc_undeformed", false, "Calculate Undeformed", "Calculate undeformed vertex coordinates");
 	parm = RNA_def_pointer(func, "mesh", "Mesh", "",
 	                       "Mesh created from object, remove it if it is only used for export");
@@ -948,54 +913,46 @@ void RNA_def_main_meshes(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_meshes_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_meshes_is_updated_get", NULL);
 }
-void RNA_def_main_lamps(BlenderRNA *brna, PropertyRNA *cprop)
+
+void RNA_def_main_lights(BlenderRNA *brna, PropertyRNA *cprop)
 {
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
-	RNA_def_property_srna(cprop, "BlendDataLamps");
-	srna = RNA_def_struct(brna, "BlendDataLamps", NULL);
+	RNA_def_property_srna(cprop, "BlendDataLights");
+	srna = RNA_def_struct(brna, "BlendDataLights", NULL);
 	RNA_def_struct_sdna(srna, "Main");
-	RNA_def_struct_ui_text(srna, "Main Lamps", "Collection of lamps");
+	RNA_def_struct_ui_text(srna, "Main Lights", "Collection of lights");
 
-	func = RNA_def_function(srna, "new", "rna_Main_lamps_new");
-	RNA_def_function_ui_description(func, "Add a new lamp to the main database");
-	parm = RNA_def_string(func, "name", "Lamp", 0, "", "New name for the data-block");
+	func = RNA_def_function(srna, "new", "rna_Main_lights_new");
+	RNA_def_function_ui_description(func, "Add a new light to the main database");
+	parm = RNA_def_string(func, "name", "Light", 0, "", "New name for the data-block");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-	parm = RNA_def_enum(func, "type", rna_enum_lamp_type_items, 0, "Type", "The type of texture to add");
+	parm = RNA_def_enum(func, "type", rna_enum_light_type_items, 0, "Type", "The type of texture to add");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	/* return type */
-	parm = RNA_def_pointer(func, "lamp", "Lamp", "", "New lamp data-block");
+	parm = RNA_def_pointer(func, "light", "Light", "", "New light data-block");
 	RNA_def_function_return(func, parm);
 
 	func = RNA_def_function(srna, "remove", "rna_Main_ID_remove");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
-	RNA_def_function_ui_description(func, "Remove a lamp from the current blendfile");
-	parm = RNA_def_pointer(func, "lamp", "Lamp", "", "Lamp to remove");
+	RNA_def_function_ui_description(func, "Remove a light from the current blendfile");
+	parm = RNA_def_pointer(func, "light", "Light", "", "Light to remove");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
 	RNA_def_parameter_clear_flags(parm, PROP_THICK_WRAP, 0);
 	RNA_def_boolean(func, "do_unlink", true, "",
-	                "Unlink all usages of this lamp before deleting it "
-	                "(WARNING: will also delete objects instancing that lamp data)");
+	                "Unlink all usages of this Light before deleting it "
+	                "(WARNING: will also delete objects instancing that light data)");
 	RNA_def_boolean(func, "do_id_user", true, "",
-	                "Decrement user counter of all datablocks used by this lamp data");
+	                "Decrement user counter of all datablocks used by this light data");
 	RNA_def_boolean(func, "do_ui_user", true, "",
-	                "Make sure interface does not reference this lamp data");
+	                "Make sure interface does not reference this light data");
 
-	func = RNA_def_function(srna, "tag", "rna_Main_lamps_tag");
+	func = RNA_def_function(srna, "tag", "rna_Main_lights_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_lamps_is_updated_get", NULL);
 }
 
 void RNA_def_main_libraries(BlenderRNA *brna, PropertyRNA *cprop)
@@ -1003,7 +960,6 @@ void RNA_def_main_libraries(BlenderRNA *brna, PropertyRNA *cprop)
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataLibraries");
 	srna = RNA_def_struct(brna, "BlendDataLibraries", NULL);
@@ -1013,10 +969,6 @@ void RNA_def_main_libraries(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_libraries_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_libraries_is_updated_get", NULL);
 }
 
 void RNA_def_main_screens(BlenderRNA *brna, PropertyRNA *cprop)
@@ -1024,7 +976,6 @@ void RNA_def_main_screens(BlenderRNA *brna, PropertyRNA *cprop)
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataScreens");
 	srna = RNA_def_struct(brna, "BlendDataScreens", NULL);
@@ -1034,10 +985,6 @@ void RNA_def_main_screens(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_screens_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_screens_is_updated_get", NULL);
 }
 
 void RNA_def_main_window_managers(BlenderRNA *brna, PropertyRNA *cprop)
@@ -1045,7 +992,6 @@ void RNA_def_main_window_managers(BlenderRNA *brna, PropertyRNA *cprop)
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataWindowManagers");
 	srna = RNA_def_struct(brna, "BlendDataWindowManagers", NULL);
@@ -1055,17 +1001,12 @@ void RNA_def_main_window_managers(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_window_managers_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_window_managers_is_updated_get", NULL);
 }
 void RNA_def_main_images(BlenderRNA *brna, PropertyRNA *cprop)
 {
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataImages");
 	srna = RNA_def_struct(brna, "BlendDataImages", NULL);
@@ -1112,10 +1053,6 @@ void RNA_def_main_images(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_images_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_images_is_updated_get", NULL);
 }
 
 void RNA_def_main_lattices(BlenderRNA *brna, PropertyRNA *cprop)
@@ -1123,7 +1060,6 @@ void RNA_def_main_lattices(BlenderRNA *brna, PropertyRNA *cprop)
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataLattices");
 	srna = RNA_def_struct(brna, "BlendDataLattices", NULL);
@@ -1155,17 +1091,12 @@ void RNA_def_main_lattices(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_lattices_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_lattices_is_updated_get", NULL);
 }
 void RNA_def_main_curves(BlenderRNA *brna, PropertyRNA *cprop)
 {
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataCurves");
 	srna = RNA_def_struct(brna, "BlendDataCurves", NULL);
@@ -1199,17 +1130,12 @@ void RNA_def_main_curves(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_curves_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_curves_is_updated_get", NULL);
 }
 void RNA_def_main_metaballs(BlenderRNA *brna, PropertyRNA *cprop)
 {
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataMetaBalls");
 	srna = RNA_def_struct(brna, "BlendDataMetaBalls", NULL);
@@ -1241,17 +1167,12 @@ void RNA_def_main_metaballs(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_metaballs_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_metaballs_is_updated_get", NULL);
 }
 void RNA_def_main_fonts(BlenderRNA *brna, PropertyRNA *cprop)
 {
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataFonts");
 	srna = RNA_def_struct(brna, "BlendDataFonts", NULL);
@@ -1283,22 +1204,17 @@ void RNA_def_main_fonts(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_fonts_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_fonts_is_updated_get", NULL);
 }
 void RNA_def_main_textures(BlenderRNA *brna, PropertyRNA *cprop)
 {
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataTextures");
 	srna = RNA_def_struct(brna, "BlendDataTextures", NULL);
 	RNA_def_struct_sdna(srna, "Main");
-	RNA_def_struct_ui_text(srna, "Main Textures", "Collection of groups");
+	RNA_def_struct_ui_text(srna, "Main Textures", "Collection of textures");
 
 	func = RNA_def_function(srna, "new", "rna_Main_textures_new");
 	RNA_def_function_ui_description(func, "Add a new texture to the main database");
@@ -1325,17 +1241,12 @@ void RNA_def_main_textures(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_textures_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_textures_is_updated_get", NULL);
 }
 void RNA_def_main_brushes(BlenderRNA *brna, PropertyRNA *cprop)
 {
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataBrushes");
 	srna = RNA_def_struct(brna, "BlendDataBrushes", NULL);
@@ -1367,9 +1278,10 @@ void RNA_def_main_brushes(BlenderRNA *brna, PropertyRNA *cprop)
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_brushes_is_updated_get", NULL);
+	func = RNA_def_function(srna, "create_gpencil_data", "rna_Main_brush_gpencil_data");
+	RNA_def_function_ui_description(func, "Add grease pencil brush settings");
+	parm = RNA_def_pointer(func, "brush", "Brush", "", "Brush");
+	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
 }
 
 void RNA_def_main_worlds(BlenderRNA *brna, PropertyRNA *cprop)
@@ -1377,7 +1289,6 @@ void RNA_def_main_worlds(BlenderRNA *brna, PropertyRNA *cprop)
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataWorlds");
 	srna = RNA_def_struct(brna, "BlendDataWorlds", NULL);
@@ -1407,51 +1318,42 @@ void RNA_def_main_worlds(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_worlds_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_worlds_is_updated_get", NULL);
 }
 
-void RNA_def_main_groups(BlenderRNA *brna, PropertyRNA *cprop)
+void RNA_def_main_collections(BlenderRNA *brna, PropertyRNA *cprop)
 {
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
-	RNA_def_property_srna(cprop, "BlendDataGroups");
-	srna = RNA_def_struct(brna, "BlendDataGroups", NULL);
+	RNA_def_property_srna(cprop, "BlendDataCollections");
+	srna = RNA_def_struct(brna, "BlendDataCollections", NULL);
 	RNA_def_struct_sdna(srna, "Main");
-	RNA_def_struct_ui_text(srna, "Main Groups", "Collection of groups");
+	RNA_def_struct_ui_text(srna, "Main Collections", "Collection of collections");
 
-	func = RNA_def_function(srna, "new", "rna_Main_groups_new");
-	RNA_def_function_ui_description(func, "Add a new group to the main database");
-	parm = RNA_def_string(func, "name", "Group", 0, "", "New name for the data-block");
+	func = RNA_def_function(srna, "new", "rna_Main_collections_new");
+	RNA_def_function_ui_description(func, "Add a new collection to the main database");
+	parm = RNA_def_string(func, "name", "Collection", 0, "", "New name for the data-block");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	/* return type */
-	parm = RNA_def_pointer(func, "group", "Group", "", "New group data-block");
+	parm = RNA_def_pointer(func, "collection", "Collection", "", "New collection data-block");
 	RNA_def_function_return(func, parm);
 
 	func = RNA_def_function(srna, "remove", "rna_Main_ID_remove");
-	RNA_def_function_ui_description(func, "Remove a group from the current blendfile");
+	RNA_def_function_ui_description(func, "Remove a collection from the current blendfile");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
-	parm = RNA_def_pointer(func, "group", "Group", "", "Group to remove");
+	parm = RNA_def_pointer(func, "collection", "Collection", "", "Collection to remove");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
 	RNA_def_parameter_clear_flags(parm, PROP_THICK_WRAP, 0);
-	RNA_def_boolean(func, "do_unlink", true, "", "Unlink all usages of this group before deleting it");
+	RNA_def_boolean(func, "do_unlink", true, "", "Unlink all usages of this collection before deleting it");
 	RNA_def_boolean(func, "do_id_user", true, "",
-	                "Decrement user counter of all datablocks used by this group");
+	                "Decrement user counter of all datablocks used by this collection");
 	RNA_def_boolean(func, "do_ui_user", true, "",
-	                "Make sure interface does not reference this group");
+	                "Make sure interface does not reference this collection");
 
-	func = RNA_def_function(srna, "tag", "rna_Main_groups_tag");
+	func = RNA_def_function(srna, "tag", "rna_Main_collections_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_groups_is_updated_get", NULL);
 }
 
 void RNA_def_main_speakers(BlenderRNA *brna, PropertyRNA *cprop)
@@ -1459,7 +1361,6 @@ void RNA_def_main_speakers(BlenderRNA *brna, PropertyRNA *cprop)
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataSpeakers");
 	srna = RNA_def_struct(brna, "BlendDataSpeakers", NULL);
@@ -1491,10 +1392,6 @@ void RNA_def_main_speakers(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_speakers_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_speakers_is_updated_get", NULL);
 }
 
 void RNA_def_main_texts(BlenderRNA *brna, PropertyRNA *cprop)
@@ -1502,7 +1399,6 @@ void RNA_def_main_texts(BlenderRNA *brna, PropertyRNA *cprop)
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataTexts");
 	srna = RNA_def_struct(brna, "BlendDataTexts", NULL);
@@ -1543,10 +1439,6 @@ void RNA_def_main_texts(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_texts_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_texts_is_updated_get", NULL);
 }
 
 void RNA_def_main_sounds(BlenderRNA *brna, PropertyRNA *cprop)
@@ -1554,7 +1446,6 @@ void RNA_def_main_sounds(BlenderRNA *brna, PropertyRNA *cprop)
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataSounds");
 	srna = RNA_def_struct(brna, "BlendDataSounds", NULL);
@@ -1586,10 +1477,6 @@ void RNA_def_main_sounds(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_sounds_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_sounds_is_updated_get", NULL);
 }
 
 void RNA_def_main_armatures(BlenderRNA *brna, PropertyRNA *cprop)
@@ -1597,7 +1484,6 @@ void RNA_def_main_armatures(BlenderRNA *brna, PropertyRNA *cprop)
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataArmatures");
 	srna = RNA_def_struct(brna, "BlendDataArmatures", NULL);
@@ -1629,17 +1515,12 @@ void RNA_def_main_armatures(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_armatures_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_armatures_is_updated_get", NULL);
 }
 void RNA_def_main_actions(BlenderRNA *brna, PropertyRNA *cprop)
 {
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataActions");
 	srna = RNA_def_struct(brna, "BlendDataActions", NULL);
@@ -1669,17 +1550,12 @@ void RNA_def_main_actions(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_actions_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_actions_is_updated_get", NULL);
 }
 void RNA_def_main_particles(BlenderRNA *brna, PropertyRNA *cprop)
 {
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataParticles");
 	srna = RNA_def_struct(brna, "BlendDataParticles", NULL);
@@ -1709,10 +1585,6 @@ void RNA_def_main_particles(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_particles_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_particles_is_updated_get", NULL);
 }
 
 void RNA_def_main_palettes(BlenderRNA *brna, PropertyRNA *cprop)
@@ -1720,7 +1592,6 @@ void RNA_def_main_palettes(BlenderRNA *brna, PropertyRNA *cprop)
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataPalettes");
 	srna = RNA_def_struct(brna, "BlendDataPalettes", NULL);
@@ -1750,17 +1621,12 @@ void RNA_def_main_palettes(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_palettes_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_palettes_is_updated_get", NULL);
 }
 void RNA_def_main_cachefiles(BlenderRNA *brna, PropertyRNA *cprop)
 {
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataCacheFiles");
 	srna = RNA_def_struct(brna, "BlendDataCacheFiles", NULL);
@@ -1770,17 +1636,12 @@ void RNA_def_main_cachefiles(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_cachefiles_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_cachefiles_is_updated_get", NULL);
 }
 void RNA_def_main_paintcurves(BlenderRNA *brna, PropertyRNA *cprop)
 {
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataPaintCurves");
 	srna = RNA_def_struct(brna, "BlendDataPaintCurves", NULL);
@@ -1790,17 +1651,12 @@ void RNA_def_main_paintcurves(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_paintcurves_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_paintcurves_is_updated_get", NULL);
 }
 void RNA_def_main_gpencil(BlenderRNA *brna, PropertyRNA *cprop)
 {
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataGreasePencils");
 	srna = RNA_def_struct(brna, "BlendDataGreasePencils", NULL);
@@ -1812,7 +1668,7 @@ void RNA_def_main_gpencil(BlenderRNA *brna, PropertyRNA *cprop)
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 
 	func = RNA_def_function(srna, "new", "BKE_gpencil_data_addnew");
-	RNA_def_function_flag(func, FUNC_NO_SELF);
+	RNA_def_function_flag(func, FUNC_NO_SELF | FUNC_USE_MAIN);
 	parm = RNA_def_string(func, "name", "GreasePencil", 0, "", "New name for the data-block");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	/* return type */
@@ -1830,10 +1686,6 @@ void RNA_def_main_gpencil(BlenderRNA *brna, PropertyRNA *cprop)
 	                "Decrement user counter of all datablocks used by this grease pencil");
 	RNA_def_boolean(func, "do_ui_user", true, "",
 	                "Make sure interface does not reference this grease pencil");
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_gpencil_is_updated_get", NULL);
 }
 
 void RNA_def_main_movieclips(BlenderRNA *brna, PropertyRNA *cprop)
@@ -1841,7 +1693,6 @@ void RNA_def_main_movieclips(BlenderRNA *brna, PropertyRNA *cprop)
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataMovieClips");
 	srna = RNA_def_struct(brna, "BlendDataMovieClips", NULL);
@@ -1877,10 +1728,6 @@ void RNA_def_main_movieclips(BlenderRNA *brna, PropertyRNA *cprop)
 	/* return type */
 	parm = RNA_def_pointer(func, "clip", "MovieClip", "", "New movie clip data-block");
 	RNA_def_function_return(func, parm);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_movieclips_is_updated_get", NULL);
 }
 
 void RNA_def_main_masks(BlenderRNA *brna, PropertyRNA *cprop)
@@ -1888,7 +1735,6 @@ void RNA_def_main_masks(BlenderRNA *brna, PropertyRNA *cprop)
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataMasks");
 	srna = RNA_def_struct(brna, "BlendDataMasks", NULL);
@@ -1902,7 +1748,8 @@ void RNA_def_main_masks(BlenderRNA *brna, PropertyRNA *cprop)
 	/* new func */
 	func = RNA_def_function(srna, "new", "rna_Main_mask_new");
 	RNA_def_function_ui_description(func, "Add a new mask with a given name to the main database");
-	RNA_def_string_file_path(func, "name", NULL, MAX_ID_NAME - 2, "Mask", "Name of new mask data-block");
+	parm = RNA_def_string(func, "name", NULL, MAX_ID_NAME - 2, "Mask", "Name of new mask data-block");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	/* return type */
 	parm = RNA_def_pointer(func, "mask", "Mask", "", "New mask data-block");
 	RNA_def_function_return(func, parm);
@@ -1919,10 +1766,6 @@ void RNA_def_main_masks(BlenderRNA *brna, PropertyRNA *cprop)
 	                "Decrement user counter of all datablocks used by this mask");
 	RNA_def_boolean(func, "do_ui_user", true, "",
 	                "Make sure interface does not reference this mask");
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_masks_is_updated_get", NULL);
 }
 
 void RNA_def_main_linestyles(BlenderRNA *brna, PropertyRNA *cprop)
@@ -1930,7 +1773,6 @@ void RNA_def_main_linestyles(BlenderRNA *brna, PropertyRNA *cprop)
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataLineStyles");
 	srna = RNA_def_struct(brna, "BlendDataLineStyles", NULL);
@@ -1960,10 +1802,6 @@ void RNA_def_main_linestyles(BlenderRNA *brna, PropertyRNA *cprop)
 	                "Decrement user counter of all datablocks used by this line style");
 	RNA_def_boolean(func, "do_ui_user", true, "",
 	                "Make sure interface does not reference this line style");
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_linestyle_is_updated_get", NULL);
 }
 
 void RNA_def_main_workspaces(BlenderRNA *brna, PropertyRNA *cprop)
@@ -1971,7 +1809,6 @@ void RNA_def_main_workspaces(BlenderRNA *brna, PropertyRNA *cprop)
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataWorkSpaces");
 	srna = RNA_def_struct(brna, "BlendDataWorkSpaces", NULL);
@@ -1981,10 +1818,6 @@ void RNA_def_main_workspaces(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_workspaces_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_workspaces_is_updated_get", NULL);
 }
 
 void RNA_def_main_lightprobes(BlenderRNA *brna, PropertyRNA *cprop)
@@ -1992,7 +1825,6 @@ void RNA_def_main_lightprobes(BlenderRNA *brna, PropertyRNA *cprop)
 	StructRNA *srna;
 	FunctionRNA *func;
 	PropertyRNA *parm;
-	PropertyRNA *prop;
 
 	RNA_def_property_srna(cprop, "BlendDataProbes");
 	srna = RNA_def_struct(brna, "BlendDataProbes", NULL);
@@ -2024,10 +1856,6 @@ void RNA_def_main_lightprobes(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "tag", "rna_Main_lightprobes_tag");
 	parm = RNA_def_boolean(func, "value", 0, "Value", "");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-
-	prop = RNA_def_property(srna, "is_updated", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_boolean_funcs(prop, "rna_Main_lightprobes_is_updated_get", NULL);
 }
 
 #endif

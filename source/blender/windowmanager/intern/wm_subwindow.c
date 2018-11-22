@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -50,7 +50,7 @@ void wmViewport(const rcti *winrct)
 	glScissor(winrct->xmin, winrct->ymin, width, height);
 
 	wmOrtho2_pixelspace(width, height);
-	gpuLoadIdentity();
+	GPU_matrix_identity_set();
 }
 
 void wmPartialViewport(rcti *drawrct, const rcti *winrct, const rcti *partialrct)
@@ -69,6 +69,8 @@ void wmPartialViewport(rcti *drawrct, const rcti *winrct, const rcti *partialrct
 		scissor_pad = false;
 	}
 
+	int x = drawrct->xmin - winrct->xmin;
+	int y = drawrct->ymin - winrct->ymin;
 	int width  = BLI_rcti_size_x(winrct) + 1;
 	int height = BLI_rcti_size_y(winrct) + 1;
 
@@ -83,11 +85,11 @@ void wmPartialViewport(rcti *drawrct, const rcti *winrct, const rcti *partialrct
 		scissor_height += 1;
 	}
 
-	glViewport(winrct->xmin, winrct->ymin, width, height);
-	glScissor(drawrct->xmin, drawrct->ymin, scissor_width, scissor_height);
+	glViewport(0, 0, width, height);
+	glScissor(x, y, scissor_width, scissor_height);
 
 	wmOrtho2_pixelspace(width, height);
-	gpuLoadIdentity();
+	GPU_matrix_identity_set();
 }
 
 void wmWindowViewport(wmWindow *win)
@@ -99,7 +101,7 @@ void wmWindowViewport(wmWindow *win)
 	glScissor(0, 0, width, height);
 
 	wmOrtho2_pixelspace(width, height);
-	gpuLoadIdentity();
+	GPU_matrix_identity_set();
 }
 
 void wmOrtho2(float x1, float x2, float y1, float y2)
@@ -108,7 +110,7 @@ void wmOrtho2(float x1, float x2, float y1, float y2)
 	if (x1 == x2) x2 += 1.0f;
 	if (y1 == y2) y2 += 1.0f;
 
-	gpuOrtho(x1, x2, y1, y2, -100, 100);
+	GPU_matrix_ortho_set(x1, x2, y1, y2, -100, 100);
 }
 
 static void wmOrtho2_offset(const float x, const float y, const float ofs)

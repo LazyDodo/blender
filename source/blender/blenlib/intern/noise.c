@@ -421,9 +421,9 @@ float BLI_turbulence(float noisesize, float x, float y, float z, int nr)
 	float s, d = 0.5, div = 1.0;
 
 	s = BLI_hnoise(noisesize, x, y, z);
-	
+
 	while (nr > 0) {
-	
+
 		s += d * BLI_hnoise(noisesize * d, x, y, z);
 		div += d;
 		d *= 0.5f;
@@ -438,13 +438,13 @@ float BLI_turbulence1(float noisesize, float x, float y, float z, int nr)
 	float s, d = 0.5, div = 1.0;
 
 	s = fabsf((-1.0f + 2.0f * BLI_hnoise(noisesize, x, y, z)));
-	
+
 	while (nr > 0) {
-	
+
 		s += fabsf(d * (-1.0f + 2.0f * BLI_hnoise(noisesize * d, x, y, z)));
 		div += d;
 		d *= 0.5f;
-		
+
 		nr--;
 	}
 	return s / div;
@@ -1092,26 +1092,6 @@ static float noise3_perlin(float vec[3])
 #undef SURVE
 }
 
-#if 0
-static float turbulence_perlin(const float point[3], float lofreq, float hifreq)
-{
-	float freq, t, p[3];
-
-	p[0] = point[0] + 123.456;
-	p[1] = point[1];
-	p[2] = point[2];
-
-	t = 0;
-	for (freq = lofreq; freq < hifreq; freq *= 2.0) {
-		t += fabsf(noise3_perlin(p)) / freq;
-		p[0] *= 2.0f;
-		p[1] *= 2.0f;
-		p[2] *= 2.0f;
-	}
-	return t - 0.3; /* readjust to make mean value = 0.0 */
-}
-#endif
-
 /* for use with BLI_gNoise/gTurbulence, returns signed noise */
 static float orgPerlinNoise(float x, float y, float z)
 {
@@ -1146,19 +1126,6 @@ float BLI_hnoisep(float noisesize, float x, float y, float z)
 
 	return noise3_perlin(vec);
 }
-
-#if 0
-static float turbulencep(float noisesize, float x, float y, float z, int nr)
-{
-	float vec[3];
-
-	vec[0] = x / noisesize;
-	vec[1] = y / noisesize;
-	vec[2] = z / noisesize;
-	nr++;
-	return turbulence_perlin(vec, 1.0, (float)(1 << nr));
-}
-#endif
 
 /******************/
 /* VORONOI/WORLEY */
@@ -1486,7 +1453,7 @@ float BLI_gNoise(float noisesize, float x, float y, float z, int hard, int noise
 		y *= noisesize;
 		z *= noisesize;
 	}
-	
+
 	if (hard) return fabsf(2.0f * noisefunc(x, y, z) - 1.0f);
 	return noisefunc(x, y, z);
 }
@@ -1497,7 +1464,7 @@ float BLI_gTurbulence(float noisesize, float x, float y, float z, int oct, int h
 	float (*noisefunc)(float, float, float);
 	float sum, t, amp = 1, fscale = 1;
 	int i;
-	
+
 	switch (noisebasis) {
 		case 1:
 			noisefunc = orgPerlinNoiseU;
@@ -1548,7 +1515,7 @@ float BLI_gTurbulence(float noisesize, float x, float y, float z, int oct, int h
 		if (hard) t = fabsf(2.0f * t - 1.0f);
 		sum += t * amp;
 	}
-	
+
 	sum *= ((float)(1 << oct) / (float)((1 << (oct + 1)) - 1));
 
 	return sum;
@@ -1610,7 +1577,7 @@ float mg_fBm(float x, float y, float z, float H, float lacunarity, float octaves
 			break;
 		}
 	}
-	
+
 	for (i = 0; i < (int)octaves; i++) {
 		value += noisefunc(x, y, z) * pwr;
 		pwr *= pwHL;
@@ -1865,7 +1832,7 @@ float mg_RidgedMultiFractal(float x, float y, float z, float H, float lacunarity
 	int i;
 	float pwHL = powf(lacunarity, -H);
 	float pwr = pwHL;   /* starts with i=1 instead of 0 */
-	
+
 	float (*noisefunc)(float, float, float);
 	switch (noisebasis) {
 		case 1:

@@ -69,6 +69,7 @@ static const char *deg_debug_colors[] = {
     "#33a02c", "#fb9a99", "#e31a1c",
     "#fdbf6f", "#ff7f00", "#cab2d6",
     "#6a3d9a", "#ffff99", "#b15928",
+    "#ff00ff",
 };
 #endif
 static const char *deg_debug_colors_light[] = {
@@ -76,6 +77,7 @@ static const char *deg_debug_colors_light[] = {
     "#fb8072", "#80b1d3", "#fdb462",
     "#b3de69", "#fccde5", "#d9d9d9",
     "#bc80bd", "#ccebc5", "#ffed6f",
+    "#ff00ff",
 };
 
 #ifdef COLOR_SCHEME_NODE_TYPE
@@ -84,18 +86,19 @@ static const int deg_debug_node_type_color_map[][2] = {
     {DEG_NODE_TYPE_ID_REF,       1},
 
     /* Outer Types */
-    {DEG_NODE_TYPE_PARAMETERS,        2},
-    {DEG_NODE_TYPE_PROXY,             3},
-    {DEG_NODE_TYPE_ANIMATION,         4},
-    {DEG_NODE_TYPE_TRANSFORM,         5},
-    {DEG_NODE_TYPE_GEOMETRY,          6},
-    {DEG_NODE_TYPE_SEQUENCER,         7},
-    {DEG_NODE_TYPE_SHADING,           8},
+    {DEG_NODE_TYPE_PARAMETERS,         2},
+    {DEG_NODE_TYPE_PROXY,              3},
+    {DEG_NODE_TYPE_ANIMATION,          4},
+    {DEG_NODE_TYPE_TRANSFORM,          5},
+    {DEG_NODE_TYPE_GEOMETRY,           6},
+    {DEG_NODE_TYPE_SEQUENCER,          7},
+    {DEG_NODE_TYPE_SHADING,            8},
     {DEG_NODE_TYPE_SHADING_PARAMETERS, 9},
-    {DEG_NODE_TYPE_CACHE,             10},
-    {DEG_NODE_TYPE_LAYER_COLLECTIONS, 11},
-    {DEG_NODE_TYPE_COPY_ON_WRITE,     12},
-    {-1,                              0}
+    {DEG_NODE_TYPE_CACHE,              10},
+    {DEG_NODE_TYPE_POINT_CACHE,        11},
+    {DEG_NODE_TYPE_LAYER_COLLECTIONS,  12},
+    {DEG_NODE_TYPE_COPY_ON_WRITE,      13},
+    {-1,                               0}
 };
 #endif
 
@@ -251,12 +254,52 @@ static void deg_debug_graphviz_relation_color(const DebugContext &ctx,
                                               const DepsRelation *rel)
 {
 	const char *color_default = "black";
-	const char *color_error = "red4";
+	const char *color_cyclic = "red4";  /* The color of crime scene. */
+	const char *color_godmode = "blue4";  /* The color of beautiful sky. */
 	const char *color = color_default;
 	if (rel->flag & DEPSREL_FLAG_CYCLIC) {
-		color = color_error;
+		color = color_cyclic;
+	}
+	else if (rel->flag & DEPSREL_FLAG_GODMODE) {
+		color = color_godmode;
 	}
 	deg_debug_fprintf(ctx, "%s", color);
+}
+
+static void deg_debug_graphviz_relation_style(const DebugContext &ctx,
+                                              const DepsRelation *rel)
+{
+	const char *style_default = "solid";
+	const char *style_no_flush = "dashed";
+	const char *style_flush_user_only = "dotted";
+	const char *style = style_default;
+	if (rel->flag & DEPSREL_FLAG_NO_FLUSH) {
+		style = style_no_flush;
+	}
+	if (rel->flag & DEPSREL_FLAG_FLUSH_USER_EDIT_ONLY) {
+		style = style_flush_user_only;
+	}
+	deg_debug_fprintf(ctx, "%s", style);
+}
+
+static void deg_debug_graphviz_relation_arrowhead(const DebugContext &ctx,
+                                                  const DepsRelation *rel)
+{
+	const char *shape_default = "normal";
+	const char *shape_no_cow = "box";
+	const char *shape = shape_default;
+	if (rel->from->get_class() == DEG_NODE_CLASS_OPERATION &&
+	    rel->to->get_class() == DEG_NODE_CLASS_OPERATION)
+	{
+		OperationDepsNode *op_from = (OperationDepsNode *)rel->from;
+		OperationDepsNode *op_to = (OperationDepsNode *)rel->to;
+		if (op_from->owner->type == DEG_NODE_TYPE_COPY_ON_WRITE &&
+		    !op_to->owner->need_tag_cow_before_update())
+		{
+			shape = shape_no_cow;
+		}
+	}
+	deg_debug_fprintf(ctx, "%s", shape);
 }
 
 static void deg_debug_graphviz_node_style(const DebugContext &ctx, const DepsNode *node)
@@ -371,10 +414,13 @@ static void deg_debug_graphviz_node(const DebugContext &ctx,
 		case DEG_NODE_TYPE_SHADING:
 		case DEG_NODE_TYPE_SHADING_PARAMETERS:
 		case DEG_NODE_TYPE_CACHE:
+		case DEG_NODE_TYPE_POINT_CACHE:
 		case DEG_NODE_TYPE_LAYER_COLLECTIONS:
 		case DEG_NODE_TYPE_EVAL_PARTICLES:
 		case DEG_NODE_TYPE_COPY_ON_WRITE:
+		case DEG_NODE_TYPE_OBJECT_FROM_LAYER:
 		case DEG_NODE_TYPE_BATCH_CACHE:
+		case DEG_NODE_TYPE_DUPLI:
 		{
 			ComponentDepsNode *comp_node = (ComponentDepsNode *)node;
 			if (!comp_node->operations.empty()) {
@@ -468,16 +514,25 @@ static void deg_debug_graphviz_node_relations(const DebugContext &ctx,
 		/* Note: without label an id seem necessary to avoid bugs in graphviz/dot */
 		deg_debug_fprintf(ctx, "id=\"%s\"", rel->name);
 		// deg_debug_fprintf(ctx, "label=\"%s\"", rel->name);
-		deg_debug_fprintf(ctx, ",color="); deg_debug_graphviz_relation_color(ctx, rel);
+		deg_debug_fprintf(ctx, ",color=");
+		deg_debug_graphviz_relation_color(ctx, rel);
+		deg_debug_fprintf(ctx, ",style=");
+		deg_debug_graphviz_relation_style(ctx, rel);
+		deg_debug_fprintf(ctx, ",arrowhead=");
+		deg_debug_graphviz_relation_arrowhead(ctx, rel);
 		deg_debug_fprintf(ctx, ",penwidth=\"%f\"", penwidth);
 		/* NOTE: edge from node to own cluster is not possible and gives graphviz
 		 * warning, avoid this here by just linking directly to the invisible
 		 * placeholder node
 		 */
-		if (deg_debug_graphviz_is_cluster(tail) && !deg_debug_graphviz_is_owner(head, tail)) {
+		if (deg_debug_graphviz_is_cluster(tail) &&
+		    !deg_debug_graphviz_is_owner(head, tail))
+		{
 			deg_debug_fprintf(ctx, ",ltail=\"cluster_%p\"", tail);
 		}
-		if (deg_debug_graphviz_is_cluster(head) && !deg_debug_graphviz_is_owner(tail, head)) {
+		if (deg_debug_graphviz_is_cluster(head) &&
+		    !deg_debug_graphviz_is_owner(tail, head))
+		{
 			deg_debug_fprintf(ctx, ",lhead=\"cluster_%p\"", head);
 		}
 		deg_debug_fprintf(ctx, "];" NL);

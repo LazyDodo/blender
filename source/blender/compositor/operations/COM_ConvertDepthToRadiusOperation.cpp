@@ -15,9 +15,9 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Contributor: 
- *		Jeroen Bakker 
- *		Monique Dewanchand
+ * Contributor:
+ *      Jeroen Bakker
+ *      Monique Dewanchand
  */
 
 #include "COM_ConvertDepthToRadiusOperation.h"
@@ -81,7 +81,7 @@ void ConvertDepthToRadiusOperation::executePixelSampled(float output[4], float x
 	z = inputValue[0];
 	if (z != 0.0f) {
 		float iZ = (1.0f / z);
-		
+
 		// bug #6656 part 2b, do not rescale
 #if 0
 		bcrad = 0.5f * fabs(aperture * (dof_sp * (cam_invfdist - iZ) - 1.0f));

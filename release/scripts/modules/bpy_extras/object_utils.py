@@ -26,7 +26,7 @@ __all__ = (
     "object_add_grid_scale_apply_operator",
     "object_image_guess",
     "world_to_camera_view",
-    )
+)
 
 
 import bpy
@@ -100,7 +100,7 @@ def add_object_align_init(context, operator):
         if operator:
             properties.rotation = rotation.to_euler()
 
-    return location * rotation
+    return location @ rotation
 
 
 def object_data_add(context, obdata, operator=None, name=None):
@@ -121,17 +121,11 @@ def object_data_add(context, obdata, operator=None, name=None):
     """
     scene = context.scene
     layer = context.view_layer
-    layer_collection = context.layer_collection
+    layer_collection = context.layer_collection or layer.active_layer_collection
+    scene_collection = layer_collection.collection
 
     for ob in layer.objects:
-        ob.select_set(action='DESELECT')
-
-    if not layer_collection:
-        # when there is no collection linked to this view_layer create one
-        scene_collection = scene.master_collection.collections.new("")
-        layer_collection = layer.collections.link(scene_collection)
-    else:
-        scene_collection = layer_collection.collection
+        ob.select_set(False)
 
     if name is None:
         name = "Object" if obdata is None else obdata.name
@@ -139,7 +133,7 @@ def object_data_add(context, obdata, operator=None, name=None):
     obj_act = layer.objects.active
     obj_new = bpy.data.objects.new(name, obdata)
     scene_collection.objects.link(obj_new)
-    obj_new.select_set(action='SELECT')
+    obj_new.select_set(True)
     obj_new.matrix_world = add_object_align_init(context, operator)
 
     # XXX
@@ -161,12 +155,12 @@ def object_data_add(context, obdata, operator=None, name=None):
 
     if obj_act and obj_act.mode == 'EDIT' and obj_act.type == obj_new.type:
         bpy.ops.mesh.select_all(action='DESELECT')
-        obj_act.select_set(action='SELECT')
+        obj_act.select_set(True)
         bpy.ops.object.mode_set(mode='OBJECT')
 
-        obj_act.select_set(action='SELECT')
+        obj_act.select_set(True)
         scene.update()  # apply location
-        # scene.objects.active = obj_new
+        # layer.objects.active = obj_new
 
         # Match up UV layers, this is needed so adding an object with UV's
         # doesn't create new layers when there happens to be a naming mis-match.
@@ -194,19 +188,19 @@ class AddObjectHelper:
         if not self.view_align:
             self.rotation.zero()
 
-    view_align = BoolProperty(
-            name="Align to View",
-            default=False,
-            update=view_align_update_callback,
-            )
-    location = FloatVectorProperty(
-            name="Location",
-            subtype='TRANSLATION',
-            )
-    rotation = FloatVectorProperty(
-            name="Rotation",
-            subtype='EULER',
-            )
+    view_align: BoolProperty(
+        name="Align to View",
+        default=False,
+        update=view_align_update_callback,
+    )
+    location: FloatVectorProperty(
+        name="Location",
+        subtype='TRANSLATION',
+    )
+    rotation: FloatVectorProperty(
+        name="Rotation",
+        subtype='EULER',
+    )
 
     @classmethod
     def poll(self, context):
@@ -222,7 +216,7 @@ def object_add_grid_scale(context):
     space_data = context.space_data
 
     if space_data and space_data.type == 'VIEW_3D':
-        return space_data.grid_scale_unit
+        return space_data.overlay.grid_scale_unit
 
     return 1.0
 
@@ -308,7 +302,7 @@ def world_to_camera_view(scene, obj, coord):
     """
     from mathutils import Vector
 
-    co_local = obj.matrix_world.normalized().inverted() * coord
+    co_local = obj.matrix_world.normalized().inverted() @ coord
     z = -co_local.z
 
     camera = obj.data

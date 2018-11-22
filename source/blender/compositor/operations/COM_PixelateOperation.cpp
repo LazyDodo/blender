@@ -16,8 +16,8 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
  * Contributor:
- *		Jeroen Bakker
- *		Monique Dewanchand
+ *      Jeroen Bakker
+ *      Monique Dewanchand
  */
 
 #include "COM_PixelateOperation.h"
@@ -46,4 +46,3 @@ void PixelateOperation::executePixelSampled(float output[4], float x, float y, P
 	float ny = round(y);
 	this->m_inputOperation->readSampled(output, nx, ny, sampler);
 }
-

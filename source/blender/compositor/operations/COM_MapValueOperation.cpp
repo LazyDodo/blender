@@ -15,9 +15,9 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Contributor: 
- *		Jeroen Bakker 
- *		Monique Dewanchand
+ * Contributor:
+ *      Jeroen Bakker
+ *      Monique Dewanchand
  */
 
 #include "COM_MapValueOperation.h"
@@ -46,7 +46,7 @@ void MapValueOperation::executePixelSampled(float output[4], float x, float y, P
 	if (texmap->flag & TEXMAP_CLIP_MAX)
 		if (value > texmap->max[0])
 			value = texmap->max[0];
-	
+
 	output[0] = value;
 }
 

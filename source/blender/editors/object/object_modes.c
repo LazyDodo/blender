@@ -27,6 +27,7 @@
  * actual mode switching logic is per-object type.
  */
 
+#include "DNA_gpencil_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_workspace_types.h"
@@ -37,6 +38,7 @@
 #include "BKE_object.h"
 #include "BKE_paint.h"
 #include "BKE_report.h"
+#include "BKE_layer.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -45,6 +47,7 @@
 
 #include "DEG_depsgraph.h"
 
+#include "ED_armature.h"
 #include "ED_screen.h"
 
 #include "ED_object.h"  /* own include */
@@ -70,8 +73,14 @@ static const char *object_mode_op_string(eObjectMode mode)
 		return "PARTICLE_OT_particle_edit_toggle";
 	if (mode == OB_MODE_POSE)
 		return "OBJECT_OT_posemode_toggle";
-	if (mode == OB_MODE_GPENCIL)
+	if (mode == OB_MODE_GPENCIL_EDIT)
 		return "GPENCIL_OT_editmode_toggle";
+	if (mode == OB_MODE_GPENCIL_PAINT)
+		return "GPENCIL_OT_paintmode_toggle";
+	if (mode == OB_MODE_GPENCIL_SCULPT)
+		return "GPENCIL_OT_sculptmode_toggle";
+	if (mode == OB_MODE_GPENCIL_WEIGHT)
+		return "GPENCIL_OT_weightmode_toggle";
 	return NULL;
 }
 
@@ -84,8 +93,6 @@ bool ED_object_mode_compat_test(const Object *ob, eObjectMode mode)
 	if (ob) {
 		if (mode == OB_MODE_OBJECT)
 			return true;
-		else if (mode == OB_MODE_GPENCIL)
-			return true; /* XXX: assume this is the case for now... */
 
 		switch (ob->type) {
 			case OB_MESH:
@@ -109,6 +116,13 @@ bool ED_object_mode_compat_test(const Object *ob, eObjectMode mode)
 			case OB_ARMATURE:
 				if (mode & (OB_MODE_EDIT | OB_MODE_POSE))
 					return true;
+				break;
+			case OB_GPENCIL:
+				if (mode & (OB_MODE_EDIT | OB_MODE_GPENCIL_EDIT | OB_MODE_GPENCIL_PAINT |
+				            OB_MODE_GPENCIL_SCULPT | OB_MODE_GPENCIL_WEIGHT))
+				{
+					return true;
+				}
 				break;
 		}
 	}
@@ -163,6 +177,21 @@ void ED_object_mode_set(bContext *C, eObjectMode mode)
 	wm->op_undo_depth--;
 }
 
+void ED_object_mode_exit(bContext *C)
+{
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	struct Main *bmain = CTX_data_main(C);
+	Scene *scene = CTX_data_scene(C);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	FOREACH_OBJECT_BEGIN(view_layer, ob)
+	{
+		if (ob->mode & OB_MODE_ALL_MODE_DATA) {
+			ED_object_mode_generic_exit(bmain, depsgraph, scene, ob);
+		}
+	}
+	FOREACH_OBJECT_END;
+}
+
 /** \} */
 
 /* -------------------------------------------------------------------- */
@@ -177,6 +206,9 @@ bool ED_object_mode_generic_enter(
         struct bContext *C, eObjectMode object_mode)
 {
 	Object *ob = CTX_data_active_object(C);
+	if (ob == NULL) {
+		return (object_mode == OB_MODE_OBJECT);
+	}
 	if (ob->mode == object_mode) {
 		return true;
 	}
@@ -194,16 +226,18 @@ bool ED_object_mode_generic_enter(
  * Caller can check #OB_MODE_ALL_MODE_DATA to test if this needs to be run.
  */
 static bool ed_object_mode_generic_exit_ex(
-        const struct EvaluationContext *eval_ctx,
+        struct Main *bmain,
+        struct Depsgraph *depsgraph,
         struct Scene *scene, struct Object *ob,
         bool only_test)
 {
+	BLI_assert((bmain == NULL) == only_test);
 	if (ob->mode & OB_MODE_EDIT) {
 		if (BKE_object_is_in_editmode(ob)) {
 			if (only_test) {
 				return true;
 			}
-			ED_object_editmode_exit_ex(NULL, scene, ob, EM_FREEDATA);
+			ED_object_editmode_exit_ex(bmain, scene, ob, EM_FREEDATA);
 		}
 	}
 	else if (ob->mode & OB_MODE_VERTEX_PAINT) {
@@ -227,7 +261,15 @@ static bool ed_object_mode_generic_exit_ex(
 			if (only_test) {
 				return true;
 			}
-			ED_object_sculptmode_exit_ex(eval_ctx, scene, ob);
+			ED_object_sculptmode_exit_ex(depsgraph, scene, ob);
+		}
+	}
+	else if (ob->mode & OB_MODE_POSE) {
+		if (ob->pose != NULL) {
+			if (only_test) {
+				return true;
+			}
+			ED_object_posemode_exit_ex(bmain, ob);
 		}
 	}
 	else {
@@ -241,17 +283,18 @@ static bool ed_object_mode_generic_exit_ex(
 }
 
 void ED_object_mode_generic_exit(
-        const struct EvaluationContext *eval_ctx,
+        struct Main *bmain,
+        struct Depsgraph *depsgraph,
         struct Scene *scene, struct Object *ob)
 {
-	ed_object_mode_generic_exit_ex(eval_ctx, scene, ob, false);
+	ed_object_mode_generic_exit_ex(bmain, depsgraph, scene, ob, false);
 }
 
 bool ED_object_mode_generic_has_data(
-        const struct EvaluationContext *eval_ctx,
+        struct Depsgraph *depsgraph,
         struct Object *ob)
 {
-	return ed_object_mode_generic_exit_ex(eval_ctx, NULL, ob, true);
+	return ed_object_mode_generic_exit_ex(NULL, depsgraph, NULL, ob, true);
 }
 
 /** \} */

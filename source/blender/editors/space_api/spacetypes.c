@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -67,7 +67,8 @@
 #include "ED_clip.h"
 #include "ED_mask.h"
 #include "ED_sequencer.h"
-#include "ED_manipulator_library.h"
+#include "ED_gizmo_library.h"
+#include "ED_transform.h"
 
 #include "io_ops.h"
 
@@ -79,10 +80,9 @@ void ED_spacetypes_init(void)
 
 	/* UI_UNIT_X is now a variable, is used in some spacetype inits? */
 	U.widget_unit = 20;
-	
+
 	/* create space types */
 	ED_spacetype_outliner();
-	ED_spacetype_time();
 	ED_spacetype_view3d();
 	ED_spacetype_ipo();
 	ED_spacetype_image();
@@ -95,12 +95,13 @@ void ED_spacetypes_init(void)
 	ED_spacetype_script();
 	ED_spacetype_text();
 	ED_spacetype_sequencer();
-	ED_spacetype_logic();
 	ED_spacetype_console();
 	ED_spacetype_userpref();
 	ED_spacetype_clip();
+	ED_spacetype_statusbar();
+	ED_spacetype_topbar();
 //	...
-	
+
 	/* register operator types for screen and all spaces */
 	ED_operatortypes_workspace();
 	ED_operatortypes_scene();
@@ -121,37 +122,41 @@ void ED_spacetypes_init(void)
 	ED_operatortypes_metaball();
 	ED_operatortypes_sound();
 	ED_operatortypes_render();
-	ED_operatortypes_logic();
 	ED_operatortypes_mask();
 	ED_operatortypes_io();
-	
+
 	ED_operatortypes_view2d();
 	ED_operatortypes_ui();
 
-	/* manipulator types */
-	ED_manipulatortypes_button_2d();
-	ED_manipulatortypes_dial_3d();
-	ED_manipulatortypes_grab_3d();
-	ED_manipulatortypes_arrow_2d();
-	ED_manipulatortypes_arrow_3d();
-	ED_manipulatortypes_primitive_3d();
-	ED_manipulatortypes_cage_2d();
-	ED_manipulatortypes_cage_3d();
+	ED_screen_user_menu_register();
 
-	/* register types for operators and manipulators */
+	/* gizmo types */
+	ED_gizmotypes_button_2d();
+	ED_gizmotypes_dial_3d();
+	ED_gizmotypes_move_3d();
+	ED_gizmotypes_arrow_2d();
+	ED_gizmotypes_arrow_3d();
+	ED_gizmotypes_preselect_3d();
+	ED_gizmotypes_primitive_3d();
+	ED_gizmotypes_blank_3d();
+	ED_gizmotypes_cage_2d();
+	ED_gizmotypes_cage_3d();
+	ED_gizmotypes_value_2d();
+
+	/* gizmo group types */
+	ED_gizmogrouptypes_value_2d();
+
+	/* register types for operators and gizmos */
 	spacetypes = BKE_spacetypes_list();
 	for (type = spacetypes->first; type; type = type->next) {
-		/* init manipulator types first, operator-types need them */
-		if (type->manipulators) {
-			type->manipulators();
+		/* init gizmo types first, operator-types need them */
+		if (type->gizmos) {
+			type->gizmos();
 		}
 		if (type->operatortypes) {
 			type->operatortypes();
 		}
 	}
-
-	/* register internal render callbacks */
-	ED_render_internal_init();
 }
 
 void ED_spacemacros_init(void)
@@ -212,6 +217,8 @@ void ED_spacetypes_keymap(wmKeyConfig *keyconf)
 	ED_keymap_view2d(keyconf);
 	ED_keymap_ui(keyconf);
 
+	ED_keymap_transform(keyconf);
+
 	spacetypes = BKE_spacetypes_list();
 	for (stype = spacetypes->first; stype; stype = stype->next) {
 		if (stype->keymap)
@@ -227,32 +234,32 @@ void ED_spacetypes_keymap(wmKeyConfig *keyconf)
 
 typedef struct RegionDrawCB {
 	struct RegionDrawCB *next, *prev;
-	
+
 	void (*draw)(const struct bContext *, struct ARegion *, void *);
 	void *customdata;
-	
+
 	int type;
-	
+
 } RegionDrawCB;
 
-void *ED_region_draw_cb_activate(ARegionType *art, 
+void *ED_region_draw_cb_activate(ARegionType *art,
                                  void (*draw)(const struct bContext *, struct ARegion *, void *),
                                  void *customdata, int type)
 {
 	RegionDrawCB *rdc = MEM_callocN(sizeof(RegionDrawCB), "RegionDrawCB");
-	
+
 	BLI_addtail(&art->drawcalls, rdc);
 	rdc->draw = draw;
 	rdc->customdata = customdata;
 	rdc->type = type;
-	
+
 	return rdc;
 }
 
 void ED_region_draw_cb_exit(ARegionType *art, void *handle)
 {
 	RegionDrawCB *rdc;
-	
+
 	for (rdc = art->drawcalls.first; rdc; rdc = rdc->next) {
 		if (rdc == (RegionDrawCB *)handle) {
 			BLI_remlink(&art->drawcalls, rdc);
@@ -262,15 +269,10 @@ void ED_region_draw_cb_exit(ARegionType *art, void *handle)
 	}
 }
 
-void *ED_region_draw_cb_customdata(void *handle)
-{
-	return ((RegionDrawCB *)handle)->customdata;
-}
-
 void ED_region_draw_cb_draw(const bContext *C, ARegion *ar, int type)
 {
 	RegionDrawCB *rdc;
-	
+
 	for (rdc = ar->type->drawcalls.first; rdc; rdc = rdc->next) {
 		if (rdc->type == type) {
 			rdc->draw(C, ar, rdc->customdata);
@@ -285,7 +287,7 @@ void ED_region_draw_cb_draw(const bContext *C, ARegion *ar, int type)
 void ED_spacetype_xxx(void);
 
 /* allocate and init some vars */
-static SpaceLink *xxx_new(const bContext *UNUSED(C))
+static SpaceLink *xxx_new(const ScrArea *UNUSED(sa), const Scene *UNUSED(scene))
 {
 	return NULL;
 }
@@ -299,17 +301,17 @@ static void xxx_free(SpaceLink *UNUSED(sl))
 /* spacetype; init callback for usage, should be redoable */
 static void xxx_init(wmWindowManager *UNUSED(wm), ScrArea *UNUSED(sa))
 {
-	
+
 	/* link area to SpaceXXX struct */
-	
+
 	/* define how many regions, the order and types */
-	
+
 	/* add types to regions */
 }
 
 static SpaceLink *xxx_duplicate(SpaceLink *UNUSED(sl))
 {
-	
+
 	return NULL;
 }
 
@@ -327,16 +329,16 @@ static void xxx_keymap(wmKeyConfig *UNUSED(keyconf))
 void ED_spacetype_xxx(void)
 {
 	static SpaceType st;
-	
+
 	st.spaceid = SPACE_VIEW3D;
-	
+
 	st.new = xxx_new;
 	st.free = xxx_free;
 	st.init = xxx_init;
 	st.duplicate = xxx_duplicate;
 	st.operatortypes = xxx_operatortypes;
 	st.keymap = xxx_keymap;
-	
+
 	BKE_spacetype_register(&st);
 }
 

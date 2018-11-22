@@ -158,7 +158,7 @@ typedef enum PropertySubType {
 
 /* Make sure enums are updated with these */
 /* HIGHEST FLAG IN USE: 1 << 31
- * FREE FLAGS: 9, 11, 13, 14, 15, 30 */
+ * FREE FLAGS: 2, 9, 11, 13, 14, 15, 30 */
 typedef enum PropertyFlag {
 	/* editable means the property is editable in the user
 	 * interface, properties are editable by default except
@@ -176,13 +176,6 @@ typedef enum PropertyFlag {
 	 * and collections */
 	PROP_ANIMATABLE              = (1 << 1),
 
-	/* Means the property can be overriden by a local 'proxy' of some linked datablock. */
-	PROP_OVERRIDABLE_STATIC      = (1 << 2),
-
-	/* Forbid usage of this property in comparison (& hence override) code.
-	 * Useful e.g. for collections of data like mesh's geometry, particles, etc. */
-	PROP_NO_COMPARISON           = (1 << 3),
-
 	/* This flag means when the property's widget is in 'textedit' mode, it will be updated
 	 * after every typed char, instead of waiting final validation. Used e.g. for text searchbox.
 	 * It will also cause UI_BUT_VALUE_CLEAR to be set for text buttons. We could add an own flag
@@ -191,6 +184,7 @@ typedef enum PropertyFlag {
 
 	/* icon */
 	PROP_ICONS_CONSECUTIVE       = (1 << 12),
+	PROP_ICONS_REVERSE           = (1 << 8),
 
 	/* hidden in  the user interface */
 	PROP_HIDDEN                  = (1 << 19),
@@ -244,12 +238,32 @@ typedef enum PropertyFlag {
 	 * most common case is functions that return arrays where the array */
 	PROP_THICK_WRAP              = (1 << 23),
 
-	PROP_EXPORT                  = (1 << 8),  /* XXX Is this still used? makesrna.c seems to ignore it currently... */
 	PROP_IDPROPERTY              = (1 << 10), /* This is an IDProperty, not a DNA one. */
 	PROP_DYNAMIC                 = (1 << 17), /* for dynamic arrays, and retvals of type string */
 	PROP_ENUM_NO_CONTEXT         = (1 << 24), /* for enum that shouldn't be contextual */
 	PROP_ENUM_NO_TRANSLATE       = (1 << 29), /* for enums not to be translated (e.g. viewlayers' names in nodes) */
 } PropertyFlag;
+
+/* Flags related to comparing and overriding RNA properties. Make sure enums are updated with these */
+/* FREE FLAGS: 2, 3, 4, 5, 6, 7, 8, 9, 12 and above. */
+typedef enum PropertyOverrideFlag {
+	/* Means the property can be overridden by a local 'proxy' of some linked datablock. */
+	PROPOVERRIDE_OVERRIDABLE_STATIC = (1 << 0),
+
+	/* Forbid usage of this property in comparison (& hence override) code.
+	 * Useful e.g. for collections of data like mesh's geometry, particles, etc. */
+	PROPOVERRIDE_NO_COMPARISON = (1 << 1),
+
+	/*** Collections-related ***/
+
+	/* The property supports insertion (collections only). */
+	PROPOVERRIDE_STATIC_INSERTION = (1 << 10),
+
+	/* Only use indices to compare items in the property, never names (collections only). */
+	/* Useful when nameprop of the items is generated from other data
+	 * (e.g. name of material slots is actually name of assigned material). */
+	PROPOVERRIDE_NO_PROP_NAME = (1 << 11),
+} PropertyOverrideFlag;
 
 /* Function parameters flags.
  * WARNING: 16bits only. */
@@ -323,6 +337,7 @@ typedef enum RawPropertyType {
 	PROP_RAW_INT, // XXX - abused for types that are not set, eg. MFace.verts, needs fixing.
 	PROP_RAW_SHORT,
 	PROP_RAW_CHAR,
+	PROP_RAW_BOOLEAN,
 	PROP_RAW_DOUBLE,
 	PROP_RAW_FLOAT
 } RawPropertyType;
@@ -357,10 +372,10 @@ typedef struct EnumPropertyItem {
 } EnumPropertyItem;
 
 /* extended versions with PropertyRNA argument */
-typedef int (*BooleanPropertyGetFunc)(struct PointerRNA *ptr, struct PropertyRNA *prop);
-typedef void (*BooleanPropertySetFunc)(struct PointerRNA *ptr, struct PropertyRNA *prop, int value);
-typedef void (*BooleanArrayPropertyGetFunc)(struct PointerRNA *ptr, struct PropertyRNA *prop, int *values);
-typedef void (*BooleanArrayPropertySetFunc)(struct PointerRNA *ptr, struct PropertyRNA *prop, const int *values);
+typedef bool (*BooleanPropertyGetFunc)(struct PointerRNA *ptr, struct PropertyRNA *prop);
+typedef void (*BooleanPropertySetFunc)(struct PointerRNA *ptr, struct PropertyRNA *prop, bool value);
+typedef void (*BooleanArrayPropertyGetFunc)(struct PointerRNA *ptr, struct PropertyRNA *prop, bool *values);
+typedef void (*BooleanArrayPropertySetFunc)(struct PointerRNA *ptr, struct PropertyRNA *prop, const bool *values);
 typedef int (*IntPropertyGetFunc)(struct PointerRNA *ptr, struct PropertyRNA *prop);
 typedef void (*IntPropertySetFunc)(struct PointerRNA *ptr, struct PropertyRNA *prop, int value);
 typedef void (*IntArrayPropertyGetFunc)(struct PointerRNA *ptr, struct PropertyRNA *prop, int *values);
@@ -416,7 +431,7 @@ typedef struct ParameterDynAlloc {
 
 typedef enum FunctionFlag {
 	/***** Options affecting callback signature. *****/
-	/* Those add additionnal parameters at the beginning of the C callback, like that:
+	/* Those add additional parameters at the beginning of the C callback, like that:
 	 *     rna_my_func([ID *_selfid],
 	 *                 [<DNA_STRUCT> *self|StructRNA *type],
 	 *                 [Main *bmain],

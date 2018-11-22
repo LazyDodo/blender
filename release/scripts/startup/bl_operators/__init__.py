@@ -29,6 +29,7 @@ _modules = [
     "anim",
     "clip",
     "console",
+    "constraint",
     "file",
     "image",
     "mask",
@@ -48,7 +49,7 @@ _modules = [
     "vertexpaint_dirt",
     "view3d",
     "wm",
-    ]
+]
 
 import bpy
 

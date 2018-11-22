@@ -58,7 +58,6 @@ public:
 	bool advanced_shading;          /* Supports full shading system. */
 	bool has_half_images;           /* Support half-float textures. */
 	bool has_volume_decoupled;      /* Decoupled volume shading. */
-	BVHLayoutMask bvh_layout_mask;  /* Bitmask of supported BVH layouts. */
 	bool has_osl;                   /* Support Open Shading Language. */
 	bool use_split_kernel;          /* Use split or mega kernel. */
 	int cpu_threads;
@@ -74,7 +73,6 @@ public:
 		advanced_shading = true;
 		has_half_images = false;
 		has_volume_decoupled = false;
-		bvh_layout_mask = BVH_LAYOUT_NONE;
 		has_osl = false;
 		use_split_kernel = false;
 	}
@@ -123,7 +121,7 @@ public:
 
 	/* Use OpenSubdiv patch evaluation */
 	bool use_patch_evaluation;
-	
+
 	/* Use Transparent shadows */
 	bool use_transparent;
 
@@ -183,7 +181,7 @@ public:
 	/* Convert the requested features structure to a build options,
 	 * which could then be passed to compilers.
 	 */
-	string get_build_options(void) const
+	string get_build_options() const
 	{
 		string build_options = "";
 		if(experimental) {
@@ -242,8 +240,8 @@ std::ostream& operator <<(std::ostream &os,
 /* Device */
 
 struct DeviceDrawParams {
-	function<void(void)> bind_display_space_shader_cb;
-	function<void(void)> unbind_display_space_shader_cb;
+	function<void()> bind_display_space_shader_cb;
+	function<void()> unbind_display_space_shader_cb;
 };
 
 class Device {
@@ -294,6 +292,7 @@ public:
 		fflush(stderr);
 	}
 	virtual bool show_samples() const { return false; }
+	virtual BVHLayoutMask get_bvh_layout_mask() const = 0;
 
 	/* statistics */
 	Stats &stats;
@@ -307,7 +306,7 @@ public:
 	/* open shading language, only for CPU device */
 	virtual void *osl_memory() { return NULL; }
 
-	/* load/compile kernels, must be called before adding tasks */ 
+	/* load/compile kernels, must be called before adding tasks */
 	virtual bool load_kernels(
 	        const DeviceRequestedFeatures& /*requested_features*/)
 	{ return true; }
@@ -317,7 +316,7 @@ public:
 	virtual void task_add(DeviceTask& task) = 0;
 	virtual void task_wait() = 0;
 	virtual void task_cancel() = 0;
-	
+
 	/* opengl drawing */
 	virtual void draw_pixels(device_memory& mem, int y,
 	    int w, int h, int width, int height,
@@ -375,5 +374,4 @@ private:
 
 CCL_NAMESPACE_END
 
-#endif /* __DEVICE_H__ */
-
+#endif  /* __DEVICE_H__ */

@@ -38,6 +38,8 @@ struct BMEdge;
 struct BMLoop;
 struct BMFace;
 
+struct MLoopNorSpaceArray;
+
 struct BLI_mempool;
 
 /* note: it is very important for BMHeader to start with two
@@ -119,7 +121,7 @@ typedef struct BMEdge {
 	/* the list of loops around the edge (use l->radial_prev/next)
 	 * to access the other loops using the edge */
 	struct BMLoop *l;
-	
+
 	/* disk cycle pointers
 	 * relative data: d1 indicates indicates the next/prev edge around vertex v1 and d2 does the same for v2 */
 	BMDiskLink v1_disk_link, v2_disk_link;
@@ -229,22 +231,25 @@ typedef struct BMesh {
 
 	int toolflag_index;
 	struct BMOperator *currentop;
-	
+
 	CustomData vdata, edata, ldata, pdata;
 
 #ifdef USE_BMESH_HOLES
 	struct BLI_mempool *looplistpool;
 #endif
 
+	struct MLoopNorSpaceArray *lnor_spacearr;
+	char spacearr_dirty;
+
 	/* should be copy of scene select mode */
 	/* stored in BMEditMesh too, this is a bit confusing,
 	 * make sure they're in sync!
 	 * Only use when the edit mesh cant be accessed - campbell */
 	short selectmode;
-	
+
 	/* ID of the shape key this bmesh came from */
 	int shapenr;
-	
+
 	int totflags;
 	ListBase selected;
 
@@ -263,8 +268,32 @@ enum {
 	BM_FACE = 8
 };
 
+typedef struct BMLoopNorEditData {
+	int loop_index;
+	BMLoop *loop;
+	float niloc[3];
+	float nloc[3];
+	float *loc;
+	short *clnors_data;
+} BMLoopNorEditData;
+
+typedef struct BMLoopNorEditDataArray {
+	BMLoopNorEditData *lnor_editdata;
+	/* This one has full amount of loops, used to map loop index to actual BMLoopNorEditData struct. */
+	BMLoopNorEditData **lidx_to_lnor_editdata;
+
+	int cd_custom_normal_offset;
+	int totloop;
+} BMLoopNorEditDataArray;
+
 #define BM_ALL (BM_VERT | BM_EDGE | BM_LOOP | BM_FACE)
 #define BM_ALL_NOLOOP (BM_VERT | BM_EDGE | BM_FACE)
+
+enum {
+	BM_SPACEARR_DIRTY = 1 << 0,
+	BM_SPACEARR_DIRTY_ALL = 1 << 1,
+	BM_SPACEARR_BMO_SET = 1 << 2,
+};
 
 /* args for _Generic */
 #define _BM_GENERIC_TYPE_ELEM_NONCONST \

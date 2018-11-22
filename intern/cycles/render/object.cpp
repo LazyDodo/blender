@@ -27,7 +27,9 @@
 #include "util/util_logging.h"
 #include "util/util_map.h"
 #include "util/util_progress.h"
+#include "util/util_set.h"
 #include "util/util_vector.h"
+#include "util/util_murmurhash.h"
 
 #include "subd/subd_patch_table.h"
 
@@ -183,7 +185,7 @@ void Object::apply_transform(bool apply_to_motion)
 {
 	if(!mesh || tfm == transform_identity())
 		return;
-	
+
 	/* triangles */
 	if(mesh->verts.size()) {
 		/* store matrix to transform later. when accessing these as attributes we
@@ -194,7 +196,7 @@ void Object::apply_transform(bool apply_to_motion)
 		/* apply to mesh vertices */
 		for(size_t i = 0; i < mesh->verts.size(); i++)
 			mesh->verts[i] = transform_point(&tfm, mesh->verts[i]);
-		
+
 		if(apply_to_motion) {
 			Attribute *attr = mesh->attributes.find(ATTR_STD_MOTION_VERTEX_POSITION);
 
@@ -480,9 +482,13 @@ void ObjectManager::device_update_object_transform(UpdateObjectTransformState *s
 	kobject.dupli_uv[1] = ob->dupli_uv[1];
 	int totalsteps = mesh->motion_steps;
 	kobject.numsteps = (totalsteps - 1)/2;
-	kobject.numverts = mesh->verts.size();;
+	kobject.numverts = mesh->verts.size();
 	kobject.patch_map_offset = 0;
 	kobject.attribute_map_offset = 0;
+	uint32_t hash_name = util_murmur_hash3(ob->name.c_str(), ob->name.length(), 0);
+	uint32_t hash_asset = util_murmur_hash3(ob->asset_name.c_str(), ob->asset_name.length(), 0);
+	kobject.cryptomatte_object = util_hash_to_float(hash_name);
+	kobject.cryptomatte_asset = util_hash_to_float(hash_asset);
 
 	/* Object flag. */
 	if(ob->use_holdout) {
@@ -839,5 +845,37 @@ void ObjectManager::tag_update(Scene *scene)
 	scene->light_manager->need_update = true;
 }
 
-CCL_NAMESPACE_END
+string ObjectManager::get_cryptomatte_objects(Scene *scene)
+{
+	string manifest = "{";
 
+	unordered_set<ustring, ustringHash> objects;
+	foreach(Object *object, scene->objects) {
+		if(objects.count(object->name)) {
+			continue;
+		}
+		objects.insert(object->name);
+		uint32_t hash_name = util_murmur_hash3(object->name.c_str(), object->name.length(), 0);
+		manifest += string_printf("\"%s\":\"%08x\",", object->name.c_str(), hash_name);
+	}
+	manifest[manifest.size()-1] = '}';
+	return manifest;
+}
+
+string ObjectManager::get_cryptomatte_assets(Scene *scene)
+{
+	string manifest = "{";
+	unordered_set<ustring, ustringHash> assets;
+	foreach(Object *ob, scene->objects) {
+		if(assets.count(ob->asset_name)) {
+			continue;
+		}
+		assets.insert(ob->asset_name);
+		uint32_t hash_asset = util_murmur_hash3(ob->asset_name.c_str(), ob->asset_name.length(), 0);
+		manifest += string_printf("\"%s\":\"%08x\",", ob->asset_name.c_str(), hash_asset);
+	}
+	manifest[manifest.size()-1] = '}';
+	return manifest;
+}
+
+CCL_NAMESPACE_END

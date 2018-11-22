@@ -95,7 +95,7 @@ typedef struct MLoop {
  * There is no attempt to maintain this data's validity over time, any changes to the underlying mesh
  * invalidate the #MLoopTri array, which will need to be re-calculated.
  *
- * Users normally access this via #DerivedMesh.getLoopTriArray.
+ * Users normally access this via #BKE_mesh_runtime_looptri_ensure.
  * In rare cases its calculated directly, with #BKE_mesh_recalc_looptri.
  *
  * Typical usage includes:
@@ -164,18 +164,18 @@ typedef struct MLoop {
  *     MEdge *ed = &medge[mloop[lt->tri[j]].e];
  *     unsigned int tri_edge[2]  = {mloop[lt->tri[j]].v, mloop[lt->tri[j_next]].v};
  *
- *     if (((ed->v1 == tri_edge[0]) && (ed->v1 == tri_edge[1])) ||
- *         ((ed->v1 == tri_edge[1]) && (ed->v1 == tri_edge[0])))
+ *     if (((ed->v1 == tri_edge[0]) && (ed->v2 == tri_edge[1])) ||
+ *         ((ed->v1 == tri_edge[1]) && (ed->v2 == tri_edge[0])))
  *     {
  *         printf("real edge found %u %u\n", tri_edge[0], tri_edge[1]);
  *     }
  * }
  * \endcode
  *
+ * See #BKE_mesh_looptri_get_real_edges for a utility that does this.
+ *
  * \note A #MLoopTri may be in the middle of an ngon and not reference **any** edges.
  */
-#
-#
 typedef struct MLoopTri {
 	unsigned int tri[3];
 	unsigned int poly;
@@ -385,7 +385,7 @@ enum {
 /*	SELECT              = (1 << 0), */
 	ME_VERT_TMP_TAG     = (1 << 2),
 	ME_HIDE             = (1 << 4),
-	ME_VERT_MERGED      = (1 << 6),
+/*	ME_VERT_MERGED      = (1 << 6), */
 	ME_VERT_PBVH_UPDATE = (1 << 7),
 };
 
@@ -421,7 +421,7 @@ enum {
 enum {
 	ME_SMOOTH   = (1 << 0),
 	ME_FACE_SEL = (1 << 1),
-/*	ME_HIDE     = (1 << 4), */ 
+/*	ME_HIDE     = (1 << 4), */
 };
 
 #define ME_POLY_LOOP_PREV(mloop, mp, i)  (&(mloop)[(mp)->loopstart + (((i) + (mp)->totloop - 1) % (mp)->totloop)])

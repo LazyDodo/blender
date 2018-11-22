@@ -16,7 +16,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
  * Contributor:
- *		Lukas Toenne
+ *      Lukas Toenne
  */
 
 #include "COM_CornerPinNode.h"
@@ -46,7 +46,7 @@ void CornerPinNode::convertToOperations(NodeConverter &converter, const Composit
 	converter.addOperation(warp_image_operation);
 	PlaneCornerPinMaskOperation *plane_mask_operation = new PlaneCornerPinMaskOperation();
 	converter.addOperation(plane_mask_operation);
-	
+
 	converter.mapInputSocket(input_image, warp_image_operation->getInputSocket(0));
 	for (int i = 0; i < 4; ++i) {
 		NodeInput *corner_input = getInputSocket(node_corner_index[i]);

@@ -36,7 +36,7 @@
 struct BezTriple;
 struct Curve;
 struct EditNurb;
-struct EvaluationContext;
+struct Depsgraph;
 struct GHash;
 struct ListBase;
 struct Main;
@@ -89,7 +89,7 @@ void BKE_curve_curve_dimension_update(struct Curve *cu);
 void BKE_curve_boundbox_calc(struct Curve *cu, float r_loc[3], float r_size[3]);
 struct BoundBox *BKE_curve_boundbox_get(struct Object *ob);
 void BKE_curve_texspace_calc(struct Curve *cu);
-void BKE_curve_texspace_get(struct Curve *cu, float r_loc[3], float r_rot[3], float r_size[3]);
+struct BoundBox *BKE_curve_texspace_get(struct Curve *cu, float r_loc[3], float r_rot[3], float r_size[3]);
 
 bool BKE_curve_minmax(struct Curve *cu, bool use_radius, float min[3], float max[3]);
 bool BKE_curve_center_median(struct Curve *cu, float cent[3]);
@@ -99,7 +99,7 @@ void BKE_curve_transform(struct Curve *cu, float mat[4][4], const bool do_keys, 
 void BKE_curve_translate(struct Curve *cu, float offset[3], const bool do_keys);
 void BKE_curve_material_index_remove(struct Curve *cu, int index);
 void BKE_curve_material_index_clear(struct Curve *cu);
-int BKE_curve_material_index_validate(struct Curve *cu);
+bool BKE_curve_material_index_validate(struct Curve *cu);
 void BKE_curve_material_remap(struct Curve *cu, const unsigned int *remap, unsigned int remap_len);
 
 ListBase    *BKE_curve_nurbs_get(struct Curve *cu);
@@ -123,13 +123,13 @@ void BKE_curve_editNurb_keyIndex_free(struct GHash **keyindex);
 void BKE_curve_editNurb_free(struct Curve *cu);
 struct ListBase *BKE_curve_editNurbs_get(struct Curve *cu);
 
-float *BKE_curve_make_orco(const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *ob, int *r_numVerts);
+float *BKE_curve_make_orco(struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob, int *r_numVerts);
 float *BKE_curve_surf_make_orco(struct Object *ob);
 
 void BKE_curve_bevelList_free(struct ListBase *bev);
 void BKE_curve_bevelList_make(struct Object *ob, struct ListBase *nurbs, bool for_render);
 void BKE_curve_bevel_make(
-        const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *ob,  struct ListBase *disp,
+        struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob,  struct ListBase *disp,
         const bool for_render, const bool use_render_resolution);
 
 void BKE_curve_forward_diff_bezier(float q0, float q1, float q2, float q3, float *p, int it, int stride);
@@ -156,11 +156,16 @@ void BKE_nurb_free(struct Nurb *nu);
 struct Nurb *BKE_nurb_duplicate(const struct Nurb *nu);
 struct Nurb *BKE_nurb_copy(struct Nurb *src, int pntsu, int pntsv);
 
-void BKE_nurb_test2D(struct Nurb *nu);
+void BKE_nurb_test_2d(struct Nurb *nu);
 void BKE_nurb_minmax(struct Nurb *nu, bool use_radius, float min[3], float max[3]);
+float BKE_nurb_calc_length(const struct Nurb *nu, int resolution);
 
-void BKE_nurb_makeFaces(struct Nurb *nu, float *coord_array, int rowstride, int resolu, int resolv);
-void BKE_nurb_makeCurve(struct Nurb *nu, float *coord_array, float *tilt_array, float *radius_array, float *weight_array, int resolu, int stride);
+void BKE_nurb_makeFaces(
+        const struct Nurb *nu, float *coord_array,
+        int rowstride, int resolu, int resolv);
+void BKE_nurb_makeCurve(
+        const struct Nurb *nu, float *coord_array, float *tilt_array, float *radius_array, float *weight_array,
+        int resolu, int stride);
 
 unsigned int BKE_curve_calc_coords_axis_len(
         const unsigned int bezt_array_len, const unsigned int resolu,
@@ -218,7 +223,7 @@ void BKE_nurb_handles_test(struct Nurb *nu, const bool use_handles);
 /* **** Depsgraph evaluation **** */
 
 void BKE_curve_eval_geometry(
-        const struct EvaluationContext *eval_ctx,
+        struct Depsgraph *depsgraph,
         struct Curve *curve);
 
 /* Draw Cache */
@@ -226,7 +231,7 @@ enum {
 	BKE_CURVE_BATCH_DIRTY_ALL = 0,
 	BKE_CURVE_BATCH_DIRTY_SELECT,
 };
-void BKE_curve_batch_cache_dirty(struct Curve *cu, int mode);
+void BKE_curve_batch_cache_dirty_tag(struct Curve *cu, int mode);
 void BKE_curve_batch_cache_free(struct Curve *cu);
 
 /* curve_decimate.c */

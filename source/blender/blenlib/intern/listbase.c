@@ -23,7 +23,7 @@
  * Contributor(s): none yet.
  *
  * ***** END GPL LICENSE BLOCK *****
- * 
+ *
  */
 
 /** \file blender/blenlib/intern/listbase.c
@@ -64,6 +64,26 @@ void BLI_movelisttolist(ListBase *dst, ListBase *src)
 		((Link *)src->first)->prev = dst->last;
 		dst->last = src->last;
 	}
+	src->first = src->last = NULL;
+}
+
+/**
+ * moves the entire contents of \a src at the begining of \a dst.
+ */
+void BLI_movelisttolist_reverse(ListBase *dst, ListBase *src)
+{
+	if (src->first == NULL) return;
+
+	if (dst->first == NULL) {
+		dst->first = src->first;
+		dst->last = src->last;
+	}
+	else {
+		((Link *)src->last)->next = dst->first;
+		((Link *)dst->first)->prev = src->last;
+		dst->first = src->first;
+	}
+
 	src->first = src->last = NULL;
 }
 
@@ -308,7 +328,7 @@ void BLI_insertlinkafter(ListBase *listbase, void *vprevlink, void *vnewlink)
 		listbase->last = newlink;
 		return;
 	}
-	
+
 	/* insert at head of list */
 	if (prevlink == NULL) {
 		newlink->prev = NULL;
@@ -349,7 +369,7 @@ void BLI_insertlinkbefore(ListBase *listbase, void *vnextlink, void *vnewlink)
 		listbase->last = newlink;
 		return;
 	}
-	
+
 	/* insert at end of list */
 	if (nextlink == NULL) {
 		newlink->prev = listbase->last;
@@ -451,7 +471,7 @@ bool BLI_listbase_link_move(ListBase *listbase, void *vlink, int step)
 void BLI_freelist(ListBase *listbase)
 {
 	Link *link, *next;
-	
+
 	link = listbase->first;
 	while (link) {
 		next = link->next;
@@ -468,7 +488,7 @@ void BLI_freelist(ListBase *listbase)
 void BLI_freelistN(ListBase *listbase)
 {
 	Link *link, *next;
-	
+
 	link = listbase->first;
 	while (link) {
 		next = link->next;
@@ -556,16 +576,16 @@ int BLI_findindex(const ListBase *listbase, const void *vlink)
 	int number = 0;
 
 	if (vlink == NULL) return -1;
-	
+
 	link = listbase->first;
 	while (link) {
 		if (link == vlink)
 			return number;
-		
+
 		number++;
 		link = link->next;
 	}
-	
+
 	return -1;
 }
 
@@ -577,6 +597,9 @@ void *BLI_findstring(const ListBase *listbase, const char *id, const int offset)
 {
 	Link *link = NULL;
 	const char *id_iter;
+
+	if (id == NULL)
+		return NULL;
 
 	for (link = listbase->first; link; link = link->next) {
 		id_iter = ((const char *)link) + offset;
@@ -830,13 +853,13 @@ void BLI_listbase_rotate_last(ListBase *lb, void *vlink)
 LinkData *BLI_genericNodeN(void *data)
 {
 	LinkData *ld;
-	
+
 	if (data == NULL)
 		return NULL;
-		
+
 	/* create new link, and make it hold the given data */
 	ld = MEM_callocN(sizeof(LinkData), __func__);
 	ld->data = data;
-	
+
 	return ld;
-} 
+}

@@ -43,6 +43,7 @@
 #include "BKE_editmesh.h"
 #include "BKE_DerivedMesh.h"
 #include "BKE_context.h"
+#include "BKE_mesh_iterators.h"
 
 #include "DEG_depsgraph.h"
 
@@ -113,7 +114,7 @@ void ED_transverts_update_obedit(TransVertStore *tvs, Object *obedit)
 				}
 			}
 
-			BKE_nurb_test2D(nu);
+			BKE_nurb_test_2d(nu);
 			BKE_nurb_handles_test(nu, true); /* test for bezier too */
 			nu = nu->next;
 		}
@@ -154,7 +155,7 @@ void ED_transverts_update_obedit(TransVertStore *tvs, Object *obedit)
 			}
 		}
 		if (arm->flag & ARM_MIRROR_EDIT)
-			transform_armature_mirror_update(obedit);
+			ED_armature_edit_transform_mirror_update(obedit);
 	}
 	else if (obedit->type == OB_LATTICE) {
 		Lattice *lt = obedit->data;
@@ -304,9 +305,9 @@ void ED_transverts_create_from_obedit(TransVertStore *tvs, Object *obedit, const
 			userdata[1] = tvs->transverts;
 		}
 
-		if (tvs->transverts && em->derivedCage) {
+		if (tvs->transverts && em->mesh_eval_cage) {
 			BM_mesh_elem_table_ensure(bm, BM_VERT);
-			em->derivedCage->foreachMappedVert(em->derivedCage, set_mapped_co, userdata, DM_FOREACH_NOP);
+			BKE_mesh_foreach_mapped_vert(em->mesh_eval_cage, set_mapped_co, userdata, MESH_FOREACH_NOP);
 		}
 	}
 	else if (obedit->type == OB_ARMATURE) {
@@ -497,7 +498,7 @@ void ED_transverts_free(TransVertStore *tvs)
 	tvs->transverts_tot = 0;
 }
 
-int ED_transverts_poll(bContext *C)
+bool ED_transverts_poll(bContext *C)
 {
 	Object *obedit = CTX_data_edit_object(C);
 	if (obedit) {

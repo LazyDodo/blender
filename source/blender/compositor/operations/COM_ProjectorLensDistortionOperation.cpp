@@ -15,9 +15,9 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
- * Contributor: 
- *		Jeroen Bakker 
- *		Monique Dewanchand
+ * Contributor:
+ *      Jeroen Bakker
+ *      Monique Dewanchand
  */
 
 #include "COM_ProjectorLensDistortionOperation.h"
@@ -96,7 +96,7 @@ bool ProjectorLensDistortionOperation::determineDependingAreaOfInterest(rcti *in
 	return false;
 }
 
-void ProjectorLensDistortionOperation::updateDispersion() 
+void ProjectorLensDistortionOperation::updateDispersion()
 {
 	if (this->m_dispersionAvailable) return;
 	this->lockMutex();

@@ -52,7 +52,9 @@ def _workaround_buggy_drivers():
 
 def _configure_argument_parser():
     import argparse
-    parser = argparse.ArgumentParser(description="Cycles Addon argument parser")
+    # No help because it conflicts with general Python scripts argument parsing
+    parser = argparse.ArgumentParser(description="Cycles Addon argument parser",
+                                     add_help=False)
     parser.add_argument("--cycles-resumable-num-chunks",
                         help="Number of chunks to split sample range into",
                         default=None)
@@ -65,6 +67,9 @@ def _configure_argument_parser():
     parser.add_argument("--cycles-resumable-end-chunk",
                         help="End chunk to render",
                         default=None)
+    parser.add_argument("--cycles-print-stats",
+                        help="Print rendering statistics to stderr",
+                        action='store_true')
     return parser
 
 
@@ -82,15 +87,20 @@ def _parse_command_line():
         if args.cycles_resumable_current_chunk is not None:
             import _cycles
             _cycles.set_resumable_chunk(
-                    int(args.cycles_resumable_num_chunks),
-                    int(args.cycles_resumable_current_chunk))
+                int(args.cycles_resumable_num_chunks),
+                int(args.cycles_resumable_current_chunk),
+            )
         elif args.cycles_resumable_start_chunk is not None and \
-             args.cycles_resumable_end_chunk:
+                args.cycles_resumable_end_chunk:
             import _cycles
             _cycles.set_resumable_chunk_range(
-                    int(args.cycles_resumable_num_chunks),
-                    int(args.cycles_resumable_start_chunk),
-                    int(args.cycles_resumable_end_chunk))
+                int(args.cycles_resumable_num_chunks),
+                int(args.cycles_resumable_start_chunk),
+                int(args.cycles_resumable_end_chunk),
+            )
+    if args.cycles_print_stats:
+        import _cycles
+        _cycles.enable_print_stats()
 
 
 def init():
@@ -123,13 +133,12 @@ def exit():
     _cycles.exit()
 
 
-def create(engine, data, scene, region=None, v3d=None, rv3d=None, preview_osl=False):
-    import bpy
+def create(engine, data, region=None, v3d=None, rv3d=None, preview_osl=False):
     import _cycles
+    import bpy
 
     data = data.as_pointer()
     userpref = bpy.context.user_preferences.as_pointer()
-    scene = scene.as_pointer()
     if region:
         region = region.as_pointer()
     if v3d:
@@ -137,13 +146,8 @@ def create(engine, data, scene, region=None, v3d=None, rv3d=None, preview_osl=Fa
     if rv3d:
         rv3d = rv3d.as_pointer()
 
-    if bpy.app.debug_value == 256:
-        _cycles.debug_flags_update(scene)
-    else:
-        _cycles.debug_flags_reset()
-
     engine.session = _cycles.create(
-            engine.as_pointer(), userpref, data, scene, region, v3d, rv3d, preview_osl)
+            engine.as_pointer(), userpref, data, region, v3d, rv3d, preview_osl)
 
 
 def free(engine):
@@ -167,14 +171,21 @@ def bake(engine, depsgraph, obj, pass_type, pass_filter, object_id, pixel_array,
         _cycles.bake(engine.session, depsgraph.as_pointer(), obj.as_pointer(), pass_type, pass_filter, object_id, pixel_array.as_pointer(), num_pixels, depth, result.as_pointer())
 
 
-def reset(engine, data, scene):
+def reset(engine, data, depsgraph):
     import _cycles
+    import bpy
+
+    if bpy.app.debug_value == 256:
+        _cycles.debug_flags_update(depsgraph.scene.as_pointer())
+    else:
+        _cycles.debug_flags_reset()
+
     data = data.as_pointer()
-    scene = scene.as_pointer()
-    _cycles.reset(engine.session, data, scene)
+    depsgraph = depsgraph.as_pointer()
+    _cycles.reset(engine.session, data, depsgraph)
 
 
-def update(engine, depsgraph, data, scene):
+def sync(engine, depsgraph, data):
     import _cycles
     _cycles.sync(engine.session, depsgraph.as_pointer())
 
@@ -207,6 +218,7 @@ def with_network():
 def system_info():
     import _cycles
     return _cycles.system_info()
+
 
 def register_passes(engine, scene, srl):
     engine.register_pass(scene, srl, "Combined", 4, "RGBA", 'COLOR')
@@ -245,14 +257,32 @@ def register_passes(engine, scene, srl):
     if crl.use_pass_volume_indirect:           engine.register_pass(scene, srl, "VolumeInd",                     3, "RGB", 'COLOR')
 
     cscene = scene.cycles
-    if crl.use_denoising and crl.denoising_store_passes and not cscene.use_progressive_refine:
-        engine.register_pass(scene, srl, "Denoising Normal",          3, "XYZ", 'VECTOR')
-        engine.register_pass(scene, srl, "Denoising Normal Variance", 3, "XYZ", 'VECTOR')
-        engine.register_pass(scene, srl, "Denoising Albedo",          3, "RGB", 'COLOR')
-        engine.register_pass(scene, srl, "Denoising Albedo Variance", 3, "RGB", 'COLOR')
-        engine.register_pass(scene, srl, "Denoising Depth",           1, "Z",   'VALUE')
-        engine.register_pass(scene, srl, "Denoising Depth Variance",  1, "Z",   'VALUE')
-        engine.register_pass(scene, srl, "Denoising Shadow A",        3, "XYV", 'VECTOR')
-        engine.register_pass(scene, srl, "Denoising Shadow B",        3, "XYV", 'VECTOR')
-        engine.register_pass(scene, srl, "Denoising Image",           3, "RGB", 'COLOR')
-        engine.register_pass(scene, srl, "Denoising Image Variance",  3, "RGB", 'COLOR')
+
+    if crl.use_pass_crypto_object:
+        for i in range(0, crl.pass_crypto_depth, 2):
+            engine.register_pass(scene, srl, "CryptoObject" + '{:02d}'.format(i), 4, "RGBA", 'COLOR')
+    if crl.use_pass_crypto_material:
+        for i in range(0, crl.pass_crypto_depth, 2):
+            engine.register_pass(scene, srl, "CryptoMaterial" + '{:02d}'.format(i), 4, "RGBA", 'COLOR')
+    if srl.cycles.use_pass_crypto_asset:
+        for i in range(0, srl.cycles.pass_crypto_depth, 2):
+            engine.register_pass(scene, srl, "CryptoAsset" + '{:02d}'.format(i), 4, "RGBA", 'COLOR')
+
+    if crl.use_denoising or crl.denoising_store_passes:
+        engine.register_pass(scene, srl, "Noisy Image", 4, "RGBA", 'COLOR')
+        if crl.denoising_store_passes:
+            engine.register_pass(scene, srl, "Denoising Normal",          3, "XYZ", 'VECTOR')
+            engine.register_pass(scene, srl, "Denoising Normal Variance", 3, "XYZ", 'VECTOR')
+            engine.register_pass(scene, srl, "Denoising Albedo",          3, "RGB", 'COLOR')
+            engine.register_pass(scene, srl, "Denoising Albedo Variance", 3, "RGB", 'COLOR')
+            engine.register_pass(scene, srl, "Denoising Depth",           1, "Z",   'VALUE')
+            engine.register_pass(scene, srl, "Denoising Depth Variance",  1, "Z",   'VALUE')
+            engine.register_pass(scene, srl, "Denoising Shadow A",        3, "XYV", 'VECTOR')
+            engine.register_pass(scene, srl, "Denoising Shadow B",        3, "XYV", 'VECTOR')
+            engine.register_pass(scene, srl, "Denoising Image Variance",  3, "RGB", 'COLOR')
+            clean_options = ("denoising_diffuse_direct", "denoising_diffuse_indirect",
+                             "denoising_glossy_direct", "denoising_glossy_indirect",
+                             "denoising_transmission_direct", "denoising_transmission_indirect",
+                             "denoising_subsurface_direct", "denoising_subsurface_indirect")
+            if any(getattr(crl, option) for option in clean_options):
+                engine.register_pass(scene, srl, "Denoising Clean", 3, "RGB", 'COLOR')

@@ -16,8 +16,8 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
  * Contributor:
- *		Jeroen Bakker
- *		Monique Dewanchand
+ *      Jeroen Bakker
+ *      Monique Dewanchand
  */
 
 #include "COM_ColorSpillOperation.h"
@@ -68,7 +68,7 @@ void ColorSpillOperation::initExecution()
 		this->m_rmut = 1.0f;
 		this->m_gmut = 1.0f;
 		this->m_bmut = -1.0f;
-		
+
 		this->m_channel2 = 0;
 		this->m_channel3 = 1;
 		if (this->m_settings->unspill == 0) {

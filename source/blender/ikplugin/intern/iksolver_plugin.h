@@ -21,7 +21,7 @@
  * The Original Code is: all of this file.
  *
  * Original author: Benoit Bolsee
- * Contributor(s): 
+ * Contributor(s):
  *
  * ***** END GPL LICENSE BLOCK *****
  */
@@ -41,10 +41,12 @@ extern "C" {
 #endif
 
 void iksolver_initialize_tree(
-        const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *ob, float ctime);
+        struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob, float ctime);
 void iksolver_execute_tree(
-        const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *ob,
+        struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob,
         struct bPoseChannel *pchan_root, float ctime);
+void iksolver_release_tree(struct Scene *scene, struct Object *ob, float ctime);
+void iksolver_clear_data(struct bPose *pose);
 
 #ifdef __cplusplus
 }

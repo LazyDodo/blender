@@ -42,8 +42,8 @@ set(ICON_NAMES
 	tria_up
 	arrow_leftright
 	plus
-	disclosure_tri_down
 	disclosure_tri_right
+	disclosure_tri_down
 	radiobut_off
 	radiobut_on
 	menu_panel
@@ -58,12 +58,12 @@ set(ICON_NAMES
 	node
 	node_sel
 	fullscreen
-	splitscreen
+	workspace
 	rightarrow_thin
 	bordermove
 	viewzoom
-	zoomin
-	zoomout
+	add
+	remove
 	panel_close
 	copy_id
 	eyedropper
@@ -100,14 +100,16 @@ set(ICON_NAMES
 	freeze
 	stylus_pressure
 	ghost_disabled
-	new
+	file_new
 	file_tick
 	quit
 	url
 	recover_last
+	30
 	fullscreen_enter
 	fullscreen_exit
-	lamp
+	#onionskin
+	light
 	material
 	texture
 	anim
@@ -121,27 +123,31 @@ set(ICON_NAMES
 	physics
 	speaker
 	texture_shaded
+	tool_settings
+	shaderfx
+	#blank1
 	view3d
-	ipo
-	oops
-	buts
-	filesel
-	image_col
+	graph
+	outliner
+	properties
+	filebrowser
+	image
 	info
 	sequence
 	text
-	imasel
 	sound
 	action
 	nla
-	scriptwin
+	preferences
 	time
 	nodetree
 	logic
 	console
-	preferences
 	clip
 	asset_manager
+	node_compositing
+	node_texture
+	node_material
 	object_datamode
 	editmode_hlt
 	facesel_hlt
@@ -153,6 +159,15 @@ set(ICON_NAMES
 	particlemode
 	lightpaint
 	greasepencil_stroke_paint
+	tracking
+	tracking_backwards
+	tracking_forwards
+	tracking_backwards_single
+	tracking_forwards_single
+	tracking_clear_backwards
+	tracking_clear_forwards
+	tracking_refine_backwards
+	tracking_refine_forwards
 	scene_data
 	renderlayers
 	world_data
@@ -161,7 +176,7 @@ set(ICON_NAMES
 	curve_data
 	meta_data
 	lattice_data
-	lamp_data
+	light_data
 	material_data
 	texture_data
 	anim_data
@@ -186,7 +201,6 @@ set(ICON_NAMES
 	render_result
 	surface_data
 	empty_data
-	settings
 	render_animation
 	render_still
 	library_data_broken
@@ -200,14 +214,36 @@ set(ICON_NAMES
 	group_vertex
 	group_vcol
 	group_uvs
+	face_maps
 	rna
 	rna_add
+	mouse_lmb
+	mouse_mmb
+	mouse_rmb
+	mouse_move
+	mouse_lmb_drag
+	mouse_mmb_drag
+	mouse_rmb_drag
+	preset
+	decorate
+	decorate_keyframe
+	decorate_animate
+	decorate_driver
+	decorate_linked
+	decorate_override
+	decorate_unlocked
+	decorate_locked
+	fake_user
+	orphan_data
+	user
+	system
+	settings
 	outliner_ob_empty
 	outliner_ob_mesh
 	outliner_ob_curve
 	outliner_ob_lattice
 	outliner_ob_meta
-	outliner_ob_lamp
+	outliner_ob_light
 	outliner_ob_camera
 	outliner_ob_armature
 	outliner_ob_font
@@ -216,6 +252,8 @@ set(ICON_NAMES
 	outliner_ob_force_field
 	outliner_ob_group_instance
 	outliner_ob_greasepencil
+	outliner_ob_lightprobe
+	outliner_ob_image
 	restrict_color_off
 	restrict_color_on
 	restrict_view_off
@@ -224,12 +262,11 @@ set(ICON_NAMES
 	restrict_select_on
 	restrict_render_off
 	restrict_render_on
-	outliner_data_empty
 	outliner_data_mesh
 	outliner_data_curve
 	outliner_data_lattice
 	outliner_data_meta
-	outliner_data_lamp
+	outliner_data_light
 	outliner_data_camera
 	outliner_data_armature
 	outliner_data_font
@@ -237,6 +274,10 @@ set(ICON_NAMES
 	outliner_data_speaker
 	outliner_data_pose
 	outliner_data_greasepencil
+	onionskin_off
+	onionskin_on
+	hide_off
+	hide_on
 	mesh_plane
 	mesh_cube
 	mesh_circle
@@ -248,11 +289,11 @@ set(ICON_NAMES
 	mesh_torus
 	mesh_cone
 	mesh_capsule
-	lamp_point
-	lamp_sun
-	lamp_spot
-	lamp_hemi
-	lamp_area
+	light_point
+	light_sun
+	light_spot
+	light_hemi
+	light_area
 	meta_empty
 	meta_plane
 	meta_cube
@@ -270,6 +311,9 @@ set(ICON_NAMES
 	curve_ncurve
 	curve_ncircle
 	curve_path
+	lightprobe_cubemap
+	lightprobe_planar
+	lightprobe_grid
 	color_red
 	color_green
 	color_blue
@@ -290,8 +334,25 @@ set(ICON_NAMES
 	force_turbulence
 	force_drag
 	force_smokeflow
+	temperature
+	gear
 	node_insert_on
 	node_insert_off
+	node_top
+	node_side
+	node_corner
+	align_left
+	align_center
+	align_right
+	align_justify
+	align_flush
+	align_top
+	align_middle
+	align_bottom
+	bold
+	italic
+	underline
+	small_caps
 	modifier
 	mod_wave
 	mod_build
@@ -342,7 +403,6 @@ set(ICON_NAMES
 	pause
 	prev_keyframe
 	next_keyframe
-	play_audio
 	play_reverse
 	preview_range
 	action_tweak
@@ -351,8 +411,8 @@ set(ICON_NAMES
 	pmarker
 	marker_hlt
 	marker
-	space2
-	space3
+	keyframe_hlt
+	keyframe
 	keyingset
 	key_dehlt
 	key_hlt
@@ -386,13 +446,12 @@ set(ICON_NAMES
 	vertexsel
 	edgesel
 	facesel
-	loopsel
-	rotate
-	cursor
-	rotatecollection
-	rotatecenter
-	rotactive
-	align
+	pivot_boundbox
+	pivot_cursor
+	pivot_individual
+	pivot_median
+	pivot_active
+	center_only
 	smoothcurve
 	spherecurve
 	rootcurve
@@ -403,6 +462,7 @@ set(ICON_NAMES
 	prop_off
 	prop_on
 	prop_con
+	sculpt_dyntopo
 	particle_point
 	particle_tip
 	particle_path
@@ -427,11 +487,19 @@ set(ICON_NAMES
 	snap_peel_object
 	grid
 	object_origin
+	orientation_global
+	orientation_gimbal
+	orientation_local
+	orientation_normal
+	orientation_view
 	pastedown
 	copydown
 	pasteflipup
 	pasteflipdown
-	snap_surface
+	vis_sel_11
+	vis_sel_10
+	vis_sel_01
+	vis_sel_00
 	automerge_on
 	automerge_off
 	retopo
@@ -440,12 +508,16 @@ set(ICON_NAMES
 	uv_facesel
 	uv_islandsel
 	uv_sync_select
-	bbox
-	wire
-	solid
-	smooth
-	potato
-	ortho
+	normals_vertex
+	normals_vertex_face
+	normals_face
+	shading_bbox
+	shading_wire
+	shading_solid
+	shading_rendered
+	shading_texture
+	overlay
+	xray
 	lockview_off
 	lockview_on
 	axis_side
@@ -465,8 +537,6 @@ set(ICON_NAMES
 	shortdisplay
 	ghost
 	imgdisplay
-	save_as
-	save_copy
 	bookmarks
 	fontpreview
 	filter
@@ -475,6 +545,7 @@ set(ICON_NAMES
 	file_parent
 	file_refresh
 	file_folder
+	file_blank
 	file_blend
 	file_image
 	file_movie
@@ -482,18 +553,19 @@ set(ICON_NAMES
 	file_sound
 	file_font
 	file_text
-	recover_auto
-	save_prefs
+	sort_desc
+	sort_asc
 	link_blend
 	append_blend
 	import
 	export
 	external_data
-	load_factory
 	loop_back
 	loop_forwards
 	back
 	forward
+	alembic
+	volume
 	file_hidden
 	file_backup
 	disk_drive
@@ -523,6 +595,145 @@ set(ICON_NAMES
 	image_alpha
 	image_zdepth
 	imagefile
+	view_perspective
+	view_ortho
+	view_camera
+	view_pan
+	view_zoom
+)
+
+# This section is maintained by the updating script, keep BEGIN/END comments.
+set_property(GLOBAL PROPERTY ICON_GEOM_NAMES
+	# BEGIN ICON_GEOM_NAMES
+	brush.gpencil_draw.draw
+	brush.gpencil_draw.erase
+	brush.gpencil_draw.fill
+	brush.paint_texture.airbrush
+	brush.paint_texture.clone
+	brush.paint_texture.draw
+	brush.paint_texture.fill
+	brush.paint_texture.mask
+	brush.paint_texture.masklort
+	brush.paint_texture.multiply
+	brush.paint_texture.smear
+	brush.paint_texture.soften
+	brush.paint_vertex.alpha
+	brush.paint_vertex.average
+	brush.paint_vertex.blur
+	brush.paint_vertex.draw
+	brush.paint_vertex.smear
+	brush.paint_weight.average
+	brush.paint_weight.blur
+	brush.paint_weight.draw
+	brush.paint_weight.mix
+	brush.paint_weight.smear
+	brush.particle.add
+	brush.particle.comb
+	brush.particle.cut
+	brush.particle.length
+	brush.particle.puff
+	brush.particle.smooth
+	brush.particle.weight
+	brush.sculpt.blob
+	brush.sculpt.clay
+	brush.sculpt.clay_strips
+	brush.sculpt.crease
+	brush.sculpt.draw
+	brush.sculpt.fill
+	brush.sculpt.flatten
+	brush.sculpt.grab
+	brush.sculpt.inflate
+	brush.sculpt.layer
+	brush.sculpt.mask
+	brush.sculpt.nudge
+	brush.sculpt.pinch
+	brush.sculpt.rotate
+	brush.sculpt.scrape
+	brush.sculpt.simplify
+	brush.sculpt.smooth
+	brush.sculpt.snake_hook
+	brush.sculpt.thumb
+	none
+	ops.armature.bone.roll
+	ops.armature.extrude_cursor
+	ops.armature.extrude_move
+	ops.curve.draw
+	ops.curve.extrude_cursor
+	ops.curve.extrude_move
+	ops.generic.cursor
+	ops.generic.select_box
+	ops.generic.select_circle
+	ops.generic.select_lasso
+	ops.gpencil.draw
+	ops.gpencil.draw.eraser
+	ops.gpencil.draw.line
+	ops.gpencil.draw.poly
+	ops.gpencil.edit_bend
+	ops.gpencil.edit_mirror
+	ops.gpencil.edit_shear
+	ops.gpencil.edit_to_sphere
+	ops.gpencil.primitive_box
+	ops.gpencil.primitive_circle
+	ops.gpencil.primitive_line
+	ops.gpencil.sculpt_clone
+	ops.gpencil.sculpt_grab
+	ops.gpencil.sculpt_pinch
+	ops.gpencil.sculpt_push
+	ops.gpencil.sculpt_randomize
+	ops.gpencil.sculpt_smooth
+	ops.gpencil.sculpt_strength
+	ops.gpencil.sculpt_thickness
+	ops.gpencil.sculpt_twist
+	ops.gpencil.sculpt_weight
+	ops.mesh.bevel
+	ops.mesh.bisect
+	ops.mesh.dupli_extrude_cursor
+	ops.mesh.extrude_faces_move
+	ops.mesh.extrude_region_move
+	ops.mesh.extrude_region_shrink_fatten
+	ops.mesh.inset
+	ops.mesh.knife_tool
+	ops.mesh.loopcut_slide
+	ops.mesh.offset_edge_loops_slide
+	ops.mesh.polybuild_hover
+	ops.mesh.primitive_cone_add_gizmo
+	ops.mesh.primitive_cube_add_gizmo
+	ops.mesh.primitive_cylinder_add_gizmo
+	ops.mesh.primitive_grid_add_gizmo
+	ops.mesh.primitive_sphere_add_gizmo
+	ops.mesh.primitive_torus_add_gizmo
+	ops.mesh.rip
+	ops.mesh.rip_edge
+	ops.mesh.spin
+	ops.mesh.spin.duplicate
+	ops.mesh.vertices_smooth
+	ops.paint.vertex_color_fill
+	ops.paint.weight_fill
+	ops.paint.weight_gradient
+	ops.paint.weight_sample
+	ops.paint.weight_sample_group
+	ops.pose.breakdowner
+	ops.pose.push
+	ops.pose.relax
+	ops.sculpt.border_hide
+	ops.sculpt.border_mask
+	ops.transform.bone_envelope
+	ops.transform.bone_size
+	ops.transform.edge_slide
+	ops.transform.push_pull
+	ops.transform.resize.cage
+	ops.transform.resize
+	ops.transform.rotate
+	ops.transform.shear
+	ops.transform.shrink_fatten
+	ops.transform.tilt
+	ops.transform.tosphere
+	ops.transform.transform
+	ops.transform.translate
+	ops.transform.vert_slide
+	ops.transform.vertex_random
+	ops.view3d.ruler
+	# END ICON_GEOM_NAMES
 )
 
 data_to_c_simple(../../../../release/datafiles/bfont.pfb SRC)
@@ -536,8 +747,8 @@ if(WITH_BLENDER)
 		# blender UI only
 
 		# blends
-		data_to_c_simple(../../../../release/datafiles/preview.blend SRC)
 		data_to_c_simple(../../../../release/datafiles/preview_cycles.blend SRC)
+		data_to_c_simple(../../../../release/datafiles/preview_grease_pencil.blend SRC)
 
 		# images
 		data_to_c_simple(../../../../release/datafiles/splash.png SRC)
@@ -560,24 +771,20 @@ if(WITH_BLENDER)
 		data_to_c_simple(../../../../release/datafiles/prvicons.png SRC)
 
 		# brushes
-		data_to_c_simple(../../../../release/datafiles/brushicons/add.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/blob.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/blur.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/clay.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/claystrips.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/clone.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/crease.png SRC)
-		data_to_c_simple(../../../../release/datafiles/brushicons/darken.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/draw.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/fill.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/flatten.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/grab.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/inflate.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/layer.png SRC)
-		data_to_c_simple(../../../../release/datafiles/brushicons/lighten.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/mask.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/mix.png SRC)
-		data_to_c_simple(../../../../release/datafiles/brushicons/multiply.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/nudge.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/pinch.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/scrape.png SRC)
@@ -585,39 +792,34 @@ if(WITH_BLENDER)
 		data_to_c_simple(../../../../release/datafiles/brushicons/smooth.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/snake_hook.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/soften.png SRC)
-		data_to_c_simple(../../../../release/datafiles/brushicons/subtract.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/texdraw.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/texfill.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/texmask.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/thumb.png SRC)
 		data_to_c_simple(../../../../release/datafiles/brushicons/twist.png SRC)
-		data_to_c_simple(../../../../release/datafiles/brushicons/vertexdraw.png SRC)
 
-		# matcap
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc01.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc02.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc03.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc04.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc05.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc06.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc07.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc08.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc09.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc10.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc11.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc12.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc13.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc14.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc15.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc16.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc17.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc18.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc19.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc20.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc21.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc22.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc23.jpg SRC)
-		data_to_c_simple(../../../../release/datafiles/matcaps/mc24.jpg SRC)
+		# grease pencil sculpt
+		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_smooth.png SRC)
+		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_thickness.png SRC)
+		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_strength.png SRC)
+		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_grab.png SRC)
+		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_push.png SRC)
+		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_twist.png SRC)
+		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_pinch.png SRC)
+		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_randomize.png SRC)
+		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_clone.png SRC)
+		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_weight.png SRC)
+
+		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_pencil.png SRC)
+		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_pen.png SRC)
+		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_ink.png SRC)
+		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_inknoise.png SRC)
+		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_block.png SRC)
+		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_marker.png SRC)
+		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_fill.png SRC)
+		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_erase_soft.png SRC)
+		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_erase_hard.png SRC)
+		data_to_c_simple(../../../../release/datafiles/brushicons/gp_brush_erase_stroke.png SRC)
 
 	endif()
 

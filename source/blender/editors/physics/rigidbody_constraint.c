@@ -37,8 +37,9 @@
 #include "DNA_rigidbody_types.h"
 #include "DNA_scene_types.h"
 
+#include "BKE_collection.h"
 #include "BKE_context.h"
-#include "BKE_group.h"
+#include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_report.h"
 #include "BKE_rigidbody.h"
@@ -61,7 +62,7 @@
 /* ********************************************** */
 /* Helper API's for RigidBody Constraint Editing */
 
-static int ED_operator_rigidbody_con_active_poll(bContext *C)
+static bool ED_operator_rigidbody_con_active_poll(bContext *C)
 {
 	if (ED_operator_object_active_editable(C)) {
 		Object *ob = CTX_data_active_object(C);
@@ -83,17 +84,20 @@ bool ED_rigidbody_constraint_add(Main *bmain, Scene *scene, Object *ob, int type
 	}
 	/* create constraint group if it doesn't already exits */
 	if (rbw->constraints == NULL) {
-		rbw->constraints = BKE_group_add(bmain, "RigidBodyConstraints");
+		rbw->constraints = BKE_collection_add(bmain, NULL, "RigidBodyConstraints");
+		id_fake_user_set(&rbw->constraints->id);
 	}
 	/* make rigidbody constraint settings */
 	ob->rigidbody_constraint = BKE_rigidbody_create_constraint(scene, ob, type);
 	ob->rigidbody_constraint->flag |= RBC_FLAG_NEEDS_VALIDATE;
 
 	/* add constraint to rigid body constraint group */
-	BKE_group_object_add(rbw->constraints, ob);
+	BKE_collection_object_add(bmain, rbw->constraints, ob);
 
 	DEG_relations_tag_update(bmain);
 	DEG_id_tag_update(&ob->id, OB_RECALC_OB);
+	DEG_id_tag_update(&rbw->constraints->id, DEG_TAG_COPY_ON_WRITE);
+
 	return true;
 }
 
@@ -102,8 +106,10 @@ void ED_rigidbody_constraint_remove(Main *bmain, Scene *scene, Object *ob)
 	RigidBodyWorld *rbw = BKE_rigidbody_get_world(scene);
 
 	BKE_rigidbody_remove_constraint(scene, ob);
-	if (rbw)
-		BKE_group_object_unlink(rbw->constraints, ob);
+	if (rbw) {
+		BKE_collection_object_remove(bmain, rbw->constraints, ob, false);
+		DEG_id_tag_update(&rbw->constraints->id, DEG_TAG_COPY_ON_WRITE);
+	}
 
 	DEG_relations_tag_update(bmain);
 	DEG_id_tag_update(&ob->id, OB_RECALC_OB);

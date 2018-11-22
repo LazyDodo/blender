@@ -41,6 +41,7 @@
 #include "kernel/osl/osl_globals.h"
 
 #include "render/buffers.h"
+#include "render/coverage.h"
 
 #include "util/util_debug.h"
 #include "util/util_foreach.h"
@@ -80,11 +81,11 @@ public:
 
 		/* Silence potential warnings about unused variables
 		 * when compiling without some architectures. */
-		(void)kernel_sse2;
-		(void)kernel_sse3;
-		(void)kernel_sse41;
-		(void)kernel_avx;
-		(void)kernel_avx2;
+		(void) kernel_sse2;
+		(void) kernel_sse3;
+		(void) kernel_sse41;
+		(void) kernel_avx;
+		(void) kernel_avx2;
 #ifdef WITH_CYCLES_OPTIMIZED_KERNEL_AVX2
 		if(DebugFlags().cpu.has_avx2() && system_cpu_support_avx2()) {
 			architecture_name = "AVX2";
@@ -179,16 +180,16 @@ public:
 	KernelFunctions<void(*)(KernelGlobals *, uchar4 *, float *, float, int, int, int, int)> convert_to_byte_kernel;
 	KernelFunctions<void(*)(KernelGlobals *, uint4 *, float4 *, int, int, int, int, int)>   shader_kernel;
 
-	KernelFunctions<void(*)(int, TilesInfo*, int, int, float*, float*, float*, float*, float*, int*, int, int)> filter_divide_shadow_kernel;
-	KernelFunctions<void(*)(int, TilesInfo*, int, int, int, int, float*, float*, int*, int, int)>               filter_get_feature_kernel;
+	KernelFunctions<void(*)(int, TileInfo*, int, int, float*, float*, float*, float*, float*, int*, int, int)> filter_divide_shadow_kernel;
+	KernelFunctions<void(*)(int, TileInfo*, int, int, int, int, float*, float*, int*, int, int)>               filter_get_feature_kernel;
 	KernelFunctions<void(*)(int, int, float*, float*, float*, float*, int*, int)>                               filter_detect_outliers_kernel;
 	KernelFunctions<void(*)(int, int, float*, float*, float*, float*, int*, int)>                               filter_combine_halves_kernel;
 
-	KernelFunctions<void(*)(int, int, float*, float*, float*, int*, int, int, float, float)> filter_nlm_calc_difference_kernel;
-	KernelFunctions<void(*)(float*, float*, int*, int, int)>                                 filter_nlm_blur_kernel;
-	KernelFunctions<void(*)(float*, float*, int*, int, int)>                                 filter_nlm_calc_weight_kernel;
-	KernelFunctions<void(*)(int, int, float*, float*, float*, float*, int*, int, int)>       filter_nlm_update_output_kernel;
-	KernelFunctions<void(*)(float*, float*, int*, int)>                                      filter_nlm_normalize_kernel;
+	KernelFunctions<void(*)(int, int, float*, float*, float*, int*, int, int, float, float)>   filter_nlm_calc_difference_kernel;
+	KernelFunctions<void(*)(float*, float*, int*, int, int)>                                   filter_nlm_blur_kernel;
+	KernelFunctions<void(*)(float*, float*, int*, int, int)>                                   filter_nlm_calc_weight_kernel;
+	KernelFunctions<void(*)(int, int, float*, float*, float*, float*, float*, int*, int, int)> filter_nlm_update_output_kernel;
+	KernelFunctions<void(*)(float*, float*, int*, int)>                                        filter_nlm_normalize_kernel;
 
 	KernelFunctions<void(*)(float*, int, int, int, float*, int*, int*, int, int, float)>                         filter_construct_transform_kernel;
 	KernelFunctions<void(*)(int, int, float*, float*, float*, int*, float*, float3*, int*, int*, int, int, int)> filter_nlm_construct_gramian_kernel;
@@ -275,6 +276,20 @@ public:
 	virtual bool show_samples() const
 	{
 		return (info.cpu_threads == 1);
+	}
+
+	virtual BVHLayoutMask get_bvh_layout_mask() const {
+		BVHLayoutMask bvh_layout_mask = BVH_LAYOUT_BVH2;
+		if(DebugFlags().cpu.has_sse2() && system_cpu_support_sse2()) {
+			bvh_layout_mask |= BVH_LAYOUT_BVH4;
+		}
+		if(DebugFlags().cpu.has_avx2() && system_cpu_support_avx2()) {
+			bvh_layout_mask |= BVH_LAYOUT_BVH8;
+		}
+#ifdef WITH_EMBREE
+		bvh_layout_mask |= BVH_LAYOUT_EMBREE;
+#endif  /* WITH_EMBREE */
+		return bvh_layout_mask;
 	}
 
 	void load_texture_info()
@@ -459,18 +474,6 @@ public:
 		}
 	};
 
-	bool denoising_set_tiles(device_ptr *buffers, DenoisingTask *task)
-	{
-		TilesInfo *tiles = (TilesInfo*) task->tiles_mem.host_pointer;
-		for(int i = 0; i < 9; i++) {
-			tiles->buffers[i] = buffers[i];
-		}
-
-		task->tiles_mem.copy_to_device();
-
-		return true;
-	}
-
 	bool denoising_non_local_means(device_ptr image_ptr, device_ptr guide_ptr, device_ptr variance_ptr, device_ptr out_ptr,
 	                               DenoisingTask *task)
 	{
@@ -483,9 +486,10 @@ public:
 		int w = align_up(rect.z-rect.x, 4);
 		int h = rect.w-rect.y;
 
-		float *blurDifference = (float*) task->nlm_state.temporary_1_ptr;
-		float *difference     = (float*) task->nlm_state.temporary_2_ptr;
-		float *weightAccum    = (float*) task->nlm_state.temporary_3_ptr;
+		float *temporary_mem = (float*) task->buffer.temporary_mem.device_pointer;
+		float *blurDifference = temporary_mem;
+		float *difference     = temporary_mem + task->buffer.pass_stride;
+		float *weightAccum    = temporary_mem + 2*task->buffer.pass_stride;
 
 		memset(weightAccum, 0, sizeof(float)*w*h);
 		memset((float*) out_ptr, 0, sizeof(float)*w*h);
@@ -510,6 +514,7 @@ public:
 			filter_nlm_update_output_kernel()(dx, dy,
 			                                  blurDifference,
 			                                  (float*) image_ptr,
+			                                  difference,
 			                                  (float*) out_ptr,
 			                                  weightAccum,
 			                                  local_rect,
@@ -549,8 +554,9 @@ public:
 		mem_zero(task->storage.XtWX);
 		mem_zero(task->storage.XtWY);
 
-		float *difference     = (float*) task->reconstruction_state.temporary_1_ptr;
-		float *blurDifference = (float*) task->reconstruction_state.temporary_2_ptr;
+		float *temporary_mem = (float*) task->buffer.temporary_mem.device_pointer;
+		float *difference     = temporary_mem;
+		float *blurDifference = temporary_mem + task->buffer.pass_stride;
 
 		int r = task->radius;
 		for(int i = 0; i < (2*r+1)*(2*r+1); i++) {
@@ -626,7 +632,7 @@ public:
 		for(int y = task->rect.y; y < task->rect.w; y++) {
 			for(int x = task->rect.x; x < task->rect.z; x++) {
 				filter_divide_shadow_kernel()(task->render_buffer.samples,
-				                              task->tiles,
+				                              task->tile_info,
 				                              x, y,
 				                              (float*) a_ptr,
 				                              (float*) b_ptr,
@@ -635,7 +641,7 @@ public:
 				                              (float*) buffer_variance_ptr,
 				                              &task->rect.x,
 				                              task->render_buffer.pass_stride,
-				                              task->render_buffer.denoising_data_offset);
+				                              task->render_buffer.offset);
 			}
 		}
 		return true;
@@ -650,7 +656,7 @@ public:
 		for(int y = task->rect.y; y < task->rect.w; y++) {
 			for(int x = task->rect.x; x < task->rect.z; x++) {
 				filter_get_feature_kernel()(task->render_buffer.samples,
-				                            task->tiles,
+				                            task->tile_info,
 				                            mean_offset,
 				                            variance_offset,
 				                            x, y,
@@ -658,7 +664,7 @@ public:
 				                            (float*) variance_ptr,
 				                            &task->rect.x,
 				                            task->render_buffer.pass_stride,
-				                            task->render_buffer.denoising_data_offset);
+				                            task->render_buffer.offset);
 			}
 		}
 		return true;
@@ -686,12 +692,22 @@ public:
 
 	void path_trace(DeviceTask &task, RenderTile &tile, KernelGlobals *kg)
 	{
+		const bool use_coverage = kernel_data.film.cryptomatte_passes & CRYPT_ACCURATE;
+
 		scoped_timer timer(&tile.buffers->render_time);
+
+		Coverage coverage(kg, tile);
+		if(use_coverage) {
+			coverage.init_path_trace();
+		}
 
 		float *render_buffer = (float*)tile.buffer;
 		int start_sample = tile.start_sample;
 		int end_sample = tile.start_sample + tile.num_samples;
 
+		_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+		_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+		
 		for(int sample = start_sample; sample < end_sample; sample++) {
 			if(task.get_cancel() || task_pool.canceled()) {
 				if(task.need_finish_queue == false)
@@ -700,6 +716,9 @@ public:
 
 			for(int y = tile.y; y < tile.y + tile.h; y++) {
 				for(int x = tile.x; x < tile.x + tile.w; x++) {
+					if(use_coverage) {
+						coverage.init_pixel(x, y);
+					}
 					path_trace_kernel()(kg, render_buffer,
 					                    sample, x, y, tile.offset, tile.stride);
 				}
@@ -709,9 +728,12 @@ public:
 
 			task.update_progress(&tile, tile.w*tile.h);
 		}
+		if(use_coverage) {
+			coverage.finalize();
+		}
 	}
 
-	void denoise(DeviceTask &task, DenoisingTask& denoising, RenderTile &tile)
+	void denoise(DenoisingTask& denoising, RenderTile &tile)
 	{
 		tile.sample = tile.start_sample + tile.num_samples;
 
@@ -722,23 +744,12 @@ public:
 		denoising.functions.combine_halves = function_bind(&CPUDevice::denoising_combine_halves, this, _1, _2, _3, _4, _5, _6, &denoising);
 		denoising.functions.get_feature = function_bind(&CPUDevice::denoising_get_feature, this, _1, _2, _3, _4, &denoising);
 		denoising.functions.detect_outliers = function_bind(&CPUDevice::denoising_detect_outliers, this, _1, _2, _3, _4, &denoising);
-		denoising.functions.set_tiles = function_bind(&CPUDevice::denoising_set_tiles, this, _1, &denoising);
 
 		denoising.filter_area = make_int4(tile.x, tile.y, tile.w, tile.h);
 		denoising.render_buffer.samples = tile.sample;
+		denoising.buffer.gpu_temporary_mem = false;
 
-		RenderTile rtiles[9];
-		rtiles[4] = tile;
-		task.map_neighbor_tiles(rtiles, this);
-		denoising.tiles_from_rendertiles(rtiles);
-
-		denoising.init_from_devicetask(task);
-
-		denoising.run_denoising();
-
-		task.unmap_neighbor_tiles(rtiles, this);
-
-		task.update_progress(&tile, tile.w*tile.h);
+		denoising.run_denoising(&tile);
 	}
 
 	void thread_render(DeviceTask& task)
@@ -766,7 +777,7 @@ public:
 		}
 
 		RenderTile tile;
-		DenoisingTask denoising(this);
+		DenoisingTask denoising(this, task);
 
 		while(task.acquire_tile(this, tile)) {
 			if(tile.task == RenderTile::PATH_TRACE) {
@@ -779,7 +790,8 @@ public:
 				}
 			}
 			else if(tile.task == RenderTile::DENOISE) {
-				denoise(task, denoising, tile);
+				denoise(denoising, tile);
+				task.update_progress(&tile, tile.w*tile.h);
 			}
 
 			task.release_tile(tile);
@@ -1046,10 +1058,6 @@ void device_cpu_info(vector<DeviceInfo>& devices)
 	info.id = "CPU";
 	info.num = 0;
 	info.advanced_shading = true;
-	info.bvh_layout_mask = BVH_LAYOUT_BVH2;
-	if (system_cpu_support_sse2()) {
-		info.bvh_layout_mask |= BVH_LAYOUT_BVH4;
-	}
 	info.has_volume_decoupled = true;
 	info.has_osl = true;
 	info.has_half_images = true;
@@ -1057,7 +1065,7 @@ void device_cpu_info(vector<DeviceInfo>& devices)
 	devices.insert(devices.begin(), info);
 }
 
-string device_cpu_capabilities(void)
+string device_cpu_capabilities()
 {
 	string capabilities = "";
 	capabilities += system_cpu_support_sse2() ? "SSE2 " : "";

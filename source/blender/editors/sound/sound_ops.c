@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2007 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -49,13 +49,13 @@
 #include "BKE_context.h"
 #include "BKE_fcurve.h"
 #include "BKE_global.h"
-#include "BKE_main.h"
-#include "BKE_report.h"
 #include "BKE_library.h"
+#include "BKE_main.h"
 #include "BKE_packedFile.h"
+#include "BKE_report.h"
 #include "BKE_scene.h"
-#include "BKE_sound.h"
 #include "BKE_sequencer.h"
+#include "BKE_sound.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -311,7 +311,6 @@ static int sound_bake_animation_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
-	ViewLayer *view_layer = CTX_data_view_layer(C);
 	struct Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	int oldfra = scene->r.cfra;
 	int cfra;
@@ -320,11 +319,11 @@ static int sound_bake_animation_exec(bContext *C, wmOperator *UNUSED(op))
 
 	for (cfra = (scene->r.sfra > 0) ? (scene->r.sfra - 1) : 0; cfra <= scene->r.efra + 1; cfra++) {
 		scene->r.cfra = cfra;
-		BKE_scene_graph_update_for_newframe(bmain->eval_ctx, depsgraph, bmain, scene, view_layer);
+		BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 	}
 
 	scene->r.cfra = oldfra;
-	BKE_scene_graph_update_for_newframe(bmain->eval_ctx, depsgraph, bmain, scene, view_layer);
+	BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 
 	return OPERATOR_FINISHED;
 }
@@ -376,7 +375,7 @@ static int sound_mixdown_exec(bContext *C, wmOperator *op)
 	specs.rate = scene->r.ffcodecdata.audio_mixrate;
 
 	BLI_strncpy(filename, path, sizeof(filename));
-	BLI_path_abs(filename, bmain->name);
+	BLI_path_abs(filename, BKE_main_blendfile_path(bmain));
 
 	if (split)
 		result = AUD_mixdown_per_channel(scene->sound_scene, SFRA * specs.rate / FPS, (EFRA - SFRA + 1) * specs.rate / FPS,
@@ -456,10 +455,10 @@ static bool sound_mixdown_check(bContext *UNUSED(C), wmOperator *op)
 		prop = RNA_struct_find_property(op->ptr, "filepath");
 		RNA_property_string_get(op->ptr, prop, filepath);
 
-		if (BLI_testextensie_array(filepath, snd_ext_sound))
-			check = BLI_replace_extension(filepath, FILE_MAX, extension);
+		if (BLI_path_extension_check_array(filepath, snd_ext_sound))
+			check = BLI_path_extension_replace(filepath, FILE_MAX, extension);
 		else
-			check = BLI_ensure_extension(filepath, FILE_MAX, extension);
+			check = BLI_path_extension_ensure(filepath, FILE_MAX, extension);
 
 		if (!check)
 			return check;
@@ -483,7 +482,7 @@ static int sound_mixdown_invoke(bContext *C, wmOperator *op, const wmEvent *even
 
 #ifdef WITH_AUDASPACE
 
-static bool sound_mixdown_draw_check_prop(PointerRNA *UNUSED(ptr), PropertyRNA *prop)
+static bool sound_mixdown_draw_check_prop(PointerRNA *UNUSED(ptr), PropertyRNA *prop, void *UNUSED(user_data))
 {
 	const char *prop_id = RNA_property_identifier(prop);
 	return !(STREQ(prop_id, "filepath") ||
@@ -636,7 +635,7 @@ static void sound_mixdown_draw(bContext *C, wmOperator *op)
 	RNA_pointer_create(&wm->id, op->type->srna, op->properties, &ptr);
 
 	/* main draw call */
-	uiDefAutoButsRNA(layout, &ptr, sound_mixdown_draw_check_prop, '\0');
+	uiDefAutoButsRNA(layout, &ptr, sound_mixdown_draw_check_prop, NULL, UI_BUT_LABEL_ALIGN_NONE, false);
 }
 #endif // WITH_AUDASPACE
 
@@ -704,7 +703,7 @@ static void SOUND_OT_mixdown(wmOperatorType *ot)
 
 /* ******************************************************* */
 
-static int sound_poll(bContext *C)
+static bool sound_poll(bContext *C)
 {
 	Editing *ed = CTX_data_scene(C)->ed;
 

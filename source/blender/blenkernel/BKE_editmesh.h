@@ -27,7 +27,7 @@
  *  \ingroup bke
  *
  * The \link edmesh EDBM module\endlink is for editmode bmesh stuff.
- * In contrast, the this module is for code shared with blenkernel thats
+ * In contrast, this module is for code shared with blenkernel that's
  * only concerned with low level operations on the #BMEditMesh structure.
  */
 
@@ -40,7 +40,8 @@ struct Mesh;
 struct Scene;
 struct DerivedMesh;
 struct MeshStatVis;
-struct EvaluationContext;
+struct Depsgraph;
+struct EditMeshData;
 
 /**
  * This structure is used for mesh edit-mode.
@@ -57,14 +58,15 @@ typedef struct BMEditMesh {
 	/*this is for undoing failed operations*/
 	struct BMEditMesh *emcopy;
 	int emcopyusers;
-	
+
 	/* we store tessellations as triplets of three loops,
 	 * which each define a triangle.*/
 	struct BMLoop *(*looptris)[3];
 	int tottri;
 
+	struct Mesh *mesh_eval_final, *mesh_eval_cage;
+
 	/*derivedmesh stuff*/
-	struct DerivedMesh *derivedFinal, *derivedCage;
 	CustomDataMask lastDataMask;
 	unsigned char (*derivedVertColor)[4];
 	int derivedVertColorLen;
@@ -93,13 +95,14 @@ void        BKE_editmesh_free(BMEditMesh *em);
 void        BKE_editmesh_color_free(BMEditMesh *em);
 void        BKE_editmesh_color_ensure(BMEditMesh *em, const char htype);
 float     (*BKE_editmesh_vertexCos_get_orco(BMEditMesh *em, int *r_numVerts))[3];
+void        BKE_editmesh_lnorspace_update(BMEditMesh *em);
 
 /* editderivedmesh.c */
 /* should really be defined in editmesh.c, but they use 'EditDerivedBMesh' */
-void        BKE_editmesh_statvis_calc(BMEditMesh *em, struct DerivedMesh *dm,
-                                      const struct MeshStatVis *statvis);
+void BKE_editmesh_statvis_calc(
+        BMEditMesh *em, struct EditMeshData *emd, const struct MeshStatVis *statvis);
 
 float (*BKE_editmesh_vertexCos_get(
-           const struct EvaluationContext *eval_ctx, struct BMEditMesh *em, struct Scene *scene, int *r_numVerts))[3];
+           struct Depsgraph *depsgraph, struct BMEditMesh *em, struct Scene *scene, int *r_numVerts))[3];
 
 #endif /* __BKE_EDITMESH_H__ */

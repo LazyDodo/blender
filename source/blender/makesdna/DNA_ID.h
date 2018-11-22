@@ -45,6 +45,27 @@ struct ID;
 struct PackedFile;
 struct GPUTexture;
 
+/* Runtime display data */
+struct DrawData;
+typedef void (*DrawDataInitCb)(struct DrawData *engine_data);
+typedef void (*DrawDataFreeCb)(struct DrawData *engine_data);
+
+#
+#
+typedef struct DrawData {
+	struct DrawData *next, *prev;
+	struct DrawEngineType *engine_type;
+	/* Only nested data, NOT the engine data itself. */
+	DrawDataFreeCb free;
+	/* Accumulated recalc flags, which corresponds to ID->recalc flags. */
+	int recalc;
+} DrawData;
+
+typedef struct DrawDataList {
+	struct DrawData *first, *last;
+} DrawDataList;
+
+
 typedef struct IDPropertyData {
 	void *pointer;
 	ListBase group;
@@ -109,6 +130,9 @@ enum {
 
 /*->flag*/
 enum {
+	/* This IDProp may be statically overridden. Should only be used/be relevant for custom properties. */
+	IDP_FLAG_OVERRIDABLE_STATIC = 1 << 0,
+
 	IDP_FLAG_GHOST       = 1 << 7,  /* this means the property is set but RNA will return false when checking
 	                                 * 'RNA_property_is_set', currently this is a runtime flag */
 };
@@ -163,7 +187,7 @@ enum {
 	IDOVERRIDESTATIC_FLAG_LOCKED        =   1 << 1,  /* User cannot change that override operation. */
 };
 
-/* A single overriden property, contain all operations on this one. */
+/* A single overridden property, contain all operations on this one. */
 typedef struct IDOverrideStaticProperty {
 	struct IDOverrideStaticProperty *next, *prev;
 
@@ -178,12 +202,18 @@ typedef struct IDOverrideStatic {
 	struct ID *reference;  /* Reference linked ID which this one overrides. */
 	ListBase properties;  /* List of IDOverrideProperty structs. */
 
+	short flag;
+	short pad[3];
+
 	/* Read/write data. */
 	/* Temp ID storing extra override data (used for differential operations only currently).
 	 * Always NULL outside of read/write context. */
 	struct ID *storage;
 } IDOverrideStatic;
 
+enum eStaticOverride_Flag {
+	STATICOVERRIDE_AUTO    = 1 << 0,  /* Allow automatic generation of overriding rules. */
+};
 
 /* watch it: Sequence has identical beginning. */
 /**
@@ -220,7 +250,7 @@ typedef struct ID {
 	/* Only set for datablocks which are coming from copy-on-write, points to
 	 * the original version of it.
 	 */
-	void *orig_id;
+	struct ID *orig_id;
 
 	void *py_instance;
 } ID;
@@ -241,7 +271,7 @@ typedef struct Library {
 	char filepath[1024];
 
 	struct Library *parent;	/* set for indirectly linked libs, used in the outliner and while reading */
-	
+
 	struct PackedFile *packedfile;
 
 	/* Temp data needed by read/write code. */
@@ -264,9 +294,9 @@ enum ePreviewImage_Flag {
 
 /* for PreviewImage->tag */
 enum  {
-	PRV_TAG_DEFFERED           = (1 << 0),  /* Actual loading of preview is deffered. */
-	PRV_TAG_DEFFERED_RENDERING = (1 << 1),  /* Deffered preview is being loaded. */
-	PRV_TAG_DEFFERED_DELETE    = (1 << 2),  /* Deffered preview should be deleted asap. */
+	PRV_TAG_DEFFERED           = (1 << 0),  /* Actual loading of preview is deferred. */
+	PRV_TAG_DEFFERED_RENDERING = (1 << 1),  /* Deferred preview is being loaded. */
+	PRV_TAG_DEFFERED_DELETE    = (1 << 2),  /* Deferred preview should be deleted asap. */
 };
 
 typedef struct PreviewImage {
@@ -372,7 +402,8 @@ typedef enum ID_Type {
 
 #define ID_CHECK_UNDO(id) ((GS((id)->name) != ID_SCR) && (GS((id)->name) != ID_WM) && (GS((id)->name) != ID_WS))
 
-#define ID_BLEND_PATH(_bmain, _id) ((_id)->lib ? (_id)->lib->filepath : (_bmain)->name)
+#define ID_BLEND_PATH(_bmain, _id) ((_id)->lib ? (_id)->lib->filepath : BKE_main_blendfile_path((_bmain)))
+#define ID_BLEND_PATH_FROM_GLOBAL(_id) ((_id)->lib ? (_id)->lib->filepath : BKE_main_blendfile_path_from_global())
 
 #define ID_MISSING(_id) (((_id)->tag & LIB_TAG_MISSING) != 0)
 
@@ -383,6 +414,15 @@ typedef enum ID_Type {
 
 #define ID_IS_STATIC_OVERRIDE_TEMPLATE(_id) (((ID *)(_id))->override_static != NULL && \
                                              ((ID *)(_id))->override_static->reference == NULL)
+
+#define ID_IS_STATIC_OVERRIDE_AUTO(_id) (!ID_IS_LINKED((_id)) && \
+                                         ID_IS_STATIC_OVERRIDE((_id)) && \
+                                         (((ID *)(_id))->override_static->flag & STATICOVERRIDE_AUTO))
+
+/* No copy-on-write for these types.
+ * Keep in sync with check_datablocks_copy_on_writable and deg_copy_on_write_is_needed */
+#define ID_TYPE_IS_COW(_id_type) \
+	(!ELEM(_id_type, ID_BR, ID_LS, ID_PAL, ID_IM))
 
 #ifdef GS
 #  undef GS
@@ -395,7 +435,6 @@ typedef enum ID_Type {
 
 /* id->flag (persitent). */
 enum {
-	LIB_OVERRIDE_STATIC_AUTO    = 1 << 0,  /* Allow automatic generation of overriding rules. */
 	LIB_FAKEUSER                = 1 << 9,
 };
 
@@ -432,7 +471,9 @@ enum {
 	LIB_TAG_MISSING         = 1 << 6,
 
 	/* RESET_NEVER tag datablock as being up-to-date regarding its reference. */
-	LIB_TAG_OVERRIDESTATIC_OK = 1 << 9,
+	LIB_TAG_OVERRIDESTATIC_REFOK = 1 << 9,
+	/* RESET_NEVER tag datablock as needing an auto-override execution, if enabled. */
+	LIB_TAG_OVERRIDESTATIC_AUTOREFRESH = 1 << 17,
 
 	/* tag datablock has having an extra user. */
 	LIB_TAG_EXTRAUSER       = 1 << 2,
@@ -448,18 +489,20 @@ enum {
 	/* RESET_AFTER_USE tag existing data before linking so we know what is new. */
 	LIB_TAG_PRE_EXISTING    = 1 << 11,
 
-	/* The datablock is a copy-on-write version. */
-	LIB_TAG_COPY_ON_WRITE   = 1 << 12,
-	LIB_TAG_COPY_ON_WRITE_EVAL = 1 << 13,
+	/* The datablock is a copy-on-write/localized version. */
+	LIB_TAG_COPIED_ON_WRITE               = 1 << 12,
+	LIB_TAG_COPIED_ON_WRITE_EVAL_RESULT   = 1 << 13,
+	LIB_TAG_LOCALIZED = 1 << 14,
 
 	/* RESET_NEVER tag datablock for freeing etc. behavior (usually set when copying real one into temp/runtime one). */
-	LIB_TAG_NO_MAIN          = 1 << 14,  /* Datablock is not listed in Main database. */
-	LIB_TAG_NO_USER_REFCOUNT = 1 << 15,  /* Datablock does not refcount usages of other IDs. */
+	LIB_TAG_NO_MAIN          = 1 << 15,  /* Datablock is not listed in Main database. */
+	LIB_TAG_NO_USER_REFCOUNT = 1 << 16,  /* Datablock does not refcount usages of other IDs. */
 	/* Datablock was not allocated by standard system (BKE_libblock_alloc), do not free its memory
 	 * (usual type-specific freeing is called though). */
-	LIB_TAG_NOT_ALLOCATED     = 1 << 16,
+	LIB_TAG_NOT_ALLOCATED     = 1 << 17,
 };
 
+/* WARNING - when adding flags check on PSYS_RECALC */
 enum {
 	/* RESET_AFTER_USE, used by update code (depsgraph). */
 	ID_RECALC_NONE  = 0,
@@ -471,7 +514,7 @@ enum {
 	ID_RECALC_DRAW_CACHE  = 1 << 3,
 	ID_RECALC_GEOMETRY    = 1 << 4,
 	ID_RECALC_TRANSFORM   = 1 << 5,
-	ID_RECALC_COLLECTIONS = 1 << 6,
+	ID_RECALC_COPY_ON_WRITE = 1 << 6,
 	/* Special flag to check if SOMETHING was changed. */
 	ID_RECALC_ALL   = (~(int)0),
 };
@@ -522,6 +565,7 @@ enum {
 	INDEX_ID_IP,
 	INDEX_ID_AC,
 	INDEX_ID_KE,
+	INDEX_ID_PAL,
 	INDEX_ID_GD,
 	INDEX_ID_NT,
 	INDEX_ID_IM,
@@ -539,7 +583,6 @@ enum {
 	INDEX_ID_TXT,
 	INDEX_ID_SO,
 	INDEX_ID_GR,
-	INDEX_ID_PAL,
 	INDEX_ID_PC,
 	INDEX_ID_BR,
 	INDEX_ID_PA,
@@ -555,6 +598,7 @@ enum {
 	INDEX_ID_WM,
 	INDEX_ID_MSK,
 	INDEX_ID_NULL,
+	INDEX_ID_MAX,
 };
 
 #ifdef __cplusplus

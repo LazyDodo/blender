@@ -77,7 +77,7 @@ void ED_clip_buttons_register(ARegionType *UNUSED(art))
 
 /********************* MovieClip Template ************************/
 
-void uiTemplateMovieClip(uiLayout *layout, bContext *C, PointerRNA *ptr, const char *propname, int compact)
+void uiTemplateMovieClip(uiLayout *layout, bContext *C, PointerRNA *ptr, const char *propname, bool compact)
 {
 	PropertyRNA *prop;
 	PointerRNA clipptr;
@@ -107,7 +107,7 @@ void uiTemplateMovieClip(uiLayout *layout, bContext *C, PointerRNA *ptr, const c
 	uiLayoutSetContextPointer(layout, "edit_movieclip", &clipptr);
 
 	if (!compact)
-		uiTemplateID(layout, C, ptr, propname, NULL, "CLIP_OT_open", NULL, UI_TEMPLATE_ID_FILTER_ALL);
+		uiTemplateID(layout, C, ptr, propname, NULL, "CLIP_OT_open", NULL, UI_TEMPLATE_ID_FILTER_ALL, false);
 
 	if (clip) {
 		uiLayout *col;
@@ -333,7 +333,7 @@ static void marker_block_handler(bContext *C, void *arg_cb, int event)
 }
 
 void uiTemplateMarker(uiLayout *layout, PointerRNA *ptr, const char *propname, PointerRNA *userptr,
-                      PointerRNA *trackptr, int compact)
+                      PointerRNA *trackptr, bool compact)
 {
 	PropertyRNA *prop;
 	uiBlock *block;
@@ -387,9 +387,10 @@ void uiTemplateMarker(uiLayout *layout, PointerRNA *ptr, const char *propname, P
 		else
 			tip = TIP_("Marker is enabled at current frame");
 
-		bt = uiDefIconButBitI(block, UI_BTYPE_TOGGLE_N, MARKER_DISABLED, 0, ICON_RESTRICT_VIEW_OFF, 0, 0, UI_UNIT_X, UI_UNIT_Y,
+		bt = uiDefIconButBitI(block, UI_BTYPE_TOGGLE_N, MARKER_DISABLED, 0, ICON_HIDE_OFF, 0, 0, UI_UNIT_X, UI_UNIT_Y,
 		                      &cb->marker_flag, 0, 0, 1, 0, tip);
 		UI_but_funcN_set(bt, marker_update_cb, cb, NULL);
+		UI_but_drawflag_enable(bt, UI_BUT_ICON_REVERSE);
 	}
 	else {
 		int width, height, step, digits;

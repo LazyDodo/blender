@@ -16,8 +16,8 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
  * Contributor:
- *		Jeroen Bakker
- *		Monique Dewanchand
+ *      Jeroen Bakker
+ *      Monique Dewanchand
  */
 
 #include "COM_GlareThresholdOperation.h"
@@ -49,7 +49,7 @@ void GlareThresholdOperation::initExecution()
 void GlareThresholdOperation::executePixelSampled(float output[4], float x, float y, PixelSampler sampler)
 {
 	const float threshold = this->m_settings->threshold;
-	
+
 	this->m_inputProgram->readSampled(output, x, y, sampler);
 	if (IMB_colormanagement_get_luminance(output) >= threshold) {
 		output[0] -= threshold;

@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -37,18 +37,50 @@
 #include "WM_api.h"
 #include "WM_types.h"
 
-void WM_tooltip_timer_init(
+#include "PIL_time.h"
+
+static double g_tooltip_time_closed;
+double WM_tooltip_time_closed(void)
+{
+	return g_tooltip_time_closed;
+}
+
+void WM_tooltip_immediate_init(
         bContext *C, wmWindow *win, ARegion *ar,
         wmTooltipInitFn init)
 {
+	WM_tooltip_timer_clear(C, win);
+
+	bScreen *screen = WM_window_get_active_screen(win);
+	if (screen->tool_tip == NULL) {
+		screen->tool_tip = MEM_callocN(sizeof(*screen->tool_tip), __func__);
+	}
+	screen->tool_tip->region_from = ar;
+	screen->tool_tip->init = init;
+	WM_tooltip_init(C, win);
+}
+
+void WM_tooltip_timer_init_ex(
+        bContext *C, wmWindow *win, ARegion *ar,
+        wmTooltipInitFn init, double delay)
+{
+	WM_tooltip_timer_clear(C, win);
+
 	bScreen *screen = WM_window_get_active_screen(win);
 	wmWindowManager *wm = CTX_wm_manager(C);
 	if (screen->tool_tip == NULL) {
 		screen->tool_tip = MEM_callocN(sizeof(*screen->tool_tip), __func__);
 	}
 	screen->tool_tip->region_from = ar;
-	screen->tool_tip->timer = WM_event_add_timer(wm, win, TIMER, UI_TOOLTIP_DELAY);
+	screen->tool_tip->timer = WM_event_add_timer(wm, win, TIMER, delay);
 	screen->tool_tip->init = init;
+}
+
+void WM_tooltip_timer_init(
+        bContext *C, wmWindow *win, ARegion *ar,
+        wmTooltipInitFn init)
+{
+	WM_tooltip_timer_init_ex(C, win, ar, init, UI_TOOLTIP_DELAY);
 }
 
 void WM_tooltip_timer_clear(bContext *C, wmWindow *win)
@@ -71,6 +103,7 @@ void WM_tooltip_clear(bContext *C, wmWindow *win)
 		if (screen->tool_tip->region) {
 			UI_tooltip_free(C, screen, screen->tool_tip->region);
 			screen->tool_tip->region = NULL;
+			g_tooltip_time_closed = PIL_check_seconds_timer();
 		}
 		MEM_freeN(screen->tool_tip);
 		screen->tool_tip = NULL;
@@ -85,8 +118,16 @@ void WM_tooltip_init(bContext *C, wmWindow *win)
 		UI_tooltip_free(C, screen, screen->tool_tip->region);
 		screen->tool_tip->region = NULL;
 	}
+	const int pass_prev = screen->tool_tip->pass;
+	double pass_delay = 0.0;
 	screen->tool_tip->region = screen->tool_tip->init(
-	        C, screen->tool_tip->region_from, &screen->tool_tip->exit_on_event);
+	        C, screen->tool_tip->region_from,
+	        &screen->tool_tip->pass, &pass_delay, &screen->tool_tip->exit_on_event);
+	if (pass_prev != screen->tool_tip->pass) {
+		/* The pass changed, add timer for next pass. */
+		wmWindowManager *wm = CTX_wm_manager(C);
+		screen->tool_tip->timer = WM_event_add_timer(wm, win, TIMER, pass_delay);
+	}
 	if (screen->tool_tip->region == NULL) {
 		WM_tooltip_clear(C, win);
 	}

@@ -1,4 +1,4 @@
-/* 
+/*
  * ***** BEGIN GPL LICENSE BLOCK *****
  *
  * This program is free software; you can redistribute it and/or
@@ -57,11 +57,12 @@ enum {
 
 /* prototypes */
 
-struct Scene;
-struct Object;
+struct Depsgraph;
+struct Mesh;
 struct ListBase;
-struct DerivedMesh;
-struct EvaluationContext;
+struct Main;
+struct Object;
+struct Scene;
 
 /* used for curves, nurbs, mball, importing */
 typedef struct DispList {
@@ -87,29 +88,24 @@ void BKE_displist_free(struct ListBase *lb);
 bool BKE_displist_has_faces(struct ListBase *lb);
 
 void BKE_displist_make_surf(
-        const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *ob, struct ListBase *dispbase,
-        struct DerivedMesh **r_dm_final, const bool for_render, const bool for_orco, const bool use_render_resolution);
+        struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob, struct ListBase *dispbase,
+        struct Mesh **r_final, const bool for_render, const bool for_orco, const bool use_render_resolution);
 void BKE_displist_make_curveTypes(
-        const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *ob, const bool for_orco);
+        struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob, const bool for_orco);
 void BKE_displist_make_curveTypes_forRender(
-        const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *ob, struct ListBase *dispbase,
-        struct DerivedMesh **r_dm_final, const bool for_orco, const bool use_render_resolution);
+        struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob, struct ListBase *dispbase,
+        struct Mesh **r_final, const bool for_orco, const bool use_render_resolution);
 void BKE_displist_make_curveTypes_forOrco(
-        const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *ob, struct ListBase *dispbase);
+        struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob, struct ListBase *dispbase);
 void BKE_displist_make_mball(
-        const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *ob);
+        struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob);
 void BKE_displist_make_mball_forRender(
-        const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *ob, struct ListBase *dispbase);
+        struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob, struct ListBase *dispbase);
 
 bool BKE_displist_surfindex_get(DispList *dl, int a, int *b, int *p1, int *p2, int *p3, int *p4);
 void BKE_displist_fill(struct ListBase *dispbase, struct ListBase *to, const float normal_proj[3], const bool flipnormal);
 
-float BKE_displist_calc_taper(const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *taperobj, int cur, int tot);
-
-/* add Orco layer to the displist object which has got derived mesh and return orco */
-float *BKE_displist_make_orco(
-        const struct EvaluationContext *eval_ctx, struct Scene *scene, struct Object *ob, struct DerivedMesh *dm_final,
-        const bool for_render, const bool use_render_resolution);
+float BKE_displist_calc_taper(struct Depsgraph *depsgraph, struct Scene *scene, struct Object *taperobj, int cur, int tot);
 
 void BKE_displist_minmax(struct ListBase *dispbase, float min[3], float max[3]);
 

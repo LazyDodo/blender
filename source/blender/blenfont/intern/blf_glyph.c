@@ -4,7 +4,7 @@
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version. 
+ * of the License, or (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2009 Blender Foundation.
  * All rights reserved.
  *
- * 
+ *
  * Contributor(s): Blender Foundation
  *
  * ***** END GPL LICENSE BLOCK *****
@@ -57,6 +57,7 @@
 
 #ifndef BLF_STANDALONE
 #  include "GPU_immediate.h"
+#  include "GPU_extensions.h"
 #endif
 
 #include "blf_internal_types.h"
@@ -100,8 +101,7 @@ KerningCacheBLF *blf_kerning_cache_new(FontBLF *font)
 			GlyphBLF *g_prev = blf_glyph_search(font->glyph_cache, j);
 
 			FT_Vector delta = {.x = 0, .y = 0};
-			if (FT_Get_Kerning(font->face, g_prev->idx, g->idx, kc->mode,
-			                   &delta) == 0) {
+			if (FT_Get_Kerning(font->face, g_prev->idx, g->idx, kc->mode, &delta) == 0) {
 				kc->table[i][j] = (int)delta.x >> 6;
 			}
 			else {
@@ -147,7 +147,7 @@ GlyphCacheBLF *blf_glyph_cache_new(FontBLF *font)
 	memset(gc->glyph_ascii_table, 0, sizeof(gc->glyph_ascii_table));
 	memset(gc->bucket, 0, sizeof(gc->bucket));
 
-	gc->textures = (GLuint *)MEM_mallocN(sizeof(GLuint) * 256, __func__);
+	gc->textures = (GPUTexture **)MEM_callocN(sizeof(GPUTexture *) * 256, __func__);
 	gc->textures_len = 256;
 	gc->texture_current = BLF_TEXTURE_UNSET;
 	gc->offset_x = 3; /* enough padding for blur */
@@ -197,16 +197,17 @@ void blf_glyph_cache_clear(FontBLF *font)
 void blf_glyph_cache_free(GlyphCacheBLF *gc)
 {
 	GlyphBLF *g;
-	int i;
+	unsigned int i;
 
 	for (i = 0; i < 257; i++) {
 		while ((g = BLI_pophead(&gc->bucket[i]))) {
 			blf_glyph_free(g);
 		}
 	}
-
-	if (gc->texture_current != BLF_TEXTURE_UNSET) {
-		glDeleteTextures((int)gc->texture_current + 1, gc->textures);
+	for (i = 0; i < gc->textures_len; i++) {
+		if (gc->textures[i]) {
+			GPU_texture_free(gc->textures[i]);
+		}
 	}
 	MEM_freeN(gc->textures);
 	MEM_freeN(gc);
@@ -215,13 +216,14 @@ void blf_glyph_cache_free(GlyphCacheBLF *gc)
 static void blf_glyph_cache_texture(FontBLF *font, GlyphCacheBLF *gc)
 {
 	int i;
+	char error[256];
 
 	/* move the index. */
 	gc->texture_current++;
 
 	if (UNLIKELY(gc->texture_current >= gc->textures_len)) {
 		gc->textures_len *= 2;
-		gc->textures = MEM_reallocN((void *)gc->textures, sizeof(GLuint) * gc->textures_len);
+		gc->textures = MEM_recallocN((void *)gc->textures, sizeof(GPUTexture *) * gc->textures_len);
 	}
 
 	gc->p2_width = (int)blf_next_p2((unsigned int)((gc->glyphs_len_free * gc->glyph_width_max) + (gc->pad * 2)));
@@ -230,19 +232,20 @@ static void blf_glyph_cache_texture(FontBLF *font, GlyphCacheBLF *gc)
 	}
 
 	i = (int)((gc->p2_width - (gc->pad * 2)) / gc->glyph_width_max);
-	gc->p2_height = (int)blf_next_p2((unsigned int)(((gc->glyphs_len_max / i) + 1) * gc->glyph_height_max));
+	gc->p2_height = (int)blf_next_p2((unsigned int)(((gc->glyphs_len_max / i) + 1) * gc->glyph_height_max + (gc->pad * 2)));
 
 	if (gc->p2_height > font->tex_size_max) {
 		gc->p2_height = font->tex_size_max;
 	}
 
-	glGenTextures(1, &gc->textures[gc->texture_current]);
-	glBindTexture(GL_TEXTURE_2D, (font->tex_bind_state = gc->textures[gc->texture_current]));
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, gc->p2_width, gc->p2_height, 0, GL_RED, GL_UNSIGNED_BYTE, NULL);
+	unsigned char *pixels = MEM_callocN((size_t)gc->p2_width * (size_t)gc->p2_height, "BLF texture init");
+	GPUTexture *tex = GPU_texture_create_nD(gc->p2_width, gc->p2_height, 0, 2, pixels, GPU_R8, GPU_DATA_UNSIGNED_BYTE, 0, false, error);
+	MEM_freeN(pixels);
+	gc->textures[gc->texture_current] = tex;
+	GPU_texture_bind(tex, 0);
+	GPU_texture_wrap_mode(tex, false);
+	GPU_texture_filters(tex, GPU_NEAREST, GPU_LINEAR);
+	GPU_texture_unbind(tex);
 }
 
 GlyphBLF *blf_glyph_search(GlyphCacheBLF *gc, unsigned int c)
@@ -266,8 +269,6 @@ GlyphBLF *blf_glyph_add(FontBLF *font, unsigned int index, unsigned int c)
 	GlyphBLF *g;
 	FT_Error err;
 	FT_Bitmap bitmap, tempbitmap;
-	const bool is_sharp = !BLF_antialias_get();
-	int flags = FT_LOAD_TARGET_NORMAL | FT_LOAD_NO_HINTING | FT_LOAD_NO_BITMAP;
 	FT_BBox bbox;
 	unsigned int key;
 
@@ -288,13 +289,29 @@ GlyphBLF *blf_glyph_add(FontBLF *font, unsigned int index, unsigned int c)
 		return g;
 	}
 
-	if (font->flags & BLF_HINTING)
-		flags &= ~FT_LOAD_NO_HINTING;
-	
-	if (is_sharp)
+	if (font->flags & BLF_MONOCHROME) {
 		err = FT_Load_Glyph(font->face, (FT_UInt)index, FT_LOAD_TARGET_MONO);
-	else
-		err = FT_Load_Glyph(font->face, (FT_UInt)index, flags);  
+	}
+	else {
+		int flags = FT_LOAD_NO_BITMAP;
+
+		if (font->flags & BLF_HINTING_NONE) {
+			flags |= FT_LOAD_TARGET_NORMAL | FT_LOAD_NO_HINTING;
+		}
+		else if (font->flags & BLF_HINTING_SLIGHT) {
+			flags |= FT_LOAD_TARGET_LIGHT;
+		}
+		else if (font->flags & BLF_HINTING_FULL) {
+			flags |= FT_LOAD_TARGET_NORMAL;
+		}
+		else {
+			/* Default, hinting disabled until FreeType has been upgraded
+			 * to give good results on all platforms. */
+			flags |= FT_LOAD_TARGET_NORMAL | FT_LOAD_NO_HINTING;
+		}
+
+		err = FT_Load_Glyph(font->face, (FT_UInt)index, flags);
+	}
 
 	if (err) {
 		BLI_spin_unlock(font->ft_lib_mutex);
@@ -304,7 +321,7 @@ GlyphBLF *blf_glyph_add(FontBLF *font, unsigned int index, unsigned int c)
 	/* get the glyph. */
 	slot = font->face->glyph;
 
-	if (is_sharp) {
+	if (font->flags & BLF_MONOCHROME) {
 		err = FT_Render_Glyph(slot, FT_RENDER_MODE_MONO);
 
 		/* Convert result from 1 bit per pixel to 8 bit per pixel */
@@ -333,7 +350,7 @@ GlyphBLF *blf_glyph_add(FontBLF *font, unsigned int index, unsigned int c)
 	g->height = (int)bitmap.rows;
 
 	if (g->width && g->height) {
-		if (is_sharp) {
+		if (font->flags & BLF_MONOCHROME) {
 			/* Font buffer uses only 0 or 1 values, Blender expects full 0..255 range */
 			int i;
 			for (i = 0; i < (g->width * g->height); i++) {
@@ -341,8 +358,8 @@ GlyphBLF *blf_glyph_add(FontBLF *font, unsigned int index, unsigned int c)
 			}
 		}
 
-		g->bitmap = (unsigned char *)MEM_mallocN((size_t)(g->width * g->height), "glyph bitmap");
-		memcpy((void *)g->bitmap, (void *)bitmap.buffer, (size_t)(g->width * g->height));
+		g->bitmap = (unsigned char *)MEM_mallocN((size_t)g->width * (size_t)g->height, "glyph bitmap");
+		memcpy((void *)g->bitmap, (void *)bitmap.buffer, (size_t)g->width * (size_t)g->height);
 	}
 
 	g->advance = ((float)slot->advance.x) / 64.0f;
@@ -379,10 +396,10 @@ static void blf_texture_draw(const unsigned char color[4], const float uv[2][2],
 {
 	/* Only one vertex per glyph, geometry shader expand it into a quad. */
 	/* TODO Get rid of Geom Shader because it's not optimal AT ALL for the GPU */
-	copy_v4_fl4(GWN_vertbuf_raw_step(&g_batch.pos_step), x1 + g_batch.ofs[0], y1 + g_batch.ofs[1],
+	copy_v4_fl4(GPU_vertbuf_raw_step(&g_batch.pos_step), x1 + g_batch.ofs[0], y1 + g_batch.ofs[1],
 	                                                     x2 + g_batch.ofs[0], y2 + g_batch.ofs[1]);
-	copy_v4_v4(GWN_vertbuf_raw_step(&g_batch.tex_step), (float *)uv);
-	copy_v4_v4_uchar(GWN_vertbuf_raw_step(&g_batch.col_step), color);
+	copy_v4_v4(GPU_vertbuf_raw_step(&g_batch.tex_step), (float *)uv);
+	copy_v4_v4_uchar(GPU_vertbuf_raw_step(&g_batch.col_step), color);
 	g_batch.glyph_len++;
 	/* Flush cache if it's full. */
 	if (g_batch.glyph_len == BLF_BATCH_DRAW_LEN_MAX) {
@@ -424,8 +441,8 @@ static void blf_glyph_calc_rect(rctf *rect, GlyphBLF *g, float x, float y)
 {
 	rect->xmin = floorf(x + g->pos_x);
 	rect->xmax = rect->xmin + (float)g->width;
-	rect->ymin = y + g->pos_y;
-	rect->ymax = y + g->pos_y - (float)g->height;
+	rect->ymin = floorf(y + g->pos_y);
+	rect->ymax = rect->ymin - (float)g->height;
 }
 
 void blf_glyph_render(FontBLF *font, GlyphBLF *g, float x, float y)
@@ -435,13 +452,11 @@ void blf_glyph_render(FontBLF *font, GlyphBLF *g, float x, float y)
 	if ((!g->width) || (!g->height))
 		return;
 
-	glActiveTexture(GL_TEXTURE0);
-
 	if (g->build_tex == 0) {
 		GlyphCacheBLF *gc = font->glyph_cache;
 
 		if (font->tex_size_max == -1)
-			glGetIntegerv(GL_MAX_TEXTURE_SIZE, (GLint *)&font->tex_size_max);
+			font->tex_size_max = GPU_max_texture_size();
 
 		if (gc->texture_current == BLF_TEXTURE_UNSET) {
 			blf_glyph_cache_texture(font, gc);
@@ -475,22 +490,7 @@ void blf_glyph_render(FontBLF *font, GlyphBLF *g, float x, float y)
 			BLI_assert(g->height > 0);
 		}
 
-
-		GLint lsb_first, row_length, alignment;
-		glGetIntegerv(GL_UNPACK_LSB_FIRST, &lsb_first);
-		glGetIntegerv(GL_UNPACK_ROW_LENGTH, &row_length);
-		glGetIntegerv(GL_UNPACK_ALIGNMENT, &alignment);
-
-		glPixelStorei(GL_UNPACK_LSB_FIRST, GL_FALSE);
-		glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-
-		glBindTexture(GL_TEXTURE_2D, g->tex);
-		glTexSubImage2D(GL_TEXTURE_2D, 0, g->offset_x, g->offset_y, g->width, g->height, GL_RED, GL_UNSIGNED_BYTE, g->bitmap);
-
-		glPixelStorei(GL_UNPACK_LSB_FIRST, lsb_first);
-		glPixelStorei(GL_UNPACK_ROW_LENGTH, row_length);
-		glPixelStorei(GL_UNPACK_ALIGNMENT, alignment);
+		GPU_texture_update_sub(g->tex, GPU_DATA_UNSIGNED_BYTE, g->bitmap, g->offset_x, g->offset_y, 0, g->width, g->height, 0);
 
 		g->uv[0][0] = ((float)g->offset_x) / ((float)gc->p2_width);
 		g->uv[0][1] = ((float)g->offset_y) / ((float)gc->p2_height);
@@ -517,7 +517,9 @@ void blf_glyph_render(FontBLF *font, GlyphBLF *g, float x, float y)
 	}
 
 	if (font->tex_bind_state != g->tex) {
-		glBindTexture(GL_TEXTURE_2D, (font->tex_bind_state = g->tex));
+		blf_batch_draw();
+		font->tex_bind_state = g->tex;
+		GPU_texture_bind(font->tex_bind_state, 0);
 	}
 
 	g_batch.tex_bind_state = g->tex;

@@ -58,6 +58,7 @@ typedef struct EDIT_TEXT_PassList {
 	struct DRWPass *wire_pass;
 	struct DRWPass *overlay_select_pass;
 	struct DRWPass *overlay_cursor_pass;
+	struct DRWPass *text_box_pass;
 } EDIT_TEXT_PassList;
 
 typedef struct EDIT_TEXT_FramebufferList {
@@ -110,6 +111,8 @@ typedef struct EDIT_TEXT_PrivateData {
 	DRWShadingGroup *wire_shgrp;
 	DRWShadingGroup *overlay_select_shgrp;
 	DRWShadingGroup *overlay_cursor_shgrp;
+	DRWShadingGroup *box_shgrp;
+	DRWShadingGroup *box_active_shgrp;
 } EDIT_TEXT_PrivateData; /* Transient data */
 
 /* *********** FUNCTIONS *********** */
@@ -127,8 +130,8 @@ static void EDIT_TEXT_engine_init(void *vedata)
 
 	/* Init Framebuffers like this: order is attachment order (for color texs) */
 	/*
-	 * DRWFboTexture tex[2] = {{&txl->depth, DRW_TEX_DEPTH_24, 0},
-	 *                         {&txl->color, DRW_TEX_RGBA_8, DRW_TEX_FILTER}};
+	 * DRWFboTexture tex[2] = {{&txl->depth, GPU_DEPTH_COMPONENT24, 0},
+	 *                         {&txl->color, GPU_RGBA8, DRW_TEX_FILTER}};
 	 */
 
 	/* DRW_framebuffer_init takes care of checking if
@@ -169,7 +172,7 @@ static void EDIT_TEXT_cache_init(void *vedata)
 		/* Text outline (fast drawing!) */
 		psl->wire_pass = DRW_pass_create(
 		        "Font Wire",
-		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS | DRW_STATE_WIRE);
+		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH | DRW_STATE_DEPTH_LESS_EQUAL | DRW_STATE_WIRE);
 		stl->g_data->wire_shgrp = DRW_shgroup_create(e_data.wire_sh, psl->wire_pass);
 
 		psl->overlay_select_pass = DRW_pass_create(
@@ -181,6 +184,67 @@ static void EDIT_TEXT_cache_init(void *vedata)
 		        "Font Cursor",
 		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH);
 		stl->g_data->overlay_cursor_shgrp = DRW_shgroup_create(e_data.overlay_cursor_sh, psl->overlay_cursor_pass);
+
+		psl->text_box_pass = DRW_pass_create(
+		        "Font Text Boxes",
+		        DRW_STATE_WRITE_COLOR | DRW_STATE_WRITE_DEPTH);
+		stl->g_data->box_shgrp = shgroup_dynlines_dashed_uniform_color(psl->text_box_pass, ts.colorWire);
+		stl->g_data->box_active_shgrp = shgroup_dynlines_dashed_uniform_color(psl->text_box_pass, ts.colorActive);
+	}
+}
+
+static void edit_text_cache_populate_boxes(void *vedata, Object *ob)
+{
+	EDIT_TEXT_StorageList *stl = ((EDIT_TEXT_Data *)vedata)->stl;
+	const Curve *cu = ob->data;
+
+	DRWShadingGroup *shading_groups[] = {
+	    stl->g_data->box_active_shgrp,
+	    stl->g_data->box_shgrp,
+	};
+
+	float vec[3], vec1[3], vec2[3];
+	for (int i = 0; i < cu->totbox; i++) {
+		TextBox *tb = &cu->tb[i];
+
+		if ((tb->w == 0.0f) && (tb->h == 0.0f)) {
+			continue;
+		}
+
+		const bool is_active = i == (cu->actbox - 1);
+		DRWShadingGroup *shading_group = shading_groups[is_active ? 0 : 1];
+
+		vec[0] = cu->xof + tb->x;
+		vec[1] = cu->yof + tb->y + cu->fsize;
+		vec[2] = 0.001;
+
+		mul_v3_m4v3(vec1, ob->obmat, vec);
+		vec[0] += tb->w;
+		mul_v3_m4v3(vec2, ob->obmat, vec);
+
+		DRW_shgroup_call_dynamic_add(shading_group, vec1);
+		DRW_shgroup_call_dynamic_add(shading_group, vec2);
+
+		vec[1] -= tb->h;
+		copy_v3_v3(vec1, vec2);
+		mul_v3_m4v3(vec2, ob->obmat, vec);
+
+		DRW_shgroup_call_dynamic_add(shading_group, vec1);
+		DRW_shgroup_call_dynamic_add(shading_group, vec2);
+
+		vec[0] -= tb->w;
+		copy_v3_v3(vec1, vec2);
+		mul_v3_m4v3(vec2, ob->obmat, vec);
+
+		DRW_shgroup_call_dynamic_add(shading_group, vec1);
+		DRW_shgroup_call_dynamic_add(shading_group, vec2);
+
+		vec[1] += tb->h;
+		copy_v3_v3(vec1, vec2);
+		mul_v3_m4v3(vec2, ob->obmat, vec);
+
+		DRW_shgroup_call_dynamic_add(shading_group, vec1);
+		DRW_shgroup_call_dynamic_add(shading_group, vec2);
 	}
 }
 
@@ -197,7 +261,7 @@ static void EDIT_TEXT_cache_populate(void *vedata, Object *ob)
 		if (ob == draw_ctx->object_edit) {
 			const Curve *cu = ob->data;
 			/* Get geometry cache */
-			struct Gwn_Batch *geom;
+			struct GPUBatch *geom;
 
 			if (cu->flag & CU_FAST) {
 				geom = DRW_cache_text_edge_wire_get(ob);
@@ -218,6 +282,8 @@ static void EDIT_TEXT_cache_populate(void *vedata, Object *ob)
 			if (geom) {
 				DRW_shgroup_call_add(stl->g_data->overlay_cursor_shgrp, geom, ob->obmat);
 			}
+
+			edit_text_cache_populate_boxes(vedata, ob);
 		}
 	}
 }
@@ -228,7 +294,7 @@ static void EDIT_TEXT_cache_finish(void *vedata)
 	EDIT_TEXT_PassList *psl = ((EDIT_TEXT_Data *)vedata)->psl;
 	EDIT_TEXT_StorageList *stl = ((EDIT_TEXT_Data *)vedata)->stl;
 
-	/* Do something here! dependant on the objects gathered */
+	/* Do something here! dependent on the objects gathered */
 	UNUSED_VARS(psl, stl);
 }
 
@@ -255,6 +321,10 @@ static void EDIT_TEXT_draw_scene(void *vedata)
 
 	DRW_draw_pass(psl->wire_pass);
 
+	if (!DRW_pass_is_empty(psl->text_box_pass)) {
+		DRW_draw_pass(psl->text_box_pass);
+	}
+
 	set_inverted_drawing(1);
 	DRW_draw_pass(psl->overlay_select_pass);
 	DRW_draw_pass(psl->overlay_cursor_pass);
@@ -271,27 +341,6 @@ static void EDIT_TEXT_engine_free(void)
 {
 	// DRW_SHADER_FREE_SAFE(custom_shader);
 }
-
-/* Create collection settings here.
- *
- * Be sure to add this function there :
- * source/blender/draw/DRW_engine.h
- * source/blender/blenkernel/intern/layer.c
- * source/blenderplayer/bad_level_call_stubs/stubs.c
- *
- * And relevant collection settings to :
- * source/blender/makesrna/intern/rna_scene.c
- * source/blender/blenkernel/intern/layer.c
- */
-#if 0
-void EDIT_TEXT_collection_settings_create(CollectionEngineSettings *ces)
-{
-	BLI_assert(ces);
-	// BKE_collection_engine_property_add_int(ces, "my_bool_prop", false);
-	// BKE_collection_engine_property_add_int(ces, "my_int_prop", 0);
-	// BKE_collection_engine_property_add_float(ces, "my_float_prop", 0.0f);
-}
-#endif
 
 static const DrawEngineDataSize EDIT_TEXT_data_size = DRW_VIEWPORT_DATA_SIZE(EDIT_TEXT_Data);
 

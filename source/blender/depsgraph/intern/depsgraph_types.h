@@ -49,8 +49,8 @@ struct bAction;
 struct ChannelDriver;
 struct ModifierData;
 struct PointerRNA;
-struct EvaluationContext;
 struct FCurve;
+struct Depsgraph;
 
 namespace DEG {
 
@@ -61,7 +61,7 @@ using std::max;
 
 /* Evaluation Operation for atomic operation */
 // XXX: move this to another header that can be exposed?
-typedef function<void(struct EvaluationContext *)> DepsEvalOperationCb;
+typedef function<void(struct ::Depsgraph *)> DepsEvalOperationCb;
 
 /* Metatype of Nodes - The general "level" in the graph structure
  * the node serves.
@@ -122,7 +122,7 @@ typedef enum eDepsNode_Type {
 	DEG_NODE_TYPE_ANIMATION,
 	/* Transform Component (Parenting/Constraints) */
 	DEG_NODE_TYPE_TRANSFORM,
-	/* Geometry Component (DerivedMesh/Displist) */
+	/* Geometry Component (Mesh/Displist) */
 	DEG_NODE_TYPE_GEOMETRY,
 	/* Sequencer Component (Scene Only) */
 	DEG_NODE_TYPE_SEQUENCER,
@@ -134,6 +134,10 @@ typedef enum eDepsNode_Type {
 	 * execution.
 	 */
 	DEG_NODE_TYPE_COPY_ON_WRITE,
+	/* Used by all operations which are updating object when something is
+	 * changed in view layer.
+	 */
+	DEG_NODE_TYPE_OBJECT_FROM_LAYER,
 
 	/* **** Evaluation-Related Outer Types (with Subdata) **** */
 
@@ -146,14 +150,23 @@ typedef enum eDepsNode_Type {
 	/* Material Shading Component */
 	DEG_NODE_TYPE_SHADING,
 	DEG_NODE_TYPE_SHADING_PARAMETERS,
+	/* Point cache Component */
+	DEG_NODE_TYPE_POINT_CACHE,
 	/* Cache Component */
+	/* TODO(sergey); Verify that we really need this. */
 	DEG_NODE_TYPE_CACHE,
-	/* Batch Cache Component */
+	/* Batch Cache Component - TODO (dfelinto/sergey) rename to make it more generic. */
 	DEG_NODE_TYPE_BATCH_CACHE,
+
+	/* Duplication system. Used to force duplicated objects visible when
+	 * when duplicator is visible.
+	 */
+	DEG_NODE_TYPE_DUPLI,
 
 	/* Total number of meaningful node types. */
 	NUM_DEG_NODE_TYPES,
 } eDepsNode_Type;
+const char *nodeTypeAsString(eDepsNode_Type type);
 
 /* Identifiers for common operations (as an enum). */
 typedef enum eDepsOperation_Code {
@@ -198,17 +211,24 @@ typedef enum eDepsOperation_Code {
 	DEG_OPCODE_RIGIDBODY_TRANSFORM_COPY,
 
 	/* Geometry. ---------------------------------------- */
+
 	/* Evaluate the whole geometry, including modifiers. */
 	DEG_OPCODE_GEOMETRY_UBEREVAL,
-	DEG_OPCODE_GEOMETRY_CLOTH_MODIFIER,
+	/* Evaluation of a shape key. */
 	DEG_OPCODE_GEOMETRY_SHAPEKEY,
+
+	/* Object data. ------------------------------------- */
+	DEG_OPCODE_LIGHT_PROBE_EVAL,
+	DEG_OPCODE_SPEAKER_EVAL,
 
 	/* Pose. -------------------------------------------- */
 	/* Init pose, clear flags, etc. */
 	DEG_OPCODE_POSE_INIT,
 	/* Initialize IK solver related pose stuff. */
 	DEG_OPCODE_POSE_INIT_IK,
-	/* Free IK Trees + Compute Deform Matrices */
+	/* Pose is evaluated, and runtime data can be freed. */
+	DEG_OPCODE_POSE_CLEANUP,
+	/* Pose has been fully evaluated and ready to be used by others. */
 	DEG_OPCODE_POSE_DONE,
 	/* IK/Spline Solvers */
 	DEG_OPCODE_POSE_IK_SOLVER,
@@ -226,7 +246,7 @@ typedef enum eDepsOperation_Code {
 	 * - "READY"  This (internal, noop is used to signal that all pre-IK
 	 *            operations are done. Its role is to help mediate situations
 	 *            where cyclic relations may otherwise form (i.e. one bone in
-	 *            chain targetting another in same chain,
+	 *            chain targeting another in same chain,
 	 *
 	 * - "DONE"   This noop is used to signal that the bone's final pose
 	 *            transform can be read by others
@@ -245,9 +265,7 @@ typedef enum eDepsOperation_Code {
 	DEG_OPCODE_POINT_CACHE_RESET,
 
 	/* Collections. ------------------------------------- */
-	DEG_OPCODE_VIEW_LAYER_INIT,
 	DEG_OPCODE_VIEW_LAYER_EVAL,
-	DEG_OPCODE_VIEW_LAYER_DONE,
 
 	/* Copy on Write. ------------------------------------ */
 	DEG_OPCODE_COPY_ON_WRITE,
@@ -266,20 +284,25 @@ typedef enum eDepsOperation_Code {
 
 	/* Movie clips. ------------------------------------ */
 	DEG_OPCODE_MOVIECLIP_EVAL,
+	DEG_OPCODE_MOVIECLIP_SELECT_UPDATE,
 
 	DEG_NUM_OPCODES,
 } eDepsOperation_Code;
+const char *operationCodeAsString(eDepsOperation_Code opcode);
 
-/* Some magic to stringify operation codes. */
-class DepsOperationStringifier {
-public:
-	DepsOperationStringifier();
-	const char *operator[](eDepsOperation_Code opcodex);
-protected:
-	const char *names_[DEG_NUM_OPCODES];
-};
-
-/* String defines for these opcodes, defined in depsgraph_type_defines.cpp */
-extern DepsOperationStringifier DEG_OPNAMES;
+/* Source of the dependency graph node update tag.
+ *
+ * NOTE: This is a bit mask, so accumulation of sources is possible.
+ */
+typedef enum eDepsTag_Source {
+	/* Update is caused by a time change. */
+	DEG_UPDATE_SOURCE_TIME       = (1 << 0),
+	/* Update caused by user directly or indirectly influencing the node. */
+	DEG_UPDATE_SOURCE_USER_EDIT  = (1 << 1),
+	/* Update is happening as a special response for the relations update. */
+	DEG_UPDATE_SOURCE_RELATIONS  = (1 << 2),
+	/* Update is happening due to visibility change. */
+	DEG_UPDATE_SOURCE_VISIBILITY = (1 << 3),
+} eDepsTag_Source;
 
 }  // namespace DEG

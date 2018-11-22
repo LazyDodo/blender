@@ -35,7 +35,7 @@ class DataButtonsPanel:
 class DATA_PT_context_lightprobe(DataButtonsPanel, Panel):
     bl_label = ""
     bl_options = {'HIDE_HEADER'}
-    COMPAT_ENGINES = {'BLENDER_CLAY', 'BLENDER_EEVEE'}
+    COMPAT_ENGINES = {'BLENDER_EEVEE'}
 
     def draw(self, context):
         layout = self.layout
@@ -52,124 +52,121 @@ class DATA_PT_context_lightprobe(DataButtonsPanel, Panel):
 
 class DATA_PT_lightprobe(DataButtonsPanel, Panel):
     bl_label = "Probe"
-    COMPAT_ENGINES = {'BLENDER_CLAY', 'BLENDER_EEVEE'}
+    COMPAT_ENGINES = {'BLENDER_EEVEE'}
 
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
 
-        ob = context.object
         probe = context.lightprobe
 
-        split = layout.split()
+#        layout.prop(probe, "type")
 
         if probe.type == 'GRID':
-            col = split.column(align=True)
-            col.label("Influence:")
-            col.prop(probe, "influence_distance", "Distance")
+            col = layout.column()
+            col.prop(probe, "influence_distance", text="Distance")
             col.prop(probe, "falloff")
             col.prop(probe, "intensity")
 
             col.separator()
 
-            col.label("Resolution:")
-            col.prop(probe, "grid_resolution_x", text="X")
+            col.prop(probe, "grid_resolution_x", text="Resolution X")
             col.prop(probe, "grid_resolution_y", text="Y")
             col.prop(probe, "grid_resolution_z", text="Z")
+
         elif probe.type == 'PLANAR':
-            col = split.column(align=True)
-            col.label("Influence:")
-            col.prop(probe, "influence_distance", "Distance")
-            col.prop(probe, "falloff")
+            col = layout.column()
+            col.prop(probe, "influence_distance", text="Distance")
         else:
-            col = split.column(align=True)
-            col.label("Influence:")
-            col.prop(probe, "influence_type", text="")
+            col = layout.column()
+            col.prop(probe, "influence_type")
 
             if probe.influence_type == 'ELIPSOID':
-                col.prop(probe, "influence_distance", "Radius")
+                col.prop(probe, "influence_distance", text="Radius")
             else:
-                col.prop(probe, "influence_distance", "Size")
+                col.prop(probe, "influence_distance", text="Size")
 
             col.prop(probe, "falloff")
             col.prop(probe, "intensity")
 
-        col = split.column(align=True)
+        col = layout.column()
+        sub = col.column()
+        sub.prop(probe, "clip_start", text="Clipping Start")
 
-        col.label("Clipping:")
-        col.prop(probe, "clip_start", text="Start")
-
-        if probe.type != "PLANAR":
-            col.prop(probe, "clip_end", text="End")
+        if probe.type != 'PLANAR':
+            sub.prop(probe, "clip_end", text="End")
 
         if probe.type == 'GRID':
             col.separator()
+            col.label(text="Visibility")
+            col.prop(probe, "visibility_buffer_bias", text="Bias")
+            col.prop(probe, "visibility_bleed_bias", text="Bleed Bias")
+            col.prop(probe, "visibility_blur", text="Blur")
 
-            col.label("Visibily:")
-            col.prop(probe, "visibility_buffer_bias", "Bias")
-            col.prop(probe, "visibility_bleed_bias", "Bleed Bias")
-            col.prop(probe, "visibility_blur", "Blur")
+        col.separator()
+
+        row = col.row(align=True)
+        row.prop(probe, "visibility_collection")
+        row.prop(probe, "invert_visibility_collection", text="", icon='ARROW_LEFTRIGHT')
 
 
 class DATA_PT_lightprobe_parallax(DataButtonsPanel, Panel):
-    bl_label = "Parallax"
-    COMPAT_ENGINES = {'BLENDER_CLAY', 'BLENDER_EEVEE'}
+    bl_label = "Custom Parallax"
+    bl_options = {'DEFAULT_CLOSED'}
+    COMPAT_ENGINES = {'BLENDER_EEVEE'}
 
     @classmethod
     def poll(cls, context):
         engine = context.engine
         return context.lightprobe and context.lightprobe.type == 'CUBEMAP' and (engine in cls.COMPAT_ENGINES)
 
+    def draw_header(self, context):
+        probe = context.lightprobe
+        self.layout.prop(probe, "use_custom_parallax", text="")
+
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
 
-        ob = context.object
         probe = context.lightprobe
-
-        layout.prop(probe, "use_custom_parallax")
 
         col = layout.column()
         col.active = probe.use_custom_parallax
 
-        row = col.row()
-        row.prop(probe, "parallax_type", expand=True)
+        col.prop(probe, "parallax_type")
 
         if probe.parallax_type == 'ELIPSOID':
-            col.prop(probe, "parallax_distance", "Radius")
+            col.prop(probe, "parallax_distance", text="Radius")
         else:
-            col.prop(probe, "parallax_distance", "Size")
+            col.prop(probe, "parallax_distance", text="Size")
 
 
 class DATA_PT_lightprobe_display(DataButtonsPanel, Panel):
-    bl_label = "Display"
-    COMPAT_ENGINES = {'BLENDER_CLAY', 'BLENDER_EEVEE'}
+    bl_label = "Viewport Display"
+    bl_options = {'DEFAULT_CLOSED'}
+    COMPAT_ENGINES = {'BLENDER_EEVEE'}
 
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
 
         ob = context.object
         probe = context.lightprobe
 
-        row = layout.row()
-        row.prop(probe, "show_data")
+        col = layout.column()
 
-        if probe.type != "PLANAR":
-            row.prop(probe, "data_draw_size", text="Size")
-        else:
-            row.prop(ob, "empty_draw_size", text="Arrow Size")
-
-        split = layout.split()
+        if probe.type == 'PLANAR':
+            col.prop(ob, "empty_display_size", text="Arrow Size")
+            col.prop(probe, "show_data")
 
         if probe.type in {'GRID', 'CUBEMAP'}:
-            col = split.column()
             col.prop(probe, "show_influence")
-
-            col = split.column()
             col.prop(probe, "show_clip")
 
         if probe.type == 'CUBEMAP':
-            col = split.column()
-            col.active = probe.use_custom_parallax
-            col.prop(probe, "show_parallax")
+            sub = col.column()
+            sub.active = probe.use_custom_parallax
+            sub.prop(probe, "show_parallax")
 
 
 classes = (

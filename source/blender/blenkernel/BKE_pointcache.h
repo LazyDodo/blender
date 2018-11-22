@@ -185,7 +185,7 @@ typedef struct PTCacheID {
 } PTCacheID;
 
 typedef struct PTCacheBaker {
-	struct Main *main;
+	struct Main *bmain;
 	struct Scene *scene;
 	struct ViewLayer *view_layer;
 	struct Depsgraph *depsgraph;
@@ -246,13 +246,25 @@ typedef struct PTCacheUndo {
 	size_t undo_size;
 } PTCacheUndo;
 
+enum {
+	/* Modifier stack got evaluated during particle edit mode, need to copy
+	 * new evaluated particles to the edit struct.
+	 */
+	PT_CACHE_EDIT_UPDATE_PARTICLE_FROM_EVAL = (1 << 0),
+};
+
 typedef struct PTCacheEdit {
+	int flags;
+
 	PTCacheEditPoint *points;
 
 	struct PTCacheID pid;
 
 	/* particles stuff */
 	struct ParticleSystem *psys;
+	struct ParticleSystem *psys_eval;
+	struct ParticleSystemModifierData *psmd;
+	struct ParticleSystemModifierData *psmd_eval;
 	struct KDTree *emitter_field;
 	float *emitter_cosnos; /* localspace face centers and normals (average of its verts), from the derived mesh */
 	int *mirror_cache;
@@ -277,7 +289,14 @@ void BKE_ptcache_id_from_smoke(PTCacheID *pid, struct Object *ob, struct SmokeMo
 void BKE_ptcache_id_from_dynamicpaint(PTCacheID *pid, struct Object *ob, struct DynamicPaintSurface *surface);
 void BKE_ptcache_id_from_rigidbody(PTCacheID *pid, struct Object *ob, struct RigidBodyWorld *rbw);
 
-void BKE_ptcache_ids_from_object(struct ListBase *lb, struct Object *ob, struct Scene *scene, int duplis);
+PTCacheID BKE_ptcache_id_find(struct Object *ob, struct Scene *scene, struct PointCache *cache);
+void BKE_ptcache_ids_from_object(
+        struct ListBase *lb, struct Object *ob, struct Scene *scene, int duplis);
+
+/****************** Query funcs ****************************/
+
+/* Check whether object has a point cache. */
+bool BKE_ptcache_object_has(struct Scene *scene, struct Object *ob, int duplis);
 
 /***************** Global funcs ****************************/
 void BKE_ptcache_remove(void);
@@ -296,7 +315,7 @@ void BKE_ptcache_update_info(PTCacheID *pid);
 /* Size of cache data type. */
 int     BKE_ptcache_data_size(int data_type);
 
-/* Is point with indes in memory cache */
+/* Is point with index in memory cache */
 int BKE_ptcache_mem_index_find(struct PTCacheMem *pm, unsigned int index);
 
 /* Memory cache read/write helpers. */

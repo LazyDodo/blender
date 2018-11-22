@@ -2,12 +2,6 @@
 /* Based on Stochastic Screen Space Reflections
  * https://www.ea.com/frostbite/news/stochastic-screen-space-reflections */
 
-#ifndef UTIL_TEX
-#define UTIL_TEX
-uniform sampler2DArray utilTex;
-#define texelfetch_noise_tex(coord) texelFetch(utilTex, ivec3(ivec2(coord) % LUT_SIZE, 2.0), 0)
-#endif /* UTIL_TEX */
-
 #define MAX_MIP 9.0
 
 uniform ivec2 halfresOffset;
@@ -183,40 +177,6 @@ const ivec2 neighbors[32] = ivec2[32](
 
 out vec4 fragColor;
 
-void fallback_cubemap(
-        vec3 N, vec3 V, vec3 W, vec3 viewPosition, float roughness, float roughnessSquared, inout vec4 spec_accum)
-{
-	/* Specular probes */
-	vec3 spec_dir = get_specular_reflection_dominant_dir(N, V, roughnessSquared);
-
-	vec4 rand = texelfetch_noise_tex(gl_FragCoord.xy);
-	vec3 bent_normal;
-#ifdef SSR_AO
-	float final_ao = occlusion_compute(N, viewPosition, 1.0, rand, bent_normal);
-	final_ao = specular_occlusion(dot(N, V), final_ao, roughness);
-#else
-	const float final_ao = 1.0;
-#endif
-
-	/* Starts at 1 because 0 is world probe */
-	for (int i = 1; i < MAX_PROBE && i < prbNumRenderCube && spec_accum.a < 0.999; ++i) {
-		CubeData cd = probes_data[i];
-
-		float fade = probe_attenuation_cube(cd, W);
-
-		if (fade > 0.0) {
-			vec3 spec = final_ao * probe_evaluate_cube(float(i), cd, W, spec_dir, roughness);
-			accumulate_light(spec, fade, spec_accum);
-		}
-	}
-
-	/* World Specular */
-	if (spec_accum.a < 0.999) {
-		vec3 spec = final_ao * probe_evaluate_world_spec(spec_dir, roughness);
-		accumulate_light(spec, 1.0, spec_accum);
-	}
-}
-
 #if 0 /* Finish reprojection with motion vectors */
 vec3 get_motion_vector(vec3 pos)
 {
@@ -277,12 +237,11 @@ vec3 get_hit_vector(
 	}
 	else {
 		/* Find hit position in previous frame. */
-		mask = screen_border_mask(gl_FragCoord.xy / vec2(textureSize(depthBuffer, 0)));
 		hit_co = get_reprojected_reflection(hit_pos, worldPosition, N);
 		hit_vec = hit_pos - worldPosition;
 	}
 
-	mask = min(mask, screen_border_mask(hit_co));
+	mask = screen_border_mask(hit_co);
 	return hit_vec;
 }
 
@@ -450,34 +409,6 @@ void main()
 	if (dot(speccol_roughness.rgb, vec3(1.0)) == 0.0)
 		discard;
 
-	/* TODO optimize with textureGather */
-	/* Doing these fetches early to hide latency. */
-	vec4 hit_pdf;
-	hit_pdf.x = texelFetch(pdfBuffer, halfres_texel + neighbors[0 + neighborOffset], 0).r;
-	hit_pdf.y = texelFetch(pdfBuffer, halfres_texel + neighbors[1 + neighborOffset], 0).r;
-	hit_pdf.z = texelFetch(pdfBuffer, halfres_texel + neighbors[2 + neighborOffset], 0).r;
-	hit_pdf.w = texelFetch(pdfBuffer, halfres_texel + neighbors[3 + neighborOffset], 0).r;
-
-	ivec4 hit_data[2];
-	hit_data[0].xy = texelFetch(hitBuffer, halfres_texel + neighbors[0 + neighborOffset], 0).rg;
-	hit_data[0].zw = texelFetch(hitBuffer, halfres_texel + neighbors[1 + neighborOffset], 0).rg;
-	hit_data[1].xy = texelFetch(hitBuffer, halfres_texel + neighbors[2 + neighborOffset], 0).rg;
-	hit_data[1].zw = texelFetch(hitBuffer, halfres_texel + neighbors[3 + neighborOffset], 0).rg;
-
-	/* Find Planar Reflections affecting this pixel */
-	PlanarData pd;
-	float planar_index;
-	for (int i = 0; i < MAX_PLANAR && i < prbNumPlanar; ++i) {
-		pd = planars_data[i];
-
-		float fade = probe_attenuation_planar(pd, worldPosition, N, 0.0);
-
-		if (fade > 0.5) {
-			planar_index = float(i);
-			break;
-		}
-	}
-
 	float roughness = speccol_roughness.a;
 	float roughnessSquared = max(1e-3, roughness * roughness);
 
@@ -494,6 +425,34 @@ void main()
 	float weight_acc = 0.0;
 
 	if (roughness < ssrMaxRoughness + 0.2) {
+		/* TODO optimize with textureGather */
+		/* Doing these fetches early to hide latency. */
+		vec4 hit_pdf;
+		hit_pdf.x = texelFetch(pdfBuffer, halfres_texel + neighbors[0 + neighborOffset], 0).r;
+		hit_pdf.y = texelFetch(pdfBuffer, halfres_texel + neighbors[1 + neighborOffset], 0).r;
+		hit_pdf.z = texelFetch(pdfBuffer, halfres_texel + neighbors[2 + neighborOffset], 0).r;
+		hit_pdf.w = texelFetch(pdfBuffer, halfres_texel + neighbors[3 + neighborOffset], 0).r;
+
+		ivec4 hit_data[2];
+		hit_data[0].xy = texelFetch(hitBuffer, halfres_texel + neighbors[0 + neighborOffset], 0).rg;
+		hit_data[0].zw = texelFetch(hitBuffer, halfres_texel + neighbors[1 + neighborOffset], 0).rg;
+		hit_data[1].xy = texelFetch(hitBuffer, halfres_texel + neighbors[2 + neighborOffset], 0).rg;
+		hit_data[1].zw = texelFetch(hitBuffer, halfres_texel + neighbors[3 + neighborOffset], 0).rg;
+
+		/* Find Planar Reflections affecting this pixel */
+		PlanarData pd;
+		float planar_index;
+		for (int i = 0; i < MAX_PLANAR && i < prbNumPlanar; ++i) {
+			pd = planars_data[i];
+
+			float fade = probe_attenuation_planar(pd, worldPosition, N, 0.0);
+
+			if (fade > 0.5) {
+				planar_index = float(i);
+				break;
+			}
+		}
+
 		ssr_accum += get_ssr_samples(hit_pdf, hit_data, pd, planar_index, worldPosition, N, V,
 		                             roughnessSquared, cone_tan, source_uvs, weight_acc);
 	}
@@ -502,7 +461,7 @@ void main()
 	if (weight_acc > 0.0) {
 		ssr_accum /= weight_acc;
 		/* fade between 0.5 and 1.0 roughness */
-		ssr_accum.a *= smoothstep(ssrMaxRoughness + 0.2, ssrMaxRoughness, roughness); 
+		ssr_accum.a *= smoothstep(ssrMaxRoughness + 0.2, ssrMaxRoughness, roughness);
 		accumulate_light(ssr_accum.rgb, ssr_accum.a, spec_accum);
 	}
 

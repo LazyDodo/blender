@@ -18,8 +18,10 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
-/** \file source/blender/gpu/intern/gpu_immediate_util.c
+/** \file blender/gpu/intern/gpu_immediate_util.c
  *  \ingroup gpu
+ *
+ * GPU immediate mode drawing utilities
  */
 
 #include <stdio.h>
@@ -28,7 +30,6 @@
 #include "BLI_utildefines.h"
 #include "BLI_math.h"
 
-#include "GPU_basic_shader.h"
 #include "GPU_immediate.h"
 #include "GPU_immediate_util.h"
 #include "GPU_matrix.h"
@@ -66,6 +67,83 @@ static const int cube_line_index[12][2] = {
 	{6, 7},
 };
 
+void immRectf(uint pos, float x1, float y1, float x2, float y2)
+{
+	immBegin(GPU_PRIM_TRI_FAN, 4);
+	immVertex2f(pos, x1, y1);
+	immVertex2f(pos, x2, y1);
+	immVertex2f(pos, x2, y2);
+	immVertex2f(pos, x1, y2);
+	immEnd();
+}
+
+void immRecti(uint pos, int x1, int y1, int x2, int y2)
+{
+	immBegin(GPU_PRIM_TRI_FAN, 4);
+	immVertex2i(pos, x1, y1);
+	immVertex2i(pos, x2, y1);
+	immVertex2i(pos, x2, y2);
+	immVertex2i(pos, x1, y2);
+	immEnd();
+}
+
+void immRectf_fast(uint pos, float x1, float y1, float x2, float y2)
+{
+	immVertex2f(pos, x1, y1);
+	immVertex2f(pos, x2, y1);
+	immVertex2f(pos, x2, y2);
+
+	immVertex2f(pos, x1, y1);
+	immVertex2f(pos, x2, y2);
+	immVertex2f(pos, x1, y2);
+}
+
+void immRectf_fast_with_color(uint pos, uint col, float x1, float y1, float x2, float y2, const float color[4])
+{
+	immAttr4fv(col, color);
+	immVertex2f(pos, x1, y1);
+	immAttr4fv(col, color);
+	immVertex2f(pos, x2, y1);
+	immAttr4fv(col, color);
+	immVertex2f(pos, x2, y2);
+
+	immAttr4fv(col, color);
+	immVertex2f(pos, x1, y1);
+	immAttr4fv(col, color);
+	immVertex2f(pos, x2, y2);
+	immAttr4fv(col, color);
+	immVertex2f(pos, x1, y2);
+}
+
+void immRecti_fast_with_color(uint pos, uint col, int x1, int y1, int x2, int y2, const float color[4])
+{
+	immAttr4fv(col, color);
+	immVertex2i(pos, x1, y1);
+	immAttr4fv(col, color);
+	immVertex2i(pos, x2, y1);
+	immAttr4fv(col, color);
+	immVertex2i(pos, x2, y2);
+
+	immAttr4fv(col, color);
+	immVertex2i(pos, x1, y1);
+	immAttr4fv(col, color);
+	immVertex2i(pos, x2, y2);
+	immAttr4fv(col, color);
+	immVertex2i(pos, x1, y2);
+}
+
+#if 0 /* more complete version in case we want that */
+void immRecti_complete(int x1, int y1, int x2, int y2, const float color[4])
+{
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = add_attrib(format, "pos", GPU_COMP_I32, 2, GPU_FETCH_INT_TO_FLOAT);
+	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
+	immUniformColor4fv(color);
+	immRecti(pos, x1, y1, x2, y2);
+	immUnbindProgram();
+}
+#endif
+
 /**
  * Pack color into 3 bytes
  *
@@ -77,7 +155,7 @@ static const int cube_line_index[12][2] = {
  *
  * \param x color.
  */
-void imm_cpack(unsigned int x)
+void imm_cpack(uint x)
 {
 	immUniformColor3ub(((x) & 0xFF),
 	                   (((x) >> 8) & 0xFF),
@@ -85,7 +163,7 @@ void imm_cpack(unsigned int x)
 }
 
 static void imm_draw_circle(
-        Gwn_PrimType prim_type, const uint shdr_pos, float x, float y, float rad_x, float rad_y, int nsegments)
+        GPUPrimType prim_type, const uint shdr_pos, float x, float y, float rad_x, float rad_y, int nsegments)
 {
 	immBegin(prim_type, nsegments);
 	for (int i = 0; i < nsegments; ++i) {
@@ -107,7 +185,7 @@ static void imm_draw_circle(
  */
 void imm_draw_circle_wire_2d(uint shdr_pos, float x, float y, float rad, int nsegments)
 {
-	imm_draw_circle(GWN_PRIM_LINE_LOOP, shdr_pos, x, y, rad, rad, nsegments);
+	imm_draw_circle(GPU_PRIM_LINE_LOOP, shdr_pos, x, y, rad, rad, nsegments);
 }
 
 /**
@@ -122,25 +200,51 @@ void imm_draw_circle_wire_2d(uint shdr_pos, float x, float y, float rad, int nse
  */
 void imm_draw_circle_fill_2d(uint shdr_pos, float x, float y, float rad, int nsegments)
 {
-	imm_draw_circle(GWN_PRIM_TRI_FAN, shdr_pos, x, y, rad, rad, nsegments);
+	imm_draw_circle(GPU_PRIM_TRI_FAN, shdr_pos, x, y, rad, rad, nsegments);
 }
 
 void imm_draw_circle_wire_aspect_2d(uint shdr_pos, float x, float y, float rad_x, float rad_y, int nsegments)
 {
-	imm_draw_circle(GWN_PRIM_LINE_LOOP, shdr_pos, x, y, rad_x, rad_y, nsegments);
+	imm_draw_circle(GPU_PRIM_LINE_LOOP, shdr_pos, x, y, rad_x, rad_y, nsegments);
 }
 void imm_draw_circle_fill_aspect_2d(uint shdr_pos, float x, float y, float rad_x, float rad_y, int nsegments)
 {
-	imm_draw_circle(GWN_PRIM_TRI_FAN, shdr_pos, x, y, rad_x, rad_y, nsegments);
+	imm_draw_circle(GPU_PRIM_TRI_FAN, shdr_pos, x, y, rad_x, rad_y, nsegments);
 }
 
-/**
- * \note We could have `imm_draw_lined_disk_partial` but currently there is no need.
- */
+static void imm_draw_circle_partial(
+        GPUPrimType prim_type, uint pos, float x, float y,
+        float rad, int nsegments, float start, float sweep)
+{
+	/* shift & reverse angle, increase 'nsegments' to match gluPartialDisk */
+	const float angle_start = -(DEG2RADF(start)) + (float)(M_PI / 2);
+	const float angle_end   = -(DEG2RADF(sweep) - angle_start);
+	nsegments += 1;
+	immBegin(prim_type, nsegments);
+	for (int i = 0; i < nsegments; ++i) {
+		const float angle = interpf(angle_start, angle_end, ((float)i / (float)(nsegments - 1)));
+		const float angle_sin = sinf(angle);
+		const float angle_cos = cosf(angle);
+		immVertex2f(pos, x + rad * angle_cos, y + rad * angle_sin);
+	}
+	immEnd();
+}
+
+void imm_draw_circle_partial_wire_2d(
+        uint pos, float x, float y,
+        float rad, int nsegments, float start, float sweep)
+{
+	imm_draw_circle_partial(GPU_PRIM_LINE_STRIP, pos, x, y, rad, nsegments, start, sweep);
+}
+
 static void imm_draw_disk_partial(
-        Gwn_PrimType prim_type, unsigned pos, float x, float y,
+        GPUPrimType prim_type, uint pos, float x, float y,
         float rad_inner, float rad_outer, int nsegments, float start, float sweep)
 {
+	/* to avoid artifacts */
+	const float max_angle = 3 * 360;
+	CLAMP(sweep, -max_angle, max_angle);
+
 	/* shift & reverse angle, increase 'nsegments' to match gluPartialDisk */
 	const float angle_start = -(DEG2RADF(start)) + (float)(M_PI / 2);
 	const float angle_end   = -(DEG2RADF(sweep) - angle_start);
@@ -172,14 +276,14 @@ static void imm_draw_disk_partial(
  * \param sweep: Specifies the sweep angle, in degrees, of the disk portion.
  */
 void imm_draw_disk_partial_fill_2d(
-        unsigned pos, float x, float y,
+        uint pos, float x, float y,
         float rad_inner, float rad_outer, int nsegments, float start, float sweep)
 {
-	imm_draw_disk_partial(GWN_PRIM_TRI_STRIP, pos, x, y, rad_inner, rad_outer, nsegments, start, sweep);
+	imm_draw_disk_partial(GPU_PRIM_TRI_STRIP, pos, x, y, rad_inner, rad_outer, nsegments, start, sweep);
 }
 
 static void imm_draw_circle_3D(
-        Gwn_PrimType prim_type, unsigned pos, float x, float y,
+        GPUPrimType prim_type, uint pos, float x, float y,
         float rad, int nsegments)
 {
 	immBegin(prim_type, nsegments);
@@ -190,28 +294,28 @@ static void imm_draw_circle_3D(
 	immEnd();
 }
 
-void imm_draw_circle_wire_3d(unsigned pos, float x, float y, float rad, int nsegments)
+void imm_draw_circle_wire_3d(uint pos, float x, float y, float rad, int nsegments)
 {
-	imm_draw_circle_3D(GWN_PRIM_LINE_LOOP, pos, x, y, rad, nsegments);
+	imm_draw_circle_3D(GPU_PRIM_LINE_LOOP, pos, x, y, rad, nsegments);
 }
 
-void imm_draw_circle_fill_3d(unsigned pos, float x, float y, float rad, int nsegments)
+void imm_draw_circle_fill_3d(uint pos, float x, float y, float rad, int nsegments)
 {
-	imm_draw_circle_3D(GWN_PRIM_TRI_FAN, pos, x, y, rad, nsegments);
+	imm_draw_circle_3D(GPU_PRIM_TRI_FAN, pos, x, y, rad, nsegments);
 }
 
 /**
-* Draw a lined box.
-*
-* \param pos The vertex attribute number for position.
-* \param x1 left.
-* \param y1 bottom.
-* \param x2 right.
-* \param y2 top.
-*/
-void imm_draw_box_wire_2d(unsigned pos, float x1, float y1, float x2, float y2)
+ * Draw a lined box.
+ *
+ * \param pos The vertex attribute number for position.
+ * \param x1 left.
+ * \param y1 bottom.
+ * \param x2 right.
+ * \param y2 top.
+ */
+void imm_draw_box_wire_2d(uint pos, float x1, float y1, float x2, float y2)
 {
-	immBegin(GWN_PRIM_LINE_LOOP, 4);
+	immBegin(GPU_PRIM_LINE_LOOP, 4);
 	immVertex2f(pos, x1, y1);
 	immVertex2f(pos, x1, y2);
 	immVertex2f(pos, x2, y2);
@@ -219,10 +323,10 @@ void imm_draw_box_wire_2d(unsigned pos, float x1, float y1, float x2, float y2)
 	immEnd();
 }
 
-void imm_draw_box_wire_3d(unsigned pos, float x1, float y1, float x2, float y2)
+void imm_draw_box_wire_3d(uint pos, float x1, float y1, float x2, float y2)
 {
-	/* use this version when Gwn_VertFormat has a vec3 position */
-	immBegin(GWN_PRIM_LINE_LOOP, 4);
+	/* use this version when GPUVertFormat has a vec3 position */
+	immBegin(GPU_PRIM_LINE_LOOP, 4);
 	immVertex3f(pos, x1, y1, 0.0f);
 	immVertex3f(pos, x1, y2, 0.0f);
 	immVertex3f(pos, x2, y2, 0.0f);
@@ -235,7 +339,7 @@ void imm_draw_box_wire_3d(unsigned pos, float x1, float y1, float x2, float y2)
  */
 void imm_draw_box_checker_2d(float x1, float y1, float x2, float y2)
 {
-	unsigned int pos = GWN_vertformat_attr_add(immVertexFormat(), "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	uint pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	immBindBuiltinProgram(GPU_SHADER_2D_CHECKER);
 
 	immUniform4f("color1", 0.15f, 0.15f, 0.15f, 1.0f);
@@ -255,7 +359,7 @@ void imm_draw_cube_fill_3d(uint pos, const float co[3], const float aspect[3])
 		madd_v3_v3v3v3(coords[i], co, cube_coords[i], aspect);
 	}
 
-	immBegin(GWN_PRIM_TRIS, ARRAY_SIZE(cube_quad_index) * 3 * 2);
+	immBegin(GPU_PRIM_TRIS, ARRAY_SIZE(cube_quad_index) * 3 * 2);
 	for (int i = 0; i < ARRAY_SIZE(cube_quad_index); i++) {
 		immVertex3fv(pos, coords[cube_quad_index[i][0]]);
 		immVertex3fv(pos, coords[cube_quad_index[i][1]]);
@@ -276,7 +380,7 @@ void imm_draw_cube_wire_3d(uint pos, const float co[3], const float aspect[3])
 		madd_v3_v3v3v3(coords[i], co, cube_coords[i], aspect);
 	}
 
-	immBegin(GWN_PRIM_LINES, ARRAY_SIZE(cube_line_index) * 2);
+	immBegin(GPU_PRIM_LINES, ARRAY_SIZE(cube_line_index) * 2);
 	for (int i = 0; i < ARRAY_SIZE(cube_line_index); i++) {
 		immVertex3fv(pos, coords[cube_line_index[i][0]]);
 		immVertex3fv(pos, coords[cube_line_index[i][1]]);
@@ -285,21 +389,21 @@ void imm_draw_cube_wire_3d(uint pos, const float co[3], const float aspect[3])
 }
 
 /**
-* Draw a cylinder. Replacement for gluCylinder.
-* _warning_ : Slow, better use it only if you no other choices.
-*
-* \param pos The vertex attribute number for position.
-* \param nor The vertex attribute number for normal.
-* \param base Specifies the radius of the cylinder at z = 0.
-* \param top Specifies the radius of the cylinder at z = height.
-* \param height Specifies the height of the cylinder.
-* \param slices Specifies the number of subdivisions around the z axis.
-* \param stacks Specifies the number of subdivisions along the z axis.
-*/
+ * Draw a cylinder. Replacement for gluCylinder.
+ * _warning_ : Slow, better use it only if you no other choices.
+ *
+ * \param pos The vertex attribute number for position.
+ * \param nor The vertex attribute number for normal.
+ * \param base Specifies the radius of the cylinder at z = 0.
+ * \param top Specifies the radius of the cylinder at z = height.
+ * \param height Specifies the height of the cylinder.
+ * \param slices Specifies the number of subdivisions around the z axis.
+ * \param stacks Specifies the number of subdivisions along the z axis.
+ */
 void imm_draw_cylinder_fill_normal_3d(
-        unsigned int pos, unsigned int nor, float base, float top, float height, int slices, int stacks)
+        uint pos, uint nor, float base, float top, float height, int slices, int stacks)
 {
-	immBegin(GWN_PRIM_TRIS, 6 * slices * stacks);
+	immBegin(GPU_PRIM_TRIS, 6 * slices * stacks);
 	for (int i = 0; i < slices; ++i) {
 		const float angle1 = (float)(2 * M_PI) * ((float)i / (float)slices);
 		const float angle2 = (float)(2 * M_PI) * ((float)(i + 1) / (float)slices);
@@ -316,10 +420,10 @@ void imm_draw_cylinder_fill_normal_3d(
 			float h1 = height * ((float)j / (float)stacks);
 			float h2 = height * ((float)(j + 1) / (float)stacks);
 
-			float v1[3] = {r1 *cos2, r1 * sin2, h1};
-			float v2[3] = {r2 *cos2, r2 * sin2, h2};
-			float v3[3] = {r2 *cos1, r2 * sin1, h2};
-			float v4[3] = {r1 *cos1, r1 * sin1, h1};
+			float v1[3] = {r1 * cos2, r1 * sin2, h1};
+			float v2[3] = {r2 * cos2, r2 * sin2, h2};
+			float v3[3] = {r2 * cos1, r2 * sin1, h2};
+			float v4[3] = {r1 * cos1, r1 * sin1, h1};
 			float n1[3], n2[3];
 
 			/* calc normals */
@@ -332,25 +436,25 @@ void imm_draw_cylinder_fill_normal_3d(
 			n2[0] = cos2; n2[1] = sin2; n2[2] = 1 - n2[2];
 
 			/* first tri */
-			immAttrib3fv(nor, n2);
+			immAttr3fv(nor, n2);
 			immVertex3fv(pos, v1);
 			immVertex3fv(pos, v2);
-			immAttrib3fv(nor, n1);
+			immAttr3fv(nor, n1);
 			immVertex3fv(pos, v3);
 
 			/* second tri */
 			immVertex3fv(pos, v3);
 			immVertex3fv(pos, v4);
-			immAttrib3fv(nor, n2);
+			immAttr3fv(nor, n2);
 			immVertex3fv(pos, v1);
 		}
 	}
 	immEnd();
 }
 
-void imm_draw_cylinder_wire_3d(unsigned int pos, float base, float top, float height, int slices, int stacks)
+void imm_draw_cylinder_wire_3d(uint pos, float base, float top, float height, int slices, int stacks)
 {
-	immBegin(GWN_PRIM_LINES, 6 * slices * stacks);
+	immBegin(GPU_PRIM_LINES, 6 * slices * stacks);
 	for (int i = 0; i < slices; ++i) {
 		const float angle1 = (float)(2 * M_PI) * ((float)i / (float)slices);
 		const float angle2 = (float)(2 * M_PI) * ((float)(i + 1) / (float)slices);
@@ -385,9 +489,9 @@ void imm_draw_cylinder_wire_3d(unsigned int pos, float base, float top, float he
 	immEnd();
 }
 
-void imm_draw_cylinder_fill_3d(unsigned int pos, float base, float top, float height, int slices, int stacks)
+void imm_draw_cylinder_fill_3d(uint pos, float base, float top, float height, int slices, int stacks)
 {
-	immBegin(GWN_PRIM_TRIS, 6 * slices * stacks);
+	immBegin(GPU_PRIM_TRIS, 6 * slices * stacks);
 	for (int i = 0; i < slices; ++i) {
 		const float angle1 = (float)(2 * M_PI) * ((float)i / (float)slices);
 		const float angle2 = (float)(2 * M_PI) * ((float)(i + 1) / (float)slices);

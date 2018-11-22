@@ -268,8 +268,9 @@ static void screen_opengl_views_setup(OGLRender *oglrender)
 
 static void screen_opengl_render_doit(const bContext *C, OGLRender *oglrender, RenderResult *rr)
 {
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Scene *scene = oglrender->scene;
-	ViewLayer *view_layer = oglrender->view_layer;
 	ARegion *ar = oglrender->ar;
 	View3D *v3d = oglrender->v3d;
 	RegionView3D *rv3d = oglrender->rv3d;
@@ -277,14 +278,10 @@ static void screen_opengl_render_doit(const bContext *C, OGLRender *oglrender, R
 	int sizex = oglrender->sizex;
 	int sizey = oglrender->sizey;
 	const short view_context = (v3d != NULL);
-	bool draw_bgpic = true;
 	bool draw_sky = (scene->r.alphamode == R_ADDSKY);
 	float *rectf = NULL;
 	const char *viewname = RE_GetActiveRenderView(oglrender->re);
 	ImBuf *ibuf_result = NULL;
-	EvaluationContext eval_ctx;
-
-	CTX_data_eval_ctx(C, &eval_ctx);
 
 	if (oglrender->is_sequencer) {
 		SpaceSeq *sseq = oglrender->sseq;
@@ -326,14 +323,15 @@ static void screen_opengl_render_doit(const bContext *C, OGLRender *oglrender, R
 			DRW_opengl_context_enable();
 			GPU_offscreen_bind(oglrender->ofs, true);
 
-			glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			GPU_clear_color(0.0f, 0.0f, 0.0f, 0.0f);
+			GPU_clear(GPU_COLOR_BIT | GPU_DEPTH_BIT);
 
 			wmOrtho2(0, sizex, 0, sizey);
-			gpuTranslate2f(sizex / 2, sizey / 2);
+			GPU_matrix_translate_2f(sizex / 2, sizey / 2);
 
 			G.f |= G_RENDER_OGL;
-			ED_gpencil_draw_ex(scene, gpd, sizex, sizey, scene->r.cfra, SPACE_SEQ);
+			ED_gpencil_draw_ex(
+				view_layer, rv3d, scene, gpd, sizex, sizey, scene->r.cfra, SPACE_SEQ);
 			G.f &= ~G_RENDER_OGL;
 
 			gp_rect = MEM_mallocN(sizex * sizey * sizeof(unsigned char) * 4, "offscreen rect");
@@ -358,10 +356,9 @@ static void screen_opengl_render_doit(const bContext *C, OGLRender *oglrender, R
 		draw_flags |= (oglrender->ofs_full_samples) ? V3D_OFSDRAW_USE_FULL_SAMPLE : 0;
 
 		if (view_context) {
-			draw_flags |= (draw_bgpic) ? V3D_OFSDRAW_USE_BACKGROUND : 0;
-
 			ibuf_view = ED_view3d_draw_offscreen_imbuf(
-			       &eval_ctx, scene, view_layer, v3d, ar, sizex, sizey,
+			       depsgraph, scene, v3d->shading.type,
+			       v3d, ar, sizex, sizey,
 			       IB_rectfloat, draw_flags, alpha_mode, oglrender->ofs_samples, viewname,
 			       oglrender->ofs, err_out);
 
@@ -371,10 +368,11 @@ static void screen_opengl_render_doit(const bContext *C, OGLRender *oglrender, R
 			}
 		}
 		else {
-			draw_flags |= (V3D_OFSDRAW_USE_GPENCIL | V3D_OFSDRAW_USE_BACKGROUND);
+			draw_flags |= V3D_OFSDRAW_USE_GPENCIL;
 			ibuf_view = ED_view3d_draw_offscreen_imbuf_simple(
-			        &eval_ctx, scene, view_layer, scene->camera, oglrender->sizex, oglrender->sizey,
-			        IB_rectfloat, draw_flags, OB_SOLID,
+			        depsgraph, scene, OB_SOLID,
+			        scene->camera, oglrender->sizex, oglrender->sizey,
+			        IB_rectfloat, draw_flags,
 			        alpha_mode, oglrender->ofs_samples, viewname,
 			        oglrender->ofs, err_out);
 			camera = scene->camera;
@@ -408,7 +406,7 @@ static void screen_opengl_render_write(OGLRender *oglrender)
 	rr = RE_AcquireResultRead(oglrender->re);
 
 	BKE_image_path_from_imformat(
-	        name, scene->r.pic, oglrender->bmain->name, scene->r.cfra,
+	        name, scene->r.pic, BKE_main_blendfile_path(oglrender->bmain), scene->r.cfra,
 	        &scene->r.im_format, (scene->r.scemode & R_EXTENSION) != 0, false, NULL);
 
 	/* write images as individual images or stereo */
@@ -421,7 +419,7 @@ static void screen_opengl_render_write(OGLRender *oglrender)
 	else printf("OpenGL Render failed to write '%s'\n", name);
 }
 
-static void addAlphaOverFloat(float dest[4], const float source[4])
+static void UNUSED_FUNCTION(addAlphaOverFloat)(float dest[4], const float source[4])
 {
 	/* d = s + (1-alpha_s)d*/
 	float mul;
@@ -433,91 +431,6 @@ static void addAlphaOverFloat(float dest[4], const float source[4])
 	dest[2] = (mul * dest[2]) + source[2];
 	dest[3] = (mul * dest[3]) + source[3];
 
-}
-
-/* add renderlayer and renderpass for each grease pencil layer for using in composition */
-static void add_gpencil_renderpass(const bContext *C, OGLRender *oglrender, RenderResult *rr, RenderView *rv)
-{
-	bGPdata *gpd = oglrender->scene->gpd;
-	Scene *scene = oglrender->scene;
-
-	/* sanity checks */
-	if (gpd == NULL) {
-		return;
-	}
-	if (scene == NULL) {
-		return;
-	}
-	if (BLI_listbase_is_empty(&gpd->layers)) {
-		return;
-	}
-	if (oglrender->v3d != NULL && (oglrender->v3d->flag2 & V3D_SHOW_GPENCIL) == 0) {
-		return;
-	}
-
-	/* save old alpha mode */
-	short oldalphamode = scene->r.alphamode;
-	/* set alpha transparent for gp */
-	scene->r.alphamode = R_ALPHAPREMUL;
-	
-	/* saves layer status */
-	short *oldsts = MEM_mallocN(BLI_listbase_count(&gpd->layers) * sizeof(short), "temp_gplayers_flag");
-	int i = 0;
-	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-		oldsts[i] = gpl->flag;
-		++i;
-	}
-	/* loop all layers to create separate render */
-	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-		/* dont draw layer if hidden */
-		if (gpl->flag & GP_LAYER_HIDE)
-			continue;
-		/* hide all layer except current */
-		for (bGPDlayer *gph = gpd->layers.first; gph; gph = gph->next) {
-			if (gpl != gph) {
-				gph->flag |= GP_LAYER_HIDE;
-			}
-		}
-
-		/* render this gp layer */
-		screen_opengl_render_doit(C, oglrender, rr);
-		
-		/* add RendePass composite */
-		RenderPass *rp = RE_create_gp_pass(rr, gpl->info, rv->name);
-
-		/* copy image data from rectf */
-		// XXX: Needs conversion.
-		unsigned char *src = (unsigned char *)RE_RenderViewGetById(rr, oglrender->view_id)->rect32;
-		if (src != NULL) {
-			float *dest = rp->rect;
-
-			int x, y, rectx, recty;
-			rectx = rr->rectx;
-			recty = rr->recty;
-			for (y = 0; y < recty; y++) {
-				for (x = 0; x < rectx; x++) {
-					unsigned char *pixSrc = src + 4 * (rectx * y + x);
-					if (pixSrc[3] > 0) {
-						float *pixDest = dest + 4 * (rectx * y + x);
-						float float_src[4];
-						srgb_to_linearrgb_uchar4(float_src, pixSrc);
-						addAlphaOverFloat(pixDest, float_src);
-					}
-				}
-			}
-		}
-		/* back layer status */
-		i = 0;
-		for (bGPDlayer *gph = gpd->layers.first; gph; gph = gph->next) {
-			gph->flag = oldsts[i];
-			++i;
-		}
-	}
-	/* free memory */
-	MEM_freeN(oldsts);
-
-	/* back default alpha mode */
-	scene->r.alphamode = oldalphamode;
 }
 
 static void screen_opengl_render_apply(const bContext *C, OGLRender *oglrender)
@@ -536,8 +449,8 @@ static void screen_opengl_render_apply(const bContext *C, OGLRender *oglrender)
 		int chanshown = sseq ? sseq->chanshown : 0;
 
 		BKE_sequencer_new_render_data(
-		        oglrender->bmain->eval_ctx, oglrender->bmain, scene,
-		        oglrender->sizex, oglrender->sizey, 100.0f,
+		        oglrender->bmain, oglrender->depsgraph, scene,
+		        oglrender->sizex, oglrender->sizey, 100.0f, false,
 		        &context);
 
 		for (view_id = 0; view_id < oglrender->views_len; view_id++) {
@@ -554,11 +467,6 @@ static void screen_opengl_render_apply(const bContext *C, OGLRender *oglrender)
 		BLI_assert(view_id < oglrender->views_len);
 		RE_SetActiveRenderView(oglrender->re, rv->name);
 		oglrender->view_id = view_id;
-		/* add grease pencil passes. For sequencer, the render does not include renderpasses
-		 * TODO: The sequencer render of grease pencil should be rethought */
-		if (!oglrender->is_sequencer) {
-			add_gpencil_renderpass(C, oglrender, rr, rv);
-		}
 		/* render composite */
 		screen_opengl_render_doit(C, oglrender, rr);
 	}
@@ -707,19 +615,17 @@ static bool screen_opengl_render_init(bContext *C, wmOperator *op)
 
 	/* create render */
 	oglrender->re = RE_NewSceneRender(scene);
-	ViewRender *view_render = BKE_viewrender_get(scene, workspace);
-	RE_SetEngineByID(oglrender->re, view_render->engine_id);
 
 	/* create image and image user */
-	oglrender->ima = BKE_image_verify_viewer(IMA_TYPE_R_RESULT, "Render Result");
-	BKE_image_signal(oglrender->ima, NULL, IMA_SIGNAL_FREE);
+	oglrender->ima = BKE_image_verify_viewer(oglrender->bmain, IMA_TYPE_R_RESULT, "Render Result");
+	BKE_image_signal(oglrender->bmain, oglrender->ima, NULL, IMA_SIGNAL_FREE);
 	BKE_image_backup_render(oglrender->scene, oglrender->ima, true);
 
 	oglrender->iuser.scene = scene;
 	oglrender->iuser.ok = 1;
 
 	/* create render result */
-	RE_InitState(oglrender->re, NULL, &scene->r, &scene->view_layers, scene->active_view_layer, view_render, NULL, sizex, sizey, NULL);
+	RE_InitState(oglrender->re, NULL, &scene->r, &scene->view_layers, NULL, sizex, sizey, NULL);
 
 	/* create render views */
 	screen_opengl_views_setup(oglrender);
@@ -817,9 +723,8 @@ static void screen_opengl_render_end(bContext *C, OGLRender *oglrender)
 
 	if (oglrender->timer) { /* exec will not have a timer */
 		Depsgraph *depsgraph = oglrender->depsgraph;
-		ViewLayer *view_layer = oglrender->view_layer;
 		scene->r.cfra = oglrender->cfrao;
-		BKE_scene_graph_update_for_newframe(bmain->eval_ctx, depsgraph, bmain, scene, view_layer);
+		BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 
 		WM_event_remove_timer(oglrender->wm, oglrender->win, oglrender->timer);
 	}
@@ -950,7 +855,7 @@ static void write_result_func(TaskPool * __restrict pool,
 		char name[FILE_MAX];
 		BKE_image_path_from_imformat(name,
 		                             scene->r.pic,
-		                             oglrender->bmain->name,
+		                             BKE_main_blendfile_path(oglrender->bmain),
 		                             cfra,
 		                             &scene->r.im_format,
 		                             (scene->r.scemode & R_EXTENSION) != 0,
@@ -1018,7 +923,6 @@ static bool screen_opengl_render_anim_step(bContext *C, wmOperator *op)
 	Main *bmain = CTX_data_main(C);
 	OGLRender *oglrender = op->customdata;
 	Scene *scene = oglrender->scene;
-	ViewLayer *view_layer = oglrender->view_layer;
 	Depsgraph *depsgraph = oglrender->depsgraph;
 	char name[FILE_MAX];
 	bool ok = false;
@@ -1030,7 +934,7 @@ static bool screen_opengl_render_anim_step(bContext *C, wmOperator *op)
 	if (CFRA < oglrender->nfra)
 		CFRA++;
 	while (CFRA < oglrender->nfra) {
-		BKE_scene_graph_update_for_newframe(bmain->eval_ctx, depsgraph, bmain, scene, view_layer);
+		BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 		CFRA++;
 	}
 
@@ -1038,7 +942,7 @@ static bool screen_opengl_render_anim_step(bContext *C, wmOperator *op)
 
 	if (!is_movie) {
 		BKE_image_path_from_imformat(
-		        name, scene->r.pic, oglrender->bmain->name, scene->r.cfra,
+		        name, scene->r.pic, BKE_main_blendfile_path(oglrender->bmain), scene->r.cfra,
 		        &scene->r.im_format, (scene->r.scemode & R_EXTENSION) != 0, true, NULL);
 
 		if ((scene->r.mode & R_NO_OVERWRITE) && BLI_exists(name)) {
@@ -1052,7 +956,7 @@ static bool screen_opengl_render_anim_step(bContext *C, wmOperator *op)
 
 	WM_cursor_time(oglrender->win, scene->r.cfra);
 
-	BKE_scene_graph_update_for_newframe(bmain->eval_ctx, depsgraph, bmain, scene, view_layer);
+	BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 
 	if (view_context) {
 		if (oglrender->rv3d->persp == RV3D_CAMOB && oglrender->v3d->camera && oglrender->v3d->scenelock) {
@@ -1116,7 +1020,7 @@ static int screen_opengl_render_modal(bContext *C, wmOperator *op, const wmEvent
 
 	/* run first because screen_opengl_render_anim_step can free oglrender */
 	WM_event_add_notifier(C, NC_SCENE | ND_RENDER_RESULT, oglrender->scene);
-	
+
 	if (anim == 0) {
 		screen_opengl_render_apply(C, op->customdata);
 		screen_opengl_render_end(C, op->customdata);
@@ -1146,16 +1050,16 @@ static int screen_opengl_render_invoke(bContext *C, wmOperator *op, const wmEven
 		if (!screen_opengl_render_anim_initialize(C, op))
 			return OPERATOR_CANCELLED;
 	}
-	
+
 	oglrender = op->customdata;
 	render_view_open(C, event->x, event->y, op->reports);
-	
+
 	/* view may be changed above (R_OUTPUT_WINDOW) */
 	oglrender->win = CTX_wm_window(C);
 
 	WM_event_add_modal_handler(C, op);
 	oglrender->timer = WM_event_add_timer(oglrender->wm, oglrender->win, TIMER, 0.01f);
-	
+
 	return OPERATOR_RUNNING_MODAL;
 }
 
@@ -1197,8 +1101,8 @@ void RENDER_OT_opengl(wmOperatorType *ot)
 	PropertyRNA *prop;
 
 	/* identifiers */
-	ot->name = "OpenGL Render";
-	ot->description = "OpenGL render active viewport";
+	ot->name = "Viewport Render";
+	ot->description = "Take a snapshot of the active viewport";
 	ot->idname = "RENDER_OT_opengl";
 
 	/* api callbacks */

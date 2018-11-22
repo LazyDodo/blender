@@ -30,7 +30,7 @@
 
 /** \file BLI_vfontdata.h
  *  \ingroup bli
- *  \brief A structure to represent vector fonts, 
+ *  \brief A structure to represent vector fonts,
  *   and to load them from PostScript fonts.
  */
 
@@ -43,6 +43,9 @@ typedef struct VFontData {
 	struct GHash *characters;
 	char name[128];
 	float scale;
+	/* Calculated from the font. */
+	float em_height;
+	float ascender;
 } VFontData;
 
 typedef struct VChar {
@@ -58,4 +61,3 @@ VChar *BLI_vfontchar_from_freetypefont(struct VFont *vfont, unsigned long charac
 VChar *BLI_vfontchar_copy(const VChar *vchar_src, const int flag);
 
 #endif
-

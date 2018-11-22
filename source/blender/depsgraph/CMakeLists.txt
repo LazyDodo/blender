@@ -28,6 +28,7 @@ set(INC
 	../blenkernel
 	../blenlib
 	../bmesh
+	../draw
 	../makesdna
 	../makesrna
 	../modifiers
@@ -44,13 +45,11 @@ set(SRC
 	intern/builder/deg_builder_cycle.cc
 	intern/builder/deg_builder_map.cc
 	intern/builder/deg_builder_nodes.cc
-	intern/builder/deg_builder_nodes_layer_collection.cc
 	intern/builder/deg_builder_nodes_rig.cc
 	intern/builder/deg_builder_nodes_view_layer.cc
 	intern/builder/deg_builder_pchanmap.cc
 	intern/builder/deg_builder_relations.cc
 	intern/builder/deg_builder_relations_keys.cc
-	intern/builder/deg_builder_relations_layer_collection.cc
 	intern/builder/deg_builder_relations_rig.cc
 	intern/builder/deg_builder_relations_view_layer.cc
 	intern/builder/deg_builder_transitive.cc
@@ -69,7 +68,9 @@ set(SRC
 	intern/depsgraph_build.cc
 	intern/depsgraph_debug.cc
 	intern/depsgraph_eval.cc
+	intern/depsgraph_physics.cc
 	intern/depsgraph_query.cc
+	intern/depsgraph_query_filter.cc
 	intern/depsgraph_query_foreach.cc
 	intern/depsgraph_query_iter.cc
 	intern/depsgraph_tag.cc
@@ -78,6 +79,7 @@ set(SRC
 	DEG_depsgraph.h
 	DEG_depsgraph_build.h
 	DEG_depsgraph_debug.h
+	DEG_depsgraph_physics.h
 	DEG_depsgraph_query.h
 
 	intern/builder/deg_builder.h
@@ -105,37 +107,11 @@ set(SRC
 	util/deg_util_function.h
 )
 
-if(WITH_CXX11)
-	add_definitions(-DDEG_STD_UNORDERED_MAP)
-elseif(HAVE_STD_UNORDERED_MAP_HEADER)
-	if(HAVE_UNORDERED_MAP_IN_STD_NAMESPACE)
-		add_definitions(-DDEG_STD_UNORDERED_MAP)
-	else()
-		if(HAVE_UNORDERED_MAP_IN_TR1_NAMESPACE)
-			add_definitions(-DDEG_STD_UNORDERED_MAP_IN_TR1_NAMESPACE)
-		else()
-			add_definitions(-DDEG_NO_UNORDERED_MAP)
-			message(STATUS "Replacing unordered_map/set with map/set (warning: slower!)")
-		endif()
-	endif()
-else()
-	if(HAVE_UNORDERED_MAP_IN_TR1_NAMESPACE)
-		add_definitions(-DDEG_TR1_UNORDERED_MAP)
-	else()
-		add_definitions(-DDEG_NO_UNORDERED_MAP)
-		message(STATUS "Replacing unordered_map/set with map/set (warning: slower!)")
-	endif()
-endif()
-
 if(WITH_BOOST)
 	list(APPEND INC_SYS
 		${BOOST_INCLUDE_DIR}
 	)
 	add_definitions(-DHAVE_BOOST_FUNCTION_BINDINGS)
-endif()
-
-if(WITH_OPENSUBDIV)
-	add_definitions(-DWITH_OPENSUBDIV)
 endif()
 
 blender_add_lib(bf_depsgraph "${SRC}" "${INC}" "${INC_SYS}")

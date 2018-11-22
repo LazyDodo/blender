@@ -22,6 +22,10 @@
  *
  */
 
+/** \file blender/editors/io/io_alembic.c
+ *  \ingroup editor/io
+ */
+
 #ifdef WITH_ALEMBIC
 
 /* needed for directory lookup */
@@ -79,14 +83,14 @@ static int wm_alembic_export_invoke(bContext *C, wmOperator *op, const wmEvent *
 		Main *bmain = CTX_data_main(C);
 		char filepath[FILE_MAX];
 
-		if (bmain->name[0] == '\0') {
+		if (BKE_main_blendfile_path(bmain)[0] == '\0') {
 			BLI_strncpy(filepath, "untitled", sizeof(filepath));
 		}
 		else {
-			BLI_strncpy(filepath, bmain->name, sizeof(filepath));
+			BLI_strncpy(filepath, BKE_main_blendfile_path(bmain), sizeof(filepath));
 		}
 
-		BLI_replace_extension(filepath, sizeof(filepath), ".abc");
+		BLI_path_extension_replace(filepath, sizeof(filepath), ".abc");
 		RNA_string_set(op->ptr, "filepath", filepath);
 	}
 
@@ -284,8 +288,8 @@ static bool wm_alembic_export_check(bContext *UNUSED(C), wmOperator *op)
 	char filepath[FILE_MAX];
 	RNA_string_get(op->ptr, "filepath", filepath);
 
-	if (!BLI_testextensie(filepath, ".abc")) {
-		BLI_ensure_extension(filepath, FILE_MAX, ".abc");
+	if (!BLI_path_extension_check(filepath, ".abc")) {
+		BLI_path_extension_ensure(filepath, FILE_MAX, ".abc");
 		RNA_string_set(op->ptr, "filepath", filepath);
 		return true;
 	}
@@ -422,12 +426,12 @@ static int get_sequence_len(char *filename, int *ofs)
 	}
 
 	char path[FILE_MAX];
-	BLI_path_abs(filename, G.main->name);
+	BLI_path_abs(filename, BKE_main_blendfile_path_from_global());
 	BLI_split_dir_part(filename, path, FILE_MAX);
 
 	if (path[0] == '\0') {
 		/* The filename had no path, so just use the blend file path. */
-		BLI_split_dir_part(G.main->name, path, FILE_MAX);
+		BLI_split_dir_part(BKE_main_blendfile_path_from_global(), path, FILE_MAX);
 	}
 
 	DIR *dir = opendir(path);

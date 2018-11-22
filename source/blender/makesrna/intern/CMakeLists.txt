@@ -32,7 +32,6 @@ endif()
 set(DEFSRC
 	rna_ID.c
 	rna_action.c
-	rna_actuator.c
 	rna_animation.c
 	rna_animviz.c
 	rna_armature.c
@@ -41,22 +40,23 @@ set(DEFSRC
 	rna_cachefile.c
 	rna_camera.c
 	rna_cloth.c
+	rna_collection.c
 	rna_color.c
 	rna_constraint.c
 	rna_context.c
-	rna_controller.c
 	rna_curve.c
 	rna_depsgraph.c
 	rna_dynamicpaint.c
 	rna_fcurve.c
 	rna_fluidsim.c
 	rna_gpencil.c
-	rna_group.c
+	rna_gpencil_modifier.c
 	rna_image.c
 	rna_key.c
 	rna_lamp.c
 	rna_lattice.c
 	rna_layer.c
+	rna_lightprobe.c
 	rna_linestyle.c
 	rna_main.c
 	rna_mask.c
@@ -73,16 +73,14 @@ set(DEFSRC
 	rna_palette.c
 	rna_particle.c
 	rna_pose.c
-	rna_lightprobe.c
-	rna_property.c
 	rna_render.c
 	rna_rigidbody.c
 	rna_rna.c
 	rna_scene.c
 	rna_screen.c
 	rna_sculpt_paint.c
-	rna_sensor.c
 	rna_sequencer.c
+	rna_shader_fx.c
 	rna_smoke.c
 	rna_sound.c
 	rna_space.c
@@ -96,18 +94,16 @@ set(DEFSRC
 	rna_userdef.c
 	rna_vfont.c
 	rna_wm.c
-	rna_wm_manipulator.c
+	rna_wm_gizmo.c
 	rna_workspace.c
 	rna_world.c
 )
 
 set(APISRC
 	rna_action_api.c
-	rna_actuator_api.c
 	rna_animation_api.c
 	rna_armature_api.c
 	rna_camera_api.c
-	rna_controller_api.c
 	rna_curve_api.c
 	rna_fcurve_api.c
 	rna_image_api.c
@@ -120,7 +116,6 @@ set(APISRC
 	rna_object_api.c
 	rna_pose_api.c
 	rna_scene_api.c
-	rna_sensor_api.c
 	rna_sequencer_api.c
 	rna_sound_api.c
 	rna_space_api.c
@@ -128,7 +123,8 @@ set(APISRC
 	rna_ui_api.c
 	rna_vfont_api.c
 	rna_wm_api.c
-	rna_wm_manipulator_api.c
+	rna_wm_gizmo_api.c
+	rna_workspace_api.c
 )
 
 string(REGEX REPLACE "rna_([a-zA-Z0-9_-]*).c" "${CMAKE_CURRENT_BINARY_DIR}/rna_\\1_gen.c" GENSRC "${DEFSRC}")
@@ -193,14 +189,6 @@ if(WITH_PYTHON)
 	)
 endif()
 
-if(WITH_GAMEENGINE)
-	add_definitions(-DWITH_GAMEENGINE)
-endif()
-
-if(WITH_CLAY_ENGINE)
-	add_definitions(-DWITH_CLAY_ENGINE)
-endif()
-
 if(WITH_IMAGE_OPENEXR)
 	add_definitions(-DWITH_OPENEXR)
 endif()
@@ -227,10 +215,6 @@ endif()
 
 if(WITH_IMAGE_HDR)
 	add_definitions(-DWITH_HDR)
-endif()
-
-if(WITH_IMAGE_FRAMESERVER)
-	add_definitions(-DWITH_FRAMESERVER)
 endif()
 
 if(WITH_AUDASPACE)
@@ -321,6 +305,10 @@ if(WITH_OPENSUBDIV)
 	add_definitions(-DWITH_OPENSUBDIV)
 endif()
 
+if(WITH_OPENSUBDIV_MODIFIER)
+	add_definitions(-DWITH_OPENSUBDIV_MODIFIER)
+endif()
+
 if(WITH_OPENVDB)
 	add_definitions(-DWITH_OPENVDB)
 
@@ -366,6 +354,7 @@ blender_include_dirs_sys(
 )
 
 add_cc_flags_custom_test(makesrna)
+setup_platform_linker_flags()
 
 add_executable(makesrna ${SRC} ${SRC_RNA_INC} ${SRC_DNA_INC})
 

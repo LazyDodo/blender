@@ -33,12 +33,10 @@ void DRW_text_cache_add(
         struct DRWTextStore *dt,
         const float co[3],
         const char *str, const int str_len,
-        short xoffs, short flag,
-        const unsigned char col[4]);
+        short xoffs, short yoffs, short flag,
+        const uchar col[4]);
 
-void DRW_text_cache_draw(
-        struct DRWTextStore *dt,
-        struct View3D *v3d, struct ARegion *ar, bool depth_write);
+void DRW_text_cache_draw(struct DRWTextStore *dt, struct ARegion *ar);
 
 enum {
 	DRW_TEXT_CACHE_ASCII        = (1 << 0),

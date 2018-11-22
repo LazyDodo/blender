@@ -103,10 +103,7 @@ DepsNode::~DepsNode()
 /* Generic identifier for Depsgraph Nodes. */
 string DepsNode::identifier() const
 {
-	char typebuf[7];
-	sprintf(typebuf, "(%d)", type);
-
-	return string(typebuf) + " : " + name;
+	return string(nodeTypeAsString(type)) + " : " + name;
 }
 
 eDepsNode_Class DepsNode::get_class() const {
@@ -124,7 +121,7 @@ eDepsNode_Class DepsNode::get_class() const {
 /*******************************************************************************
  * Generic nodes definition.
  */
-\
+
 DEG_DEPSNODE_DEFINE(TimeSourceDepsNode, DEG_NODE_TYPE_TIMESOURCE, "Time Source");
 static DepsNodeFactoryImpl<TimeSourceDepsNode> DNTI_TIMESOURCE;
 

@@ -49,15 +49,20 @@
 #include "intern/nodes/deg_node_operation.h"
 
 struct Base;
+struct bArmature;
+struct bAction;
 struct bGPdata;
 struct CacheFile;
+struct Camera;
 struct ListBase;
 struct GHash;
 struct ID;
 struct FCurve;
-struct Group;
+struct Collection;
 struct Key;
+struct Lamp;
 struct LayerCollection;
+struct LightProbe;
 struct Main;
 struct Mask;
 struct Material;
@@ -71,6 +76,7 @@ struct bConstraint;
 struct ParticleSystem;
 struct ParticleSettings;
 struct Scene;
+struct Speaker;
 struct ViewLayer;
 struct Tex;
 struct World;
@@ -83,6 +89,7 @@ namespace DEG {
 struct Depsgraph;
 struct DepsNode;
 struct DepsNodeHandle;
+struct DepsRelation;
 struct RootDepsNode;
 struct IDDepsNode;
 struct TimeSourceDepsNode;
@@ -176,29 +183,43 @@ struct DepsgraphRelationBuilder
 	void begin_build();
 
 	template <typename KeyFrom, typename KeyTo>
-	void add_relation(const KeyFrom& key_from,
-	                  const KeyTo& key_to,
-	                  const char *description,
-	                  bool check_unique = false);
+	DepsRelation *add_relation(const KeyFrom& key_from,
+	                           const KeyTo& key_to,
+	                           const char *description,
+	                           bool check_unique = false);
 
 	template <typename KeyTo>
-	void add_relation(const TimeSourceKey& key_from,
-	                  const KeyTo& key_to,
-	                  const char *description,
-	                  bool check_unique = false);
+	DepsRelation *add_relation(const TimeSourceKey& key_from,
+	                           const KeyTo& key_to,
+	                           const char *description,
+	                           bool check_unique = false);
 
 	template <typename KeyType>
-	void add_node_handle_relation(const KeyType& key_from,
-	                              const DepsNodeHandle *handle,
-	                              const char *description,
-	                              bool check_unique = false);
+	DepsRelation *add_node_handle_relation(const KeyType& key_from,
+	                                       const DepsNodeHandle *handle,
+	                                       const char *description,
+	                                       bool check_unique = false);
 
+	void add_customdata_mask(const ComponentKey &key, uint64_t mask);
+	void add_special_eval_flag(ID *object, uint32_t flag);
+
+	void build_id(ID *id);
+	void build_layer_collections(ListBase *lb);
 	void build_view_layer(Scene *scene, ViewLayer *view_layer);
-	void build_group(Object *object, Group *group);
+	void build_collection(LayerCollection *from_layer_collection,
+	                      Object *object,
+	                      Collection *collection);
 	void build_object(Base *base, Object *object);
 	void build_object_flags(Base *base, Object *object);
 	void build_object_data(Object *object);
+	void build_object_data_camera(Object *object);
+	void build_object_data_geometry(Object *object);
+	void build_object_data_geometry_datablock(ID *obdata);
+	void build_object_data_lamp(Object *object);
+	void build_object_data_lightprobe(Object *object);
+	void build_object_data_speaker(Object *object);
 	void build_object_parent(Object *object);
+	void build_object_pointcache(Object *object);
 	void build_constraints(ID *id,
 	                       eDepsNode_Type component_type,
 	                       const char *component_subdata,
@@ -215,6 +236,7 @@ struct DepsgraphRelationBuilder
 	                                     OperationDepsNode *operation_from,
 	                                     ListBase *strips);
 	void build_animdata_drivers(ID *id);
+	void build_action(bAction *action);
 	void build_driver(ID *id, FCurve *fcurve);
 	void build_driver_data(ID *id, FCurve *fcurve);
 	void build_driver_variables(ID *id, FCurve *fcurve);
@@ -225,7 +247,6 @@ struct DepsgraphRelationBuilder
 	void build_particles_visualization_object(Object *object,
 	                                          ParticleSystem *psys,
 	                                          Object *draw_object);
-	void build_cloth(Object *object, ModifierData *md);
 	void build_ik_pose(Object *object,
 	                   bPoseChannel *pchan,
 	                   bConstraint *con,
@@ -236,47 +257,34 @@ struct DepsgraphRelationBuilder
 	                         RootPChanMap *root_map);
 	void build_rig(Object *object);
 	void build_proxy_rig(Object *object);
-	void build_shapekeys(ID *obdata, Key *key);
-	void build_obdata_geom(Object *object);
-	void build_camera(Object *object);
-	void build_lamp(Object *object);
+	void build_shapekeys(Key *key);
+	void build_armature(bArmature *armature);
+	void build_camera(Camera *camera);
+	void build_lamp(Lamp *lamp);
 	void build_nodetree(bNodeTree *ntree);
 	void build_material(Material *ma);
 	void build_texture(Tex *tex);
-	void build_texture_stack(MTex **texture_stack);
 	void build_compositor(Scene *scene);
 	void build_gpencil(bGPdata *gpd);
 	void build_cachefile(CacheFile *cache_file);
 	void build_mask(Mask *mask);
 	void build_movieclip(MovieClip *clip);
-	void build_lightprobe(Object *object);
+	void build_lightprobe(LightProbe *probe);
+	void build_speaker(Speaker *speaker);
+
+	void build_nested_datablock(ID *owner, ID *id);
+	void build_nested_nodetree(ID *owner, bNodeTree *ntree);
+	void build_nested_shapekey(ID *owner, Key *key);
 
 	void add_collision_relations(const OperationKey &key,
-	                             Scene *scene,
 	                             Object *object,
-	                             Group *group,
-	                             bool dupli,
+	                             Collection *collection,
 	                             const char *name);
 	void add_forcefield_relations(const OperationKey &key,
-	                              Scene *scene,
 	                              Object *object,
 	                              ParticleSystem *psys,
 	                              EffectorWeights *eff,
 	                              bool add_absorption, const char *name);
-
-	struct LayerCollectionState {
-		int index;
-		OperationKey init_key;
-		OperationKey done_key;
-		OperationKey prev_key;
-	};
-	void build_layer_collection(ID *owner_id,
-	                            LayerCollection *layer_collection,
-	                            LayerCollectionState *state);
-	void build_layer_collections(ID *owner_id,
-	                             ListBase *layer_collections,
-	                             LayerCollectionState *state);
-	void build_view_layer_collections(struct ID *owner_id, ViewLayer *view_layer);
 
 	void build_copy_on_write_relations();
 	void build_copy_on_write_relations(IDDepsNode *id_node);
@@ -295,14 +303,14 @@ protected:
 	OperationDepsNode *find_node(const OperationKey &key) const;
 	bool has_node(const OperationKey &key) const;
 
-	void add_time_relation(TimeSourceDepsNode *timesrc,
-	                       DepsNode *node_to,
-	                       const char *description,
-	                       bool check_unique = false);
-	void add_operation_relation(OperationDepsNode *node_from,
-	                            OperationDepsNode *node_to,
-	                            const char *description,
-	                            bool check_unique = false);
+	DepsRelation *add_time_relation(TimeSourceDepsNode *timesrc,
+	                                DepsNode *node_to,
+	                                const char *description,
+	                                bool check_unique = false);
+	DepsRelation *add_operation_relation(OperationDepsNode *node_from,
+	                                     OperationDepsNode *node_to,
+	                                     const char *description,
+	                                     bool check_unique = false);
 
 	template <typename KeyType>
 	DepsNodeHandle create_node_handle(const KeyType& key,
@@ -310,7 +318,7 @@ protected:
 
 	/* TODO(sergey): All those is_same* functions are to be generalized. */
 
-	/* Check whether two keys correponds to the same bone from same armature.
+	/* Check whether two keys corresponds to the same bone from same armature.
 	 *
 	 * This is used by drivers relations builder to avoid possible fake
 	 * dependency cycle when one bone property drives another property of the
@@ -334,6 +342,20 @@ protected:
 	                                 const KeyTo& key_to);
 
 private:
+	struct BuilderWalkUserData {
+		DepsgraphRelationBuilder *builder;
+	};
+
+	static void modifier_walk(void *user_data,
+	                          struct Object *object,
+	                          struct ID **idpoin,
+	                          int cb_flag);
+
+	static void constraint_walk(bConstraint *con,
+	                            ID **idpoin,
+	                            bool is_reference,
+	                            void *user_data);
+
 	/* State which never changes, same for the whole builder time. */
 	Main *bmain_;
 	Depsgraph *graph_;

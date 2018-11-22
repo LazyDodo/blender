@@ -81,6 +81,10 @@ typedef struct WorkspaceConfigFileData {
 	struct ListBase workspaces;
 } WorkspaceConfigFileData;
 
+struct BlendFileReadParams {
+	uint skip_flags : 2;  /* eBLOReadSkip */
+	uint is_startup : 1;
+};
 
 /* skip reading some data-block types (may want to skip screen data too). */
 typedef enum eBLOReadSkip {
@@ -93,13 +97,16 @@ typedef enum eBLOReadSkip {
 
 BlendFileData *BLO_read_from_file(
         const char *filepath,
-        struct ReportList *reports, eBLOReadSkip skip_flag);
+        eBLOReadSkip skip_flags,
+        struct ReportList *reports);
 BlendFileData *BLO_read_from_memory(
         const void *mem, int memsize,
-        struct ReportList *reports, eBLOReadSkip skip_flag);
+        eBLOReadSkip skip_flags,
+        struct ReportList *reports);
 BlendFileData *BLO_read_from_memfile(
         struct Main *oldmain, const char *filename, struct MemFile *memfile,
-        struct ReportList *reports, eBLOReadSkip skip_flag);
+        eBLOReadSkip skip_flags,
+        struct ReportList *reports);
 
 void BLO_blendfiledata_free(BlendFileData *bfd);
 
@@ -115,6 +122,7 @@ void BLO_blendhandle_close(BlendHandle *bh);
 /***/
 
 #define BLO_GROUP_MAX 32
+#define BLO_EMBEDDED_STARTUP_BLEND "<startup.blend>"
 
 bool BLO_has_bfile_extension(const char *str);
 bool BLO_library_path_explode(const char *path, char *r_dir, char **r_group, char **r_name);
@@ -134,15 +142,14 @@ struct ID *BLO_library_link_named_part(struct Main *mainl, BlendHandle **bh, con
 struct ID *BLO_library_link_named_part_ex(
         struct Main *mainl, BlendHandle **bh,
         const short idcode, const char *name, const int flag,
-        struct Scene *scene, struct ViewLayer *view_layer);
+        struct Main *bmain, struct Scene *scene, struct ViewLayer *view_layer);
 void BLO_library_link_end(
-        struct Main *mainl, BlendHandle **bh, int flag, struct Scene *scene, struct ViewLayer *view_layer);
+        struct Main *mainl, BlendHandle **bh, int flag,
+        struct Main *bmain, struct Scene *scene, struct ViewLayer *view_layer);
 
 void BLO_library_link_copypaste(struct Main *mainl, BlendHandle *bh);
 
 void *BLO_library_read_struct(struct FileData *fd, struct BHead *bh, const char *blockname);
-
-BlendFileData *blo_read_blendafterruntime(int file, const char *name, int actualsize, struct ReportList *reports);
 
 /* internal function but we need to expose it */
 void blo_lib_link_restore(
@@ -156,14 +163,20 @@ void BLO_expand_main(void *fdhandle, struct Main *mainvar);
 
 /* Update defaults in startup.blend & userprefs.blend, without having to save and embed it */
 void BLO_update_defaults_userpref_blend(void);
-void BLO_update_defaults_startup_blend(struct Main *mainvar);
+void BLO_update_defaults_startup_blend(struct Main *mainvar, const char *app_template);
+
+/* Version patch user preferences. */
+void BLO_version_defaults_userpref_blend(struct Main *mainvar, struct UserDef *userdef);
 
 struct BlendThumbnail *BLO_thumbnail_from_file(const char *filepath);
 
 struct Main *BLO_main_from_memfile(struct MemFile *memfile, struct Main *bmain, struct Scene **r_scene);
 
+/* datafiles (generated theme) */
+extern const struct bTheme U_theme_default;
+
 #ifdef __cplusplus
-} 
+}
 #endif
 
 #endif  /* __BLO_READFILE_H__ */

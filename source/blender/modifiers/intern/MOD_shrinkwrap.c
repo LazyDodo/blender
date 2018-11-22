@@ -35,15 +35,20 @@
 
 #include <string.h>
 
+#include "DNA_mesh_types.h"
 #include "DNA_object_types.h"
 
 #include "BLI_math.h"
 #include "BLI_utildefines.h"
 
-#include "BKE_cdderivedmesh.h"
+#include "BKE_editmesh.h"
+#include "BKE_library.h"
 #include "BKE_library_query.h"
+#include "BKE_mesh.h"
 #include "BKE_modifier.h"
 #include "BKE_shrinkwrap.h"
+
+#include "DEG_depsgraph_query.h"
 
 #include "MOD_util.h"
 
@@ -59,15 +64,6 @@ static void initData(ModifierData *md)
 
 	smd->target     = NULL;
 	smd->auxTarget  = NULL;
-}
-
-static void copyData(ModifierData *md, ModifierData *target)
-{
-#if 0
-	ShrinkwrapModifierData *smd  = (ShrinkwrapModifierData *)md;
-	ShrinkwrapModifierData *tsmd = (ShrinkwrapModifierData *)target;
-#endif
-	modifier_copyData_generic(md, target);
 }
 
 static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
@@ -88,7 +84,7 @@ static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *md)
 	return dataMask;
 }
 
-static bool isDisabled(ModifierData *md, int UNUSED(useRenderParams))
+static bool isDisabled(const struct Scene *UNUSED(scene), ModifierData *md, bool UNUSED(useRenderParams))
 {
 	ShrinkwrapModifierData *smd = (ShrinkwrapModifierData *) md;
 	return !smd->target;
@@ -103,56 +99,69 @@ static void foreachObjectLink(ModifierData *md, Object *ob, ObjectWalkFunc walk,
 	walk(userData, ob, &smd->auxTarget, IDWALK_CB_NOP);
 }
 
-static void deformVerts(ModifierData *md, const struct EvaluationContext *UNUSED(eval_ctx),
-                        Object *ob, DerivedMesh *derivedData,
-                        float (*vertexCos)[3],
-                        int numVerts,
-                        ModifierApplyFlag flag)
+static void deformVerts(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        Mesh *mesh,
+        float (*vertexCos)[3],
+        int numVerts)
 {
-	DerivedMesh *dm = derivedData;
-	CustomDataMask dataMask = requiredDataMask(ob, md);
-	bool forRender = (flag & MOD_APPLY_RENDER) != 0;
+	struct Scene *scene = DEG_get_evaluated_scene(ctx->depsgraph);
+	Mesh *mesh_src = mesh;
 
-	/* ensure we get a CDDM with applied vertex coords */
-	if (dataMask) {
-		dm = get_cddm(ob, NULL, dm, vertexCos, dependsOnNormals(md));
+	if (mesh_src == NULL && ctx->object->type == OB_MESH) {
+		mesh_src = ctx->object->data;
 	}
 
-	shrinkwrapModifier_deform((ShrinkwrapModifierData *)md, ob, dm, vertexCos, numVerts, forRender);
+	BLI_assert(mesh_src == NULL || mesh_src->totvert == numVerts);
 
-	if (dm != derivedData)
-		dm->release(dm);
+	shrinkwrapModifier_deform((ShrinkwrapModifierData *)md, scene, ctx->object, mesh_src, vertexCos, numVerts);
 }
 
-static void deformVertsEM(ModifierData *md, const struct EvaluationContext *UNUSED(eval_ctx), Object *ob,
-                          struct BMEditMesh *editData, DerivedMesh *derivedData,
-                          float (*vertexCos)[3], int numVerts)
+static void deformVertsEM(
+        ModifierData *md, const ModifierEvalContext *ctx,
+        struct BMEditMesh *editData, Mesh *mesh,
+        float (*vertexCos)[3], int numVerts)
 {
-	DerivedMesh *dm = derivedData;
-	CustomDataMask dataMask = requiredDataMask(ob, md);
+	struct Scene *scene = DEG_get_evaluated_scene(ctx->depsgraph);
+	Mesh *mesh_src = mesh;
 
-	/* ensure we get a CDDM with applied vertex coords */
-	if (dataMask) {
-		dm = get_cddm(ob, editData, dm, vertexCos, dependsOnNormals(md));
+	if (mesh_src == NULL) {
+		mesh_src = BKE_mesh_from_bmesh_for_eval_nomain(editData->bm, 0);
 	}
 
-	shrinkwrapModifier_deform((ShrinkwrapModifierData *)md, ob, dm, vertexCos, numVerts, false);
+	BLI_assert(mesh_src->totvert == numVerts);
 
-	if (dm != derivedData)
-		dm->release(dm);
+	shrinkwrapModifier_deform((ShrinkwrapModifierData *)md, scene, ctx->object, mesh_src, vertexCos, numVerts);
+
+	if (!mesh) {
+		BKE_id_free(NULL, mesh_src);
+	}
 }
 
 static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphContext *ctx)
 {
 	ShrinkwrapModifierData *smd = (ShrinkwrapModifierData *)md;
+	CustomDataMask mask = 0;
+
+	if (BKE_shrinkwrap_needs_normals(smd->shrinkType, smd->shrinkMode)) {
+		mask |= CD_MASK_NORMAL | CD_MASK_CUSTOMLOOPNORMAL;
+	}
+
 	if (smd->target != NULL) {
 		DEG_add_object_relation(ctx->node, smd->target, DEG_OB_COMP_TRANSFORM, "Shrinkwrap Modifier");
-		DEG_add_object_relation(ctx->node, smd->target, DEG_OB_COMP_GEOMETRY, "Shrinkwrap Modifier");
+		DEG_add_object_relation_with_customdata(ctx->node, smd->target, DEG_OB_COMP_GEOMETRY, mask, "Shrinkwrap Modifier");
+		if (smd->shrinkType == MOD_SHRINKWRAP_TARGET_PROJECT) {
+			DEG_add_special_eval_flag(ctx->node, &smd->target->id, DAG_EVAL_NEED_SHRINKWRAP_BOUNDARY);
+		}
 	}
 	if (smd->auxTarget != NULL) {
 		DEG_add_object_relation(ctx->node, smd->auxTarget, DEG_OB_COMP_TRANSFORM, "Shrinkwrap Modifier");
-		DEG_add_object_relation(ctx->node, smd->auxTarget, DEG_OB_COMP_GEOMETRY, "Shrinkwrap Modifier");
+		DEG_add_object_relation_with_customdata(ctx->node, smd->auxTarget, DEG_OB_COMP_GEOMETRY, mask, "Shrinkwrap Modifier");
+		if (smd->shrinkType == MOD_SHRINKWRAP_TARGET_PROJECT) {
+			DEG_add_special_eval_flag(ctx->node, &smd->auxTarget->id, DAG_EVAL_NEED_SHRINKWRAP_BOUNDARY);
+		}
 	}
+	DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "Shrinkwrap Modifier");
 }
 
 static bool dependsOnNormals(ModifierData *md)
@@ -161,7 +170,7 @@ static bool dependsOnNormals(ModifierData *md)
 
 	if (smd->target && smd->shrinkType == MOD_SHRINKWRAP_PROJECT)
 		return (smd->projAxis == MOD_SHRINKWRAP_PROJECT_OVER_NORMAL);
-	
+
 	return false;
 }
 
@@ -176,13 +185,20 @@ ModifierTypeInfo modifierType_Shrinkwrap = {
 	                        eModifierTypeFlag_SupportsEditmode |
 	                        eModifierTypeFlag_EnableInEditmode,
 
-	/* copyData */          copyData,
+	/* copyData */          modifier_copyData_generic,
+
+	/* deformVerts_DM */    NULL,
+	/* deformMatrices_DM */ NULL,
+	/* deformVertsEM_DM */  NULL,
+	/* deformMatricesEM_DM*/NULL,
+	/* applyModifier_DM */  NULL,
+
 	/* deformVerts */       deformVerts,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     deformVertsEM,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
-	/* applyModifierEM */   NULL,
+
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,
 	/* freeData */          NULL,

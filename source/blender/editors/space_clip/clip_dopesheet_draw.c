@@ -54,6 +54,7 @@
 
 #include "GPU_draw.h"
 #include "GPU_immediate.h"
+#include "GPU_state.h"
 
 #include "clip_intern.h"  /* own include */
 
@@ -81,7 +82,7 @@ static void draw_keyframe_shape(float x, float y, bool sel, float alpha,
 		UI_GetThemeColorShadeAlpha4fv(TH_STRIP_SELECT, 50, -255 * (1.0f - alpha), color);
 	}
 
-	immAttrib4fv(color_id, color);
+	immAttr4fv(color_id, color);
 	immVertex2f(pos_id, x, y);
 }
 
@@ -91,7 +92,7 @@ static void clip_draw_dopesheet_background(ARegion *ar, MovieClip *clip, unsigne
 	MovieTracking *tracking = &clip->tracking;
 	MovieTrackingDopesheet *dopesheet = &tracking->dopesheet;
 	MovieTrackingDopesheetCoverageSegment *coverage_segment;
-	
+
 	for (coverage_segment = dopesheet->coverage_segments.first;
 	     coverage_segment;
 	     coverage_segment = coverage_segment->next)
@@ -127,10 +128,10 @@ void clip_draw_dopesheet_main(SpaceClip *sc, ARegion *ar, Scene *scene)
 		float strip[4], selected_strip[4];
 		float height = (dopesheet->tot_channel * CHANNEL_STEP) + (CHANNEL_HEIGHT);
 
-		unsigned int keyframe_ct = 0;
+		uint keyframe_len = 0;
 
-		Gwn_VertFormat *format = immVertexFormat();
-		unsigned int pos_id = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+		GPUVertFormat *format = immVertexFormat();
+		uint pos_id = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
 		/* don't use totrect set, as the width stays the same
@@ -147,7 +148,7 @@ void clip_draw_dopesheet_main(SpaceClip *sc, ARegion *ar, Scene *scene)
 		strip[3] = 0.5f;
 		selected_strip[3] = 1.0f;
 
-		glEnable(GL_BLEND);
+		GPU_blend(true);
 
 		clip_draw_dopesheet_background(ar, clip, pos_id);
 
@@ -185,10 +186,10 @@ void clip_draw_dopesheet_main(SpaceClip *sc, ARegion *ar, Scene *scene)
 					if (start_frame != end_frame) {
 						immRectf(pos_id, start_frame, (float) y - STRIP_HEIGHT_HALF,
 						         end_frame, (float) y + STRIP_HEIGHT_HALF);
-						keyframe_ct += 2;
+						keyframe_len += 2;
 					}
 					else {
-						keyframe_ct++;
+						keyframe_len++;
 					}
 				}
 
@@ -198,7 +199,7 @@ void clip_draw_dopesheet_main(SpaceClip *sc, ARegion *ar, Scene *scene)
 					MovieTrackingMarker *marker = &track->markers[i];
 
 					if ((marker->flag & (MARKER_DISABLED | MARKER_TRACKED)) == 0) {
-						keyframe_ct++;
+						keyframe_len++;
 					}
 
 					i++;
@@ -211,21 +212,24 @@ void clip_draw_dopesheet_main(SpaceClip *sc, ARegion *ar, Scene *scene)
 
 		immUnbindProgram();
 
-		if (keyframe_ct > 0) {
+		if (keyframe_len > 0) {
 			/* draw keyframe markers */
 			format = immVertexFormat();
-			pos_id = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
-			unsigned int size_id = GWN_vertformat_attr_add(format, "size", GWN_COMP_F32, 1, GWN_FETCH_FLOAT);
-			unsigned int color_id = GWN_vertformat_attr_add(format, "color", GWN_COMP_F32, 4, GWN_FETCH_FLOAT);
-			unsigned int outline_color_id = GWN_vertformat_attr_add(format, "outlineColor", GWN_COMP_U8, 4, GWN_FETCH_INT_TO_FLOAT_UNIT);
+			pos_id = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+			uint size_id = GPU_vertformat_attr_add(format, "size", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
+			uint color_id = GPU_vertformat_attr_add(format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
+			uint outline_color_id = GPU_vertformat_attr_add(format, "outlineColor", GPU_COMP_U8, 4, GPU_FETCH_INT_TO_FLOAT_UNIT);
+			uint flags_id = GPU_vertformat_attr_add(format, "flags", GPU_COMP_U32, 1, GPU_FETCH_INT);
 
 			immBindBuiltinProgram(GPU_SHADER_KEYFRAME_DIAMOND);
 			GPU_enable_program_point_size();
-			immBegin(GWN_PRIM_POINTS, keyframe_ct);
+			immUniform2f("ViewportSize", BLI_rcti_size_x(&v2d->mask) + 1, BLI_rcti_size_y(&v2d->mask) + 1);
+			immBegin(GPU_PRIM_POINTS, keyframe_len);
 
 			/* all same size with black outline */
-			immAttrib1f(size_id, 2.0f * STRIP_HEIGHT_HALF);
-			immAttrib4ub(outline_color_id, 0, 0, 0, 255);
+			immAttr1f(size_id, 2.0f * STRIP_HEIGHT_HALF);
+			immAttr4ub(outline_color_id, 0, 0, 0, 255);
+			immAttr1u(flags_id, 0);
 
 			y = (float) CHANNEL_FIRST; /* start again at the top */
 			for (channel = dopesheet->channels.first; channel; channel = channel->next) {
@@ -279,11 +283,8 @@ void clip_draw_dopesheet_main(SpaceClip *sc, ARegion *ar, Scene *scene)
 			immUnbindProgram();
 		}
 
-		glDisable(GL_BLEND);
+		GPU_blend(false);
 	}
-
-	/* current frame */
-	clip_draw_cfra(sc, ar, scene);
 }
 
 void clip_draw_dopesheet_channels(const bContext *C, ARegion *ar)
@@ -294,7 +295,7 @@ void clip_draw_dopesheet_channels(const bContext *C, ARegion *ar)
 	MovieClip *clip = ED_space_clip_get_clip(sc);
 	uiStyle *style = UI_style_get();
 	int fontid = style->widget.uifont_id;
-	
+
 	if (!clip)
 		return;
 
@@ -317,8 +318,8 @@ void clip_draw_dopesheet_channels(const bContext *C, ARegion *ar)
 	 */
 	float y = (float) CHANNEL_FIRST;
 
-	Gwn_VertFormat *format = immVertexFormat();
-	unsigned int pos = GWN_vertformat_attr_add(format, "pos", GWN_COMP_F32, 2, GWN_FETCH_FLOAT);
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 
@@ -381,7 +382,7 @@ void clip_draw_dopesheet_channels(const bContext *C, ARegion *ar)
 	PropertyRNA *chan_prop_lock = RNA_struct_type_find_property(&RNA_MovieTrackingTrack, "lock");
 	BLI_assert(chan_prop_lock);
 
-	glEnable(GL_BLEND);
+	GPU_blend(true);
 	for (channel = dopesheet->channels.first; channel; channel = channel->next) {
 		float yminc = (float)(y - CHANNEL_HEIGHT_HALF);
 		float ymaxc = (float)(y + CHANNEL_HEIGHT_HALF);
@@ -406,7 +407,7 @@ void clip_draw_dopesheet_channels(const bContext *C, ARegion *ar)
 		/* adjust y-position for next one */
 		y -= CHANNEL_STEP;
 	}
-	glDisable(GL_BLEND);
+	GPU_blend(false);
 
 	UI_block_end(C, block);
 	UI_block_draw(C, block);

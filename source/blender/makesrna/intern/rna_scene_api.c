@@ -66,6 +66,8 @@ const EnumPropertyItem rna_enum_abc_compression_items[] = {
 #include "BKE_scene.h"
 #include "BKE_writeavi.h"
 
+#include "DEG_depsgraph_query.h"
+
 #include "ED_transform.h"
 #include "ED_transform_snap_object_context.h"
 #include "ED_uvedit.h"
@@ -90,11 +92,7 @@ static void rna_Scene_frame_set(Scene *scene, Main *bmain, int frame, float subf
 	     view_layer = view_layer->next)
 	{
 		Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene, view_layer, true);
-		BKE_scene_graph_update_for_newframe(bmain->eval_ctx,
-		                                    depsgraph,
-		                                    bmain,
-		                                    scene,
-		                                    view_layer);
+		BKE_scene_graph_update_for_newframe(depsgraph, bmain);
 	}
 
 #ifdef WITH_PYTHON
@@ -109,7 +107,7 @@ static void rna_Scene_frame_set(Scene *scene, Main *bmain, int frame, float subf
 		/* cant use NC_SCENE|ND_FRAME because this causes wm_event_do_notifiers to call
 		 * BKE_scene_graph_update_for_newframe which will loose any un-keyed changes [#24690] */
 		/* WM_main_add_notifier(NC_SCENE|ND_FRAME, scene); */
-		
+
 		/* instead just redraw the views */
 		WM_main_add_notifier(NC_WINDOW, NULL);
 	}
@@ -140,11 +138,7 @@ static void rna_Scene_update_tagged(Scene *scene, Main *bmain)
 	     view_layer = view_layer->next)
 	{
 		Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene, view_layer, true);
-		BKE_scene_graph_update_tagged(bmain->eval_ctx,
-		                              depsgraph,
-		                              bmain,
-		                              scene,
-		                              view_layer);
+		BKE_scene_graph_update_tagged(depsgraph, bmain);
 	}
 
 #ifdef WITH_PYTHON
@@ -152,7 +146,8 @@ static void rna_Scene_update_tagged(Scene *scene, Main *bmain)
 #endif
 }
 
-static void rna_SceneRender_get_frame_path(RenderData *rd, int frame, int preview, const char *view, char *name)
+static void rna_SceneRender_get_frame_path(
+        RenderData *rd, Main *bmain, int frame, bool preview, const char *view, char *name)
 {
 	const char *suffix = BKE_scene_multiview_view_suffix_get(rd, view);
 
@@ -165,30 +160,21 @@ static void rna_SceneRender_get_frame_path(RenderData *rd, int frame, int previe
 	}
 	else {
 		BKE_image_path_from_imformat(
-		        name, rd->pic, G.main->name, (frame == INT_MIN) ? rd->cfra : frame,
+		        name, rd->pic, BKE_main_blendfile_path(bmain), (frame == INT_MIN) ? rd->cfra : frame,
 		        &rd->im_format, (rd->scemode & R_EXTENSION) != 0, true, suffix);
 	}
 }
 
 static void rna_Scene_ray_cast(
-        Scene *scene, ViewLayer *view_layer, const char *engine_id,
+        Scene *scene, Main *bmain, ViewLayer *view_layer,
         float origin[3], float direction[3], float ray_dist,
-        int *r_success, float r_location[3], float r_normal[3], int *r_index,
+        bool *r_success, float r_location[3], float r_normal[3], int *r_index,
         Object **r_ob, float r_obmat[16])
 {
-	RenderEngineType *engine_type;
-
-	if (engine_id == NULL || engine_id[0] == '\0') {
-		engine_type = RE_engines_find(scene->view_render.engine_id);
-	}
-	else {
-		engine_type = RE_engines_find(engine_id);
-	}
-
 	normalize_v3(direction);
 
-	SnapObjectContext *sctx = ED_transform_snap_object_context_create(
-	        G.main, scene, view_layer, engine_type, 0);
+	Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene, view_layer, true);
+	SnapObjectContext *sctx = ED_transform_snap_object_context_create(bmain, scene, depsgraph, 0);
 
 	bool ret = ED_transform_snap_object_project_ray_ex(
 	        sctx,
@@ -201,6 +187,10 @@ static void rna_Scene_ray_cast(
 
 	ED_transform_snap_object_context_destroy(sctx);
 
+	if (r_ob != NULL && *r_ob != NULL) {
+		*r_ob = DEG_get_original_object(*r_ob);
+	}
+
 	if (ret) {
 		*r_success = true;
 	}
@@ -211,6 +201,11 @@ static void rna_Scene_ray_cast(
 		zero_v3(r_location);
 		zero_v3(r_normal);
 	}
+}
+
+static void rna_Scene_sequencer_editing_free(Scene *scene)
+{
+	BKE_sequencer_editing_free(scene, true);
 }
 
 #ifdef WITH_ALEMBIC
@@ -225,22 +220,22 @@ static void rna_Scene_alembic_export(
         int geom_samples,
         float shutter_open,
         float shutter_close,
-        int selected_only,
-        int uvs,
-        int normals,
-        int vcolors,
-        int apply_subdiv,
-        int flatten_hierarchy,
-        int visible_layers_only,
-        int renderable_only,
-        int face_sets,
-        int use_subdiv_schema,
-        int export_hair,
-        int export_particles,
+        bool selected_only,
+        bool uvs,
+        bool normals,
+        bool vcolors,
+        bool apply_subdiv,
+        bool flatten_hierarchy,
+        bool visible_layers_only,
+        bool renderable_only,
+        bool face_sets,
+        bool use_subdiv_schema,
+        bool export_hair,
+        bool export_particles,
         int compression_type,
-        int packuv,
+        bool packuv,
         float scale,
-        int triangulate,
+        bool triangulate,
         int quad_method,
         int ngon_method)
 {
@@ -316,13 +311,13 @@ void RNA_api_scene(StructRNA *srna)
 	parm = RNA_def_float_vector(func, "result", 2, NULL, 0.0f, FLT_MAX, "", "aspect", 0.0f, FLT_MAX);
 	RNA_def_parameter_flags(parm, PROP_THICK_WRAP, 0);
 	RNA_def_function_output(func, parm);
-	
+
 	/* Ray Cast */
 	func = RNA_def_function(srna, "ray_cast", "rna_Scene_ray_cast");
+	RNA_def_function_flag(func, FUNC_USE_MAIN);
 	RNA_def_function_ui_description(func, "Cast a ray onto in object space");
 	parm = RNA_def_pointer(func, "view_layer", "ViewLayer", "", "Scene Layer");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED);
-	parm = RNA_def_string(func, "engine", NULL, MAX_NAME, "Engine", "Render engine, use scene one by default");
 	/* ray start and end */
 	parm = RNA_def_float_vector(func, "origin", 3, NULL, -FLT_MAX, FLT_MAX, "", "", -1e4, 1e4);
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
@@ -348,6 +343,14 @@ void RNA_api_scene(StructRNA *srna)
 	parm = RNA_def_float_matrix(func, "matrix", 4, 4, NULL, 0.0f, 0.0f, "", "Matrix", 0.0f, 0.0f);
 	RNA_def_function_output(func, parm);
 
+	/* Sequencer. */
+	func = RNA_def_function(srna, "sequence_editor_create", "BKE_sequencer_editing_ensure");
+	RNA_def_function_ui_description(func, "Ensure sequence editor is valid in this scene");
+	parm = RNA_def_pointer(func, "sequence_editor", "SequenceEditor", "", "New sequence editor data or NULL");
+	RNA_def_function_return(func, parm);
+
+	func = RNA_def_function(srna, "sequence_editor_clear", "rna_Scene_sequencer_editing_free");
+	RNA_def_function_ui_description(func, "Clear sequence editor in this scene");
 
 #ifdef WITH_ALEMBIC
 	/* XXX Deprecated, will be removed in 2.8 in favour of calling the export operator. */
@@ -377,7 +380,7 @@ void RNA_api_scene(StructRNA *srna)
 	RNA_def_boolean(func, "export_hair", 1, "Export Hair", "Exports hair particle systems as animated curves");
 	RNA_def_boolean(func, "export_particles", 1, "Export Particles", "Exports non-hair particle systems");
 	RNA_def_enum(func, "compression_type", rna_enum_abc_compression_items, 0, "Compression", "");
-	RNA_def_boolean(func, "packuv"		, 0, "Export with packed UV islands", "Export with packed UV islands");
+	RNA_def_boolean(func, "packuv", 0, "Export with packed UV islands", "Export with packed UV islands");
 	RNA_def_float(func, "scale", 1.0f, 0.0001f, 1000.0f, "Scale", "Value by which to enlarge or shrink the objects with respect to the world's origin", 0.0001f, 1000.0f);
 	RNA_def_boolean(func, "triangulate", 0, "Triangulate", "Export Polygons (Quads & NGons) as Triangles");
 	RNA_def_enum(func, "quad_method", rna_enum_modifier_triangulate_quad_method_items, 0, "Quad Method", "Method for splitting the quads into triangles");
@@ -394,6 +397,7 @@ void RNA_api_scene_render(StructRNA *srna)
 	PropertyRNA *parm;
 
 	func = RNA_def_function(srna, "frame_path", "rna_SceneRender_get_frame_path");
+	RNA_def_function_flag(func, FUNC_USE_MAIN);
 	RNA_def_function_ui_description(func, "Return the absolute path to the filename to be written for a given frame");
 	RNA_def_int(func, "frame", INT_MIN, INT_MIN, INT_MAX, "",
 	            "Frame number to use, if unset the current frame will be used", MINAFRAME, MAXFRAME);

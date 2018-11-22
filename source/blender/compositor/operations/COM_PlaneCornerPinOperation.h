@@ -17,11 +17,11 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
  * Contributor:
- *		Lukas Toenne
+ *      Lukas Toenne
  */
 
-#ifndef _COM_CornerPinWarpImageOperation_h
-#define _COM_CornerPinWarpImageOperation_h
+#ifndef __COM_PLANECORNERPINOPERATION_H__
+#define __COM_PLANECORNERPINOPERATION_H__
 
 #include <string.h>
 
@@ -37,15 +37,15 @@
 class PlaneCornerPinMaskOperation : public PlaneDistortMaskOperation {
 private:
 	bool m_corners_ready;
-	
+
 public:
 	PlaneCornerPinMaskOperation();
-	
+
 	void initExecution();
 	void deinitExecution();
-	
+
 	void *initializeTileData(rcti *rect);
-	
+
 	void determineResolution(unsigned int resolution[2], unsigned int preferredResolution[2]);
 };
 
@@ -53,15 +53,15 @@ public:
 class PlaneCornerPinWarpImageOperation : public PlaneDistortWarpImageOperation {
 private:
 	bool m_corners_ready;
-	
+
 public:
 	PlaneCornerPinWarpImageOperation();
-	
+
 	void initExecution();
 	void deinitExecution();
-	
+
 	void *initializeTileData(rcti *rect);
-	
+
 	bool determineDependingAreaOfInterest(rcti *input, ReadBufferOperation *readOperation, rcti *output);
 };
 
