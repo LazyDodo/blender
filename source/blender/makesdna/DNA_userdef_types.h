@@ -418,7 +418,6 @@ typedef struct bTheme {
 	ThemeSpace toops;
 	ThemeSpace ttime;
 	ThemeSpace tnode;
-	ThemeSpace tlogic;
 	ThemeSpace tuserpref;
 	ThemeSpace tconsole;
 	ThemeSpace tclip;
@@ -543,9 +542,9 @@ typedef struct UserDef {
 	short app_flag;
 	short language;
 	short userpref;
-	char userpref_flag;
+	char  userpref_flag;
 	char viewzoom;
-	
+
 	int mixbufsize;
 	int audiodevice;
 	int audiorate;

@@ -31,8 +31,6 @@ class INFO_HT_header(Header):
         # Empty for now until info editor gets turned into log editor
         pass
 
-        row = layout.row(align=True)
-        row.template_header()
 
 # Not really info, just add to re-usable location.
 class INFO_MT_area(Menu):

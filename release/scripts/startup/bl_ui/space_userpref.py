@@ -143,6 +143,7 @@ class USERPREF_PT_interface(Panel):
         row.separator()
         col = row.column()
 
+        col.label(text="View Gizmos:")
         col.prop(view, "use_mouse_depth_cursor")
         col.prop(view, "use_cursor_lock_adjust")
         col.prop(view, "use_mouse_depth_navigate")

@@ -4320,7 +4320,7 @@ static void SCREEN_OT_back_to_previous(struct wmOperatorType *ot)
 	ot->name = "Back to Previous Screen";
 	ot->description = "Revert back to the original screen layout, before fullscreen area overlay";
 	ot->idname = "SCREEN_OT_back_to_previous";
-	
+
 	/* api callbacks */
 	ot->exec = fullscreen_back_exec;
 	ot->poll = ED_operator_screenactive;

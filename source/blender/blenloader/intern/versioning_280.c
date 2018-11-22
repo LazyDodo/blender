@@ -1207,6 +1207,44 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				probe->intensity = 1.0f;
 			}
 		}
+
+		for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+			bConstraint *con, *con_next;
+			con = ob->constraints.first;
+			while (con) {
+				con_next = con->next;
+				if (con->type == 17) { /* CONSTRAINT_TYPE_RIGIDBODYJOINT */
+					BLI_remlink(&ob->constraints, con);
+					BKE_constraint_free_data(con);
+					MEM_freeN(con);
+				}
+				con = con_next;
+			}
+		}
+
+		if (!DNA_struct_elem_find(fd->filesdna, "Scene", "int", "orientation_index_custom")) {
+			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+				scene->orientation_index_custom = -1;
+			}
+		}
+
+		for (bScreen *sc = bmain->screen.first; sc; sc = sc->id.next) {
+			for (ScrArea *sa = sc->areabase.first; sa; sa = sa->next) {
+				for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+					if (sl->spacetype == SPACE_VIEW3D) {
+						View3D *v3d = (View3D *)sl;
+						v3d->shading.light = V3D_LIGHTING_STUDIO;
+						v3d->shading.flag |= V3D_SHADING_OBJECT_OUTLINE;
+
+						/* Assume (demo) files written with 2.8 want to show
+						 * Eevee renders in the viewport. */
+						if (MAIN_VERSION_ATLEAST(bmain, 280, 0)) {
+							v3d->drawtype = OB_MATERIAL;
+						}
+					}
+				}
+			}
+		}
 	}
 
 	if (!MAIN_VERSION_ATLEAST(bmain, 280, 7)) {
