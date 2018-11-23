@@ -539,8 +539,9 @@ class TOPBAR_PT_gpencil_layers(Panel):
                 sub.operator("gpencil.layer_isolate", icon='LOCKED', text="").affect_visibility = False
                 sub.operator("gpencil.layer_isolate", icon='HIDE_OFF', text="").affect_visibility = True
 
-        row = layout.row(align=True)
         if gpl:
+            row = layout.row(align=True)
+            row.enabled = gpl.blend_mode == 'NORMAL'
             row.prop(gpl, "opacity", text="Opacity", slider=True)
             row = layout.row(align=True)
             row.prop(gpl, "blend_mode", text="Blend")
