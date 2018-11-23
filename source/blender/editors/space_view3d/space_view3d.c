@@ -325,7 +325,7 @@ static SpaceLink *view3d_new(const ScrArea *UNUSED(sa), const Scene *scene)
 	BKE_screen_view3d_shading_init(&v3d->shading);
 
 	v3d->overlay.wireframe_threshold = 0.5f;
-	v3d->overlay.bone_select_alpha = 0.5f;
+	v3d->overlay.xray_alpha_bone = 0.5f;
 	v3d->overlay.texture_paint_mode_opacity = 0.8;
 	v3d->overlay.weight_paint_mode_opacity = 1.0f;
 	v3d->overlay.vertex_paint_mode_opacity = 0.8;
@@ -704,6 +704,7 @@ static void view3d_widgets(void)
 	WM_gizmogrouptype_append(TRANSFORM_GGT_gizmo);
 	WM_gizmogrouptype_append(VIEW3D_GGT_xform_cage);
 	WM_gizmogrouptype_append(VIEW3D_GGT_xform_shear);
+	WM_gizmogrouptype_append(VIEW3D_GGT_xform_extrude);
 	WM_gizmogrouptype_append(VIEW3D_GGT_mesh_preselect_elem);
 	WM_gizmogrouptype_append(VIEW3D_GGT_mesh_preselect_edgering);
 

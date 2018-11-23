@@ -993,14 +993,14 @@ void uiTemplateIDPreview(
 }
 
 void uiTemplateGpencilColorPreview(
-	uiLayout *layout, bContext *C, PointerRNA *ptr, const char *propname,
-	int rows, int cols, float scale, int filter)
+        uiLayout *layout, bContext *C, PointerRNA *ptr, const char *propname,
+        int rows, int cols, float scale, int filter)
 {
 	ui_template_id(
-		layout, C, ptr, propname,
-		NULL, NULL, NULL,
-		UI_ID_BROWSE | UI_ID_PREVIEWS | UI_ID_DELETE,
-		rows, cols, filter, false, scale < 0.5f ? 0.5f : scale, false, false);
+	        layout, C, ptr, propname,
+	        NULL, NULL, NULL,
+	        UI_ID_BROWSE | UI_ID_PREVIEWS | UI_ID_DELETE,
+	        rows, cols, filter, false, scale < 0.5f ? 0.5f : scale, false, false);
 }
 
 /**
@@ -1355,7 +1355,7 @@ static int modifier_is_simulation(ModifierData *md)
 {
 	/* Physic Tab */
 	if (ELEM(md->type, eModifierType_Cloth, eModifierType_Collision, eModifierType_Fluidsim, eModifierType_Smoke,
-	          eModifierType_Softbody, eModifierType_Surface, eModifierType_DynamicPaint))
+	         eModifierType_Softbody, eModifierType_Surface, eModifierType_DynamicPaint))
 	{
 		return 1;
 	}
@@ -1533,7 +1533,7 @@ static uiLayout *draw_modifier(
 			UI_block_lock_set(block, ob && ID_IS_LINKED(ob), ERROR_LIBDATA_MESSAGE);
 
 			if (!ELEM(md->type, eModifierType_Fluidsim, eModifierType_Softbody, eModifierType_ParticleSystem,
-			           eModifierType_Cloth, eModifierType_Smoke))
+			          eModifierType_Cloth, eModifierType_Smoke))
 			{
 				uiItemO(row, CTX_IFACE_(BLT_I18NCONTEXT_OPERATOR_DEFAULT, "Copy"), ICON_NONE,
 				        "OBJECT_OT_modifier_copy");
@@ -1636,8 +1636,8 @@ static uiLayout *gpencil_draw_modifier(
 
 	/* mode enabling buttons */
 	UI_block_align_begin(block);
-		uiItemR(row, &ptr, "show_render", 0, "", ICON_NONE);
-		uiItemR(row, &ptr, "show_viewport", 0, "", ICON_NONE);
+	uiItemR(row, &ptr, "show_render", 0, "", ICON_NONE);
+	uiItemR(row, &ptr, "show_viewport", 0, "", ICON_NONE);
 
 	if (mti->flags & eGpencilModifierTypeFlag_SupportsEditmode) {
 		sub = uiLayoutRow(row, true);
@@ -1675,7 +1675,7 @@ static uiLayout *gpencil_draw_modifier(
 		uiItemEnumO(sub, "OBJECT_OT_gpencil_modifier_apply", CTX_IFACE_(BLT_I18NCONTEXT_OPERATOR_DEFAULT, "Apply"),
 		            0, "apply_as", MODIFIER_APPLY_DATA);
 		uiItemO(row, CTX_IFACE_(BLT_I18NCONTEXT_OPERATOR_DEFAULT, "Copy"), ICON_NONE,
-			"OBJECT_OT_gpencil_modifier_copy");
+		        "OBJECT_OT_gpencil_modifier_copy");
 
 		/* result is the layout block inside the box, that we return so that modifier settings can be drawn */
 		result = uiLayoutColumn(box, false);
@@ -1726,8 +1726,9 @@ uiLayout *uiTemplateGpencilModifier(uiLayout *layout, bContext *UNUSED(C), Point
 
 /************************ Shader FX Template *************************/
 
-static uiLayout *gpencil_draw_shaderfx(uiLayout *layout, Object *ob,
-	ShaderFxData *md)
+static uiLayout *gpencil_draw_shaderfx(
+        uiLayout *layout, Object *ob,
+        ShaderFxData *md)
 {
 	const ShaderFxTypeInfo *mti = BKE_shaderfxType_getInfo(md->type);
 	PointerRNA ptr;
@@ -2360,34 +2361,39 @@ static void colorband_tools_dofunc(bContext *C, void *coba_v, int event)
 }
 
 static uiBlock *colorband_tools_func(
-	bContext *C, ARegion *ar, ColorBand *coba)
+        bContext *C, ARegion *ar, void *coba_v)
 {
-	uiBut *bt;
+	ColorBand *coba = coba_v;
 	uiBlock *block;
 	short yco = 0, menuwidth = 10 * UI_UNIT_X;
 
 	block = UI_block_begin(C, ar, __func__, UI_EMBOSS);
 	UI_block_func_butmenu_set(block, colorband_tools_dofunc, coba);
-	
+
 	{
+		uiBut *but;
 		uiDefIconTextBut(
-			block, UI_BTYPE_BUT_MENU, 1, ICON_BLANK1, IFACE_("Flip Color Ramp"),
-			0, yco -= UI_UNIT_Y, menuwidth, UI_UNIT_Y, NULL, 0.0, 0.0, 0, CB_FUNC_FLIP, "");
+		        block, UI_BTYPE_BUT_MENU, 1, ICON_BLANK1,
+		        IFACE_("Flip Color Ramp"), 0, yco -= UI_UNIT_Y, menuwidth, UI_UNIT_Y,
+		        NULL, 0.0, 0.0, 0, CB_FUNC_FLIP, "");
 		uiDefIconTextBut(
-			block, UI_BTYPE_BUT_MENU, 1, ICON_BLANK1, IFACE_("Distribute Stops from Left"),
-			0, yco -= UI_UNIT_Y, menuwidth, UI_UNIT_Y, NULL, 0.0, 0.0, 0, CB_FUNC_DISTRIBUTE_LR, "");
+		        block, UI_BTYPE_BUT_MENU, 1, ICON_BLANK1,
+		        IFACE_("Distribute Stops from Left"), 0, yco -= UI_UNIT_Y, menuwidth, UI_UNIT_Y,
+		        NULL, 0.0, 0.0, 0, CB_FUNC_DISTRIBUTE_LR, "");
 		uiDefIconTextBut(
-			block, UI_BTYPE_BUT_MENU, 1, ICON_BLANK1, IFACE_("Distribute Stops Evenly"),
-			0, yco -= UI_UNIT_Y, menuwidth, UI_UNIT_Y, NULL, 0.0, 0.0, 0, CB_FUNC_DISTRIBUTE_EVENLY, "");
-		bt = uiDefIconTextButO(
-			block, UI_BTYPE_BUT_MENU, "UI_OT_eyedropper_colorband", WM_OP_INVOKE_DEFAULT, ICON_EYEDROPPER, IFACE_("Eyedropper"),
-			0, yco -= UI_UNIT_Y, menuwidth, UI_UNIT_Y, "");
-			bt->custom_data = coba;
+		        block, UI_BTYPE_BUT_MENU, 1, ICON_BLANK1,
+		        IFACE_("Distribute Stops Evenly"), 0, yco -= UI_UNIT_Y, menuwidth, UI_UNIT_Y,
+		        NULL, 0.0, 0.0, 0, CB_FUNC_DISTRIBUTE_EVENLY, "");
+		but = uiDefIconTextButO(
+		        block, UI_BTYPE_BUT_MENU, "UI_OT_eyedropper_colorband", WM_OP_INVOKE_DEFAULT, ICON_EYEDROPPER,
+		        IFACE_("Eyedropper"), 0, yco -= UI_UNIT_Y, menuwidth, UI_UNIT_Y,
+		        "");
+		but->custom_data = coba;
 		uiDefIconTextBut(
-			block, UI_BTYPE_BUT_MENU, 1, ICON_BLANK1, IFACE_("Reset Color Ramp"),
-			0, yco -= UI_UNIT_Y, menuwidth, UI_UNIT_Y, NULL, 0.0, 0.0, 0, CB_FUNC_RESET, "");
+		        block, UI_BTYPE_BUT_MENU, 1, ICON_BLANK1, IFACE_("Reset Color Ramp"),
+		        0, yco -= UI_UNIT_Y, menuwidth, UI_UNIT_Y, NULL, 0.0, 0.0, 0, CB_FUNC_RESET, "");
 	}
-	
+
 	UI_block_direction_set(block, UI_DIR_DOWN);
 	UI_block_bounds_set_text(block, 3.0f * UI_UNIT_X);
 
@@ -3578,7 +3584,7 @@ static void uilist_draw_filter_default(struct uiList *ui_list, struct bContext *
 		subrow = uiLayoutRow(row, true);
 		uiItemR(subrow, &listptr, "use_filter_sort_alpha", UI_ITEM_R_TOGGLE | UI_ITEM_R_ICON_ONLY, "", ICON_NONE);
 		uiItemR(subrow, &listptr, "use_filter_sort_reverse", UI_ITEM_R_TOGGLE | UI_ITEM_R_ICON_ONLY, "",
-			(ui_list->filter_sort_flag & UILST_FLT_SORT_REVERSE) ? ICON_SORT_DESC : ICON_SORT_ASC);
+		        (ui_list->filter_sort_flag & UILST_FLT_SORT_REVERSE) ? ICON_SORT_DESC : ICON_SORT_ASC);
 	}
 }
 
@@ -4295,8 +4301,8 @@ static void operator_search_cb(const bContext *C, void *UNUSED(arg), const char 
 				/* check for hotkey */
 				if (len < sizeof(name) - 6) {
 					if (WM_key_event_operator_string(
-					        C, ot->idname, WM_OP_EXEC_DEFAULT, NULL, true,
-					        &name[len + 1], sizeof(name) - len - 1))
+					            C, ot->idname, WM_OP_EXEC_DEFAULT, NULL, true,
+					            &name[len + 1], sizeof(name) - len - 1))
 					{
 						name[len] = UI_SEP_CHAR;
 					}

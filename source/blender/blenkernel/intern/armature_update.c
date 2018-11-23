@@ -47,6 +47,7 @@
 #include "BKE_curve.h"
 #include "BKE_displist.h"
 #include "BKE_fcurve.h"
+#include "BKE_object.h"
 #include "BKE_scene.h"
 
 #include "BIK_api.h"
@@ -607,7 +608,7 @@ void BKE_pose_eval_init(struct Depsgraph *depsgraph,
 	}
 
 	pose_pchan_index_create(pose);
-	armature_cached_bbone_deformation_free_data(object);
+	BKE_armature_cached_bbone_deformation_free_data(object);
 }
 
 void BKE_pose_eval_init_ik(struct Depsgraph *depsgraph,
@@ -748,12 +749,13 @@ void BKE_pose_splineik_evaluate(struct Depsgraph *depsgraph,
 }
 
 /* Common part for both original and proxy armatrues. */
-static void pose_eval_done_common(Object *object)
+static void pose_eval_done_common(struct Depsgraph *depsgraph, Object *object)
 {
 	bPose *pose = object->pose;
 	UNUSED_VARS_NDEBUG(pose);
 	BLI_assert(pose != NULL);
-	armature_cached_bbone_deformation_update(object);
+	BKE_armature_cached_bbone_deformation_update(object);
+	BKE_object_eval_boundbox(depsgraph, object);
 }
 static void pose_eval_cleanup_common(Object *object)
 {
@@ -770,7 +772,7 @@ void BKE_pose_eval_done(struct Depsgraph *depsgraph, Object *object)
 	UNUSED_VARS_NDEBUG(pose);
 	DEG_debug_print_eval(depsgraph, __func__, object->id.name, object);
 	BLI_assert(object->type == OB_ARMATURE);
-	pose_eval_done_common(object);
+	pose_eval_done_common(depsgraph, object);
 }
 
 void BKE_pose_eval_cleanup(struct Depsgraph *depsgraph,
@@ -794,14 +796,14 @@ void BKE_pose_eval_proxy_init(struct Depsgraph *depsgraph, Object *object)
 	DEG_debug_print_eval(depsgraph, __func__, object->id.name, object);
 
 	pose_pchan_index_create(object->pose);
-	armature_cached_bbone_deformation_free_data(object);
+	BKE_armature_cached_bbone_deformation_free_data(object);
 }
 
 void BKE_pose_eval_proxy_done(struct Depsgraph *depsgraph, Object *object)
 {
 	BLI_assert(ID_IS_LINKED(object) && object->proxy_from != NULL);
 	DEG_debug_print_eval(depsgraph, __func__, object->id.name, object);
-	pose_eval_done_common(object);
+	pose_eval_done_common(depsgraph, object);
 }
 
 void BKE_pose_eval_proxy_cleanup(struct Depsgraph *depsgraph, Object *object)
