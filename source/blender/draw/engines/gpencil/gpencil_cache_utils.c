@@ -124,7 +124,7 @@ tGPencilObjectCache *gpencil_object_cache_add(
 
 /* add a shading group to the cache to create later */
 GpencilBatchGroup *gpencil_group_cache_add(
-	GpencilBatchGroup *cache_array, bGPdata *gpd,
+	GpencilBatchGroup *cache_array,
 	bGPDlayer *gpl, bGPDframe *gpf, bGPDstroke *gps,
 	const short type, const bool onion,
 	const int vertex_idx,

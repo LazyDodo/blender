@@ -554,7 +554,6 @@ static void gpencil_add_fill_vertexdata(
         float opacity, const float tintcolor[4], const bool onion, const bool custonion)
 {
 	MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
-	bGPdata *gpd = (bGPdata *)ob->data;
 
 	if (gps->totpoints >= 3) {
 		float tfill[4];
@@ -583,7 +582,7 @@ static void gpencil_add_fill_vertexdata(
 				/* add to list of groups */
 				if (old_len < cache->b_fill.vbo_len) {
 					cache->grp_cache = gpencil_group_cache_add(
-					        cache->grp_cache, gpd, gpl, gpf, gps,
+					        cache->grp_cache, gpl, gpf, gps,
 							eGpencilBatchGroupType_Fill, onion,
 					        cache->b_fill.vbo_len,
 					        &cache->grp_size, &cache->grp_used);
@@ -604,7 +603,6 @@ static void gpencil_add_stroke_vertexdata(
 	float ink[4];
 	short sthickness;
 	MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
-	bGPdata *gpd = (bGPdata *)ob->data;
 
 	/* set color using base color, tint color and opacity */
 	if (cache->is_dirty) {
@@ -641,7 +639,7 @@ static void gpencil_add_stroke_vertexdata(
 			/* add to list of groups */
 			if (old_len < cache->b_stroke.vbo_len) {
 				cache->grp_cache = gpencil_group_cache_add(
-				        cache->grp_cache, gpd, gpl, gpf, gps,
+				        cache->grp_cache, gpl, gpf, gps,
 						eGpencilBatchGroupType_Stroke, onion,
 				        cache->b_stroke.vbo_len,
 				        &cache->grp_size, &cache->grp_used);
@@ -655,7 +653,7 @@ static void gpencil_add_stroke_vertexdata(
 			/* add to list of groups */
 			if (old_len < cache->b_point.vbo_len) {
 				cache->grp_cache = gpencil_group_cache_add(
-				        cache->grp_cache, gpd, gpl, gpf, gps, eGpencilBatchGroupType_Point, onion,
+				        cache->grp_cache, gpl, gpf, gps, eGpencilBatchGroupType_Point, onion,
 				        cache->b_point.vbo_len,
 				        &cache->grp_size, &cache->grp_used);
 			}
@@ -692,7 +690,7 @@ static void gpencil_add_editpoints_vertexdata(
 
 				/* add to list of groups */
 				cache->grp_cache = gpencil_group_cache_add(
-				        cache->grp_cache, gpd, gpl, gpf, gps,
+				        cache->grp_cache, gpl, gpf, gps,
 						eGpencilBatchGroupType_Edlin, false,
 				        cache->b_edlin.vbo_len,
 				        &cache->grp_size, &cache->grp_used);
@@ -705,7 +703,7 @@ static void gpencil_add_editpoints_vertexdata(
 
 						/* add to list of groups */
 						cache->grp_cache = gpencil_group_cache_add(
-						        cache->grp_cache,gpd, gpl, gpf, gps,
+						        cache->grp_cache, gpl, gpf, gps,
 								eGpencilBatchGroupType_Edit, false,
 						        cache->b_edit.vbo_len,
 						        &cache->grp_size, &cache->grp_used);

@@ -381,7 +381,7 @@ struct tGPencilObjectCache *gpencil_object_cache_add(
 
 /* shading groups cache functions */
 struct GpencilBatchGroup *gpencil_group_cache_add(
-	struct GpencilBatchGroup *cache_array, struct bGPdata *gpd,
+	struct GpencilBatchGroup *cache_array,
 	struct bGPDlayer *gpl, struct bGPDframe *gpf, struct bGPDstroke *gps,
 	const short type, const bool onion,
 	const int vertex_idx,
