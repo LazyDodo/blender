@@ -1640,7 +1640,7 @@ void DepsgraphRelationBuilder::build_rigidbody(Scene *scene)
 				                            DEG_OPCODE_TRANSFORM_CONSTRAINTS);
 				add_relation(rbo_key, constraint_key, "RBO Sync -> Ob Constraints");
 			}
-			else {
+			else if (!fmd) {
 				/* Final object transform depends on rigidbody.
 				 *
 				 * NOTE: Currently we consider final here an ubereval node.

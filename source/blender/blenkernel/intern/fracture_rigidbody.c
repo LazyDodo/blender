@@ -1575,15 +1575,24 @@ void BKE_rigidbody_shard_validate(RigidBodyWorld *rbw, MeshIsland *mi, Object *o
 	if (BKE_fracture_meshisland_check_frame(fmd, mi, (int)ctime)) {
 		RigidBodyOb *rbo = mi->rigidbody;
 
-		if (rbw->shared->physics_world && rbo->shared->physics_object)
+		if (rbw && rbo && rbo->shared->physics_object && (mi->startframe < (int)ctime))
 		{
-			RB_dworld_remove_body(rbw->shared->physics_world, rbo->shared->physics_object);
-			RB_body_delete(rbo->shared->physics_object);
-			rbo->shared->physics_object = NULL;
-		}
+			if (rbw->shared->physics_world && rbo->shared->physics_object)
+				RB_dworld_remove_body(rbw->shared->physics_world, rbo->shared->physics_object);
 
-		//rbo->flag |= RBO_FLAG_NEEDS_VALIDATE;
-		return;
+			if (rbo->shared->physics_object) {
+				RB_body_delete(rbo->shared->physics_object);
+				rbo->shared->physics_object = NULL;
+			}
+
+			if (rbo->shared->physics_shape) {
+				RB_shape_delete(rbo->shared->physics_shape);
+				rbo->shared->physics_shape = NULL;
+			}
+
+			//do not re-validate
+			rbo->flag &= ~(RBO_FLAG_NEEDS_VALIDATE | RBO_FLAG_NEEDS_RESHAPE);
+		}
 	}
 
 	if (rebuild /*|| (mi->rigidbody->flag & RBO_FLAG_KINEMATIC_REBUILD)*/) {

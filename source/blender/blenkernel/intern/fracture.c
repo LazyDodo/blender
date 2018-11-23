@@ -1336,12 +1336,13 @@ void BKE_fracture_clear_cache(FractureModifierData* fmd, Object* ob, Scene *scen
 
 			if (!mi->rigidbody->shared->physics_object)
 			{
+				mi->rigidbody->flag |= (RBO_FLAG_NEEDS_VALIDATE | RBO_FLAG_NEEDS_RESHAPE);
+#if 0
 				float size[3];
 				mat4_to_size(size, ob->obmat);
 				int frame = (int)BKE_scene_frame_get(scene);
-
-				//mi->rigidbody->flag |= (RBO_FLAG_NEEDS_VALIDATE | RBO_FLAG_NEEDS_RESHAPE);
 				BKE_rigidbody_validate_sim_shard(rbw, mi, ob, fmd, true, true, size, frame);
+#endif
 			}
 
 			mi = mi->next;
@@ -1371,10 +1372,15 @@ Mesh* BKE_fracture_assemble_mesh_from_islands(FractureModifierData* fmd, Scene *
 		RigidBodyOb *rbo = mi->rigidbody;
 
 		if (BKE_fracture_meshisland_check_frame(fmd, mi, (int)ctime)) {
-			if (scene && mi->rigidbody->shared->physics_object && (mi->startframe <= (int)ctime)) {
+#if 0
+			if (scene && rbo && rbo->shared->physics_object && (mi->startframe < (int)ctime)) {
 				BKE_rigidbody_remove_shard(scene, mi);
-				mi->rigidbody->shared->physics_object = NULL;
+				rbo->shared->physics_object = NULL;
+
+				//do not re-validate
+				rbo->flag &= ~(RBO_FLAG_NEEDS_VALIDATE | RBO_FLAG_NEEDS_RESHAPE);
 			}
+#endif
  			continue;
 		}
 
