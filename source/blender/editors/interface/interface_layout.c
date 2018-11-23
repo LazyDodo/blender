@@ -698,7 +698,7 @@ static void ui_item_enum_expand_exec(
 					uiItemS(block->curlayout);
 				}
 				BLI_snprintf(group_name, group_name_len, "%s:", item->name);
-				uiItemL(block->curlayout, group_name, ICON_NONE);
+				uiItemL(block->curlayout, group_name, item->icon);
 			}
 			else {
 				const EnumPropertyItem *next_item = item + 1;

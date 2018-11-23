@@ -4925,7 +4925,7 @@ void RNA_def_userdef(BlenderRNA *brna)
 	PropertyRNA *prop;
 
 	static const EnumPropertyItem user_pref_sections[] = {
-		{0, "", 0, "User Preferences", ""},
+		{0, "", ICON_USER, "User Preferences", ""},
 		{USER_SECTION_EDIT, "EDITING", 0, "Editing", ""},
 		{USER_SECTION_INTERFACE, "INTERFACE", 0, "Interface", ""},
 		{USER_SECTION_INPUT, "INPUT", 0, "Input", ""},
@@ -4934,12 +4934,12 @@ void RNA_def_userdef(BlenderRNA *brna)
 		{USER_SECTION_LIGHT, "LIGHTS", 0, "Lights", ""},
 		{USER_SECTION_FILE, "FILES", 0, "File", ""},
 #ifdef WITH_USERDEF_WORKSPACES
-		{0, "", 0, "Workspaces", ""},
+		{0, "", ICON_WORKSPACE, "Workspaces", ""},
 		{USER_SECTION_WORKSPACE_CONFIG, "WORKSPACE_CONFIG", 0, "Configuration File", ""},
 		{USER_SECTION_WORKSPACE_ADDONS, "WORKSPACE_ADDONS", 0, "Add-on Overrides", ""},
 		{USER_SECTION_WORKSPACE_KEYMAPS, "WORKSPACE_KEYMAPS", 0, "Keymap Overrides", ""},
 #endif
-		{0, "", 0, "System", ""},
+		{0, "", ICON_SYSTEM, "System", ""},
 		{USER_SECTION_SYSTEM_GENERAL, "SYSTEM_GENERAL", 0, "General", ""},
 #ifdef WITH_USERDEF_SYSTEM_SPLIT
 		{USER_SECTION_SYSTEM_DRAWING, "SYSTEM_DRAWING", 0, "Drawing", ""},

@@ -72,6 +72,8 @@ class USERPREF_PT_navigation(Panel):
 
         col = layout.column()
 
+        col.scale_x = 1.3
+        col.scale_y = 1.3
         col.prop(userpref, "active_section", expand=True)
 
 
