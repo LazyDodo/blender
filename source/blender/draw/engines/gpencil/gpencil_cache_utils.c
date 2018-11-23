@@ -83,8 +83,12 @@ tGPencilObjectCache *gpencil_object_cache_add(
 	cache_elem->pixfactor = cache_elem->gpd->pixfactor;
 	cache_elem->shader_fx = ob_orig->shader_fx;
 
-	cache_elem->init_grp = NULL;
-	cache_elem->end_grp = NULL;
+	/* shgrp array */
+	cache_elem->tot_layers = 0;
+	int totgpl = BLI_listbase_count(&cache_elem->gpd->layers);
+	if (totgpl > 0) {
+		cache_elem->shgrp_array = MEM_callocN(sizeof(tGPencilObjectCache_shgrp) * totgpl, __func__);
+	}
 
 	/* calculate zdepth from point of view */
 	float zdepth = 0.0;
@@ -120,7 +124,7 @@ tGPencilObjectCache *gpencil_object_cache_add(
 
 /* add a shading group to the cache to create later */
 GpencilBatchGroup *gpencil_group_cache_add(
-	GpencilBatchGroup *cache_array,
+	GpencilBatchGroup *cache_array, bGPdata *gpd,
 	bGPDlayer *gpl, bGPDframe *gpf, bGPDstroke *gps,
 	const short type, const bool onion,
 	const int vertex_idx,

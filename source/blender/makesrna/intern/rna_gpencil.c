@@ -78,6 +78,15 @@ const EnumPropertyItem rna_enum_gplayer_move_type_items[] = {
    {0, NULL, 0, NULL, NULL}
 };
 
+static const EnumPropertyItem rna_enum_layer_blend_modes_items[] = {
+	{eGplBlendMode_Normal, "NORMAL", 0, "Normal", "" },
+	{eGplBlendMode_Overlay, "OVERLAY", 0, "Overlay", "" },
+	{eGplBlendMode_Add, "ADD", 0, "Add", "" },
+	{eGplBlendMode_Subtract, "SUBTRACT", 0, "Subtract", "" },
+	{eGplBlendMode_Multiply, "MULTIPLY", 0, "Multiply", "" },
+	{eGplBlendMode_Divide, "DIVIDE", 0, "Divide", "" },
+	{0, NULL, 0, NULL, NULL }
+};
 #endif
 
 #ifdef RNA_RUNTIME
@@ -1158,6 +1167,13 @@ static void rna_def_gpencil_layer(BlenderRNA *brna)
 	RNA_def_property_string_sdna(prop, NULL, "viewlayername");
 	RNA_def_property_ui_text(prop, "ViewLayer",
 		"Only include Layer in this View Layer render output (leave blank to include always)");
+
+	/* blend mode */
+	prop = RNA_def_property(srna, "blend_mode", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "blend_mode");
+	RNA_def_property_enum_items(prop, rna_enum_layer_blend_modes_items);
+	RNA_def_property_ui_text(prop, "Blend Mode", "Blend mode");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	/* Flags */
 	prop = RNA_def_property(srna, "hide", PROP_BOOLEAN, PROP_NONE);

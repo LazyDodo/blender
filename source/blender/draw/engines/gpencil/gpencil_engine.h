@@ -58,13 +58,16 @@ struct RenderLayer;
 #define GP_IS_CAMERAVIEW ((rv3d != NULL) && (rv3d->persp == RV3D_CAMOB && v3d->camera))
 
  /* *********** OBJECTS CACHE *********** */
+typedef struct tGPencilObjectCache_shgrp {
+	int mode;
+	DRWShadingGroup *init_shgrp;
+	DRWShadingGroup *end_shgrp;
+} tGPencilObjectCache_shgrp;
 
  /* used to save gpencil object data for drawing */
 typedef struct tGPencilObjectCache {
 	struct Object *ob;
 	struct bGPdata *gpd;
-	DRWShadingGroup *init_grp;
-	DRWShadingGroup *end_grp;
 	int idx;  /*original index, can change after sort */
 
 	/* effects */
@@ -90,6 +93,11 @@ typedef struct tGPencilObjectCache {
 	/* GPU data size */
 	int tot_vertex;
 	int tot_triangles;
+
+	/* Save shader groups by layer */
+	int tot_layers;
+	tGPencilObjectCache_shgrp *shgrp_array;
+
 } tGPencilObjectCache;
 
   /* *********** LISTS *********** */
@@ -127,6 +135,8 @@ typedef struct GPENCIL_Storage {
 	int tonemapping;
 	short multisamples;
 
+	int blend_mode;
+
 	/* simplify settings*/
 	bool simplify_fill;
 	bool simplify_modif;
@@ -158,6 +168,7 @@ typedef struct GPENCIL_PassList {
 	struct DRWPass *background_pass;
 	struct DRWPass *paper_pass;
 	struct DRWPass *grid_pass;
+	struct DRWPass *blend_pass;
 
 	/* effects */
 	struct DRWPass *fx_shader_pass;
@@ -232,6 +243,7 @@ typedef struct GPENCIL_e_data {
 	struct GPUShader *gpencil_drawing_fill_sh;
 	struct GPUShader *gpencil_fullscreen_sh;
 	struct GPUShader *gpencil_simple_fullscreen_sh;
+	struct GPUShader *gpencil_blend_fullscreen_sh;
 	struct GPUShader *gpencil_background_sh;
 	struct GPUShader *gpencil_paper_sh;
 
@@ -369,7 +381,7 @@ struct tGPencilObjectCache *gpencil_object_cache_add(
 
 /* shading groups cache functions */
 struct GpencilBatchGroup *gpencil_group_cache_add(
-	struct GpencilBatchGroup *cache_array,
+	struct GpencilBatchGroup *cache_array, struct bGPdata *gpd,
 	struct bGPDlayer *gpl, struct bGPDframe *gpf, struct bGPDstroke *gps,
 	const short type, const bool onion,
 	const int vertex_idx,

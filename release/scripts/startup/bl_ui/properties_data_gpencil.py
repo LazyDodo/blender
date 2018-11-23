@@ -161,6 +161,8 @@ class DATA_PT_gpencil_datapanel(Panel):
         row = layout.row(align=True)
         if gpl:
             row.prop(gpl, "opacity", text="Opacity", slider=True)
+            row = layout.row(align=True)
+            row.prop(gpl, "blend_mode", text="Blend")
 
 
 class DATA_PT_gpencil_layer_optionpanel(LayerDataButtonsPanel, Panel):

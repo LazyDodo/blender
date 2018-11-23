@@ -766,7 +766,6 @@ class AnnotationDataPanel:
             layout.prop(tool_settings, "annotation_thickness", text="Thickness")
 
         if gpl:
-            # layout.prop(gpl, "opacity", text="Opacity", slider=True)
             # Full-Row - Frame Locking (and Delete Frame)
             row = layout.row(align=True)
             row.active = not gpl.lock
