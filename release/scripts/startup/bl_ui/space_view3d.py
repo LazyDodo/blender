@@ -1140,9 +1140,9 @@ class VIEW3D_MT_select_edit_text(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("font.text_paste", text="Paste")
         layout.operator("font.text_cut", text="Cut")
-        layout.operator("font.text_copy", text="Copy")
+        layout.operator("font.text_copy", text="Copy", icon='COPYDOWN')
+        layout.operator("font.text_paste", text="Paste", icon='PASTEDOWN')
 
         layout.separator()
 
@@ -1626,8 +1626,8 @@ class VIEW3D_MT_object(Menu):
 
         layout.separator()
 
-        layout.operator("view3d.copybuffer", text="Copy Objects")
-        layout.operator("view3d.pastebuffer", text="Paste Objects")
+        layout.operator("view3d.copybuffer", text="Copy Objects", icon='COPYDOWN')
+        layout.operator("view3d.pastebuffer", text="Paste Objects", icon='PASTEDOWN')
 
         layout.separator()
 
@@ -1875,7 +1875,7 @@ class VIEW3D_MT_object_specials(Menu):
 
         layout.separator()
 
-        layout.operator("object.duplicate_move", icon="DUPLICATE")
+        layout.operator("object.duplicate_move", icon='DUPLICATE')
         layout.operator("object.duplicate_move_linked")
 
         layout.separator()
@@ -1891,7 +1891,8 @@ class VIEW3D_MT_object_specials(Menu):
 
         layout.separator()
 
-        layout.operator("object.delete", text="Delete...").use_global = False
+        layout.operator_context = 'EXEC_DEFAULT'
+        layout.operator("object.delete", text="Delete").use_global = False
 
 
 class VIEW3D_MT_object_shading(Menu):
@@ -2465,8 +2466,8 @@ class VIEW3D_MT_pose(Menu):
 
         layout.separator()
 
-        layout.operator("pose.copy")
-        layout.operator("pose.paste").flipped = False
+        layout.operator("pose.copy", icon='COPYDOWN')
+        layout.operator("pose.paste", icon='PASTEDOWN').flipped = False
         layout.operator("pose.paste", text="Paste Pose Flipped").flipped = True
 
         layout.separator()
@@ -2648,8 +2649,8 @@ class VIEW3D_MT_pose_specials(Menu):
 
         layout.separator()
 
-        layout.operator("pose.copy")
-        layout.operator("pose.paste").flipped = False
+        layout.operator("pose.copy", icon='COPYDOWN')
+        layout.operator("pose.paste", icon='PASTEDOWN').flipped = False
         layout.operator("pose.paste", text="Paste X-Flipped Pose").flipped = True
 
         layout.separator()
@@ -3727,8 +3728,8 @@ class VIEW3D_MT_edit_gpencil(Menu):
 
         layout.separator()
 
-        layout.operator("gpencil.copy", text="Copy")
-        layout.operator("gpencil.paste", text="Paste").type = 'COPY'
+        layout.operator("gpencil.copy", text="Copy", icon='COPYDOWN')
+        layout.operator("gpencil.paste", text="Paste", icon='PASTEDOWN').type = 'COPY'
         layout.operator("gpencil.paste", text="Paste & Merge").type = 'MERGE'
 
         layout.separator()
@@ -3850,19 +3851,6 @@ class VIEW3D_MT_shading_pie(Menu):
 
         pie.prop_enum(view.shading, "type", value='WIREFRAME')
         pie.prop_enum(view.shading, "type", value='SOLID')
-
-        xray_active = (
-            (context.mode in {'POSE', 'EDIT_MESH'}) or
-            (view.shading.type in {'SOLID', 'WIREFRAME'})
-        )
-        if xray_active:
-            sub = pie
-        else:
-            sub = pie.row()
-            sub.active = False
-        sub.operator("view3d.toggle_xray", text="Toggle X-Ray", icon='XRAY')
-
-        pie.prop(view.overlay, "show_overlays", text="Toggle Overlays", icon='OVERLAY')
         pie.prop_enum(view.shading, "type", value='MATERIAL')
         pie.prop_enum(view.shading, "type", value='RENDERED')
 
@@ -4825,11 +4813,16 @@ class VIEW3D_PT_overlay_pose(Panel):
 
     @classmethod
     def poll(cls, context):
-        return context.mode == 'POSE'
+        mode = context.mode
+        return (
+            (mode == 'POSE') or
+            (mode == 'PAINT_WEIGHT' and context.active_object.find_armature())
+        )
 
     def draw(self, context):
         layout = self.layout
         view = context.space_data
+        mode = context.mode
         overlay = view.overlay
         display_all = overlay.show_overlays
 
@@ -4837,11 +4830,15 @@ class VIEW3D_PT_overlay_pose(Panel):
         col.active = display_all
         col.prop(overlay, "show_transparent_bones")
 
-        row = col.row()
-        row.prop(overlay, "show_bone_select", text="")
-        sub = row.row()
-        sub.active = display_all and overlay.show_bone_select
-        sub.prop(overlay, "bone_select_alpha", text="Fade Geometry")
+        if mode == 'POSE':
+            row = col.row()
+            row.prop(overlay, "show_xray_bone", text="")
+            sub = row.row()
+            sub.active = display_all and overlay.show_xray_bone
+            sub.prop(overlay, "xray_alpha_bone", text="Fade Geometry")
+        else:
+            row = col.row()
+            row.prop(overlay, "show_xray_bone")
 
 
 class VIEW3D_PT_overlay_edit_armature(Panel):
@@ -5474,8 +5471,8 @@ classes = (
     VIEW3D_PT_overlay_edit_mesh_developer,
     VIEW3D_PT_overlay_edit_curve,
     VIEW3D_PT_overlay_edit_armature,
-    VIEW3D_PT_overlay_pose,
     VIEW3D_PT_overlay_paint,
+    VIEW3D_PT_overlay_pose,
     VIEW3D_PT_overlay_sculpt,
     VIEW3D_PT_pivot_point,
     VIEW3D_PT_snapping,

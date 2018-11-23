@@ -135,12 +135,12 @@ typedef struct View3DCursor {
 
 /* 3D Viewport Shading settings */
 typedef struct View3DShading {
-	short type;        /* Shading type (VIEW3D_SHADE_SOLID, ..) */
-	short prev_type;   /* Runtime, for toggle between rendered viewport. */
+	char type;        /* Shading type (VIEW3D_SHADE_SOLID, ..) */
+	char prev_type;   /* Runtime, for toggle between rendered viewport. */
+	char prev_type_wire;
 
-	short flag;
 	char color_type;
-	char _pad0[7];
+	short flag;
 
 	char light;
 	char background_type;
@@ -188,7 +188,7 @@ typedef struct View3DOverlay {
 
 	/* Armature edit/pose mode settings */
 	int arm_flag;
-	float bone_select_alpha;
+	float xray_alpha_bone;
 
 	/* Other settings */
 	float wireframe_threshold;
@@ -389,7 +389,7 @@ enum {
 	V3D_SHADING_CAVITY              = (1 << 5),
 	V3D_SHADING_MATCAP_FLIP_X       = (1 << 6),
 	V3D_SHADING_SCENE_WORLD         = (1 << 7),
-	V3D_SHADING_XRAY_WIREFRAME      = (1 << 8),
+	V3D_SHADING_XRAY_BONE           = (1 << 8),
 };
 
 /* View3DShading->color_type */
