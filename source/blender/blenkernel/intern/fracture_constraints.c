@@ -737,17 +737,6 @@ void BKE_fracture_constraints_free(FractureModifierData *fmd, Scene *scene)
 	MeshIsland *mi = NULL;
 	RigidBodyShardCon *rbsc = NULL;
 
-#if 0
-	//hmm after loading the pointers might be out of sync...
-	if (fmd->shared->current_mi_entry) {
-		fmd->shared->mesh_islands = fmd->shared->current_mi_entry->meshIslands;
-	}
-	else {
-		fmd->shared->mesh_islands.first = NULL;
-		fmd->shared->mesh_islands.last = NULL;
-	}
-#endif
-
 	for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next) {
 		if (mi->participating_constraints != NULL && mi->participating_constraint_count > 0) {
 			int i;

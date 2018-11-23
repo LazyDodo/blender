@@ -1573,6 +1573,16 @@ void BKE_rigidbody_shard_validate(RigidBodyWorld *rbw, MeshIsland *mi, Object *o
 	}
 
 	if (BKE_fracture_meshisland_check_frame(fmd, mi, (int)ctime)) {
+		RigidBodyOb *rbo = mi->rigidbody;
+
+		if (rbw->shared->physics_world && rbo->shared->physics_object)
+		{
+			RB_dworld_remove_body(rbw->shared->physics_world, rbo->shared->physics_object);
+			RB_body_delete(rbo->shared->physics_object);
+			rbo->shared->physics_object = NULL;
+		}
+
+		//rbo->flag |= RBO_FLAG_NEEDS_VALIDATE;
 		return;
 	}
 
@@ -2355,14 +2365,14 @@ bool BKE_rigidbody_modifier_sync(ModifierData *md, Object *ob, Scene *scene, flo
 #endif
 
 				/* use rigid body transform after cache start frame if objects is not being transformed */
-				if (BKE_rigidbody_check_sim_running(rbw, ctime)) {
+				if (BKE_rigidbody_check_sim_running(rbw, ctime) && !(ob->flag & SELECT && G.moving & G_TRANSFORM_OBJ)) {
 
 					/* keep original transform when the simulation is muted */
 					if (rbw->flag & RBW_FLAG_MUTED)
 						break;
 				}
 				/* otherwise set rigid body transform to current obmat*/
-				else if (!(ob->flag & SELECT && G.moving & G_TRANSFORM_OBJ))
+				else //if (!(ob->flag & SELECT && G.moving & G_TRANSFORM_OBJ))
 				{
 					mat4_to_loc_quat(rbo->pos, rbo->orn, ob->obmat);
 					mat4_to_size(size, ob->obmat);

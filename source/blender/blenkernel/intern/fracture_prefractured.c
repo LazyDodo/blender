@@ -167,10 +167,20 @@ static void do_initial_prefracture(FractureModifierData* fmd, Object* ob, Depsgr
 	mi->id = 0;
 	BLI_addtail(&fmd->shared->mesh_islands, mi);
 
+	if (fmd->shared->last_islands) {
+		MEM_freeN(fmd->shared->last_islands);
+		fmd->shared->last_islands = NULL;
+		fmd->shared->last_expected_islands = 0;
+	}
+
+	fmd->shared->last_islands = MEM_callocN(sizeof(MeshIsland*), "island initial");
+	fmd->shared->last_islands[0] = mi;
+	fmd->shared->last_expected_islands = 1;
+
 	BKE_fracture_do(fmd, mi, ob, depsgraph, bmain, scene, true);
 
-	if ((fmd->point_source & MOD_FRACTURE_CUSTOM) == 0)
-		mi->endframe = frame;
+	//if ((fmd->point_source & MOD_FRACTURE_CUSTOM) == 0)
+	//	mi->endframe = frame;
 }
 
 
@@ -191,7 +201,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 			fmd->shared->refresh = true;
 	}
 
-	if (fmd->shared->refresh || fmd->shared->reset_shards)
+	if (fmd->shared->refresh /*|| fmd->shared->reset_shards*/)
 	{
 		/*reset_shards called from readfile.c; refresh from operator */
 
@@ -215,7 +225,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 
 		fmd->shared->refresh_constraints = true;
 		fmd->shared->refresh_autohide = true;
-		fmd->shared->reset_shards = false;
+		//fmd->shared->reset_shards = false;
 	}
 	else if (fmd->shared->refresh_dynamic) {
 		//handle_initial_shards(fmd, ob, depsgraph, bmain, scene, frame);

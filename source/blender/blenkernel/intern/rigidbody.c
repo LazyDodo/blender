@@ -1755,7 +1755,7 @@ void BKE_rigidbody_update_simulation(Scene *scene, RigidBodyWorld *rbw, bool reb
 	}
 }
 
-static ThreadMutex post_step_lock = BLI_MUTEX_INITIALIZER;
+//static ThreadMutex post_step_lock = BLI_MUTEX_INITIALIZER;
 static void rigidbody_update_simulation_post_step(Depsgraph* depsgraph, RigidBodyWorld *rbw)
 {
 	CollectionObject *go;
@@ -1769,7 +1769,7 @@ static void rigidbody_update_simulation_post_step(Depsgraph* depsgraph, RigidBod
 
 		Object *ob = go->ob;
 		//handle fractured rigidbodies, maybe test for psys as well ?
-		BLI_mutex_lock(&post_step_lock);
+		//BLI_mutex_lock(&post_step_lock);
 		for (md = ob->modifiers.first; md; md = md->next) {
 			if (md->type == eModifierType_Fracture) {
 				rmd = (FractureModifierData *)md;
@@ -1802,7 +1802,7 @@ static void rigidbody_update_simulation_post_step(Depsgraph* depsgraph, RigidBod
 				}
 			}
 		}
-		BLI_mutex_unlock(&post_step_lock);
+		//BLI_mutex_unlock(&post_step_lock);
 
 		/* handle regular rigidbodies */
 		if (ob && ob->rigidbody_object && !modFound) {
@@ -1833,7 +1833,7 @@ bool BKE_rigidbody_check_sim_running(RigidBodyWorld *rbw, float ctime)
 }
 
 /* Sync rigid body and object transformations */
-static ThreadMutex modifier_lock = BLI_MUTEX_INITIALIZER;
+//static ThreadMutex modifier_lock = BLI_MUTEX_INITIALIZER;
 void BKE_rigidbody_sync_transforms(Scene *scene, Object *ob, float ctime)
 {
 	RigidBodyWorld *rbw = scene->rigidbody_world; //take later other rbws into account too !
@@ -1844,13 +1844,13 @@ void BKE_rigidbody_sync_transforms(Scene *scene, Object *ob, float ctime)
 	if (rbw == NULL)
 		return;
 
-	BLI_mutex_lock(&modifier_lock);
+	//BLI_mutex_lock(&modifier_lock);
 	for (md = ob->modifiers.first; md; md = md->next) {
 		modFound = BKE_rigidbody_modifier_sync(md, ob, scene, ctime);
 		if (modFound)
 			break;
 	}
-	BLI_mutex_unlock(&modifier_lock);
+	//BLI_mutex_unlock(&modifier_lock);
 
 	if (!modFound)
 	{
@@ -2062,18 +2062,19 @@ void BKE_rigidbody_rebuild_world(Depsgraph *depsgraph, Scene *scene, float ctime
 	if (frame == startframe + 1 && rbw->ltime == startframe)
 	{
 		if (cache->flag & PTCACHE_OUTDATED) {
+
+			if (!(cache->flag & PTCACHE_BAKED))
+			{
+				//if we destroy the cache, also reset dynamic data (if not baked, when jumping back)
+				BKE_rigidbody_cache_reset(scene);
+			}
+
 			BKE_ptcache_id_reset(scene, &pid, PTCACHE_RESET_OUTDATED);
 			BKE_rigidbody_update_simulation(scene, rbw, true, depsgraph);
 			BKE_ptcache_validate(cache, (int)ctime);
 			cache->last_exact = 0;
 			cache->flag &= ~PTCACHE_REDO_NEEDED;
 		}
-	}
-
-	//if we destroy the cache, also reset dynamic data (if not baked, when jumping back)
-	if ((frame == startframe && rbw->ltime == frame) && !(cache->flag & PTCACHE_BAKED))
-	{
-		BKE_rigidbody_cache_reset(scene);
 	}
 }
 
@@ -2123,12 +2124,14 @@ void BKE_rigidbody_do_simulation(Depsgraph *depsgraph, Scene *scene, float ctime
 			rbw->flag &= ~RBW_FLAG_OBJECT_CHANGED;
 			BKE_rigidbody_update_simulation(scene, rbw, true, depsgraph);
 		}
+
 		return;
 	}
 	/* make sure we don't go out of cache frame range */
 	else if (ctime > endframe) {
 		ctime = endframe;
 	}
+
 
 	/* don't try to run the simulation if we don't have a world yet but allow reading baked cache */
 	if (rbw->shared->physics_world == NULL && !(cache->flag & PTCACHE_BAKED)) {
@@ -2269,6 +2272,7 @@ void BKE_rigidbody_eval_simulation(Depsgraph *depsgraph,
 	if (!BKE_scene_check_rigidbody_active(scene)) {
 		return;
 	}
+
 	BKE_rigidbody_do_simulation(depsgraph, scene, ctime);
 }
 
