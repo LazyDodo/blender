@@ -4517,12 +4517,12 @@ static void lib_link_mesh(FileData *fd, Main *main)
 			/*
 			 * Re-tessellate, even if the polys were just created from tessfaces, this
 			 * is important because it:
-			 *  - fill the CD_ORIGINDEX layer
-			 *  - gives consistency of tessface between loading from a file and
-			 *    converting an edited BMesh back into a mesh (i.e. it replaces
-			 *    quad tessfaces in a loaded mesh immediately, instead of lazily
-			 *    waiting until edit mode has been entered/exited, making it easier
-			 *    to recognize problems that would otherwise only show up after edits).
+			 * - fill the CD_ORIGINDEX layer
+			 * - gives consistency of tessface between loading from a file and
+			 *   converting an edited BMesh back into a mesh (i.e. it replaces
+			 *   quad tessfaces in a loaded mesh immediately, instead of lazily
+			 *   waiting until edit mode has been entered/exited, making it easier
+			 *   to recognize problems that would otherwise only show up after edits).
 			 */
 #ifdef USE_TESSFACE_DEFAULT
 			BKE_mesh_tessface_calc(me);
@@ -5683,7 +5683,13 @@ static void direct_link_object(FileData *fd, Object *ob)
 	CLAMP(ob->rotmode, ROT_MODE_MIN, ROT_MODE_MAX);
 
 	if (ob->sculpt) {
-		ob->sculpt = MEM_callocN(sizeof(SculptSession), "reload sculpt session");
+		if (ob->mode & OB_MODE_ALL_SCULPT) {
+			ob->sculpt = MEM_callocN(sizeof(SculptSession), "reload sculpt session");
+			ob->sculpt->mode_type = ob->mode;
+		}
+		else {
+			ob->sculpt = NULL;
+		}
 	}
 
 	link_list(fd, &ob->lodlevels);

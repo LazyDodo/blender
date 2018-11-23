@@ -26,17 +26,17 @@ ARGS=$( \
 getopt \
 -o s:i:t:h \
 --long source:,install:,tmp:,info:,threads:,help,show-deps,no-sudo,no-build,no-confirm,use-cxx11,\
-with-all,with-opencollada,with-jack,\
+with-all,with-opencollada,with-jack,with-embree,\
 ver-ocio:,ver-oiio:,ver-llvm:,ver-osl:,ver-osd:,ver-openvdb:,\
 force-all,force-python,force-numpy,force-boost,\
 force-ocio,force-openexr,force-oiio,force-llvm,force-osl,force-osd,force-openvdb,\
-force-ffmpeg,force-opencollada,force-alembic,\
+force-ffmpeg,force-opencollada,force-alembic,force-embree,\
 build-all,build-python,build-numpy,build-boost,\
 build-ocio,build-openexr,build-oiio,build-llvm,build-osl,build-osd,build-openvdb,\
-build-ffmpeg,build-opencollada,build-alembic,\
+build-ffmpeg,build-opencollada,build-alembic,build-embree,\
 skip-python,skip-numpy,skip-boost,\
 skip-ocio,skip-openexr,skip-oiio,skip-llvm,skip-osl,skip-osd,skip-openvdb,\
-skip-ffmpeg,skip-opencollada,skip-alembic \
+skip-ffmpeg,skip-opencollada,skip-alembic,skip-embree \
 -- "$@" \
 )
 
@@ -54,8 +54,9 @@ SCRIPT_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 # Do not install some optional, potentially conflicting libs by default...
 WITH_ALL=false
 
-# Do not yet enable opencollada, use --with-opencollada (or --with-all) option to try it.
+# Do not yet enable opencollada or embree, use --with-opencollada/--with-embree (or --with-all) option to try it.
 WITH_OPENCOLLADA=false
+WITH_EMBREE=false
 
 THREADS=$(nproc)
 
@@ -67,6 +68,7 @@ or use --source/--install options, if you want to use other paths!
 Number of threads for building: \$THREADS (automatically detected, use --threads=<nbr> to override it).
 Full install: \$WITH_ALL (use --with-all option to enable it).
 Building OpenCOLLADA: \$WITH_OPENCOLLADA (use --with-opencollada option to enable it).
+Building Embree: \$WITH_EMBREE (use --with-embree option to enable it).
 
 Example:
 Full install without OpenCOLLADA: --with-all --skip-opencollada
@@ -117,6 +119,9 @@ ARGUMENTS_INFO="\"COMMAND LINE ARGUMENTS:
 
     --with-opencollada
         Build and install the OpenCOLLADA libraries.
+
+    --with-embree
+        Build and install the Embree libraries.
 
     --with-jack
         Install the jack libraries.
@@ -182,6 +187,9 @@ ARGUMENTS_INFO="\"COMMAND LINE ARGUMENTS:
     --build-opencollada
         Force the build of OpenCOLLADA.
 
+    --build-embree
+        Force the build of Embree.
+
     --build-ffmpeg
         Force the build of FFMpeg.
 
@@ -234,6 +242,9 @@ ARGUMENTS_INFO="\"COMMAND LINE ARGUMENTS:
     --force-opencollada
         Force the rebuild of OpenCOLLADA.
 
+    --force-embree
+        Force the rebuild of Embree.
+
     --force-ffmpeg
         Force the rebuild of FFMpeg.
 
@@ -278,6 +289,9 @@ ARGUMENTS_INFO="\"COMMAND LINE ARGUMENTS:
 
     --skip-opencollada
         Unconditionally skip OpenCOLLADA installation/building.
+
+    --skip-Embree
+        Unconditionally skip Embree installation/building.
 
     --skip-ffmpeg
         Unconditionally skip FFMpeg installation/building.\""
@@ -373,6 +387,12 @@ OPENCOLLADA_VERSION="1.6.63"
 OPENCOLLADA_FORCE_BUILD=false
 OPENCOLLADA_FORCE_REBUILD=false
 OPENCOLLADA_SKIP=false
+
+
+EMBREE_VERSION="3.2.4"
+EMBREE_FORCE_BUILD=false
+EMBREE_FORCE_REBUILD=false
+EMBREE_SKIP=false
 
 FFMPEG_VERSION="4.0.2"
 FFMPEG_VERSION_MIN="2.8.4"
@@ -507,6 +527,9 @@ while true; do
     --with-opencollada)
       WITH_OPENCOLLADA=true; shift; continue
     ;;
+    --with-embree)
+      WITH_EMBREE=true; shift; continue
+    ;;
     --with-jack)
       WITH_JACK=true; shift; continue;
     ;;
@@ -552,6 +575,7 @@ while true; do
       OSD_FORCE_BUILD=true
       OPENVDB_FORCE_BUILD=true
       OPENCOLLADA_FORCE_BUILD=true
+      EMBREE_FORCE_BUILD=true
       FFMPEG_FORCE_BUILD=true
       ALEMBIC_FORCE_BUILD=true
       shift; continue
@@ -593,6 +617,9 @@ while true; do
     --build-opencollada)
       OPENCOLLADA_FORCE_BUILD=true; shift; continue
     ;;
+    --build-embree)
+      EMBREE_FORCE_BUILD=true; shift; continue
+    ;;
     --build-ffmpeg)
       FFMPEG_FORCE_BUILD=true; shift; continue
     ;;
@@ -611,6 +638,7 @@ while true; do
       OSD_FORCE_REBUILD=true
       OPENVDB_FORCE_REBUILD=true
       OPENCOLLADA_FORCE_REBUILD=true
+      EMBREE_FORCE_REBUILD=true
       FFMPEG_FORCE_REBUILD=true
       ALEMBIC_FORCE_REBUILD=true
       shift; continue
@@ -649,6 +677,9 @@ while true; do
     ;;
     --force-opencollada)
       OPENCOLLADA_FORCE_REBUILD=true; shift; continue
+    ;;
+    --force-embree)
+      EMBREE_FORCE_REBUILD=true; shift; continue
     ;;
     --force-ffmpeg)
       FFMPEG_FORCE_REBUILD=true; shift; continue
@@ -689,6 +720,9 @@ while true; do
     --skip-opencollada)
       OPENCOLLADA_SKIP=true; shift; continue
     ;;
+    --skip-embree)
+      EMBREE_SKIP=true; shift; continue
+    ;;
     --skip-ffmpeg)
       FFMPEG_SKIP=true; shift; continue
     ;;
@@ -712,6 +746,9 @@ done
 
 if [ "$WITH_ALL" = true -a "$OPENCOLLADA_SKIP" = false ]; then
   WITH_OPENCOLLADA=true
+fi
+if [ "$WITH_ALL" = true -a "$EMBREE_SKIP" = false ]; then
+  WITH_EMBREE=true
 fi
 if [ "$WITH_ALL" = true ]; then
   WITH_JACK=true
@@ -748,9 +785,10 @@ OCIO_SOURCE=( "https://github.com/imageworks/OpenColorIO/archive/v$OCIO_VERSION.
 #~ OCIO_SOURCE_REPO_UID="6de971097c7f552300f669ed69ca0b6cf5a70843"
 
 OPENEXR_USE_REPO=false
-OPENEXR_SOURCE=( "https://github.com/openexr/openexr/releases/download/v$OPENEXR_VERSION/openexr-$OPENEXR_VERSION.tar.gz" )
+#~ OPENEXR_SOURCE=( "https://github.com/openexr/openexr/releases/download/v$OPENEXR_VERSION/openexr-$OPENEXR_VERSION.tar.gz" )
+OPENEXR_SOURCE_REPO_UID="0ac2ea34c8f3134148a5df4052e40f155b76f6fb"
+OPENEXR_SOURCE=( "https://github.com/openexr/openexr/archive/$OPENEXR_SOURCE_REPO_UID.tar.gz" )
 #~ OPENEXR_SOURCE_REPO=( "https://github.com/mont29/openexr.git" )
-#~ OPENEXR_SOURCE_REPO_UID="2787aa1cf652d244ed45ae124eb1553f6cff11ee"
 ILMBASE_SOURCE=( "https://github.com/openexr/openexr/releases/download/v$ILMBASE_VERSION/ilmbase-$ILMBASE_VERSION.tar.gz" )
 
 OIIO_USE_REPO=false
@@ -800,6 +838,13 @@ OPENCOLLADA_SOURCE=( "https://github.com/KhronosGroup/OpenCOLLADA/archive/v${OPE
 #~ OPENCOLLADA_REPO_UID="e937c3897b86fc0da53cde97257f5156"
 #~ OPENCOLLADA_REPO_BRANCH="master"
 
+EMBREE_USE_REPO=false
+EMBREE_SOURCE=( "https://github.com/embree/embree/archive/v${EMBREE_VERSION}.tar.gz" )
+#~ EMBREE_SOURCE_REPO=( "https://github.com/embree/embree.git" )
+#~ EMBREE_REPO_UID="4a12bfed63c90e85b6eab98b8cdd8dd2a3ba5809"
+#~ EMBREE_REPO_BRANCH="master"
+
+
 FFMPEG_SOURCE=( "http://ffmpeg.org/releases/ffmpeg-$FFMPEG_VERSION.tar.bz2" )
 
 # C++11 is required now
@@ -840,6 +885,7 @@ You may also want to build them yourself (optional ones are [between brackets]):
     * [OpenSubDiv $OSD_VERSION_MIN] (from $OSD_SOURCE_REPO, branch $OSD_SOURCE_REPO_BRANCH, commit $OSD_SOURCE_REPO_UID).
     * [OpenVDB $OPENVDB_VERSION_MIN] (from $OPENVDB_SOURCE), [Blosc $OPENVDB_BLOSC_VERSION] (from $OPENVDB_BLOSC_SOURCE).
     * [OpenCollada $OPENCOLLADA_VERSION] (from $OPENCOLLADA_SOURCE).
+    * [Embree $EMBREE_VERSION] (from $EMBREE_SOURCE).
     * [Alembic $ALEMBIC_VERSION] (from $ALEMBIC_SOURCE).\""
 
 if [ "$DO_SHOW_DEPS" = true ]; then
@@ -1204,7 +1250,7 @@ compile_Boost() {
   if [ ! -d $_inst ]; then
     INFO "Building Boost-$BOOST_VERSION"
 
-    # Rebuild dependecies as well!
+    # Rebuild dependencies as well!
     OIIO_FORCE_BUILD=true
     OIIO_FORCE_REBUILD=true
     OSL_FORCE_BUILD=true
@@ -1397,7 +1443,7 @@ compile_ILMBASE() {
   if [ ! -d $_openexr_inst ]; then
     INFO "Building ILMBase-$ILMBASE_VERSION"
 
-    # Rebuild dependecies as well!
+    # Rebuild dependencies as well!
     OPENEXR_FORCE_BUILD=true
     OPENEXR_FORCE_REBUILD=true
 
@@ -1493,7 +1539,7 @@ compile_OPENEXR() {
   if [ ! -d $_inst ]; then
     INFO "Building OpenEXR-$OPENEXR_VERSION"
 
-    # Rebuild dependecies as well!
+    # Rebuild dependencies as well!
     OIIO_FORCE_BUILD=true
     OIIO_FORCE_REBUILD=true
 
@@ -1607,7 +1653,7 @@ compile_OIIO() {
   if [ ! -d $_inst ]; then
     INFO "Building OpenImageIO-$OIIO_VERSION"
 
-    # Rebuild dependecies as well!
+    # Rebuild dependencies as well!
     OSL_FORCE_BUILD=true
     OSL_FORCE_REBUILD=true
 
@@ -1749,7 +1795,7 @@ compile_LLVM() {
   if [ ! -d $_inst ]; then
     INFO "Building LLVM-$LLVM_VERSION (CLANG included!)"
 
-    # Rebuild dependecies as well!
+    # Rebuild dependencies as well!
     OSL_FORCE_BUILD=true
     OSL_FORCE_REBUILD=true
 
@@ -2075,7 +2121,7 @@ compile_BLOSC() {
   if [ ! -d $_inst ]; then
     INFO "Building Blosc-$OPENVDB_BLOSC_VERSION"
 
-    # Rebuild dependecies as well!
+    # Rebuild dependencies as well!
     OPENVDB_FORCE_BUILD=true
     OPENVDB_FORCE_REBUILD=true
 
@@ -2412,6 +2458,101 @@ compile_OpenCOLLADA() {
   else
     INFO "Own OpenCOLLADA-$OPENCOLLADA_VERSION is up to date, nothing to do!"
     INFO "If you want to force rebuild of this lib, use the --force-opencollada option."
+  fi
+}
+
+#### Build Embree ####
+_init_embree() {
+  _src=$SRC/embree-$EMBREE_VERSION
+  _git=true
+  _inst=$INST/embree-$EMBREE_VERSION
+  _inst_shortcut=$INST/embree
+}
+
+clean_Embree() {
+  _init_embree
+  _clean
+}
+
+compile_Embree() {
+  if [ "$NO_BUILD" = true ]; then
+    WARNING "--no-build enabled, Embree will not be compiled!"
+    return
+  fi
+
+  # To be changed each time we make edits that would modify the compiled results!
+  embree_magic=9
+  _init_embree
+
+  # Clean install if needed!
+  magic_compile_check embree-$EMBREE_VERSION $embree_magic
+  if [ $? -eq 1 -o "$EMBREE_FORCE_REBUILD" = true ]; then
+    clean_Embree
+  fi
+
+  if [ ! -d $_inst ]; then
+    INFO "Building Embree-$EMBREE_VERSION"
+
+    prepare_opt
+
+    if [ ! -d $_src ]; then
+      mkdir -p $SRC
+      if [ "EMBREE_USE_REPO" = true ]; then
+        git clone $EMBREE_SOURCE_REPO $_src
+      else
+        download EMBREE_SOURCE[@] "$_src.tar.gz"
+        INFO "Unpacking Embree-$EMBREE_VERSION"
+        tar -C $SRC -xf $_src.tar.gz
+      fi
+    fi
+
+    cd $_src
+
+    if [ "$EMBREE_USE_REPO" = true ]; then
+      git pull origin $EMBREE_REPO_BRANCH
+
+      # Stick to same rev as windows' libs...
+      git checkout $EMBREE_REPO_UID
+      git reset --hard
+    fi
+
+    # Always refresh the whole build!
+    if [ -d build ]; then
+      rm -rf build
+    fi
+    mkdir build
+    cd build
+
+    cmake_d="-D CMAKE_BUILD_TYPE=Release"
+    cmake_d="$cmake_d -D CMAKE_INSTALL_PREFIX=$_inst"
+    cmake_d="$cmake_d -D EMBREE_ISPC_SUPPORT=OFF"
+    cmake_d="$cmake_d -D EMBREE_TUTORIALS=OFF"
+    cmake_d="$cmake_d -D EMBREE_STATIC_LIB=ON"
+    cmake_d="$cmake_d -D EMBREE_RAY_MASK=ON"
+    cmake_d="$cmake_d -D EMBREE_FILTER_FUNCTION=ON"
+    cmake_d="$cmake_d -D EMBREE_BACKFACE_CULLING=OFF"
+    cmake_d="$cmake_d -D EMBREE_TASKING_SYSTEM=INTERNAL"
+    cmake_d="$cmake_d -D EMBREE_MAX_ISA=AVX2"
+
+    cmake $cmake_d ../
+
+    make -j$THREADS && make install
+    make clean
+
+    if [ -d $_inst ]; then
+      _create_inst_shortcut
+    else
+      ERROR "Embree-$EMBREE_VERSION failed to compile, exiting"
+      exit 1
+    fi
+
+    magic_compile_set embree-$EMBREE_VERSION $embree_magic
+
+    cd $CWD
+    INFO "Done compiling Embree-$EMBREE_VERSION!"
+  else
+    INFO "Own Embree-$EMBREE_VERSION is up to date, nothing to do!"
+    INFO "If you want to force rebuild of this lib, use the --force-embree option."
   fi
 }
 
@@ -2982,6 +3123,23 @@ install_DEB() {
     fi
   fi
 
+  if [ "$WITH_EMBREE" = true ]; then
+    _do_compile_embree=false
+    PRINT ""
+    if [ "$EMBREE_SKIP" = true ]; then
+      WARNING "Skipping Embree installation, as requested..."
+    elif [ "$EMBREE_FORCE_BUILD" = true ]; then
+      INFO "Forced Embree building, as requested..."
+      _do_compile_embree=true
+    else
+      # No package currently!
+      _do_compile_embree=true
+    fi
+
+    if [ "$_do_compile_embree" = true ]; then
+      compile_Embree
+    fi
+  fi
 
   PRINT ""
   if [ "$FFMPEG_SKIP" = true ]; then
@@ -3529,6 +3687,23 @@ install_RPM() {
     fi
   fi
 
+  if [ "$WITH_EMBREE" = true ]; then
+    PRINT ""
+    _do_compile_embree=false
+    if [ "$OPENCOLLADA_SKIP" = true ]; then
+      WARNING "Skipping Embree installation, as requested..."
+    elif [ "$EMBREE_FORCE_BUILD" = true ]; then
+      INFO "Forced Embree building, as requested..."
+      _do_compile_embree=true
+    else
+      # No package...
+      _do_compile_embree=true
+    fi
+
+    if [ "$_do_compile_embree" = true ]; then
+      compile_Embree
+    fi
+  fi
 
   PRINT ""
   if [ "$FFMPEG_SKIP" = true ]; then
@@ -3959,6 +4134,28 @@ install_ARCH() {
     fi
   fi
 
+  if [ "$WITH_EMBREE" = true ]; then
+    PRINT ""
+    _do_compile_embree=false
+    if [ "$EMBREE_SKIP" = true ]; then
+      WARNING "Skipping Embree installation, as requested..."
+    elif [ "$EMBREE_FORCE_BUILD" = true ]; then
+      INFO "Forced Embree building, as requested..."
+      _do_compile_embree=true
+    else
+      check_package_ARCH embree
+      if [ $? -eq 0 ]; then
+        install_packages_ARCH embree
+        clean_Embree
+      else
+        _do_compile_embree=true
+      fi
+    fi
+
+    if [ "$_do_compile_embree" = true ]; then
+      compile_Embree
+    fi
+  fi
 
   PRINT ""
   if [ "$FFMPEG_SKIP" = true ]; then
@@ -4130,6 +4327,21 @@ install_OTHER() {
     fi
   fi
 
+  if [ "$WITH_EMBREE" = true ]; then
+    _do_compile_embree=false
+    PRINT ""
+    if [ "$EMBREE_SKIP" = true ]; then
+      WARNING "Skipping Embree installation, as requested..."
+    elif [ "$EMBREE_FORCE_BUILD" = true ]; then
+      INFO "Forced Embree building, as requested..."
+      _do_compile_embree=true
+    fi
+
+    if [ "$_do_compile_embree" = true ]; then
+      PRINT ""
+      compile_Embree
+    fi
+  fi
 
   PRINT ""
   if [ "$FFMPEG_SKIP" = true ]; then
@@ -4321,6 +4533,12 @@ print_info() {
 
   if [ "$WITH_OPENCOLLADA" = true ]; then
     _1="-D WITH_OPENCOLLADA=ON"
+    PRINT "  $_1"
+    _buildargs="$_buildargs $_1"
+  fi
+
+  if [ "$WITH_EMBREE" = true ]; then
+    _1="-D WITH_CYCLES_EMBREE=ON"
     PRINT "  $_1"
     _buildargs="$_buildargs $_1"
   fi

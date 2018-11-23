@@ -707,7 +707,7 @@ static void ExportCurveSegmentsMotion(Mesh *mesh, ParticleCurveData *CData, int 
 			if(diff == 0) {
 				for(int curvekey = CData->curve_firstkey[curve]; curvekey < CData->curve_firstkey[curve] + CData->curve_keynum[curve]; curvekey++) {
 					if(i < mesh->curve_keys.size()) {
-						mP[i] =CurveSegmentMotionCV(CData, sys, curve, curvekey);
+						mP[i] = CurveSegmentMotionCV(CData, sys, curve, curvekey);
 						if(!have_motion) {
 							/* unlike mesh coordinates, these tend to be slightly different
 							 * between frames due to particle transforms into/out of object
@@ -718,7 +718,6 @@ static void ExportCurveSegmentsMotion(Mesh *mesh, ParticleCurveData *CData, int 
 								have_motion = true;
 						}
 					}
-
 					i++;
 				}
 			}

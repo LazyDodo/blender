@@ -930,7 +930,7 @@ static TreeElement *outliner_add_element(SpaceOops *soops, ListBase *lb, void *i
 		tselem->flag |= TSE_CHILDSEARCH;
 
 	te->parent = parent;
-	te->index = index;   // for data arays
+	te->index = index;   // for data arrays
 	if (ELEM(type, TSE_SEQUENCE, TSE_SEQ_STRIP, TSE_SEQUENCE_DUP)) {
 		/* pass */
 	}
@@ -1090,7 +1090,7 @@ static TreeElement *outliner_add_element(SpaceOops *soops, ListBase *lb, void *i
 
 		int a, tot;
 
-		/* we do lazy build, for speed and to avoid infinite recusion */
+		/* we do lazy build, for speed and to avoid infinite recursion */
 
 		if (ptr->data == NULL) {
 			te->name = IFACE_("(empty)");
@@ -1458,7 +1458,7 @@ static int treesort_alpha(const void *v1, const void *v2)
 }
 
 
-/* this is nice option for later? doesnt look too useful... */
+/* this is nice option for later? doesn't look too useful... */
 #if 0
 static int treesort_obtype_alpha(const void *v1, const void *v2)
 {
@@ -1592,10 +1592,10 @@ static int outliner_filter_tree(SpaceOops *soops, ListBase *lb)
 
 		if (!outliner_filter_has_name(te, search_string, soops->search_flags)) {
 			/* item isn't something we're looking for, but...
-			 *  - if the subtree is expanded, check if there are any matches that can be easily found
-			 *		so that searching for "cu" in the default scene will still match the Cube
-			 *	- otherwise, we can't see within the subtree and the item doesn't match,
-			 *		so these can be safely ignored (i.e. the subtree can get freed)
+			 * - if the subtree is expanded, check if there are any matches that can be easily found
+			 *     so that searching for "cu" in the default scene will still match the Cube
+			 * - otherwise, we can't see within the subtree and the item doesn't match,
+			 *     so these can be safely ignored (i.e. the subtree can get freed)
 			 */
 			tselem = TREESTORE(te);
 

@@ -273,12 +273,15 @@ Material *BKE_material_copy(Main *bmain, const Material *ma)
 /* XXX (see above) material copy without adding to main dbase */
 Material *BKE_material_localize(Material *ma)
 {
-	/* TODO replace with something like
-	 * 	Material *ma_copy;
-	 * 	BKE_id_copy_ex(bmain, &ma->id, (ID **)&ma_copy, LIB_ID_COPY_NO_MAIN | LIB_ID_COPY_NO_PREVIEW | LIB_ID_COPY_NO_USER_REFCOUNT, false);
-	 * 	return ma_copy;
+	/* TODO(bastien): Replace with something like:
 	 *
-	 * ... Once f*** nodes are fully converted to that too :( */
+	 *   Material *ma_copy;
+	 *   BKE_id_copy_ex(bmain, &ma->id, (ID **)&ma_copy,
+	 *                  LIB_ID_COPY_NO_MAIN | LIB_ID_COPY_NO_PREVIEW | LIB_ID_COPY_NO_USER_REFCOUNT,
+	 *                  false);
+	 *   return ma_copy;
+	 *
+	 * NOTE: Only possible once nested node trees are fully converted to that too. */
 
 	Material *man;
 	int a;
@@ -844,7 +847,7 @@ void BKE_material_remap_object_calc(
 
 	for (int i = 0; i < ob_dst->totcol; i++) {
 		Material *ma_src = give_current_material(ob_dst, i + 1);
-		BLI_ghash_reinsert(gh_mat_map, ma_src, SET_INT_IN_POINTER(i), NULL, NULL);
+		BLI_ghash_reinsert(gh_mat_map, ma_src, POINTER_FROM_INT(i), NULL, NULL);
 	}
 
 	/* setup default mapping (when materials don't match) */
@@ -874,7 +877,7 @@ void BKE_material_remap_object_calc(
 		else {
 			void **index_src_p = BLI_ghash_lookup_p(gh_mat_map, ma_src);
 			if (index_src_p) {
-				remap_src_to_dst[i] = GET_INT_FROM_POINTER(*index_src_p);
+				remap_src_to_dst[i] = POINTER_AS_INT(*index_src_p);
 			}
 		}
 	}

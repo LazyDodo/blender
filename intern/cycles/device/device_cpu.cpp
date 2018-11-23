@@ -41,6 +41,7 @@
 #include "kernel/osl/osl_globals.h"
 
 #include "render/buffers.h"
+#include "render/coverage.h"
 
 #include "util/util_debug.h"
 #include "util/util_foreach.h"
@@ -80,11 +81,11 @@ public:
 
 		/* Silence potential warnings about unused variables
 		 * when compiling without some architectures. */
-		(void)kernel_sse2;
-		(void)kernel_sse3;
-		(void)kernel_sse41;
-		(void)kernel_avx;
-		(void)kernel_avx2;
+		(void) kernel_sse2;
+		(void) kernel_sse3;
+		(void) kernel_sse41;
+		(void) kernel_avx;
+		(void) kernel_avx2;
 #ifdef WITH_CYCLES_OPTIMIZED_KERNEL_AVX2
 		if(DebugFlags().cpu.has_avx2() && system_cpu_support_avx2()) {
 			architecture_name = "AVX2";
@@ -184,11 +185,11 @@ public:
 	KernelFunctions<void(*)(int, int, float*, float*, float*, float*, int*, int)>                               filter_detect_outliers_kernel;
 	KernelFunctions<void(*)(int, int, float*, float*, float*, float*, int*, int)>                               filter_combine_halves_kernel;
 
-	KernelFunctions<void(*)(int, int, float*, float*, float*, int*, int, int, float, float)> filter_nlm_calc_difference_kernel;
-	KernelFunctions<void(*)(float*, float*, int*, int, int)>                                 filter_nlm_blur_kernel;
-	KernelFunctions<void(*)(float*, float*, int*, int, int)>                                 filter_nlm_calc_weight_kernel;
-	KernelFunctions<void(*)(int, int, float*, float*, float*, float*, int*, int, int)>       filter_nlm_update_output_kernel;
-	KernelFunctions<void(*)(float*, float*, int*, int)>                                      filter_nlm_normalize_kernel;
+	KernelFunctions<void(*)(int, int, float*, float*, float*, int*, int, int, float, float)>   filter_nlm_calc_difference_kernel;
+	KernelFunctions<void(*)(float*, float*, int*, int, int)>                                   filter_nlm_blur_kernel;
+	KernelFunctions<void(*)(float*, float*, int*, int, int)>                                   filter_nlm_calc_weight_kernel;
+	KernelFunctions<void(*)(int, int, float*, float*, float*, float*, float*, int*, int, int)> filter_nlm_update_output_kernel;
+	KernelFunctions<void(*)(float*, float*, int*, int)>                                        filter_nlm_normalize_kernel;
 
 	KernelFunctions<void(*)(float*, int, int, int, float*, int*, int*, int, int, float)>                         filter_construct_transform_kernel;
 	KernelFunctions<void(*)(int, int, float*, float*, float*, int*, float*, float3*, int*, int*, int, int, int)> filter_nlm_construct_gramian_kernel;
@@ -275,6 +276,20 @@ public:
 	virtual bool show_samples() const
 	{
 		return (info.cpu_threads == 1);
+	}
+
+	virtual BVHLayoutMask get_bvh_layout_mask() const {
+		BVHLayoutMask bvh_layout_mask = BVH_LAYOUT_BVH2;
+		if(DebugFlags().cpu.has_sse2() && system_cpu_support_sse2()) {
+			bvh_layout_mask |= BVH_LAYOUT_BVH4;
+		}
+		if(DebugFlags().cpu.has_avx2() && system_cpu_support_avx2()) {
+			bvh_layout_mask |= BVH_LAYOUT_BVH8;
+		}
+#ifdef WITH_EMBREE
+		bvh_layout_mask |= BVH_LAYOUT_EMBREE;
+#endif  /* WITH_EMBREE */
+		return bvh_layout_mask;
 	}
 
 	void load_texture_info()
@@ -499,6 +514,7 @@ public:
 			filter_nlm_update_output_kernel()(dx, dy,
 			                                  blurDifference,
 			                                  (float*) image_ptr,
+			                                  difference,
 			                                  (float*) out_ptr,
 			                                  weightAccum,
 			                                  local_rect,
@@ -676,12 +692,22 @@ public:
 
 	void path_trace(DeviceTask &task, RenderTile &tile, KernelGlobals *kg)
 	{
+		const bool use_coverage = kernel_data.film.cryptomatte_passes & CRYPT_ACCURATE;
+
 		scoped_timer timer(&tile.buffers->render_time);
+
+		Coverage coverage(kg, tile);
+		if(use_coverage) {
+			coverage.init_path_trace();
+		}
 
 		float *render_buffer = (float*)tile.buffer;
 		int start_sample = tile.start_sample;
 		int end_sample = tile.start_sample + tile.num_samples;
 
+		_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+		_MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+		
 		for(int sample = start_sample; sample < end_sample; sample++) {
 			if(task.get_cancel() || task_pool.canceled()) {
 				if(task.need_finish_queue == false)
@@ -690,6 +716,9 @@ public:
 
 			for(int y = tile.y; y < tile.y + tile.h; y++) {
 				for(int x = tile.x; x < tile.x + tile.w; x++) {
+					if(use_coverage) {
+						coverage.init_pixel(x, y);
+					}
 					path_trace_kernel()(kg, render_buffer,
 					                    sample, x, y, tile.offset, tile.stride);
 				}
@@ -698,6 +727,9 @@ public:
 			tile.sample = sample + 1;
 
 			task.update_progress(&tile, tile.w*tile.h);
+		}
+		if(use_coverage) {
+			coverage.finalize();
 		}
 	}
 
@@ -759,7 +791,6 @@ public:
 			}
 			else if(tile.task == RenderTile::DENOISE) {
 				denoise(denoising, tile);
-
 				task.update_progress(&tile, tile.w*tile.h);
 			}
 
@@ -1027,13 +1058,6 @@ void device_cpu_info(vector<DeviceInfo>& devices)
 	info.id = "CPU";
 	info.num = 0;
 	info.advanced_shading = true;
-	info.bvh_layout_mask = BVH_LAYOUT_BVH2;
-	if(system_cpu_support_sse2()) {
-		info.bvh_layout_mask |= BVH_LAYOUT_BVH4;
-	}
-	if(system_cpu_support_avx2()) {
-		info.bvh_layout_mask |= BVH_LAYOUT_BVH8;
-	}
 	info.has_volume_decoupled = true;
 	info.has_osl = true;
 	info.has_half_images = true;
@@ -1041,7 +1065,7 @@ void device_cpu_info(vector<DeviceInfo>& devices)
 	devices.insert(devices.begin(), info);
 }
 
-string device_cpu_capabilities(void)
+string device_cpu_capabilities()
 {
 	string capabilities = "";
 	capabilities += system_cpu_support_sse2() ? "SSE2 " : "";

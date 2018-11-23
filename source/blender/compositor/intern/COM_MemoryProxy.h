@@ -16,8 +16,8 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
  * Contributor:
- *		Jeroen Bakker
- *		Monique Dewanchand
+ *      Jeroen Bakker
+ *      Monique Dewanchand
  */
 
 class MemoryProxy;
@@ -39,7 +39,7 @@ class WriteBufferOperation;
 class MemoryProxy {
 private:
 	/**
-	 * \brief reference to the ouput operation of the executiongroup
+	 * \brief reference to the output operation of the executiongroup
 	 */
 	WriteBufferOperation *m_writeBufferOperation;
 
