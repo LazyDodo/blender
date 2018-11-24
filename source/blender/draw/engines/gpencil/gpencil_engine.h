@@ -60,6 +60,7 @@ struct RenderLayer;
  /* *********** OBJECTS CACHE *********** */
 typedef struct tGPencilObjectCache_shgrp {
 	int mode;
+	bool use_mask;
 	DRWShadingGroup *init_shgrp;
 	DRWShadingGroup *end_shgrp;
 } tGPencilObjectCache_shgrp;
@@ -136,6 +137,7 @@ typedef struct GPENCIL_Storage {
 	short multisamples;
 
 	int blend_mode;
+	int use_mask;
 
 	/* simplify settings*/
 	bool simplify_fill;

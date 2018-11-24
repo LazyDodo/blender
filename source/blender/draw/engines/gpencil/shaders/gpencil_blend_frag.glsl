@@ -5,7 +5,9 @@ out vec4 FragColor;
 uniform sampler2D strokeColor;
 uniform sampler2D strokeDepth;
 uniform sampler2D blendColor;
+uniform sampler2D blendDepth;
 uniform int mode;
+uniform int use_mask;
 
 #define MODE_NORMAL   0
 #define MODE_OVERLAY  1
@@ -76,11 +78,11 @@ void main()
 {
 	ivec2 uv = ivec2(gl_FragCoord.xy);
 	vec4 stroke_color =  texelFetch(strokeColor, uv, 0).rgba;
-	if (stroke_color.a == 0) {
+	float stroke_depth = texelFetch(strokeDepth, uv, 0).r;
+	if ((stroke_color.a == 0) && (use_mask == 1)) {
 		discard;
 	}
 	
-	float stroke_depth = texelFetch(strokeDepth, uv, 0).r;
 	vec4 mix_color =  texelFetch(blendColor, uv, 0).rgba;
 
 	/* premult alpha factor to remove double blend effects */
@@ -92,6 +94,13 @@ void main()
 	}
 
 	vec4 outcolor = get_blend_color(mode, stroke_color, mix_color);
+
+	/* if not using mask, return mix color */
+	if ((stroke_color.a == 0) && (use_mask == 0)) {
+		FragColor = mix_color;
+		gl_FragDepth = texelFetch(blendDepth, uv, 0).r;
+		return;
+	}
 	
 	FragColor = outcolor;
 	gl_FragDepth = stroke_depth;

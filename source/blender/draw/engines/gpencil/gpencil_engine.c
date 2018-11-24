@@ -501,7 +501,9 @@ void GPENCIL_cache_init(void *vedata)
 		DRW_shgroup_uniform_texture_ref(blend_shgrp, "strokeColor", &e_data.temp_color_tx_a);
 		DRW_shgroup_uniform_texture_ref(blend_shgrp, "strokeDepth", &e_data.temp_depth_tx_a);
 		DRW_shgroup_uniform_texture_ref(blend_shgrp, "blendColor", &e_data.temp_color_tx_fx);
+		DRW_shgroup_uniform_texture_ref(blend_shgrp, "blendDepth", &e_data.temp_depth_tx_fx);
 		DRW_shgroup_uniform_int(blend_shgrp, "mode", &stl->storage->blend_mode, 1);
+		DRW_shgroup_uniform_int(blend_shgrp, "use_mask", &stl->storage->use_mask, 1);
 
 		/* create effects passes */
 		if (!stl->storage->simplify_fx) {
@@ -795,6 +797,7 @@ void GPENCIL_draw_scene(void *ved)
 								GPU_framebuffer_bind(fbl->temp_fb_b);
 								GPU_framebuffer_clear_color_depth(fbl->temp_fb_b, clearcol, 1.0f);
 								stl->storage->blend_mode = array_elm->mode;
+								stl->storage->use_mask = (int)array_elm->use_mask;
 								DRW_draw_pass(psl->blend_pass);
 
 								/* Copy B texture to A texture to follow loop */

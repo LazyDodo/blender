@@ -542,6 +542,7 @@ class TOPBAR_PT_gpencil_layers(Panel):
         if gpl:
             row = layout.row(align=True)
             row.prop(gpl, "blend_mode", text="Blend")
+            row.prop(gpl, "use_mask", text="", icon='MOD_MASK')
             row = layout.row(align=True)
             row.enabled = gpl.blend_mode == 'NORMAL'
             row.prop(gpl, "opacity", text="Opacity", slider=True)

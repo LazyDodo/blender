@@ -295,6 +295,8 @@ typedef enum eGPDlayer_Flag {
 	GP_LAYER_VOLUMETRIC		= (1 << 10),
 	/* Unlock color */
 	GP_LAYER_UNLOCK_COLOR 	= (1 << 12),
+	/* Mask Layer */
+	GP_LAYER_USE_MASK = (1 << 13),
 } eGPDlayer_Flag;
 
 /* bGPDlayer->onion_flag */
