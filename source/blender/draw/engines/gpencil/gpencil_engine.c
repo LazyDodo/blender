@@ -763,6 +763,7 @@ void GPENCIL_draw_scene(void *ved)
 			for (int i = 0; i < stl->g_data->gp_cache_used; i++) {
 				cache_ob = &stl->g_data->gp_object_cache[i];
 				bGPdata *gpd = cache_ob->gpd;
+				init_shgrp = NULL;
 				/* Render stroke in separated framebuffer */
 				GPU_framebuffer_bind(fbl->temp_fb_a);
 				GPU_framebuffer_clear_color_depth(fbl->temp_fb_a, clearcol, 1.0f);
