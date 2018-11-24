@@ -4926,8 +4926,8 @@ void RNA_def_userdef(BlenderRNA *brna)
 
 	static const EnumPropertyItem user_pref_sections[] = {
 		{0, "", ICON_USER, "User Preferences", ""},
-		{USER_SECTION_EDIT, "EDITING", 0, "Editing", ""},
 		{USER_SECTION_INTERFACE, "INTERFACE", 0, "Interface", ""},
+		{USER_SECTION_EDIT, "EDITING", 0, "Editing", ""},
 		{USER_SECTION_INPUT, "INPUT", 0, "Input", ""},
 		{USER_SECTION_ADDONS, "ADDONS", 0, "Add-ons", ""},
 		{USER_SECTION_THEME, "THEMES", 0, "Themes", ""},
