@@ -56,7 +56,7 @@
 
 static MeshIsland* fracture_object_to_island(FractureModifierData *fmd, Object *own, Object* target, Main* bmain, Scene* scene);
 
-int fracture_collect_defgrp(Object* o, Object* ob, int defstart, GHash** def_index_map)
+static int fracture_collect_defgrp(Object* o, Object* ob, int defstart, GHash** def_index_map)
 {
 	bDeformGroup *vgroup, *ngroup;
 	int k = 0;
@@ -117,10 +117,8 @@ short BKE_fracture_collect_materials(Main* bmain, Object* o, Object* ob, int mat
 MeshIsland* BKE_fracture_mesh_island_add(Main* bmain, FractureModifierData *fmd, Object* own, Object *target, Scene *scene)
 {
 	MeshIsland *mi;
-	int vertstart = 0;
 	short totcol = 0, totdef = 0;
-	float loc[3], quat[4], iquat[4];
-	int frame = BKE_scene_frame_get(scene);
+	float loc[3], quat[4];
 	int endframe = scene->rigidbody_world->shared->pointcache->endframe;
 	//better: leave open... or update when changing endframe / startframe TODO FIX
 
@@ -270,7 +268,7 @@ void BKE_fracture_mesh_island_remove(FractureModifierData *fmd, MeshIsland *mi, 
 		{
 			RigidBodyShardCon *con = mi->participating_constraints[i];
 			BLI_remlink(&fmd->shared->mesh_constraints, con);
-			BKE_rigidbody_remove_shard_con(scene, con);
+			BKE_rigidbody_remove_shard_con(scene->rigidbody_world, con);
 		}
 
 		BKE_fracture_mesh_island_free(mi, scene);
@@ -319,7 +317,7 @@ static MeshIsland* fracture_object_to_island(FractureModifierData* fmd, Object *
 	MVert *mv;
 	int v;
 	SpaceTransform trans;
-	float mat[4][4], size[3] = {1.0f, 1.0f, 1.0f};
+	float mat[4][4];
 	int frame = (int)BKE_scene_frame_get(scene);
 
 	if (me)

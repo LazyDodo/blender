@@ -181,6 +181,8 @@ static StructRNA *rna_Modifier_refine(struct PointerRNA *ptr)
 			return &RNA_SurfaceDeformModifier;
 		case eModifierType_Fracture:
 			return &RNA_FractureModifier;
+		case eModifierType_WeightedNormal:
+			return &RNA_WeightedNormalModifier;
 		/* Default */
 		case eModifierType_None:
 		case eModifierType_ShapeKey:
@@ -201,7 +203,7 @@ static void rna_##_type##Modifier_##_prop##_set(PointerRNA *ptr, const char *val
 }
 
 RNA_MOD_VGROUP_NAME_SET(Fracture, thresh_defgrp_name);
-RNA_MOD_VGROUP_NAME_SET(Fracture, passive_defgrp_name);
+//RNA_MOD_VGROUP_NAME_SET(Fracture, passive_defgrp_name);
 RNA_MOD_VGROUP_NAME_SET(Fracture, inner_defgrp_name);
 
 #undef RNA_MOD_VGROUP_NAME_SET
@@ -645,12 +647,6 @@ static void rna_FractureModifier_anim_mesh_ob_set(PointerRNA* ptr, PointerRNA va
 
 static void rna_Modifier_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *ptr)
 {
-	ModifierData* md = ptr->data;
-	RigidBodyWorld *rbw = scene->rigidbody_world;
-
-	FractureModifierData *fmd = (FractureModifierData*)md;
-
-	//fmd->shared->refresh = false;
 	BKE_rigidbody_cache_reset(scene);
 
 	DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA | OB_RECALC_OB | OB_RECALC_TIME |

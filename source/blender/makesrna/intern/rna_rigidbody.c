@@ -270,12 +270,11 @@ void foreach_shard_flag_shape(Object *ob, int flag, short shape, bool reset)
 
 static void rna_RigidBodyOb_reset(Main *UNUSED(bmain), Scene *scene, PointerRNA *ptr)
 {
-      RigidBodyWorld *rbw = scene->rigidbody_world;
-      Object *ob = ptr->id.data;
-      RigidBodyOb* rbo = ptr->data;
-      foreach_shard_flag_shape(ob, rbo->flag, rbo->shape, false);
+	Object *ob = ptr->id.data;
+	RigidBodyOb* rbo = ptr->data;
+	foreach_shard_flag_shape(ob, rbo->flag, rbo->shape, false);
 
-      BKE_rigidbody_cache_reset(scene);
+	BKE_rigidbody_cache_reset(scene);
 }
 
 static void rna_RigidBodyOb_shape_update(Main *bmain, Scene *scene, PointerRNA *ptr)
@@ -289,14 +288,15 @@ static void rna_RigidBodyOb_shape_update(Main *bmain, Scene *scene, PointerRNA *
 
 static void rna_RigidBodyOb_shape_reset(Main *UNUSED(bmain), Scene *scene, PointerRNA *ptr)
 {
-      RigidBodyWorld *rbw = scene->rigidbody_world;
-      RigidBodyOb *rbo = (RigidBodyOb *)ptr->data;
-      Object *ob = ptr->id.data;
 
-      foreach_shard_flag_shape(ob, rbo->flag, rbo->shape, true);
-      BKE_rigidbody_cache_reset(scene);
-      if (rbo->shared->physics_shape)
-            rbo->flag |= RBO_FLAG_NEEDS_RESHAPE;
+	RigidBodyOb *rbo = (RigidBodyOb *)ptr->data;
+	Object *ob = ptr->id.data;
+
+	foreach_shard_flag_shape(ob, rbo->flag, rbo->shape, true);
+	BKE_rigidbody_cache_reset(scene);
+	if (rbo->shared->physics_shape) {
+		rbo->flag |= RBO_FLAG_NEEDS_RESHAPE;
+	}
 }
 
 static char *rna_RigidBodyOb_path(PointerRNA *ptr)
@@ -617,10 +617,8 @@ static void rna_RigidBodyOb_torque_apply(RigidBodyOb* rbo, float torque[3])
 #endif
 }
 
-static void rna_RigidBodyWorld_reset(Main *UNUSED(bmain), Scene *scene, PointerRNA *ptr)
+static void rna_RigidBodyWorld_reset(Main *UNUSED(bmain), Scene *scene, PointerRNA *UNUSED(ptr))
 {
-	//RigidBodyWorld *rbw = (RigidBodyWorld *)ptr->data;
-
 	BKE_rigidbody_cache_reset(scene);
 }
 
@@ -1169,7 +1167,7 @@ static void rna_def_rigidbody_world(BlenderRNA *brna)
 static void rna_def_rigidbody_object(BlenderRNA *brna)
 {
 	StructRNA *srna;
-	PropertyRNA *prop, *parm;
+	PropertyRNA *prop;
 	FunctionRNA *func;
 
 
@@ -1390,16 +1388,16 @@ static void rna_def_rigidbody_object(BlenderRNA *brna)
 
 	//expose force and torque application as RNA functions
 	func = RNA_def_function(srna, "apply_force", "rna_RigidBodyOb_force_apply");
-	parm = RNA_def_float_vector_xyz(func, "force", 3, NULL, -FLT_MAX, FLT_MAX,
+	RNA_def_float_vector_xyz(func, "force", 3, NULL, -FLT_MAX, FLT_MAX,
 	                                "Applied Force", "The currently applied force on this rigid body",
 	                               -FLT_MIN, FLT_MAX);
 
-	parm = RNA_def_float_vector_xyz(func, "position", 3, NULL, -FLT_MAX, FLT_MAX,
+	RNA_def_float_vector_xyz(func, "position", 3, NULL, -FLT_MAX, FLT_MAX,
 	                                "Position", "The position of the applied force on this rigid body",
 	                               -FLT_MIN, FLT_MAX);
 
 	func = RNA_def_function(srna, "apply_torque", "rna_RigidBodyOb_torque_apply");
-	parm = RNA_def_float_vector_xyz(func, "torque", 3, NULL, -FLT_MAX, FLT_MAX,
+	RNA_def_float_vector_xyz(func, "torque", 3, NULL, -FLT_MAX, FLT_MAX,
 	                                "Applied Torque", "The currently applied torque on this rigid body",
 	                               -FLT_MIN, FLT_MAX);
 

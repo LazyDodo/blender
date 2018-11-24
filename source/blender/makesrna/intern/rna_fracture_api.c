@@ -595,6 +595,7 @@ static void rna_MeshIslandVertexGroupElement_begin(CollectionPropertyIterator *i
 	rna_iterator_array_begin(iter, (void *)dvert->dw, sizeof(MDeformWeight), dvert->totweight, 0, NULL);
 }
 
+#if 0
 static int rna_MeshIslandVertex_index_get(PointerRNA *ptr)
 {
 	Object* ob = (Object*)ptr->id.data;
@@ -610,6 +611,7 @@ static int rna_MeshIslandVertex_index_get(PointerRNA *ptr)
 		return -1;
 	}
 }
+#endif
 
 static void rna_MeshCon_use_limit_lin_x(PointerRNA *ptr, int value)
 {

@@ -110,7 +110,7 @@ void BKE_rigidbody_calc_threshold(float max_con_mass, struct FractureModifierDat
 float BKE_rigidbody_calc_max_con_mass(struct Object* ob);
 float BKE_rigidbody_calc_min_con_dist(struct Object* ob);
 void BKE_rigidbody_start_dist_angle(struct RigidBodyShardCon* con, bool exact, bool both);
-void BKE_rigidbody_remove_shard_con(struct Scene* scene, struct RigidBodyShardCon* con);
+void BKE_rigidbody_remove_shard_con(struct RigidBodyWorld* rbw, struct RigidBodyShardCon* con);
 void BKE_rigidbody_remove_shard(struct Scene* scene, struct MeshIsland *mi);
 void BKE_rigidbody_update_ob_array(struct RigidBodyWorld *rbw, bool do_bake_correction);
 /* -------------- */
@@ -127,7 +127,7 @@ void BKE_rigidbody_update_ob_array(struct RigidBodyWorld *rbw, bool do_bake_corr
 /* Simulation */
 
 void BKE_rigidbody_aftertrans_update(struct Object *ob, float loc[3], float rot[3],
-                                     float quat[4], float rotAxis[3], float rotAngle, struct Depsgraph *depsgraph);
+                                     float quat[4], float rotAxis[3], float rotAngle);
 void BKE_rigidbody_sync_transforms(struct Scene* scene, struct Object *ob, float ctime);
 bool BKE_rigidbody_check_sim_running(struct RigidBodyWorld *rbw, float ctime);
 void BKE_rigidbody_cache_reset(struct Scene *scene);

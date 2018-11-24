@@ -84,7 +84,6 @@ Mesh *BKE_fracture_prefractured_apply(FractureModifierData *fmd, Object *ob, Mes
 
 MeshIsland *BKE_fracture_mesh_island_create(Mesh* me, Main* bmain, Scene *scene, Object *ob, int frame)
 {
-	int i;
 	int endframe = scene->rigidbody_world->shared->pointcache->endframe;
 	MeshIsland *mi = MEM_callocN(sizeof(MeshIsland), "mesh_island");
 	mi->mesh = me;
@@ -250,7 +249,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 
 	/* assemble mesh from transformed meshislands */
 	if (fmd->shared->mesh_islands.first) {
-		me_assembled = BKE_fracture_assemble_mesh_from_islands(fmd, scene, ob, ctime);
+		me_assembled = BKE_fracture_assemble_mesh_from_islands(fmd, ob, ctime);
 	}
 	else {
 		me_assembled = BKE_fracture_mesh_copy(me, ob);

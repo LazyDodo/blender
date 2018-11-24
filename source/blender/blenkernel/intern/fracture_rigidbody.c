@@ -1577,6 +1577,17 @@ void BKE_rigidbody_shard_validate(RigidBodyWorld *rbw, MeshIsland *mi, Object *o
 
 		if (rbw && rbo && rbo->shared->physics_object && (mi->startframe < (int)ctime))
 		{
+			int i = 0;
+			for (i = 0; i < mi->participating_constraint_count; i++)
+			{
+				/* dont forget removing constraints if any */
+				RigidBodyShardCon *con = mi->participating_constraints[i];
+				BKE_rigidbody_remove_shard_con(rbw, con);
+
+				//do not re-validate
+				con->flag &= ~(RBC_FLAG_NEEDS_VALIDATE);
+			}
+
 			if (rbw->shared->physics_world && rbo->shared->physics_object)
 				RB_dworld_remove_body(rbw->shared->physics_world, rbo->shared->physics_object);
 
@@ -2070,13 +2081,11 @@ static void handle_solver_iterations(RigidBodyWorld *rbw, FractureModifierData *
 		}
 	}
 
-#if 0
 	/* dont automatically enable in External mode */
-	if ((iterations > 0) && (fmd->fracture_mode != MOD_FRACTURE_EXTERNAL)) {
+	if (iterations > 0) {
 		rbsc->flag |= RBC_FLAG_OVERRIDE_SOLVER_ITERATIONS;
 		rbsc->num_solver_iterations = iterations;
 	}
-#endif
 }
 
 bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw, bool rebuild, Depsgraph *depsgraph)
@@ -2102,17 +2111,6 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 
 		BKE_object_where_is_calc(depsgraph, scene, ob);
 		fmd->constraint_island_count = 1;
-
-#if 0
-		if ((ob->rigidbody_object && (ob->rigidbody_object->flag & RBO_FLAG_KINEMATIC) //&&
-			 /*fmd->fracture_mode == MOD_FRACTURE_PREFRACTURED*/)) {
-
-			if (fmd->use_animated_mesh && fmd->anim_mesh_ob)
-			{
-				BKE_fracture_animated_loc_rot(fmd, ob, false, depsgraph);
-			}
-		}
-#endif
 
 		for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next) {
 			if (mi->rigidbody == NULL) {
@@ -2280,66 +2278,6 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 	}
 }
 
-#if 0
-TODO, FIX (advanced stuff)
-void BKE_rigidbody_passive_hook(FractureModifierData *fmd, MeshIsland *mi, Object* ob, Scene* scene, Depsgraph *depsgraph)
-{
-	RigidBodyOb *rbo = mi->rigidbody;
-
-	if (rbo->type == RBO_TYPE_PASSIVE && !(rbo->flag & RBO_FLAG_KINEMATIC))
-	{
-		Mesh *dm = fmd->shared->mesh_cached;
-		ModifierData *md;
-		bool found = false;
-
-		if (dm)
-		{
-			MVert *mv = dm->mvert;
-			int totvert = dm->totvert;
-			float acc[3];
-			copy_v3_v3(acc, mv->co);
-
-			for (md = ob->modifiers.first; md; md = md->next)
-			{
-				if (md->type == eModifierType_Fracture)
-				{
-					if ((FractureModifierData*)md == fmd)
-					{
-						found = true;
-					}
-				}
-
-				//only eval following hookmodifiers, based on our derivedmesh
-				if (md->type == eModifierType_Hook && found)
-				{
-					float (*vertexCos)[3], old[3], diff[3];
-					const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
-					HookModifierData *hmd = (HookModifierData*)md;
-					ModifierEvalContext mctx = {.depsgraph = depsgraph, .object = ob};
-
-					//skip hook modifiers which were just added and arent valid yet
-					if (!hmd->object)
-						continue;
-
-					BKE_object_where_is_calc(depsgraph, scene, hmd->object);
-
-					vertexCos = BKE_mesh_vertexCos_get(dm, &totvert);
-					copy_v3_v3(old, vertexCos[mi->vertex_indices[0]]);
-
-					mti->deformVerts(md, &mctx, dm, vertexCos, totvert);
-
-					sub_v3_v3v3(diff, vertexCos[mi->vertex_indices[0]], old);
-					add_v3_v3(acc, diff);
-					MEM_freeN(vertexCos);
-				}
-			}
-
-			rigidbody_passive_fake_hook(mi, acc);
-		}
-	}
-}
-#endif
-
 bool BKE_rigidbody_modifier_sync(ModifierData *md, Object *ob, Scene *scene, float ctime)
 {
 	RigidBodyWorld *rbw = scene->rigidbody_world;
@@ -2349,8 +2287,6 @@ bool BKE_rigidbody_modifier_sync(ModifierData *md, Object *ob, Scene *scene, flo
 	RigidBodyOb *rbo;
 	float size[3] = {1, 1, 1};
 	float centr[3];
-	float imat[4][4];
-
 
 	if (md->type == eModifierType_Fracture) {
 
@@ -2367,11 +2303,6 @@ bool BKE_rigidbody_modifier_sync(ModifierData *md, Object *ob, Scene *scene, flo
 				if (!rbo || !ob->rigidbody_object) {
 					continue;
 				}
-#if 0
-				if (ob->rigidbody_object->type == RBO_TYPE_ACTIVE) {
-					BKE_rigidbody_passive_fake_parenting(fmd, ob, rbo, imat);
-				}
-#endif
 
 				/* use rigid body transform after cache start frame if objects is not being transformed */
 				if (BKE_rigidbody_check_sim_running(rbw, ctime) && !(ob->flag & SELECT && G.moving & G_TRANSFORM_OBJ)) {
@@ -2417,32 +2348,6 @@ bool BKE_rigidbody_modifier_sync(ModifierData *md, Object *ob, Scene *scene, flo
 
 	return modFound;
 }
-
-#if 0
-void BKE_rigidbody_passive_fake_parenting(FractureModifierData *fmd, Object *ob, RigidBodyOb *rbo, float imat[4][4])
-{
-	if (rbo->type == RBO_TYPE_PASSIVE && rbo->shared->physics_object)
-	{
-		//fake parenting, move all passive rbos together with original object in FM case
-		float quat[4];
-		//float imat[4][4];
-
-		//first get rid of old obmat (=passive_parent_mat) -> do outside loop, expensive function due to profiler
-		//invert_m4_m4(imat, fmd->passive_parent_mat);
-		mat4_to_quat(quat, imat);
-		mul_m4_v3(imat, rbo->pos);
-		mul_qt_qtqt(rbo->orn, quat, rbo->orn);
-
-		//then apply new obmat
-		mat4_to_quat(quat, ob->obmat);
-		mul_m4_v3(ob->obmat, rbo->pos);
-		mul_qt_qtqt(rbo->orn, quat, rbo->orn);
-
-		RB_body_set_kinematic_state(rbo->shared->physics_object, true);
-		RB_body_set_loc_rot(rbo->shared->physics_object, rbo->pos, rbo->orn);
-	}
-}
-#endif
 
 bool BKE_restoreKinematic(RigidBodyWorld *rbw, bool override_bind)
 {
@@ -2638,11 +2543,10 @@ RigidBodyShardCon *BKE_rigidbody_create_shard_constraint(Scene *scene, short typ
 	return rbc;
 }
 
-void BKE_rigidbody_remove_shard_con(Scene *scene, RigidBodyShardCon *con)
+void BKE_rigidbody_remove_shard_con(RigidBodyWorld *rbw, RigidBodyShardCon *con)
 {
-	RigidBodyWorld *rbw = scene->rigidbody_world;
-		if (rbw && rbw->shared->physics_world && con && con->physics_constraint) {
-			RB_dworld_remove_constraint(rbw->shared->physics_world, con->physics_constraint);
+	if (rbw && rbw->shared->physics_world && con && con->physics_constraint) {
+		RB_dworld_remove_constraint(rbw->shared->physics_world, con->physics_constraint);
 		RB_constraint_delete(con->physics_constraint);
 		con->physics_constraint = NULL;
 	}
@@ -2661,7 +2565,7 @@ void BKE_rigidbody_remove_shard(Scene *scene, MeshIsland *mi)
 
 		for (i = 0; i < mi->participating_constraint_count; i++) {
 			con = mi->participating_constraints[i];
-			BKE_rigidbody_remove_shard_con(scene, con);
+			BKE_rigidbody_remove_shard_con(rbw, con);
 		}
 
 		if (rbw->shared->physics_world && mi->rigidbody && mi->rigidbody->shared->physics_object)

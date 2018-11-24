@@ -1315,7 +1315,7 @@ static void copy_from_4(float* dst, float src[4], int index)
 	dst[3] = src[index * 4 + 3];
 }
 
-int calc_frame(RigidBodyWorld *rbw, MeshIsland *mi, int frame)
+static int calc_frame(RigidBodyWorld *rbw, MeshIsland *mi, int frame)
 {
 	frame = frame - mi->startframe;
 	if (mi->startframe > rbw->shared->pointcache->startframe && frame > 0) {
@@ -3604,12 +3604,9 @@ int  BKE_ptcache_object_reset(Scene *scene, Object *ob, int mode)
 	}
 
 	if (scene->rigidbody_world && (ob->rigidbody_object || ob->rigidbody_constraint)) {
-		ModifierData *md = modifiers_findByType(ob, eModifierType_Fracture);
-		if (md && md->type == eModifierType_Fracture)
-		{
-			FractureModifierData *fmd = (FractureModifierData*)md;
-			if (!fmd->shared->refresh_autohide)
-			{
+		FractureModifierData *fmd = (FractureModifierData*)modifiers_findByType(ob, eModifierType_Fracture);
+		if (fmd) {
+			if (!fmd->shared->refresh_autohide) {
 				if (ob->rigidbody_object)
 					ob->rigidbody_object->flag |= RBO_FLAG_NEEDS_RESHAPE;
 				BKE_ptcache_id_from_rigidbody(&pid, ob, scene->rigidbody_world);
@@ -3617,8 +3614,7 @@ int  BKE_ptcache_object_reset(Scene *scene, Object *ob, int mode)
 				pid.cache->flag |= PTCACHE_OUTDATED;
 			}
 		}
-		else
-		{
+		else {
 			if (ob->rigidbody_object)
 				ob->rigidbody_object->flag |= RBO_FLAG_NEEDS_RESHAPE;
 			BKE_ptcache_id_from_rigidbody(&pid, ob, scene->rigidbody_world);

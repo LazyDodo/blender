@@ -422,7 +422,7 @@ void BKE_fracture_mesh_constraint_remove(FractureModifierData *fmd, RigidBodySha
 	remove_participants(con, con->mi2);
 
 	BLI_remlink(&fmd->shared->mesh_constraints, con);
-	BKE_rigidbody_remove_shard_con(scene, con);
+	BKE_rigidbody_remove_shard_con(scene->rigidbody_world, con);
 	MEM_freeN(con);
 	if (fmd->constraint_count > 0)
 	{
@@ -758,8 +758,8 @@ void BKE_fracture_constraints_free(FractureModifierData *fmd, Scene *scene)
 	while (fmd->shared->mesh_constraints.first) {
 		rbsc = fmd->shared->mesh_constraints.first;
 		BLI_remlink(&fmd->shared->mesh_constraints, rbsc);
-		if (scene)
-			BKE_rigidbody_remove_shard_con(scene, rbsc);
+		if (scene && scene->rigidbody_world)
+			BKE_rigidbody_remove_shard_con(scene->rigidbody_world, rbsc);
 		MEM_freeN(rbsc);
 		rbsc = NULL;
 	}

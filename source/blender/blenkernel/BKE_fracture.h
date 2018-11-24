@@ -80,7 +80,11 @@ static const CustomDataMask CD_MASK_ISLAND =
 		CD_MASK_GRID_PAINT_MASK | CD_MASK_MVERT_SKIN | CD_MASK_FREESTYLE_EDGE | CD_MASK_FREESTYLE_FACE |
 		CD_MASK_CUSTOMLOOPNORMAL | CD_MASK_FACEMAP;
 
+void BKE_fracture_points(struct FractureModifierData *fmd, struct Object* obj, struct MeshIsland *mi,
+                         struct Depsgraph* depsgraph, struct Main *bmain, struct Scene *scene, bool is_initial);
 
+void BKE_fracture_shard_by_points(struct FractureModifierData *fmd, struct FracPointCloud *pointcloud,
+                                  struct Object *ob, struct MeshIsland* mi, struct Scene *scene, struct Main *bmain);
 void BKE_fracture_autohide_refresh(struct FractureModifierData* fmd, struct Object *ob, struct Mesh *me_assembled);
 void BKE_fracture_automerge_refresh(struct FractureModifierData* fmd, struct Mesh *me_assembled);
 
@@ -134,7 +138,7 @@ void BKE_fracture_constraint_create(struct Scene *scene, struct FractureModifier
 void BKE_fracture_split_islands(struct FractureModifierData *fmd, struct Object* ob, struct Mesh *me, struct Mesh ***temp_islands,
 int *count);
 
-struct Mesh* BKE_fracture_assemble_mesh_from_islands(struct FractureModifierData *fmd, struct Scene* scene, struct Object *ob, float ctime);
+struct Mesh* BKE_fracture_assemble_mesh_from_islands(struct FractureModifierData *fmd, struct Object *ob, float ctime);
 
 void BKE_fracture_modifier_free(struct FractureModifierData *fmd, struct Scene *scene);
 
@@ -162,7 +166,7 @@ bool BKE_fracture_meshisland_check_frame(struct FractureModifierData *fmd, struc
 void BKE_fracture_dynamic_do(struct FractureModifierData *fmd, struct Object* ob, struct Scene* scene,
                              struct Depsgraph* depsgraph, struct Main* bmain);
 
-void BKE_fracture_clear_cache(struct FractureModifierData* fmd, struct Object *ob, struct Scene *scene);
+void BKE_fracture_clear_cache(struct FractureModifierData* fmd, struct Scene *scene);
 void BKE_fracture_meshisland_vertexgroups_do(struct FractureModifierData *fmd, struct Object *ob, struct MeshIsland* mi);
 void BKE_fracture_meshislands_pack(struct FractureModifierData *fmd, struct Object* obj, struct Main* bmain, struct Scene* scene);
 
