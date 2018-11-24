@@ -2202,7 +2202,7 @@ FracPointCloud BKE_fracture_points_get(Depsgraph *depsgraph, FractureModifierDat
 	if ((emd->point_source & MOD_FRACTURE_UNIFORM) || (emd->use_dynamic))
 	{
 		float cent[3] = {0, 0, 0}, bmin[3], bmax[3];
-		int count = emd->shard_count;
+		int count = emd->use_dynamic ? emd->dynamic_shard_count : emd->shard_count;
 
 		INIT_MINMAX(min, max);
 		//for limit impact we need entire container always, because we need to determine secondary impacts on the shards at their original pos
@@ -3217,24 +3217,6 @@ static void do_island_index_map(FractureModifierData *fmd, Object* obj)
 		}
 	}
 }
-
-#if 0
-Mesh *BKE_fracture_mesh_from_packdata(FractureModifierData *fmd, Mesh *derivedData)
-{
-	Mesh *dm = NULL;
-
-	/* keep old way of using dynamic external working as well, without interfering with packing */
-	if (fmd->shared->pack_storage.first && !fmd->is_dynamic_external)
-	{
-		dm = BKE_fracture_assemble_mesh_from_islands(fmd, );
-	}
-	else {
-		dm = derivedData;
-	}
-
-	return dm;
-}
-#endif
 
 Mesh* BKE_fracture_mesh_copy(Mesh* source, Object* ob)
 {

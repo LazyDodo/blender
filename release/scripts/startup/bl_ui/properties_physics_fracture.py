@@ -123,6 +123,8 @@ class PHYSICS_PT_fracture_dynamic(PhysicButtonsPanel, Panel):
           layout = self.layout
           layout.active = md.use_dynamic
           row = layout.row(align=True)
+          row.prop(md, "dynamic_shard_count")
+          row = layout.row(align=True)
           row.prop(md, "dynamic_force")
           row.prop(md, "dynamic_percentage")
           col = layout.column(align=True)

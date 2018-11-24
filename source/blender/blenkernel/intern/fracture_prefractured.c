@@ -212,6 +212,9 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		/*free old stuff here */
 		BKE_fracture_constraints_free(fmd, scene);
 
+		int dynamic = fmd->use_dynamic;
+		fmd->use_dynamic = false;
+
 		/*keep shards at packing and at dynamic refresh */
 		if (fmd->dm_group)
 		{
@@ -226,6 +229,8 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 				do_initial_prefracture(fmd, ob, depsgraph, bmain, scene, frame, me);
 			}
 		}
+
+		fmd->use_dynamic = dynamic;
 
 		fmd->shared->refresh_constraints = true;
 		fmd->shared->refresh_autohide = true;

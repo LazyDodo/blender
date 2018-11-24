@@ -1468,6 +1468,13 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_ui_range(prop, 0.0f, FLT_MAX, 0.1f, 2);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
+	prop = RNA_def_property(srna, "dynamic_shard_count", PROP_INT, PROP_NONE);
+	RNA_def_property_range(prop, 1, 100000);
+	RNA_def_property_int_default(prop, 10);
+	RNA_def_property_ui_text(prop, "Dynamic Shard Count",
+	                         "How many sub-shards should be generated from the current shard dynamically");
+	//RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	//RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	RNA_api_fracture(brna, subrna);
 }

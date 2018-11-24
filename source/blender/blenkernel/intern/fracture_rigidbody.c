@@ -1509,10 +1509,14 @@ static void check_fracture(rbContactPoint* cp, Scene *scene)
 	cp = NULL;
 }
 
-void BKE_rigidbody_contact_callback(rbContactPoint* cp, void* world)
+static ThreadMutex dynamic_lock = BLI_MUTEX_INITIALIZER;
+void BKE_rigidbody_contact_callback(rbContactPoint* cp, void* sc)
 {
-	Scene* scene = (Scene*)DEG_get_original_id(world);
+	Scene* scene = (Scene*)DEG_get_original_id(sc);
+
+	BLI_mutex_lock(&dynamic_lock);
 	check_fracture(cp,scene);
+	BLI_mutex_unlock(&dynamic_lock);
 }
 
 void BKE_rigidbody_id_callback(void* island, int* objectId, int* islandId)

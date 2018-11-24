@@ -1603,7 +1603,7 @@ typedef struct FractureModifierData {
 	int grease_decimate;
 	int cutter_axis;
 	int cluster_constraint_type;
-	//int fracture_mode;
+	int dynamic_shard_count;
 	int dynamic_percentage;
 	int constraint_type;
 	int grid_resolution[3];
@@ -1694,7 +1694,7 @@ typedef struct FractureModifierData {
 	short mat_ofs_intersect;
 	short mat_ofs_difference;
 
-	//char pad[4];
+	char pad[4];
 } FractureModifierData;
 
 typedef struct DataTransferModifierData {
