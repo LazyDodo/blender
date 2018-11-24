@@ -867,7 +867,7 @@ class GPENCIL_UL_layer(UIList):
             row = layout.row(align=True)
             row.label(
                 text="",
-                icon='MOD_MASK' if gpl.use_mask else 'BLANK1'
+                icon='MOD_MASK' if gpl.blend_mode != 'NORMAL' and gpl.use_mask else 'BLANK1'
             )
             row.label(
                 text="",
