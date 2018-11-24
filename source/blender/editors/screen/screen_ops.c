@@ -4338,7 +4338,7 @@ static int settings_show_invoke(bContext *C, wmOperator *op, const wmEvent *even
 	int sizey = 500 * UI_DPI_FAC;
 
 	/* changes context! */
-	if (WM_window_open_temp(C, event->x, event->y, sizex, sizey, WM_WINDOW_SETTINGS) != NULL) {
+	if (WM_window_open_temp(C, event->x, event->y, sizex, sizey, WM_WINDOW_USERPREFS) != NULL) {
 		return OPERATOR_FINISHED;
 	}
 	else {

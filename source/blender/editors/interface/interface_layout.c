@@ -655,6 +655,7 @@ static void ui_item_enum_expand_exec(
 	uiLayout *layout_radial = NULL;
 	const EnumPropertyItem *item, *item_array;
 	const char *name;
+	char group_name[UI_MAX_NAME_STR];
 	int itemw, icon, value;
 	bool free;
 	bool radial = (layout->root->type == UI_LAYOUT_PIEMENU);
@@ -691,13 +692,10 @@ static void ui_item_enum_expand_exec(
 
 		if (!item->identifier[0]) {
 			if (item->name) {
-				size_t group_name_len = strlen(item->name) + 2;
-				char *group_name = alloca(group_name_len);
-
 				if (!is_first) {
 					uiItemS(block->curlayout);
 				}
-				BLI_snprintf(group_name, group_name_len, "%s:", item->name);
+				BLI_snprintf(group_name, sizeof(group_name), "%s:", item->name);
 				uiItemL(block->curlayout, group_name, item->icon);
 			}
 			else {

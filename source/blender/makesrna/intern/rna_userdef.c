@@ -4942,7 +4942,7 @@ void RNA_def_userdef(BlenderRNA *brna)
 		{0, "", ICON_SYSTEM, "System", ""},
 		{USER_SECTION_SYSTEM_GENERAL, "SYSTEM_GENERAL", 0, "General", ""},
 #ifdef WITH_USERDEF_SYSTEM_SPLIT
-		{USER_SECTION_SYSTEM_DRAWING, "SYSTEM_DRAWING", 0, "Drawing", ""},
+		{USER_SECTION_SYSTEM_DISPLAY, "SYSTEM_DISPLAY", 0, "Display", ""},
 		{USER_SECTION_SYSTEM_DEVICES, "SYSTEM_DEVICES", 0, "Devices", ""},
 #endif
 		{0, NULL, 0, NULL, NULL}

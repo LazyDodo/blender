@@ -671,7 +671,7 @@ void BKE_screen_remove_unused_scrverts(bScreen *sc)
 /**
  * Find a region of type \a region_type in the currently active space of \a sa.
  *
- * \note This does __not__ work if the region to look up is not in the active
+ * \note This does _not_ work if the region to look up is not in the active
  *       space. Use #BKE_spacedata_find_region_type if that may be the case.
  */
 ARegion *BKE_area_find_region_type(const ScrArea *sa, int region_type)
