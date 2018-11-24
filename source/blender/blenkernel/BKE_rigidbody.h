@@ -73,7 +73,7 @@ void BKE_rigidbody_world_id_loop(struct RigidBodyWorld *rbw, RigidbodyWorldIDFun
 struct RigidBodyWorld *BKE_rigidbody_create_world(struct Scene *scene);
 struct RigidBodyOb *BKE_rigidbody_create_object(struct Scene *scene, struct Object *ob, short type, struct MeshIsland *mi);
 struct RigidBodyCon *BKE_rigidbody_create_constraint(struct Scene *scene, struct Object *ob, short type, struct RigidBodyShardCon *con);
-struct RigidBodyOb *BKE_rigidbody_create_shard(struct Main *bmain, struct Scene *scene, struct Object *ob, struct Object *target, struct MeshIsland *mi);
+struct RigidBodyOb *BKE_rigidbody_create_shard(struct Object *ob, struct Object *target, struct MeshIsland *mi);
 struct RigidBodyShardCon *BKE_rigidbody_create_shard_constraint(struct Scene *scene, short type, bool reset);
 
 /* copy */
@@ -89,7 +89,7 @@ void BKE_rigidbody_validate_sim_shard_constraint(struct RigidBodyWorld *rbw, str
                                                  struct RigidBodyShardCon *rbsc, short rebuild);
 
 void BKE_rigidbody_validate_sim_shard(struct RigidBodyWorld *rbw, struct MeshIsland *mi, struct Object *ob,
-                                      struct FractureModifierData *fmd, short rebuild, int transfer_speeds, float size[3], float ctime);
+                                      struct FractureModifierData *fmd, short rebuild, int transfer_speeds, float size[3]);
 
 void BKE_rigidbody_validate_sim_shard_shape(struct MeshIsland *mi, struct Object *ob, short rebuild);
 
@@ -143,7 +143,7 @@ void BKE_rigidbody_update_sim_ob(struct Scene *scene, struct RigidBodyWorld *rbw
                                    struct FractureModifierData *fmd, struct Depsgraph *depsgraph);
 
 struct MeshIsland* BKE_rigidbody_closest_meshisland_to_point(struct FractureModifierData* fmd, struct Object *ob,
-                                                             struct Object *ob2, struct Scene* scene, struct RigidBodyCon *con);
+                                                             struct Object *ob2, struct Scene* scene);
 
 int BKE_rigidbody_filter_callback(void* scene, void* island1, void* island2, void *blenderOb1, void* blenderOb2, bool activate);
 void BKE_rigidbody_contact_callback(struct rbContactPoint* cp, void* world);

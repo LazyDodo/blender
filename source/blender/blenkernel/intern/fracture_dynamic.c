@@ -50,31 +50,13 @@
 
 void BKE_fracture_dynamic_do(FractureModifierData *fmd, Object* ob, Scene* scene, Depsgraph* depsgraph, Main* bmain)
 {
-	//int count = 0;
-	//int totpoint = 0;
 	FractureID *fid = fmd->shared->fracture_ids.first;
-
-#if 0
-	while(fid) {
-		FracPointCloud points;
-		if (!fid->mi->fractured) {
-			points = BKE_fracture_points_get(depsgraph, fmd, ob, fid->mi);
-			totpoint += points.totpoints;
-			MEM_freeN(points.points);
-			points.totpoints = 0;
-		}
-		fid = fid->next;
-	}
-
-	fid = (FractureID*)fmd->shared->fracture_ids.first;
-#endif
 
 	while(fid){
 		if (!fid->mi->fractured) {
 			BKE_fracture_do(fmd, fid->mi, ob, depsgraph, bmain, scene, false);
 		}
 		fid->mi->fractured = true;
-		//count++;
 
 		BLI_remlink(&fmd->shared->fracture_ids, fid);
 		fid = (FractureID*)fmd->shared->fracture_ids.first;

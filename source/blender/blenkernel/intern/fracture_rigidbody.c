@@ -72,7 +72,6 @@
 
 //static void resetDynamic(RigidBodyWorld *rbw, bool do_reset_always, bool override_bind, struct Depsgraph *depsgraph);
 static void check_fracture(rbContactPoint *cp, Scene *scene);
-static MeshIsland* findMeshIsland(FractureModifierData *fmd, int id);
 static void test_deactivate_rigidbody(RigidBodyOb *rbo, MeshIsland *mi);
 static float box_volume(float size[3]);
 
@@ -579,7 +578,7 @@ void BKE_rigidbody_validate_sim_shard_shape(MeshIsland *mi, Object *ob, short re
  * < rebuild: even if an instance already exists, replace it
  */
 void BKE_rigidbody_validate_sim_shard(RigidBodyWorld *rbw, MeshIsland *mi, Object *ob, FractureModifierData *fmd,
-                                      short rebuild, int transfer_speeds, float isize[3], float ctime)
+                                      short rebuild, int transfer_speeds, float isize[3])
 {
 	RigidBodyOb *rbo = (mi) ? mi->rigidbody : NULL;
 	float loc[3];
@@ -671,8 +670,7 @@ void BKE_rigidbody_validate_sim_shard(RigidBodyWorld *rbw, MeshIsland *mi, Objec
 
 /* --------------------- */
 
-MeshIsland* BKE_rigidbody_closest_meshisland_to_point(FractureModifierData* fmd, Object *ob, Object *ob2, Scene* scene,
-													  RigidBodyCon *con)
+MeshIsland* BKE_rigidbody_closest_meshisland_to_point(FractureModifierData* fmd, Object *ob, Object *ob2, Scene* scene)
 {
 	MeshIsland *mi, **mi_array = NULL;
 	KDTree *tree;
@@ -1428,8 +1426,8 @@ static bool check_constraints(FractureModifierData *fmd, MeshIsland *mi, RigidBo
 	return false;
 }
 
-static void check_fracture_meshisland(FractureModifierData *fmd, MeshIsland *mi, MeshIsland* mi_trigger, Object* ob1, Object* ob2,
-                                      RigidBodyWorld *rbw, float contact_pos[3], float force, int frame)
+static void check_fracture_meshisland(FractureModifierData *fmd, MeshIsland *mi, Object* ob1, Object* ob2,
+                                      RigidBodyWorld *rbw, float contact_pos[3], float force)
 {
 	bool canbreak = false;
 
@@ -1497,14 +1495,14 @@ static void check_fracture(rbContactPoint* cp, Scene *scene)
 	if (fmd1 && fmd1->use_dynamic)
 	{
 		mi1 = (MeshIsland*)cp->contact_islandA;
-		check_fracture_meshisland(fmd1, mi1, mi2, ob1, ob2, rbw, cp->contact_pos_world_onA, force, frame);
+		check_fracture_meshisland(fmd1, mi1, ob1, ob2, rbw, cp->contact_pos_world_onA, force);
 	}
 
 	fmd2 = (FractureModifierData*)modifiers_findByType(ob2, eModifierType_Fracture);
 	if (fmd2 && fmd2->use_dynamic)
 	{
 		mi2 = (MeshIsland*)cp->contact_islandB;
-		check_fracture_meshisland(fmd2, mi2, mi1, ob2, ob1, rbw, cp->contact_pos_world_onB, force, frame);
+		check_fracture_meshisland(fmd2, mi2, ob2, ob1, rbw, cp->contact_pos_world_onB, force);
 	}
 
 	//free contact point ?
@@ -1608,10 +1606,10 @@ void BKE_rigidbody_shard_validate(RigidBodyWorld *rbw, MeshIsland *mi, Object *o
 
 	if (rebuild /*|| (mi->rigidbody->flag & RBO_FLAG_KINEMATIC_REBUILD)*/) {
 		/* World has been rebuilt so rebuild object */
-		BKE_rigidbody_validate_sim_shard(rbw, mi, ob, fmd, true, transfer_speed, size, ctime);
+		BKE_rigidbody_validate_sim_shard(rbw, mi, ob, fmd, true, transfer_speed, size);
 	}
 	else if (mi->rigidbody->flag & RBO_FLAG_NEEDS_VALIDATE) {
-		BKE_rigidbody_validate_sim_shard(rbw, mi, ob, fmd, false, transfer_speed, size, ctime);
+		BKE_rigidbody_validate_sim_shard(rbw, mi, ob, fmd, false, transfer_speed, size);
 	}
 
 	/* refresh shape... */
@@ -1954,7 +1952,7 @@ static void enable_plastic(RigidBodyShardCon *rbsc)
 static void handle_plastic_breaking(RigidBodyShardCon *rbsc, RigidBodyWorld* rbw, short laststeps, float lastscale)
 {
 	float dist, angle, distdiff, anglediff;
-	bool exceededAngle = false, exceededDist = false, regularBroken = false;
+	bool exceededAngle = false, exceededDist = false;
 
 	/*match breaking threshold according to timescale and steps */
 	if (rbsc->physics_constraint)
@@ -2016,7 +2014,8 @@ static void handle_plastic_breaking(RigidBodyShardCon *rbsc, RigidBodyWorld* rbw
 	}
 }
 
-static void handle_regular_breaking(FractureModifierData *fmd, Object *ob, RigidBodyWorld *rbw, RigidBodyShardCon *rbsc, float max_con_mass, bool rebuild)
+static void handle_regular_breaking(FractureModifierData *fmd, Object *ob, RigidBodyWorld *rbw, RigidBodyShardCon *rbsc,
+                                    float max_con_mass)
 {
 	float weight = MIN2(rbsc->mi1->thresh_weight, rbsc->mi2->thresh_weight);
 	float breaking_angle = fmd->breaking_angle_weighted ? fmd->breaking_angle * weight : fmd->breaking_angle;
@@ -2189,10 +2188,12 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 
 			if (rbsc->physics_constraint && rbw && (rbw->flag & RBW_FLAG_REBUILD_CONSTRAINTS) && !rebuild) {
 				//printf("Rebuilding constraints\n");
+#if 0
 				if (!fmd->is_dynamic_external) {
 					RB_constraint_set_enabled(rbsc->physics_constraint, rbsc->flag & RBC_FLAG_ENABLED);
 					rbsc->flag |= RBC_FLAG_NEEDS_VALIDATE;
 				}
+#endif
 
 				if (rbsc->type == RBC_TYPE_6DOF_SPRING)
 				{
@@ -2226,14 +2227,23 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 				BKE_rigidbody_start_dist_angle(rbsc, true, true);
 				//TODO ensure evaluation on transform change too
 			}
-
-			else if (rbsc->flag & RBC_FLAG_NEEDS_VALIDATE || fmd->use_dynamic) {
+			else if (rbsc->flag & RBC_FLAG_NEEDS_VALIDATE && !fmd->use_dynamic) {
 				BKE_rigidbody_validate_sim_shard_constraint(rbw, fmd, ob, rbsc, false);
+			}
+			else if (fmd->use_dynamic) {
+				if (rbsc->mi1 && rbsc->mi2) {
+					if (!BKE_fracture_meshisland_check_frame(fmd, rbsc->mi1, frame) &&
+					    !BKE_fracture_meshisland_check_frame(fmd, rbsc->mi2, frame))
+					{
+						rbsc->flag |= RBC_FLAG_NEEDS_VALIDATE;
+						BKE_rigidbody_validate_sim_shard_constraint(rbw, fmd, ob, rbsc, false);
+					}
+				}
 			}
 
 			if (!rebuild)
 			{
-				handle_regular_breaking(fmd, ob, rbw, rbsc, max_con_mass, rebuild);
+				handle_regular_breaking(fmd, ob, rbw, rbsc, max_con_mass);
 			}
 
 			if (!rebuild)
@@ -2413,12 +2423,10 @@ bool BKE_restoreKinematic(RigidBodyWorld *rbw, bool override_bind)
 }
 
 /* Add rigid body settings to the specified shard */
-RigidBodyOb *BKE_rigidbody_create_shard(Main* bmain, Scene *scene, Object *ob, Object *target, MeshIsland *mi)
+RigidBodyOb *BKE_rigidbody_create_shard(Object *ob, Object *target, MeshIsland *mi)
 {
 	RigidBodyOb *rbo;
-	RigidBodyWorld *rbw = BKE_rigidbody_get_world(scene);
-	float centr[3], size[3], mat[4][4];
-	bool added = false;
+	float centr[3], size[3];
 
 	/* sanity checks
 	 *	- rigidbody world must exist
@@ -2477,7 +2485,6 @@ RigidBodyOb *BKE_rigidbody_create_shard(Main* bmain, Scene *scene, Object *ob, O
 RigidBodyShardCon *BKE_rigidbody_create_shard_constraint(Scene *scene, short type, bool reset)
 {
 	RigidBodyShardCon *rbc;
-	RigidBodyWorld *rbw = scene->rigidbody_world;
 
 	/* sanity checks
 	 *	- rigidbody world must exist

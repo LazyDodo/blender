@@ -156,7 +156,7 @@ void BKE_fracture_external_constraints_setup(struct FractureModifierData *fmd, s
 
 struct Mesh* BKE_fracture_apply(struct FractureModifierData *fmd, struct Object *ob, struct Mesh *me, struct Depsgraph* depsgraph);
 
-struct MeshIsland *BKE_fracture_mesh_island_create(struct Mesh* me, struct Main* bmain, struct Scene *scene, struct Object *ob, int frame);
+struct MeshIsland *BKE_fracture_mesh_island_create(struct Mesh* me, struct Scene *scene, struct Object *ob, int frame);
 void BKE_fracture_mesh_boundbox_calc(struct Mesh *me, float r_loc[], float r_size[]);
 void BKE_fracture_mesh_free(struct Mesh *me);
 
@@ -171,7 +171,8 @@ void BKE_fracture_meshisland_vertexgroups_do(struct FractureModifierData *fmd, s
 void BKE_fracture_meshislands_pack(struct FractureModifierData *fmd, struct Object* obj, struct Main* bmain, struct Scene* scene);
 
 void BKE_fracture_postprocess_meshisland(struct FractureModifierData *fmd, struct Object* ob, struct MeshIsland*mi,
-                                         struct Mesh** temp_meshs, int count, struct Main* bmain, struct Scene* scene, int frame);
+                                         struct Mesh** temp_meshs, int count, struct Scene* scene, int frame);
+
 void BKE_fracture_meshisland_normals_fix(struct FractureModifierData *fmd, struct MeshIsland* mi, struct Mesh* orig_me);
 
 void BKE_fracture_copy_customdata(struct CustomData* src, struct CustomData* dst, CustomDataMask mask, int src_ofs, int dst_ofs,

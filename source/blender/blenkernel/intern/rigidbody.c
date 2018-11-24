@@ -830,8 +830,8 @@ static void rigidbody_validate_sim_constraint(Scene* scene, Object *ob, bool reb
 		fmd2 = (FractureModifierData*)modifiers_findByType(rbc->ob2, eModifierType_Fracture);
 
 		if (fmd1 && fmd2) {
-			mi1 = BKE_rigidbody_closest_meshisland_to_point(fmd1, rbc->ob1, ob, scene, rbc);
-			mi2 = BKE_rigidbody_closest_meshisland_to_point(fmd2, rbc->ob2, ob, scene, rbc);
+			mi1 = BKE_rigidbody_closest_meshisland_to_point(fmd1, rbc->ob1, ob, scene);
+			mi2 = BKE_rigidbody_closest_meshisland_to_point(fmd2, rbc->ob2, ob, scene);
 
 			if (mi1 && mi2) {
 				rb1 = mi1->rigidbody->shared->physics_object;
@@ -839,14 +839,14 @@ static void rigidbody_validate_sim_constraint(Scene* scene, Object *ob, bool reb
 			}
 		}
 		else if (fmd1) {
-			mi1 = BKE_rigidbody_closest_meshisland_to_point(fmd1, rbc->ob1, ob, scene, rbc);
+			mi1 = BKE_rigidbody_closest_meshisland_to_point(fmd1, rbc->ob1, ob, scene);
 			if (mi1) {
 				rb1 = mi1->rigidbody->shared->physics_object;
 				rb2 = rbc->ob2->rigidbody_object->shared->physics_object;
 			}
 		}
 		else if (fmd2) {
-			mi2 = BKE_rigidbody_closest_meshisland_to_point(fmd2, rbc->ob2, ob, scene, rbc);
+			mi2 = BKE_rigidbody_closest_meshisland_to_point(fmd2, rbc->ob2, ob, scene);
 			if (mi2)
 			{
 				rb2 = mi2->rigidbody->shared->physics_object;

@@ -538,7 +538,7 @@ static void process_cells(FractureModifierData* fmd, MeshIsland* mii, Main* bmai
 		}
 	}
 
-	BKE_fracture_postprocess_meshisland(fmd, ob, mii, temp_meshs, count, bmain, scene, frame);
+	BKE_fracture_postprocess_meshisland(fmd, ob, mii, temp_meshs, count, scene, frame);
 
 	BLI_kdtree_balance(tree);
 
@@ -872,7 +872,7 @@ static void intersect_mesh_by_mesh(FractureModifierData* fmd, Object* ob, Mesh* 
 }
 
 void BKE_fracture_postprocess_meshisland(FractureModifierData *fmd, Object* ob, MeshIsland*mi, Mesh** temp_meshs, int count,
-                            Main* bmain, Scene* scene, int frame)
+										 Scene* scene, int frame)
 {
 	int count_new = count+1;
 	int j = 1, i = 0;
@@ -909,7 +909,7 @@ void BKE_fracture_postprocess_meshisland(FractureModifierData *fmd, Object* ob, 
 			if (temp_meshs[i]->totvert > 0)
 			{	/* skip invalid cells, e.g. those which are eliminated by bisect */
 				float loc[3], rot[4], qrot[4], centr[3];
-				MeshIsland *result = BKE_fracture_mesh_island_create(temp_meshs[i], bmain, scene, ob, frame);
+				MeshIsland *result = BKE_fracture_mesh_island_create(temp_meshs[i], scene, ob, frame);
 
 				fracture_meshisland_add(fmd, result);
 				result->id = mi->id + j;
@@ -1006,12 +1006,12 @@ static MeshIsland* fracture_cutter_process(FractureModifierData* fmd, Object *ob
 	if (temp_meshs[1]) {
 		BLI_remlink(&fmd->shared->mesh_islands, miB);
 		BKE_fracture_mesh_island_free(miB, scene);
-		miB = BKE_fracture_mesh_island_create(temp_meshs[1], bmain, scene, obB, frame);
+		miB = BKE_fracture_mesh_island_create(temp_meshs[1], scene, obB, frame);
 		BLI_addtail(&fmd->shared->mesh_islands, miB);
 		temp_meshs[1] = NULL;
 	}
 
-	BKE_fracture_postprocess_meshisland(fmd, obB, miB, temp_meshs, 2, bmain, scene, frame);
+	BKE_fracture_postprocess_meshisland(fmd, obB, miB, temp_meshs, 2, scene, frame);
 
 	MEM_freeN(temp_meshs);
 
@@ -1245,6 +1245,8 @@ void BKE_fracture_clear_cache(FractureModifierData* fmd, Scene *scene)
 	int endframe = 250;
 	int frame = 0;
 	MeshIsland *mi, *next;
+
+	BLI_listbase_clear(&fmd->shared->fracture_ids);
 
 	if (rbw && rbw->shared) {
 		startframe = rbw->shared->pointcache->startframe;
@@ -1828,7 +1830,7 @@ void BKE_fracture_animated_loc_rot(FractureModifierData *fmd, Object *ob, bool d
 bool BKE_fracture_meshisland_check_frame(FractureModifierData *fmd, MeshIsland* mi, int frame)
 {
 	return ((frame < mi->startframe && mi->startframe > fmd->shared->last_cache_start) ||
-		   (frame >= mi->endframe && mi->endframe < fmd->shared->last_cache_end));
+		   (frame > mi->endframe && mi->endframe < fmd->shared->last_cache_end));
 }
 
 void BKE_fracture_meshisland_check_realloc_cache(FractureModifierData *fmd, RigidBodyWorld *rbw, MeshIsland* mi, int frame)
@@ -2638,7 +2640,7 @@ void BKE_fracture_do(FractureModifierData *fmd, MeshIsland *mi, Object *obj, Dep
 			{
 				if (temp_meshs[i]->totvert > 0)
 				{	/* skip invalid cells, e.g. those which are eliminated by bisect */
-					MeshIsland *result = BKE_fracture_mesh_island_create(temp_meshs[i], bmain, scene, obj, frame);
+					MeshIsland *result = BKE_fracture_mesh_island_create(temp_meshs[i], scene, obj, frame);
 					fracture_meshisland_add(fmd, result);
 					result->id = mi->id + j;
 					j++;

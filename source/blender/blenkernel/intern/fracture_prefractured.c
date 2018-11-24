@@ -82,7 +82,7 @@ Mesh *BKE_fracture_prefractured_apply(FractureModifierData *fmd, Object *ob, Mes
 }
 #endif
 
-MeshIsland *BKE_fracture_mesh_island_create(Mesh* me, Main* bmain, Scene *scene, Object *ob, int frame)
+MeshIsland *BKE_fracture_mesh_island_create(Mesh* me, Scene *scene, Object *ob, int frame)
 {
 	int endframe = scene->rigidbody_world->shared->pointcache->endframe;
 	MeshIsland *mi = MEM_callocN(sizeof(MeshIsland), "mesh_island");
@@ -104,7 +104,7 @@ MeshIsland *BKE_fracture_mesh_island_create(Mesh* me, Main* bmain, Scene *scene,
 		mi->aves = MEM_callocN(sizeof (float) * 3 *frame, "mi->aves");
 	}
 
-	mi->rigidbody = BKE_rigidbody_create_shard(bmain, scene, ob, NULL, mi);
+	mi->rigidbody = BKE_rigidbody_create_shard(ob, NULL, mi);
 	mi->rigidbody->type = RBO_TYPE_ACTIVE;
 	mi->rigidbody->flag |= (RBO_FLAG_NEEDS_VALIDATE | RBO_FLAG_NEEDS_RESHAPE);
 	BKE_rigidbody_calc_shard_mass(ob, mi);
@@ -162,7 +162,7 @@ static void do_initial_prefracture(FractureModifierData* fmd, Object* ob, Depsgr
 	BKE_fracture_meshislands_free(fmd, scene);
 	me_tmp = BKE_fracture_mesh_copy(me, ob);
 
-	mi = BKE_fracture_mesh_island_create(me_tmp, bmain, scene, ob, frame);
+	mi = BKE_fracture_mesh_island_create(me_tmp, scene, ob, frame);
 	mi->id = 0;
 	BLI_addtail(&fmd->shared->mesh_islands, mi);
 
@@ -200,7 +200,12 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 			fmd->shared->refresh = true;
 	}
 
-	if (fmd->shared->refresh /*|| fmd->shared->reset_shards*/)
+	if (fmd->use_dynamic && !fmd->shared->refresh) {
+		/* very important, since old constraints may mess up the simulation after stopping and restarting */
+		BKE_fracture_constraints_free(fmd, scene);
+	}
+
+	if (fmd->shared->refresh)
 	{
 		/*reset_shards called from readfile.c; refresh from operator */
 
@@ -227,7 +232,6 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		//fmd->shared->reset_shards = false;
 	}
 	else if (fmd->shared->refresh_dynamic) {
-		//handle_initial_shards(fmd, ob, depsgraph, bmain, scene, frame);
 
 		/*if dynamic event, push state to fracture sequence*/
 		BKE_fracture_dynamic_do(fmd, ob, scene, depsgraph, bmain);
@@ -236,16 +240,11 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		fmd->shared->refresh_autohide = true;
 	}
 
-	//if (scene->rigidbody_world)
-	//	BKE_rigidbody_modifier_update(scene, ob, scene->rigidbody_world, false, depsgraph);
-
 	if (fmd->use_animated_mesh && fmd->anim_mesh_ob)
 	{
 		/*update bound island positions to follow bind object, after physics ran */
 		BKE_fracture_animated_loc_rot(fmd, ob, false, depsgraph);
 	}
-
-	//BKE_rigidbody_modifier_sync((ModifierData*)fmd, ob, scene, ctime);
 
 	/* assemble mesh from transformed meshislands */
 	if (fmd->shared->mesh_islands.first) {

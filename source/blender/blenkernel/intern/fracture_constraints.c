@@ -470,7 +470,7 @@ static void remove_participants(RigidBodyShardCon* con, MeshIsland *mi)
 void BKE_fracture_constraint_create(Scene* scene, FractureModifierData* fmd, MeshIsland *mi1, MeshIsland *mi2, short con_type, float thresh)
 {
 	RigidBodyShardCon *rbsc;
-	rbsc = BKE_rigidbody_create_shard_constraint(scene, con_type, !fmd->use_dynamic);
+	rbsc = BKE_rigidbody_create_shard_constraint(scene, con_type, false); // !fmd->use_dynamic);
 	rbsc->mi1 = mi1;
 	rbsc->mi2 = mi2;
 
@@ -628,22 +628,6 @@ RigidBodyShardCon *BKE_fracture_mesh_constraint_create(Scene *scene, FractureMod
 	rbsc->mi1 = mi1;
 	rbsc->mi2 = mi2;
 
-#if 0
-	if (fmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
-	{
-		/* disable breaking flag here by default, only enable later via python if necessary */
-		rbsc->flag &= ~RBC_FLAG_USE_BREAKING;
-
-		/* also delete all other "default" flags here, let them being overriden from python too */
-		//rbsc->flag &= ~RBC_FLAG_ENABLED;
-		rbsc->flag |= RBC_FLAG_DISABLE_COLLISIONS;
-#endif
-#if 0
-		/* and dont allow to let constrained objects collide per default, as with regular constraints */
-		rbsc->flag |= RBC_FLAG_DISABLE_COLLISIONS;
-#endif
-//	}
-
 	/* moved default meshconstraint pos calculation here to creation, so you can override it later on*/
 	/* do this for all constraints */
 	/* location for fixed constraints doesnt matter, so keep old setting */
@@ -665,17 +649,6 @@ RigidBodyShardCon *BKE_fracture_mesh_constraint_create(Scene *scene, FractureMod
 
 	BLI_addtail(&fmd->shared->mesh_constraints, rbsc);
 	fmd->constraint_count++;
-
-#if 0
-	if (index > -1)
-	{
-		rbsc->id = index;
-	}
-	else
-	{
-		rbsc->id = fmd->constraint_count-1;
-	}
-#endif
 
 	/* store constraints per meshisland too, to allow breaking percentage */
 	if (mi1->participating_constraints == NULL) {

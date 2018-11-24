@@ -330,18 +330,10 @@ static MeshIsland* fracture_object_to_island(FractureModifierData* fmd, Object *
 
 	unit_m4(mat);
 	BLI_space_transform_from_matrices(&trans, target->obmat, mat);
-	//BLI_SPACE_TRANSFORM_SETUP(&trans, target, own);
-	//mat4_to_size(size, target->obmat);
 
 	// create temp shard -> that necessary at all ?
-	mi = BKE_fracture_mesh_island_create(me, bmain, scene, own, frame);
+	mi = BKE_fracture_mesh_island_create(me, scene, own, frame);
 	BLI_addtail(&fmd->shared->mesh_islands, mi);
-
-	//use this as size holder, and rawcentroid is the old ob location
-	//copy_v3_v3(mi->impact_size, size);
-
-	//compare centroid in worldspace with location
-	//mul_v3_m4v3(mi->raw_centroid, target->obmat, mi->centroid);
 
 	for (v = 0, mv = mi->mesh->mvert; v < mi->mesh->totvert; v++, mv++)
 	{
