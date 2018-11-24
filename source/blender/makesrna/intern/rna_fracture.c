@@ -61,6 +61,13 @@
 #  include "RBI_api.h"
 #endif
 
+#define FM_FLAG_SET(dest, value, flag) { \
+	if (value) \
+		dest |= flag; \
+	else \
+		dest &= ~flag; \
+}
+
 static char *rna_Modifier_path(PointerRNA *ptr)
 {
 	ModifierData *md = ptr->data;
@@ -203,7 +210,7 @@ static void rna_##_type##Modifier_##_prop##_set(PointerRNA *ptr, const char *val
 }
 
 RNA_MOD_VGROUP_NAME_SET(Fracture, thresh_defgrp_name);
-//RNA_MOD_VGROUP_NAME_SET(Fracture, passive_defgrp_name);
+RNA_MOD_VGROUP_NAME_SET(Fracture, passive_defgrp_name);
 RNA_MOD_VGROUP_NAME_SET(Fracture, inner_defgrp_name);
 
 #undef RNA_MOD_VGROUP_NAME_SET
@@ -226,133 +233,127 @@ static void rna_FractureModifier_threshold_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->breaking_threshold = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_contact_dist_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->contact_dist = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_use_constraints_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData *)ptr->data;
-	rmd->use_constraints = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->flag, value, MOD_FRACTURE_USE_CONSTRAINTS);
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_use_constraint_collision_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData *)ptr->data;
-	rmd->use_constraint_collision = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->flag, value, MOD_FRACTURE_USE_CONSTRAINT_COLLISION);
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
-static void rna_FractureModifier_use_compounds_set(PointerRNA* ptr, int value)
-{
-	FractureModifierData *rmd = (FractureModifierData *)ptr->data;
-	rmd->use_compounds = value;
-	rmd->shared->refresh_constraints = true;
-}
 
 static void rna_FractureModifier_mass_dependent_thresholds_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData *)ptr->data;
-	rmd->use_mass_dependent_thresholds = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->flag, value, MOD_FRACTURE_USE_MASS_DEP_THRESHOLDS);
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_constraint_limit_set(PointerRNA *ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->constraint_limit = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_breaking_percentage_set(PointerRNA *ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->breaking_percentage = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_breaking_angle_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->breaking_angle = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_breaking_distance_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->breaking_distance = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_deform_angle_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->deform_angle = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_deform_distance_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->deform_distance = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_cluster_deform_angle_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->cluster_deform_angle = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_cluster_deform_distance_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->cluster_deform_distance = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_cluster_threshold_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->cluster_breaking_threshold = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_deform_weakening_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->deform_weakening = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_solver_iterations_override_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->solver_iterations_override = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_cluster_solver_iterations_override_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->cluster_solver_iterations_override = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_autohide_dist_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->autohide_dist = value;
-	rmd->shared->refresh_autohide = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_AUTOHIDE);
 	rmd->distortion_cached = false;
 }
 
@@ -360,7 +361,7 @@ static void rna_FractureModifier_automerge_dist_set(PointerRNA *ptr, float value
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->automerge_dist = value;
-	rmd->shared->refresh_autohide = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_AUTOHIDE);
 	rmd->distortion_cached = false;
 }
 
@@ -368,31 +369,30 @@ static void rna_FractureModifier_cluster_breaking_angle_set(PointerRNA *ptr, flo
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->cluster_breaking_angle = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_cluster_breaking_distance_set(PointerRNA *ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->cluster_breaking_distance = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_cluster_breaking_percentage_set(PointerRNA *ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->cluster_breaking_percentage = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_use_breaking_set(PointerRNA *ptr, bool value)
 {
 	RigidBodyShardCon* rbsc;
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
-	rmd->use_breaking = value;
-	//rmd->refresh_constraints = true;
+	FM_FLAG_SET(rmd->flag, value, MOD_FRACTURE_USE_BREAKING);
 
-	for (rbsc = rmd->shared->mesh_constraints.first; rbsc; rbsc = rbsc->next)
+	for (rbsc = rmd->shared->constraints.first; rbsc; rbsc = rbsc->next)
 	{
 		if (value == true){
 			rbsc->flag |= RBC_FLAG_USE_BREAKING;
@@ -409,50 +409,45 @@ static void rna_FractureModifier_constraint_type_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->constraint_type = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_cluster_constraint_type_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->cluster_constraint_type = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_constraint_target_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->constraint_target = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_frac_algorithm_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->frac_algorithm = value;
-	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_point_source_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->point_source = value;
-	//printf("PointSource\n");
-	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_point_seed_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->point_seed = value;
-	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_percentage_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->percentage = value;
-	//rmd->shared->reset_shards = true;
 }
 
 
@@ -460,70 +455,30 @@ static void rna_FractureModifier_extra_group_set(PointerRNA* ptr, PointerRNA val
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->extra_group = value.data;
-	//rmd->shared->reset_shards = true;
-}
-
-static void rna_FractureModifier_split_islands_set(PointerRNA* ptr, int value)
-{
-	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
-	rmd->split_islands = value;
-	//rmd->shared->reset_shards = true;
-}
-
-static void rna_FractureModifier_fix_normals_set(PointerRNA* ptr, int value)
-{
-	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
-	rmd->fix_normals = value;
-	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_inner_material_set(PointerRNA* ptr, PointerRNA value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->inner_material = value.data;
-	//rmd->shared->reset_shards = true;
-}
-
-static void rna_FractureModifier_use_particle_birth_coordinates_set(PointerRNA* ptr, int value)
-{
-	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
-	rmd->use_particle_birth_coordinates = value;
-	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_splinter_length_set(PointerRNA* ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->splinter_length = value;
-	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_splinter_axis_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->splinter_axis = value;
-	//rmd->shared->reset_shards = true;
 }
 
-static void rna_FractureModifier_cutter_axis_set(PointerRNA* ptr, int value)
+static void rna_FractureModifier_normal_search_radius_set(PointerRNA* ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
-	rmd->cutter_axis = value;
-	//rmd->shared->reset_shards = true;
-}
-
-static void rna_FractureModifier_nor_range_set(PointerRNA* ptr, float value)
-{
-	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
-	rmd->nor_range = value;
-	//rmd->shared->reset_shards = true;
-}
-
-static void rna_FractureModifier_use_smooth_set(PointerRNA* ptr, int value)
-{
-	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
-	rmd->use_smooth = value;
-	//rmd->shared->reset_shards = true;
+	rmd->normal_search_radius = value;
 }
 
 
@@ -531,111 +486,58 @@ static void rna_FractureModifier_fractal_cuts_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->fractal_cuts = value;
-	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_fractal_amount_set(PointerRNA* ptr, float value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->fractal_amount = value;
-	//rmd->shared->reset_shards = true;
 }
 
-
-static void rna_FractureModifier_physics_mesh_scale_set(PointerRNA* ptr, float value)
-{
-	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
-	rmd->physics_mesh_scale = value;
-	//rmd->shared->reset_shards = true;
-}
 
 static void rna_FractureModifier_fractal_iterations_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->fractal_iterations = value;
-	//rmd->shared->reset_shards = true;
 }
 
 static void rna_FractureModifier_cutter_group_set(PointerRNA* ptr, PointerRNA value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->cutter_group = value.data;
-	//rmd->shared->reset_shards = true;
 }
 
-static void rna_FractureModifier_use_greasepencil_edges_set(PointerRNA* ptr, int value)
+static void rna_FractureModifier_pack_group_set(PointerRNA* ptr, PointerRNA value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
-	rmd->use_greasepencil_edges = value;
-	//rmd->shared->reset_shards = true;
+	rmd->pack_group = value.data;
 }
 
-static void rna_FractureModifier_grease_offset_set(PointerRNA* ptr, float value)
-{
-	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
-	rmd->grease_offset = value;
-	//rmd->shared->reset_shards = true;
-}
-
-static void rna_FractureModifier_grease_decimate_set(PointerRNA* ptr, int value)
-{
-	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
-	rmd->grease_decimate = value;
-	//rmd->shared->reset_shards = true;
-}
-
-static void rna_FractureModifier_dm_group_set(PointerRNA* ptr, PointerRNA value)
-{
-	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
-	rmd->dm_group = value.data;
-	//rmd->shared->reset_shards = true;
-}
-
-static void rna_FractureModifier_minimum_impulse_set(PointerRNA *ptr, float value)
-{
-	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
-	rmd->minimum_impulse = value;
-	rmd->shared->refresh_constraints = true;
-}
-
-static void rna_FractureModifier_mass_threshold_factor_set(PointerRNA *ptr, float value)
-{
-	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
-	rmd->mass_threshold_factor = value;
-	rmd->shared->refresh_constraints = true;
-}
 
 static void rna_FractureModifier_autohide_filter_group_set(PointerRNA* ptr, PointerRNA value)
 {
 	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
 	rmd->autohide_filter_group = value.data;
-	//rmd->reset_shards = true;
-}
-
-static void rna_FractureModifier_keep_distort_set(PointerRNA* ptr, int value)
-{
-	FractureModifierData *rmd = (FractureModifierData *)ptr->data;
-	rmd->keep_distort = value;
 }
 
 static void rna_FractureModifier_do_merge_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData *)ptr->data;
-	rmd->do_merge = value;
+	rmd->perform_merge = value;
 }
 
 static void rna_FractureModifier_cluster_count_set(PointerRNA* ptr, int value)
 {
 	FractureModifierData *rmd = (FractureModifierData *)ptr->data;
 	rmd->cluster_count = value;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_cluster_group_set(PointerRNA* ptr, PointerRNA value)
 {
 	FractureModifierData *rmd = (FractureModifierData *)ptr->data;
 	rmd->cluster_group = value.data;
-	rmd->shared->refresh_constraints = true;
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH_CONSTRAINTS);
 }
 
 static void rna_FractureModifier_anim_mesh_ob_set(PointerRNA* ptr, PointerRNA value)
@@ -727,8 +629,6 @@ void RNA_def_fracture(BlenderRNA *brna)
 		{0, NULL, 0, NULL, NULL}
 	};
 
-
-
 	srna = RNA_def_struct(brna, "FractureModifier", "Modifier");
 	RNA_def_struct_ui_text(srna, "Fracture Modifier", "Add a fracture container to this object");
 	RNA_def_struct_sdna(srna, "FractureModifierData");
@@ -753,6 +653,7 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "use_constraints", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_CONSTRAINTS);
 	RNA_def_property_boolean_funcs(prop, NULL, "rna_FractureModifier_use_constraints_set");
 	RNA_def_property_ui_text(prop, "Use Constraints", "Create constraints between all shards");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
@@ -769,6 +670,7 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "use_mass_dependent_thresholds", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_MASS_DEP_THRESHOLDS);
 	RNA_def_property_boolean_funcs(prop, NULL, "rna_FractureModifier_mass_dependent_thresholds_set");
 	RNA_def_property_ui_text(prop, "Use Mass Dependent Thresholds", "Match the breaking threshold according to the masses of the constrained shards");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
@@ -872,18 +774,10 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "split_islands", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "split_islands", false);
-	RNA_def_property_boolean_funcs(prop, NULL, "rna_FractureModifier_split_islands_set");
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_SPLIT_TO_ISLANDS);
 	RNA_def_property_ui_text(prop, "Split to Islands", "Split each piece to separate islands");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "execute_threaded", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "execute_threaded", false);
-	RNA_def_property_ui_text(prop, "Execute multithreaded (WIP)", "Execute the fracture with multiple threads, Warning: Only use on complex geometry, may produce errors on simple geometry!");
-	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
-
 
 	prop = RNA_def_property(srna, "thresh_vertex_group", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "thresh_defgrp_name");
@@ -895,13 +789,12 @@ void RNA_def_fracture(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "passive_vertex_group", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "passive_defgrp_name");
 	RNA_def_property_ui_text(prop, "Passive Vertex Group", "Vertex group name for defining passive mesh parts (will remain static during rigidbody simulation");
-	//RNA_def_property_string_funcs(prop, NULL, NULL, "rna_FractureModifier__defgrp_name_set");
+	RNA_def_property_string_funcs(prop, NULL, NULL, "rna_FractureModifier_passive_defgrp_name_set");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "fix_normals", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "fix_normals", false);
-	RNA_def_property_boolean_funcs(prop, NULL, "rna_FractureModifier_fix_normals_set");
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_FIX_NORMALS);
 	RNA_def_property_ui_text(prop, "Fix normals (WIP)", "Fix normals of fractured smooth objects, to let cracks nearly disappear");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
@@ -921,15 +814,15 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "auto_execute", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "auto_execute", false);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_AUTOEXECUTE);
 	RNA_def_property_ui_text(prop, "Auto Execute", "Automatic execution of fracturing, CAUTION: this can be slow and buggy");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
-	prop = RNA_def_property(srna, "dm_group", PROP_POINTER, PROP_NONE);
-    RNA_def_property_struct_type(prop, "Collection");
+	prop = RNA_def_property(srna, "pack_group", PROP_POINTER, PROP_NONE);
+	RNA_def_property_struct_type(prop, "Collection");
 	RNA_def_property_ui_text(prop, "Sub Object Group", "The meshes of each member object will be aggregated into a combined mesh. This will override the base mesh of the fractured object using this group.");
-	RNA_def_property_pointer_funcs(prop, NULL, "rna_FractureModifier_dm_group_set", NULL, NULL);
+	RNA_def_property_pointer_funcs(prop, NULL, "rna_FractureModifier_pack_group_set", NULL, NULL);
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
@@ -952,26 +845,25 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "breaking_percentage_weighted", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "breaking_percentage_weighted", false);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_BREAKING_PERCENTAGE_WEIGHTED);
 	RNA_def_property_ui_text(prop, "Weighted Percentage", "Modify breaking percentage by threshold weights");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "breaking_angle_weighted", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "breaking_angle_weighted", false);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_BREAKING_ANGLE_WEIGHTED);
 	RNA_def_property_ui_text(prop, "Weighted Angle", "Modify breaking angle by threshold weights");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "breaking_distance_weighted", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "breaking_distance_weighted", false);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_BREAKING_DISTANCE_WEIGHTED);
 	RNA_def_property_ui_text(prop, "Weighted Distance", "Modify breaking distance by threshold weights");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "use_particle_birth_coordinates", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "use_particle_birth_coordinates", false);
-	RNA_def_property_boolean_funcs(prop, NULL, "rna_FractureModifier_use_particle_birth_coordinates_set");
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_PARTICLE_BIRTH_COORDS);
 	RNA_def_property_ui_text(prop, "Use Particle Birth Coordinates", "Use birth or simulated state particle coordinates");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
@@ -1001,11 +893,11 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
-	prop = RNA_def_property(srna, "nor_range", PROP_FLOAT, PROP_NONE);
+	prop = RNA_def_property(srna, "normal_search_radius", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_range(prop, 0.0f, FLT_MAX);
 	RNA_def_property_ui_text(prop, "Normal Search Radius", "Radius in which to search for valid normals");
 	RNA_def_property_ui_range(prop, 0.0f, FLT_MAX, 0.1f, 2);
-	RNA_def_property_float_funcs(prop, NULL, "rna_FractureModifier_nor_range_set", NULL);
+	RNA_def_property_float_funcs(prop, NULL, "rna_FractureModifier_normal_search_radius_set", NULL);
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
@@ -1037,14 +929,14 @@ void RNA_def_fracture(BlenderRNA *brna)
 
 	/*Breakable constraints*/
 	prop = RNA_def_property(srna, "use_breaking", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_BREAKING);
 	RNA_def_property_boolean_funcs(prop, NULL, "rna_FractureModifier_use_breaking_set");
 	RNA_def_property_ui_text(prop, "Breakable",
 	                         "Constraints can be broken if it receives an impulse above the threshold");
 	RNA_def_property_update(prop, /*NC_OBJECT | ND_POINTCACHE*/ 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "use_smooth", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "use_smooth", false);
-	RNA_def_property_boolean_funcs(prop, NULL, "rna_FractureModifier_use_smooth_set");
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_SMOOTH);
 	RNA_def_property_ui_text(prop, "Smooth Inner Faces", "Set Inner Faces to Smooth Shading (needs refracture)");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
@@ -1063,15 +955,6 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_float_funcs(prop, NULL, "rna_FractureModifier_fractal_amount_set", NULL);
 	RNA_def_property_ui_text(prop, "Fractal Displacement", "Amount of fractal displacement on each cell");
 	RNA_def_property_ui_range(prop, 0.0f, 2.0f, 0.1f, 2);
-	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "physics_mesh_scale", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "physics_mesh_scale");
-	RNA_def_property_range(prop, 0.1f , 1.0f);
-	RNA_def_property_float_funcs(prop, NULL, "rna_FractureModifier_physics_mesh_scale_set", NULL);
-	RNA_def_property_ui_text(prop, "Physics Mesh Scale", "Scale factor of physics mesh, reduce this to avoid explosion of the mesh (MESH SHAPE ONLY)");
-	RNA_def_property_ui_range(prop, 0.1f, 1.0f, 0.1f, 2);
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
@@ -1097,38 +980,6 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Cutter Group", "A set of objects to make boolean cuts against");
 	RNA_def_property_pointer_funcs(prop, NULL, "rna_FractureModifier_cutter_group_set", NULL, NULL);
 	RNA_def_property_flag(prop, PROP_EDITABLE);
-	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "use_greasepencil_edges", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "use_greasepencil_edges", false);
-	RNA_def_property_boolean_funcs(prop, NULL, "rna_FractureModifier_use_greasepencil_edges_set");
-	RNA_def_property_ui_text(prop, "Use Greasepencil Edges", "Use edges instead of points from Greasepencil strokes");
-	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "grease_offset", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "grease_offset");
-	RNA_def_property_range(prop, 0.0f, FLT_MAX);
-	RNA_def_property_float_funcs(prop, NULL, "rna_FractureModifier_grease_offset_set", NULL);
-	RNA_def_property_ui_text(prop, "Greasepencil Offset", "Extrusion offset of greasepencil stroke, to create a mesh from it");
-	RNA_def_property_ui_range(prop, 0.0f, FLT_MAX, 0.1f, 2);
-	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "grease_decimate", PROP_INT, PROP_NONE);
-	RNA_def_property_int_sdna(prop, NULL, "grease_decimate");
-	RNA_def_property_range(prop, 0, 100);
-	RNA_def_property_int_funcs(prop, NULL, "rna_FractureModifier_grease_decimate_set", NULL);
-	RNA_def_property_ui_text(prop, "Greasepencil Decimate", "Decimate Factor in percent for greasepencil strokes");
-	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "cutter_axis", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_items(prop, prop_cutter_axises);
-	RNA_def_property_enum_default(prop, MOD_FRACTURE_CUTTER_Z);
-	RNA_def_property_enum_funcs(prop, NULL, "rna_FractureModifier_cutter_axis_set", NULL);
-	RNA_def_property_ui_text(prop, "Cutter Axis", "Global direction of cutters");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
@@ -1161,39 +1012,11 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Dynamic force threshold", "Only break dynamically when force is above this threshold");
 	RNA_def_property_ui_range(prop, 0.0f, FLT_MAX, 0.1f, 3);
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	//RNA_def_property_update(prop, noteflag, "rna_Modifier_update_and_keep");
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "limit_impact", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "limit_impact", false);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_LIMIT_IMPACT);
 	RNA_def_property_ui_text(prop, "Limit Impact", "Activates only shards within the impact object size approximately");
-	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	//RNA_def_property_update(prop, noteflag, "rna_Modifier_update_and_keep");
-	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "use_compounds", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_funcs(prop, NULL, "rna_FractureModifier_use_compounds_set");
-	RNA_def_property_ui_text(prop, "Use Compounds", "Use compounds instead of fixed constraints (supposed to be faster and not wobbling)");
-	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "minimum_impulse", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "minimum_impulse");
-	RNA_def_property_float_funcs(prop, NULL, "rna_FractureModifier_minimum_impulse_set", NULL);
-	RNA_def_property_range(prop, 0.0f, FLT_MAX);
-	RNA_def_property_ui_text(prop, "Minimum Impulse",
-	                         "Determines how strong the remaining impulse must be for continuing damage propagation");
-	RNA_def_property_ui_range(prop, 0.0f, FLT_MAX, 0.1f, 2);
-	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
-
-	prop = RNA_def_property(srna, "mass_threshold_factor", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "mass_threshold_factor");
-	RNA_def_property_float_funcs(prop, NULL, "rna_FractureModifier_mass_threshold_factor_set", NULL);
-	RNA_def_property_range(prop, 0.0f, 1.0f);
-	RNA_def_property_ui_text(prop, "Stability Factor",
-	                         "Determines how 'stable' an object is 0 means min_mass / min_mass + max_mass, 1 means maximal threshold everywhere");
-	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.1f, 2);
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
@@ -1216,9 +1039,7 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_enum_items(prop, prop_keep_cutter_shards);
 	RNA_def_property_enum_default(prop, MOD_FRACTURE_KEEP_BOTH);
 	RNA_def_property_ui_text(prop, "Cutter Mode", "Determines which shards to keep from cutting process");
-	//RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
-
 
 	prop = RNA_def_property(srna, "boolean_double_threshold", PROP_FLOAT, PROP_DISTANCE);
 	RNA_def_property_float_sdna(prop, NULL, "boolean_double_threshold");
@@ -1251,6 +1072,7 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "use_constraint_collision", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_CONSTRAINT_COLLISION);
 	RNA_def_property_boolean_funcs(prop, NULL, "rna_FractureModifier_use_constraint_collision_set");
 	RNA_def_property_ui_text(prop, "Constrained Collision", "Let constrained shards collide with each other");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
@@ -1264,12 +1086,6 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.1f, 2);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
-	prop = RNA_def_property(srna, "is_dynamic_external", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "is_dynamic_external", false);
-	RNA_def_property_ui_text(prop, "Dynamic External", "Indicator whether the data for dynamic fracture was loaded externally");
-	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	//RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
-
 	prop = RNA_def_property(srna, "material_offset_intersect", PROP_INT, PROP_NONE);
 	RNA_def_property_int_sdna(prop, NULL, "mat_ofs_intersect");
 	RNA_def_property_range(prop, 0, SHRT_MAX);
@@ -1282,20 +1098,21 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Difference Material Offset", "Offset material index of difference shards");
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
-	prop = RNA_def_property(srna, "orthogonality_factor", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "orthogonality_factor");
+	prop = RNA_def_property(srna, "rectangular_alignment", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "rectangular_alignment");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_float_default(prop, 0.0f);
-	RNA_def_property_ui_text(prop, "Orthogonality Factor",  "1 means only orthogonal cuts, move down to 0 to get more diagonal-ish cuts");
+	RNA_def_property_ui_text(prop, "Rectangular Alignment",
+	                         "1 means only orthogonal cuts, move down to 0 to get more diagonal-ish cuts");
 	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.1f, 2);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "keep_distort", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_funcs(prop, NULL, "rna_FractureModifier_keep_distort_set");
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_KEEP_DISTORT);
 	RNA_def_property_ui_text(prop, "Keep Distortion", "Whether or not to make the distortion on torn merged shards persistent.");
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
-	prop = RNA_def_property(srna, "do_merge", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "perform_merge", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_funcs(prop, NULL, "rna_FractureModifier_do_merge_set");
 	RNA_def_property_ui_text(prop, "Perform Merge", "Whether or not to actually weld the prepared automerge geometry.");
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
@@ -1337,13 +1154,13 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "deform_angle_weighted", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "deform_angle_weighted", false);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_DEFORM_ANGLE_WEIGHTED);
 	RNA_def_property_ui_text(prop, "Weighted Deforming Angle", "Modify deform angle by threshold weights");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "deform_distance_weighted", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "deform_distance_weighted", false);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_DEFORM_DISTANCE_WEIGHTED);
 	RNA_def_property_ui_text(prop, "Weighted Deforming Distance", "Modify deform distance by threshold weights");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
@@ -1368,22 +1185,22 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "use_centroids", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "use_centroids", false);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_CENTROIDS);
 	RNA_def_property_ui_text(prop, "Use Centroids", "Only output the meshisland centroids as vertices");
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "use_vertices", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "use_vertices", false);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_VERTICES);
 	RNA_def_property_ui_text(prop, "Use Vertices", "Only output the meshisland vertices");
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "use_self_collision", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "use_self_collision", false);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_SELF_COLLISION);
 	RNA_def_property_ui_text(prop, "Self Collision", "Allow collisions between constraint islands");
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "use_animated_mesh", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "use_animated_mesh", false);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_ANIMATED_MESH);
 	RNA_def_property_ui_text(prop, "Use Animated Mesh", "Allow moving original vertices to move the shards as well");
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
@@ -1397,7 +1214,7 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "use_animated_mesh_rotation", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "anim_mesh_rot", false);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_ANIMATED_MESH_ROTATION);
 	RNA_def_property_ui_text(prop, "Use Rotation", "Allow moving original vertices to rotate the shards as well");
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
@@ -1428,14 +1245,14 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "use_constraint_group", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "use_constraint_group", false);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_GROUP_CONSTRAINTS_ONLY);
 	//RNA_def_property_boolean_funcs(prop, NULL, "rna_FractureModifier_use_constraint_group_set");
 	RNA_def_property_ui_text(prop, "Constraints Only", "Only manage the external constraints in this Fracture Modifier");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "activate_broken", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "activate_broken", false);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_ACTIVATE_BROKEN);
 	RNA_def_property_ui_text(prop, "Activate Broken", "Activate both shards or all elements of the cluster if a constraint breaks");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
@@ -1448,7 +1265,7 @@ void RNA_def_fracture(BlenderRNA *brna)
 	RNA_def_property_struct_type(prop, "FractureModifierShared");
 
 	prop = RNA_def_property(srna, "use_dynamic", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "use_dynamic", false);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_DYNAMIC);
 	RNA_def_property_ui_text(prop, "Dynamic", "Dynamically fracture shards during the sim");
 	//RNA_def_property_update(prop, noteflag, "rna_Modifier_update"); //keep cache
 

@@ -69,7 +69,7 @@ typedef struct BooleanContext {
 } BooleanContext;
 
 Mesh* BKE_fracture_mesh_boolean(Mesh* geometry, Mesh* shard, Object* obj, BooleanContext *ctx);
-Mesh* BKE_fracture_mesh_bisect(Mesh* geometry, MeshIsland *raw_shard, BisectContext* ctx);
+Mesh* BKE_fracture_mesh_bisect(Mesh* geometry, Shard *raw_shard, BisectContext* ctx);
 void BKE_fracture_mesh_boolean_fractal(Mesh* geometry, Mesh **outputA, Mesh** outputB, Object *obj, BooleanContext *ctx);
 void BKE_fracture_mesh_bisect_fast(Mesh* geometry, Mesh **outputA, Mesh** outputB, BisectContext *ctx);
 

@@ -50,7 +50,7 @@
 
 void BKE_fracture_dynamic_do(FractureModifierData *fmd, Object* ob, Scene* scene, Depsgraph* depsgraph, Main* bmain)
 {
-	FractureID *fid = fmd->shared->fracture_ids.first;
+	FractureQueueEntry *fid = fmd->shared->dynamic_fracture_queue.first;
 
 	while(fid){
 		if (!fid->mi->fractured) {
@@ -58,10 +58,10 @@ void BKE_fracture_dynamic_do(FractureModifierData *fmd, Object* ob, Scene* scene
 		}
 		fid->mi->fractured = true;
 
-		BLI_remlink(&fmd->shared->fracture_ids, fid);
-		fid = (FractureID*)fmd->shared->fracture_ids.first;
+		BLI_remlink(&fmd->shared->dynamic_fracture_queue, fid);
+		fid = (FractureQueueEntry*)fmd->shared->dynamic_fracture_queue.first;
 	}
 
-	fmd->shared->fracture_ids.first = NULL;
-	fmd->shared->fracture_ids.last = NULL;
+	fmd->shared->dynamic_fracture_queue.first = NULL;
+	fmd->shared->dynamic_fracture_queue.last = NULL;
 }

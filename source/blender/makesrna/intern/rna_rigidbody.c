@@ -135,136 +135,136 @@ static bool rna_RigidBodyCon_is_intact(RigidBodyCon *con)
 
 void foreach_shard_float(Object* ob, float value, void (*func)(RigidBodyOb *rbo, float value))
 {
-    ModifierData *md;
-    FractureModifierData* rmd;
-    MeshIsland* mi;
-    for (md = ob->modifiers.first; md; md = md->next) {
-        if (md->type == eModifierType_Fracture) {
-            rmd = (FractureModifierData*)md;
-            //if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
-            {
-                for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
-                    if (mi->rigidbody != NULL) {
-                        func(mi->rigidbody, value);
-                    }
-                }
-            }
-            break;
-        }
-    }
+	ModifierData *md;
+	FractureModifierData* rmd;
+	Shard* mi;
+	for (md = ob->modifiers.first; md; md = md->next) {
+		if (md->type == eModifierType_Fracture) {
+			rmd = (FractureModifierData*)md;
+
+			{
+				for (mi = rmd->shared->shards.first; mi; mi = mi->next) {
+					if (mi->rigidbody != NULL) {
+						func(mi->rigidbody, value);
+					}
+				}
+			}
+			break;
+		}
+	}
 }
 
 void foreach_shard_mass(Object *ob)
 {
-    ModifierData *md;
-    FractureModifierData* rmd;
-    MeshIsland* mi;
+	ModifierData *md;
+	FractureModifierData* rmd;
+	Shard* mi;
 
-    for (md = ob->modifiers.first; md; md = md->next) {
-        if (md->type == eModifierType_Fracture) {
-            rmd = (FractureModifierData*)md;
-            //if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
-            {
-                for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
-                    if (mi->rigidbody != NULL) {
-                        BKE_rigidbody_calc_shard_mass(ob, mi);
-                    }
-                }
-            }
-            break;
-        }
-    }
+	for (md = ob->modifiers.first; md; md = md->next) {
+		if (md->type == eModifierType_Fracture) {
+			rmd = (FractureModifierData*)md;
+
+			{
+				for (mi = rmd->shared->shards.first; mi; mi = mi->next) {
+					if (mi->rigidbody != NULL) {
+						BKE_rigidbody_calc_shard_mass(ob, mi);
+					}
+				}
+			}
+			break;
+		}
+	}
 }
 
 void foreach_shard_int(Object *ob, int value, void (*func)(RigidBodyOb *rbo, int value))
 {
-    ModifierData *md;
-    FractureModifierData* rmd;
-    MeshIsland* mi;
-    for (md = ob->modifiers.first; md; md = md->next) {
-        if (md->type == eModifierType_Fracture) {
-            rmd = (FractureModifierData*)md;
-            //if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
-            {
-                for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
-                    if (mi->rigidbody != NULL) {
-                        func(mi->rigidbody, value);
-                    }
-                }
-            }
-            break;
-        }
-    }
+	ModifierData *md;
+	FractureModifierData* rmd;
+	Shard* mi;
+	for (md = ob->modifiers.first; md; md = md->next) {
+		if (md->type == eModifierType_Fracture) {
+			rmd = (FractureModifierData*)md;
+
+			{
+				for (mi = rmd->shared->shards.first; mi; mi = mi->next) {
+					if (mi->rigidbody != NULL) {
+						func(mi->rigidbody, value);
+					}
+				}
+			}
+			break;
+		}
+	}
 }
 
 void foreach_shard_bool(Object *ob, bool value, void (*func)(RigidBodyOb *rbo, bool value))
 {
-    ModifierData *md;
-    FractureModifierData* rmd;
-    MeshIsland* mi;
-    for (md = ob->modifiers.first; md; md = md->next) {
-        if (md->type == eModifierType_Fracture) {
-            rmd = (FractureModifierData*)md;
-            //if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
-            {
-                for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
-                    if (mi->rigidbody != NULL) {
-                        func(mi->rigidbody, value);
-                    }
-                }
-            }
-            break;
-        }
-    }
+	ModifierData *md;
+	FractureModifierData* rmd;
+	Shard* mi;
+	for (md = ob->modifiers.first; md; md = md->next) {
+		if (md->type == eModifierType_Fracture) {
+			rmd = (FractureModifierData*)md;
+
+			{
+				for (mi = rmd->shared->shards.first; mi; mi = mi->next) {
+					if (mi->rigidbody != NULL) {
+						func(mi->rigidbody, value);
+					}
+				}
+			}
+			break;
+		}
+	}
 }
 
 void foreach_shard_bools(Object *ob, const bool *value, void (*func)(RigidBodyOb *rbo, const bool *value))
 {
-    ModifierData *md;
-    FractureModifierData* rmd;
-    MeshIsland *mi;
+	ModifierData *md;
+	FractureModifierData* rmd;
+	Shard *mi;
 
-    for (md = ob->modifiers.first; md; md = md->next) {
-        if (md->type == eModifierType_Fracture) {
-            rmd = (FractureModifierData*)md;
-            //if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
-            {
-                for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
-                    if (mi->rigidbody != NULL) {
-                        func(mi->rigidbody, value);
-                     }
-                }
-            }
-            break;
-        }
-    }
+	for (md = ob->modifiers.first; md; md = md->next) {
+		if (md->type == eModifierType_Fracture) {
+			rmd = (FractureModifierData*)md;
+
+			{
+				for (mi = rmd->shared->shards.first; mi; mi = mi->next) {
+					if (mi->rigidbody != NULL) {
+						func(mi->rigidbody, value);
+					 }
+				}
+			}
+			break;
+		}
+	}
 }
 
 void foreach_shard_flag_shape(Object *ob, int flag, short shape, bool reset)
 {
-    ModifierData *md;
-    FractureModifierData *rmd;
-    MeshIsland *mi;
+	ModifierData *md;
+	FractureModifierData *rmd;
+	Shard *mi;
 
-    for (md = ob->modifiers.first; md; md = md->next) {
-        if (md->type == eModifierType_Fracture) {
-            rmd = (FractureModifierData*)md;
-            //if (rmd->fracture_mode != MOD_FRACTURE_EXTERNAL)
-            {
-                for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
-                    if (mi->rigidbody != NULL) {
-                        mi->rigidbody->flag = flag;
-                        mi->rigidbody->shape = shape;
-                        if (reset) {
-                          if (mi->rigidbody->shared->physics_shape)
-                            mi->rigidbody->flag |= RBO_FLAG_NEEDS_RESHAPE;
-                        }
-                    }
-                }
-            }
-            break;
-        }
-    }
+	for (md = ob->modifiers.first; md; md = md->next) {
+		if (md->type == eModifierType_Fracture) {
+			rmd = (FractureModifierData*)md;
+
+			{
+				for (mi = rmd->shared->shards.first; mi; mi = mi->next) {
+					if (mi->rigidbody != NULL) {
+						mi->rigidbody->flag = flag;
+						mi->rigidbody->shape = shape;
+						if (reset) {
+							if (mi->rigidbody->shared->physics_shape)
+								mi->rigidbody->flag |= RBO_FLAG_NEEDS_RESHAPE;
+						}
+					}
+				}
+			}
+			break;
+		}
+	}
 }
 
 

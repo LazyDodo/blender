@@ -54,18 +54,16 @@ static void initData(ModifierData *md)
 {
 	FractureModifierData *fmd = (FractureModifierData *) md;
 
+	fmd->flag = 0;
 	fmd->cluster_count = 0;
 	fmd->extra_group = NULL;
 	fmd->frac_algorithm = MOD_FRACTURE_BOOLEAN;
 	fmd->point_source = MOD_FRACTURE_UNIFORM;
-	fmd->shard_id = -1;
 	fmd->shard_count = 10;
 	fmd->percentage = 100;
 
 	fmd->breaking_threshold = 10.0f;
-	fmd->use_constraints = false;
 	fmd->contact_dist = 1.0f;
-	fmd->use_mass_dependent_thresholds = false;
 	fmd->constraint_limit = 50;
 	fmd->breaking_distance = 0;
 	fmd->breaking_angle = 0;
@@ -75,42 +73,28 @@ static void initData(ModifierData *md)
 	fmd->cluster_breaking_threshold = 1000.0f;
 	fmd->solver_iterations_override = 0;
 	fmd->cluster_solver_iterations_override = 0;
-	fmd->execute_threaded = false;
-	fmd->fix_normals = false;
-	fmd->auto_execute = false;
 	fmd->autohide_dist = 0.0f;
 	fmd->automerge_dist = 0.0f;
 
-	fmd->breaking_percentage_weighted = false;
-	fmd->breaking_angle_weighted = false;
-	fmd->breaking_distance_weighted = false;
-
 	/* XXX needed because of messy particle cache, shows incorrect positions when start/end on frame 1
 	 * default use case is with this flag being enabled, disable at own risk */
-	fmd->use_particle_birth_coordinates = true;
+	fmd->flag |= MOD_FRACTURE_USE_PARTICLE_BIRTH_COORDS;
 	fmd->splinter_length = 1.0f;
-	fmd->nor_range = 1.0f;
+	fmd->normal_search_radius = 1.0f;
 
 	fmd->cluster_breaking_angle = 0;
 	fmd->cluster_breaking_distance = 0;
 	fmd->cluster_breaking_percentage = 0;
 
-	fmd->use_breaking = true;
-	fmd->use_smooth = false;
+	fmd->flag |= MOD_FRACTURE_USE_BREAKING;
 
 	fmd->fractal_cuts = 1;
 	fmd->fractal_amount = 1.0f;
-	fmd->physics_mesh_scale = 0.75f;
 	fmd->fractal_iterations = 5;
 
 	fmd->cluster_group = NULL;
 	fmd->cutter_group = NULL;
 
-	fmd->grease_decimate = 100.0f;
-	fmd->grease_offset = 0.5f;
-	fmd->use_greasepencil_edges = true;
-
-	fmd->cutter_axis = MOD_FRACTURE_CUTTER_Z;
 	fmd->cluster_constraint_type = RBC_TYPE_FIXED;
 	fmd->constraint_type = RBC_TYPE_FIXED;
 	fmd->constraint_target = MOD_FRACTURE_CENTROID;
@@ -118,33 +102,21 @@ static void initData(ModifierData *md)
 	fmd->last_frame = 0; //INT_MIN
 	fmd->dynamic_force = 10.0f;
 	fmd->update_dynamic = false;
-	fmd->limit_impact = false;
-	//fmd->reset_shards = false;
-
-	fmd->use_compounds = false;
-	fmd->impulse_dampening = 0.05f;
-	fmd->directional_factor = 0.0f;
-	fmd->minimum_impulse = 0.1f;
 	fmd->mass_threshold_factor = 0.0f;
 
 	fmd->autohide_filter_group = NULL;
-	fmd->constraint_count = 0;
 
 	fmd->boolean_double_threshold = 1e-6f;
 	fmd->dynamic_percentage = 0.0f;
 	fmd->dynamic_new_constraints = MOD_FRACTURE_ALL_DYNAMIC_CONSTRAINTS;
 	fmd->dynamic_min_size = 1.0f;
 	fmd->keep_cutter_shards = MOD_FRACTURE_KEEP_BOTH;
-	fmd->use_constraint_collision = false;
 	fmd->inner_crease = 0.0f;
-	fmd->is_dynamic_external = false;
 
 	fmd->mat_ofs_difference = 0;
 	fmd->mat_ofs_intersect = 0;
 
-	fmd->orthogonality_factor = 0.0f;
-	fmd->keep_distort = false;
-	fmd->do_merge = false;
+	fmd->rectangular_alignment = 0.0f;
 
 	fmd->deform_weakening = 0.0f;
 	fmd->distortion_cached = false;
@@ -153,15 +125,8 @@ static void initData(ModifierData *md)
 	fmd->grid_resolution[1] = 10;
 	fmd->grid_resolution[2] = 10;
 
-	fmd->use_centroids = false;
-	fmd->use_vertices = false;
-	fmd->use_self_collision = false;
-
-	fmd->use_animated_mesh = false;
 	fmd->anim_mesh_ob = NULL;
 	fmd->anim_bind_limit = 0.0f;
-	fmd->use_constraint_group = false;
-	fmd->activate_broken = false;
 
 	fmd->dynamic_activation_size = 1.0f;
 	fmd->contact_size = 0.0f;
@@ -199,8 +164,7 @@ static void copyData(const ModifierData *md_src, ModifierData *md_dst, const int
 		fmd_dst->shared = MEM_callocN(sizeof(FractureModifierData_Shared), "FractureModifierData_Shared");
 		fmd_dst->shared->last_cache_start = 0;
 		fmd_dst->shared->last_cache_end = 250;
-		fmd_dst->shared->refresh = true;
-		fmd_dst->shared->reset_shards = false;
+		fmd_dst->shared->flag |= MOD_FRACTURE_REFRESH;
 	}
 }
 
@@ -221,7 +185,7 @@ static void foreachIDLink(ModifierData *md, Object *ob,
 
 	walk(userData, ob, (ID **)&fmd->inner_material, IDWALK_CB_NOP);
 	walk(userData, ob, (ID **)&fmd->extra_group, IDWALK_CB_NOP);
-	walk(userData, ob, (ID **)&fmd->dm_group, IDWALK_CB_NOP);
+	walk(userData, ob, (ID **)&fmd->pack_group, IDWALK_CB_NOP);
 	walk(userData, ob, (ID **)&fmd->cluster_group, IDWALK_CB_NOP);
 	walk(userData, ob, (ID **)&fmd->cutter_group, IDWALK_CB_NOP);
 	walk(userData, ob, (ID **)&fmd->autohide_filter_group, IDWALK_CB_NOP);
@@ -277,8 +241,8 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 	}
 
-	if (fmd->dm_group) {
-		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(fmd->dm_group, obj)
+	if (fmd->pack_group) {
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(fmd->pack_group, obj)
 		{
 			if (ctx->object != obj) {
 				DEG_add_object_relation(ctx->node, obj, DEG_OB_COMP_TRANSFORM, "Fracture Modifier Pack");
@@ -328,8 +292,8 @@ static void foreachObjectLink(
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 	}
 
-	if (fmd->dm_group) {
-		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(fmd->dm_group, obj)
+	if (fmd->pack_group) {
+		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(fmd->pack_group, obj)
 		{
 			if (ob != obj) {
 				walk(userData, ob, &obj, IDWALK_CB_NOP);

@@ -131,7 +131,7 @@ void BKE_fracture_face_pairs(FractureModifierData *fmd, Mesh *dm, Object *ob)
 			index = n[0].index;
 			while (j < r) {
 				int v1, v2;
-				MeshIsland *mi1, *mi2;
+				Shard *mi1, *mi2;
 				index = n[j].index;
 				//printf("I, INDEX %d %d %f\n", i, index, n[j].dist);
 				v1 = mloop[mp->loopstart].v;
@@ -148,12 +148,12 @@ void BKE_fracture_face_pairs(FractureModifierData *fmd, Mesh *dm, Object *ob)
 				j++;
 			}
 
-			val = POINTER_AS_INT(BLI_ghash_lookup(fmd->shared->face_pairs, POINTER_FROM_INT(index)));
+			val = POINTER_AS_INT(BLI_ghash_lookup(fmd->shared->adjacent_face_pairs, POINTER_FROM_INT(index)));
 			if (val != i && index != i) {
-				BLI_ghash_insert(fmd->shared->face_pairs, POINTER_FROM_INT(i), POINTER_FROM_INT(index));
+				BLI_ghash_insert(fmd->shared->adjacent_face_pairs, POINTER_FROM_INT(i), POINTER_FROM_INT(index));
 				pairs++;
 				/*match normals...*/
-				if (fmd->fix_normals) {
+				if (fmd->flag & MOD_FRACTURE_USE_FIX_NORMALS) {
 					do_match_normals(mp, mpoly+index, mvert, mloop);
 				}
 			}
@@ -165,8 +165,8 @@ void BKE_fracture_face_pairs(FractureModifierData *fmd, Mesh *dm, Object *ob)
 	}
 
 	if (faces == 0 || pairs == 0) {
-		BLI_ghash_free(fmd->shared->face_pairs, NULL, NULL);
-		fmd->shared->face_pairs = NULL;
+		BLI_ghash_free(fmd->shared->adjacent_face_pairs, NULL, NULL);
+		fmd->shared->adjacent_face_pairs = NULL;
 	}
 
 	printf("faces, pairs: %d %d\n", faces, pairs);
@@ -177,7 +177,7 @@ static void find_other_face(FractureModifierData *fmd, int i, BMesh* bm, Object*
 {
 	float f_centr[3], f_centr_other[3];
 	BMFace *f1, *f2;
-	int other = POINTER_AS_INT(BLI_ghash_lookup(fmd->shared->face_pairs, POINTER_FROM_INT(i)));
+	int other = POINTER_AS_INT(BLI_ghash_lookup(fmd->shared->adjacent_face_pairs, POINTER_FROM_INT(i)));
 	int inner_index = BKE_object_material_slot_find_index(ob, fmd->inner_material) - 1;
 
 	if ((other == i))
@@ -216,8 +216,6 @@ static void find_other_face(FractureModifierData *fmd, int i, BMesh* bm, Object*
 		(f1->mat_nr == inner_index) && (f2->mat_nr == inner_index))
 	{
 		bool in_filter = false;
-		int v1, v2;
-		MeshIsland *mi, *mi_other;
 
 		/*filter out face pairs, if we have an autohide filter group */
 		if (fmd->autohide_filter_group){
@@ -263,7 +261,7 @@ static void reset_automerge(FractureModifierData *fmd)
 	SharedVert *sv;
 	SharedVertGroup *vg;
 
-	for (vg = fmd->shared->shared_verts.first; vg; vg = vg->next) {
+	for (vg = fmd->shared->automerge_shared_verts.first; vg; vg = vg->next) {
 		vg->exceeded = false;
 		//vg->excession_frame = -1;
 		//vg->moved = false;
@@ -308,7 +306,7 @@ static void clamp_delta(SharedVert *sv, FractureModifierData *fmd)
 static void handle_vertex(FractureModifierData *fmd, BMesh* bm, SharedVert *sv, float co[3], float no[3],
 						  int cd_edge_crease_offset, Scene* sc)
 {
-	bool do_calc_delta = fmd->keep_distort;
+	bool do_calc_delta = fmd->flag & MOD_FRACTURE_USE_KEEP_DISTORT;
 	float dist = fmd->autohide_dist;
 	BMEdge *e = NULL;
 	int frame = sc ? (int)BKE_scene_frame_get(sc) : 1;
@@ -366,7 +364,7 @@ static void prepare_automerge(FractureModifierData *fmd, BMesh *bm, Scene* sc)
 		cd_edge_crease_offset = CustomData_get_offset(&bm->edata, CD_CREASE);
 	}
 
-	for (vg = fmd->shared->shared_verts.first; vg; vg = vg->next) {
+	for (vg = fmd->shared->automerge_shared_verts.first; vg; vg = vg->next) {
 		BMVert* v1, *v2;
 		float co[3], no[3], inverse;
 		int verts = 0;
@@ -404,7 +402,7 @@ static void prepare_automerge(FractureModifierData *fmd, BMesh *bm, Scene* sc)
 
 static void optimize_automerge(FractureModifierData *fmd)
 {
-	SharedVertGroup *vg = fmd->shared->shared_verts.first, *next = NULL;
+	SharedVertGroup *vg = fmd->shared->automerge_shared_verts.first, *next = NULL;
 	SharedVert* sv = NULL;
 	int removed = 0, count = 0;
 
@@ -429,7 +427,7 @@ static void optimize_automerge(FractureModifierData *fmd)
 			}
 
 
-			BLI_remlink(&fmd->shared->shared_verts, vg);
+			BLI_remlink(&fmd->shared->automerge_shared_verts, vg);
 			MEM_freeN(vg);
 			removed++;
 		}
@@ -437,7 +435,7 @@ static void optimize_automerge(FractureModifierData *fmd)
 		vg = next;
 	}
 
-	count = BLI_listbase_count(&fmd->shared->shared_verts);
+	count = BLI_listbase_count(&fmd->shared->automerge_shared_verts);
 	printf("remaining | removed groups: %d | %d\n", count, removed);
 }
 static Mesh* centroids_to_verts(FractureModifierData* fmd, BMesh* bm, Object* ob)
@@ -446,12 +444,12 @@ static Mesh* centroids_to_verts(FractureModifierData* fmd, BMesh* bm, Object* ob
 	Mesh *dm = NULL;
 	MVert *mv = NULL;
 	BMVert *v = NULL;
-	MeshIsland *mi;
+	Shard *mi;
 	//only add verts where centroids are...
 	float imat[4][4];
 	float *velX, *velY, *velZ;
 	int i = 0;
-	int dm_totvert = BLI_listbase_count(&fmd->shared->mesh_islands);
+	int dm_totvert = BLI_listbase_count(&fmd->shared->shards);
 	int totvert = dm_totvert + bm->totvert;
 
 
@@ -464,7 +462,7 @@ static Mesh* centroids_to_verts(FractureModifierData* fmd, BMesh* bm, Object* ob
 	velY = CustomData_add_layer_named(&dm->vdata, CD_PROP_FLT, CD_CALLOC, NULL, totvert, "velY");
 	velZ = CustomData_add_layer_named(&dm->vdata, CD_PROP_FLT, CD_CALLOC, NULL, totvert, "velZ");
 
-	for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next)
+	for (mi = fmd->shared->shards.first; mi; mi = mi->next)
 	{
 		RigidBodyOb *rbo = mi->rigidbody;
 		mul_v3_m4v3(mv[i].co, imat, mi->rigidbody->pos);
@@ -494,12 +492,12 @@ Mesh *BKE_fracture_autohide_do(FractureModifierData *fmd, Mesh *dm, Object *ob, 
 	Mesh *result;
 	BMFace **faces = MEM_mallocN(sizeof(BMFace *), "faces");
 	int del_faces = 0;
-	bool do_merge = fmd->do_merge;
+	bool do_merge = fmd->perform_merge;
 
 	//just before we mess up this mesh, ensure velocity precalculation.
 //	BKE_update_velocity_layer(fmd, dm);
 
-	if (fmd->use_centroids && !fmd->use_vertices)
+	if ((fmd->flag & MOD_FRACTURE_USE_CENTROIDS) && !(fmd->flag & MOD_FRACTURE_USE_VERTICES))
 	{
 		BM_mesh_create(&bm_mesh_allocsize_default,  &((struct BMeshCreateParams){.use_toolflags = true,}));
 		result = centroids_to_verts(fmd, bm, ob);
@@ -511,7 +509,7 @@ Mesh *BKE_fracture_autohide_do(FractureModifierData *fmd, Mesh *dm, Object *ob, 
 	   bm = BKE_fracture_mesh_to_bmesh(dm);
 	}
 
-	if (!fmd->use_centroids)
+	if (!(fmd->flag & MOD_FRACTURE_USE_CENTROIDS))
 	{
 		RigidBodyWorld *rbw = sc ? sc->rigidbody_world : NULL;
 		PointCache *cache = rbw ? rbw->shared->pointcache : NULL;
@@ -530,7 +528,7 @@ Mesh *BKE_fracture_autohide_do(FractureModifierData *fmd, Mesh *dm, Object *ob, 
 		}
 	}
 
-	if (fmd->shared->face_pairs && fmd->autohide_dist > 0)
+	if (fmd->shared->adjacent_face_pairs && fmd->autohide_dist > 0)
 	{
 		BM_mesh_elem_hflag_disable_all(bm, BM_FACE | BM_EDGE | BM_VERT , BM_ELEM_SELECT, false);
 
@@ -563,11 +561,11 @@ Mesh *BKE_fracture_autohide_do(FractureModifierData *fmd, Mesh *dm, Object *ob, 
 		BM_mesh_elem_hflag_enable_all(bm, BM_FACE | BM_EDGE | BM_VERT , BM_ELEM_SELECT, false);
 	}
 
-	if (fmd->use_vertices)
+	if ((fmd->flag & MOD_FRACTURE_USE_VERTICES))
 	{	//only output verts
 		BMO_op_callf(bm, (BMO_FLAG_DEFAULTS & ~BMO_FLAG_RESPECT_HIDE), "delete geom=%aef context=%i", DEL_EDGESFACES);
 
-		if (fmd->use_centroids)
+		if ((fmd->flag & MOD_FRACTURE_USE_CENTROIDS))
 		{
 			result = centroids_to_verts(fmd, bm, ob);
 			BM_mesh_free(bm);
@@ -594,7 +592,7 @@ Mesh *BKE_fracture_autohide_do(FractureModifierData *fmd, Mesh *dm, Object *ob, 
 					 0.0001f); /*need to merge larger cracks*/
 		}
 
-		if (fmd->fix_normals) {
+		if (fmd->flag & MOD_FRACTURE_USE_FIX_NORMALS) {
 			/* dissolve sharp edges with limit dissolve
 			 * this causes massive flicker with displacements and possibly with glass too when autohide is enabled
 			 * so use this only when fix normals has been requested and automerge is enabled
@@ -607,7 +605,7 @@ Mesh *BKE_fracture_autohide_do(FractureModifierData *fmd, Mesh *dm, Object *ob, 
 		}
 	}
 
-	if (!fmd->fix_normals)
+	if (!(fmd->flag & MOD_FRACTURE_USE_FIX_NORMALS))
 	{
 		BM_mesh_normals_update(bm);
 	}
@@ -673,7 +671,7 @@ static KDTree *build_nor_tree(Mesh *dm)
 	return tree;
 }
 
-void BKE_fracture_meshisland_normals_fix(FractureModifierData *fmd, MeshIsland* mi, Mesh* orig_me)
+void BKE_fracture_meshisland_normals_fix(FractureModifierData *fmd, Shard* mi, Mesh* orig_me)
 {
 	MVert *mv;
 	int j;
@@ -685,7 +683,7 @@ void BKE_fracture_meshisland_normals_fix(FractureModifierData *fmd, MeshIsland* 
 		short no[3];
 
 		printf("Fixing Normals: %d\n", j);
-		BKE_fracture_normal_find(orig_me, tree, mv->co, mv->no, no, fmd->nor_range);
+		BKE_fracture_normal_find(orig_me, tree, mv->co, mv->no, no, fmd->normal_search_radius);
 		copy_v3_v3_short(mv->no, no);
 	}
 
@@ -806,20 +804,20 @@ void BKE_fracture_shared_verts_free(ListBase* lb)
 void BKE_fracture_automerge_refresh(FractureModifierData* fmd, Mesh *me_assembled)
 {
 	printf("Refreshing automerge\n");
-	BKE_fracture_shared_verts_free(&fmd->shared->shared_verts);
-	BKE_fracture_shared_vert_groups(fmd, me_assembled, &fmd->shared->shared_verts);
+	BKE_fracture_shared_verts_free(&fmd->shared->automerge_shared_verts);
+	BKE_fracture_shared_vert_groups(fmd, me_assembled, &fmd->shared->automerge_shared_verts);
 }
 
 void BKE_fracture_autohide_refresh(FractureModifierData *fmd, Object *ob, Mesh* me_assembled)
 {
-	fmd->shared->refresh_autohide = false;
+	fmd->shared->flag &= ~MOD_FRACTURE_REFRESH_AUTOHIDE;
 	/*HERE make a kdtree of the fractured derivedmesh,
 	 * store pairs of faces (MPoly) here (will be most likely the inner faces) */
-	if (fmd->shared->face_pairs != NULL) {
-		BLI_ghash_free(fmd->shared->face_pairs, NULL, NULL);
-		fmd->shared->face_pairs = NULL;
+	if (fmd->shared->adjacent_face_pairs != NULL) {
+		BLI_ghash_free(fmd->shared->adjacent_face_pairs, NULL, NULL);
+		fmd->shared->adjacent_face_pairs = NULL;
 	}
 
-	fmd->shared->face_pairs = BLI_ghash_int_new("face_pairs");
+	fmd->shared->adjacent_face_pairs = BLI_ghash_int_new("face_pairs");
 	BKE_fracture_face_pairs(fmd, me_assembled, ob);
 }

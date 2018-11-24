@@ -145,10 +145,8 @@ struct	ViewportDebugDraw : public btIDebugDraw
 struct rbRigidBody {
 	btRigidBody *body;
 	int col_groups;
-	int linear_index;
 	void *meshIsland;
 	void *blenderOb;
-	btVector3 *bbox;
 	rbDynamicsWorld *world;
 };
 
@@ -228,69 +226,6 @@ static int connection_binary_search(btFractureBody *fbody, btVector3 impact, btS
 	}
 
 	return low;
-}
-
-static bool weakenCompound(const btCollisionObject *body, btScalar force, btVector3 impact, btFractureDynamicsWorld *world)
-{
-	//just weaken strengths of this obA and obB according to force !
-	if (body->getInternalType() & CUSTOM_FRACTURE_TYPE && force > 0.0f)
-	{
-		btFractureBody *fbody = (btFractureBody*)body;
-		int size = fbody->m_connections.size();
-		bool needs_break = false;
-
-		if (size == 0)
-			return false;
-
-		btVector3 *bbox = ((rbRigidBody*)fbody->getUserPointer())->bbox;
-		btScalar dim = (*bbox)[bbox->maxAxis()] * 2;
-
-		//stop at this limit, distances are sorted... so no closer object will come later
-		//int mid = connection_binary_search(fbody, impact, dim * (1.0f - fbody->m_propagationParameter.m_stability_factor));
-		for (int i = 0; i < size; i++)
-		{
-			btVector3 imp = fbody->getWorldTransform().inverse() * impact;
-			btScalar dist = connection_dist(fbody, i, imp);
-			btConnection& con = fbody->m_connections[i];
-			btScalar lforce = force;
-			if (dist > 0.0f)
-			{
-				lforce = lforce / dist; // the closer, the higher the force
-				//printf("lforce %f\n", lforce);
-				lforce *= (1.0f - fbody->m_propagationParameter.m_stability_factor);
-				//printf("lforce2 %f\n", lforce);
-			}
-
-			if (lforce > fbody->m_propagationParameter.m_minimum_impulse)
-			{
-				if (con.m_strength > 0.0f)
-				{
-					con.m_strength -= lforce;
-					//printf("Damaged connection %d %d with %f\n", fbody->m_connections[i].m_childIndex0,
-					//   fbody->m_connections[i].m_childIndex1, force);
-
-					if (con.m_strength <= 0)
-					{
-						con.m_strength = 0;
-						needs_break = true;
-					}
-				}
-			}
-
-			btScalar pdist = connection_dist(fbody, i, con.m_parent->getWorldTransform().getOrigin());
-			if (pdist > (dim * (1.0f - fbody->m_propagationParameter.m_stability_factor)))
-			{
-				break;
-			}
-		}
-
-		if (needs_break)
-			world->breakDisconnectedParts(fbody);
-
-		return needs_break;
-	}
-
-	return false;
 }
 
 static void manifold_callback(TickDiscreteDynamicsWorld* tworld, btManifoldPoint& pt,
@@ -710,7 +645,6 @@ struct rbDynamicsWorld {
 	btConstraintSolver *constraintSolver;
 	rbFilterCallback *filterCallback;
 	void *blenderWorld;
-	//struct rbContactCallback *contactCallback;
 	IdOutCallback idOutCallback;
 	void *blenderScene; // ouch, very very clumsy approach, this is just a borrowed pointer
 };
@@ -814,55 +748,6 @@ static inline void copy_quat_btquat(float quat[4], const btQuaternion &btquat)
 	quat[2] = btquat.getY();
 	quat[3] = btquat.getZ();
 }
-
-#if 0
-/*Contact Handling*/
-typedef void (*cont_callback)(rbContactPoint *cp, void* bworld);
-
-struct rbContactCallback
-{
-	static cont_callback callback;
-	static void* bworld;
-	rbContactCallback(cont_callback cp, void* bworld);
-	static bool handle_contacts(btManifoldPoint& point, btCollisionObject* body0, btCollisionObject* body1);
-};
-
-/*rbContactCallback::rbContactCallback(cont_callback callback, void *bworld){
-	rbContactCallback::callback = callback;
-	rbContactCallback::bworld = bworld;
-	gContactProcessedCallback = (ContactProcessedCallback)&rbContactCallback::handle_contacts;
-}*/
-
-cont_callback rbContactCallback::callback = 0;
-void* rbContactCallback::bworld = NULL;
-
-bool rbContactCallback::handle_contacts(btManifoldPoint& point, btCollisionObject* body0, btCollisionObject* body1)
-{
-	bool ret = false;
-	if (rbContactCallback::callback)
-	{
-		rbContactPoint *cp = new rbContactPoint;
-		btFractureBody* bodyA = (btFractureBody*)(body0);
-		btFractureBody* bodyB = (btFractureBody*)(body1);
-		rbRigidBody* rbA = (rbRigidBody*)(bodyA->getUserPointer());
-		rbRigidBody* rbB = (rbRigidBody*)(bodyB->getUserPointer());
-		if (rbA)
-			cp->contact_body_indexA = rbA->linear_index;
-
-		if (rbB)
-			cp->contact_body_indexB = rbB->linear_index;
-
-		cp->contact_force = point.getAppliedImpulse();
-		copy_v3_btvec3(cp->contact_pos_world_onA, point.getPositionWorldOnA());
-		copy_v3_btvec3(cp->contact_pos_world_onB, point.getPositionWorldOnB());
-
-		rbContactCallback::callback(cp, rbContactCallback::bworld);
-
-		delete cp;
-	}
-	return ret;
-}
-#endif
 
 /* ********************************** */
 /* Dynamics World Methods */
@@ -1166,7 +1051,8 @@ void RB_dworld_export(rbDynamicsWorld *world, const char *filename)
 
 /* Setup ---------------------------- */
 
-void RB_dworld_add_body(rbDynamicsWorld *world, rbRigidBody *object, int col_groups, void* meshIsland, void* blenderOb, int linear_index)
+void RB_dworld_add_body(rbDynamicsWorld *world, rbRigidBody *object, int col_groups,
+                        void* meshIsland, void* blenderOb)
 {
 	btRigidBody *body = object->body;
 
@@ -1180,7 +1066,6 @@ void RB_dworld_add_body(rbDynamicsWorld *world, rbRigidBody *object, int col_gro
 	object->meshIsland = meshIsland;
 	object->world = world;
 	object->blenderOb = blenderOb;
-	object->linear_index = linear_index;
 	world->dynamicsWorld->addRigidBody(body);
 }
 
@@ -1246,8 +1131,7 @@ void RB_world_convex_sweep_test(
 
 /* ............ */
 
-rbRigidBody *RB_body_new(rbCollisionShape *shape, const float loc[3], const float rot[4], bool use_compounds, float dampening, float factor,
-                         float min_impulse, float stability_factor, const float bbox[3])
+rbRigidBody *RB_body_new(rbCollisionShape *shape, const float loc[3], const float rot[4])
 {
 	rbRigidBody *object = new rbRigidBody;
 	/* current transform */
@@ -1261,21 +1145,7 @@ rbRigidBody *RB_body_new(rbCollisionShape *shape, const float loc[3], const floa
 	/* make rigidbody */
 	btRigidBody::btRigidBodyConstructionInfo rbInfo(1.0f, motionState, shape->cshape);
 	
-	if (use_compounds)
-	{
-		btPropagationParameter param;
-		param.m_impulse_dampening = dampening;
-		param.m_directional_factor = factor;
-		param.m_minimum_impulse = min_impulse;
-		param.m_stability_factor = stability_factor;
-		object->body = new btFractureBody(rbInfo, param);
-	}
-	else
-	{
-		object->body = new btRigidBody(rbInfo);
-	}
-	
-	object->bbox = new btVector3(bbox[0], bbox[1], bbox[2]);
+	object->body = new btRigidBody(rbInfo);
 
 	/* user pointers */
 	object->body->setUserPointer(object);
@@ -1305,8 +1175,6 @@ void RB_body_delete(rbRigidBody *object)
 	}
 	
 	delete body;
-
-	delete object->bbox;
 	delete object;
 }
 

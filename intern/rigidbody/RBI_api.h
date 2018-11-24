@@ -128,7 +128,8 @@ void RB_dworld_export(rbDynamicsWorld *world, const char *filename);
 /* Setup ---------------------------- */
 
 /* Add RigidBody to dynamics world */
-void RB_dworld_add_body(rbDynamicsWorld *world, rbRigidBody *body, int col_groups, void* meshIsland, void *blenderOb, int linear_index);
+void RB_dworld_add_body(rbDynamicsWorld *world, rbRigidBody *body, int col_groups,
+                        void* meshIsland, void *blenderOb);
 
 /* Remove RigidBody from dynamics world */
 void RB_dworld_remove_body(rbDynamicsWorld *world, rbRigidBody *body);
@@ -143,8 +144,7 @@ void RB_world_convex_sweep_test(
 /* ............ */
 
 /* Create new RigidBody instance */
-rbRigidBody *RB_body_new(rbCollisionShape *shape, const float loc[3], const float rot[4], bool use_compounds, float dampening, float factor,
-                         float min_impulse, float stability_factor, const float bbox[3]);
+rbRigidBody *RB_body_new(rbCollisionShape *shape, const float loc[3], const float rot[4]);
 
 /* Delete the given RigidBody instance */
 void RB_body_delete(rbRigidBody *body);

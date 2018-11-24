@@ -42,7 +42,7 @@ struct Depsgraph;
 struct Scene;
 struct Object;
 struct Group;
-struct MeshIsland;
+struct Shard;
 struct FractureModifierData;
 struct Main;
 struct rbCollisionShape;
@@ -71,9 +71,9 @@ void BKE_rigidbody_world_id_loop(struct RigidBodyWorld *rbw, RigidbodyWorldIDFun
 
 /* create Blender-side settings data - physics objects not initialized yet */
 struct RigidBodyWorld *BKE_rigidbody_create_world(struct Scene *scene);
-struct RigidBodyOb *BKE_rigidbody_create_object(struct Scene *scene, struct Object *ob, short type, struct MeshIsland *mi);
+struct RigidBodyOb *BKE_rigidbody_create_object(struct Scene *scene, struct Object *ob, short type, struct Shard *mi);
 struct RigidBodyCon *BKE_rigidbody_create_constraint(struct Scene *scene, struct Object *ob, short type, struct RigidBodyShardCon *con);
-struct RigidBodyOb *BKE_rigidbody_create_shard(struct Object *ob, struct Object *target, struct MeshIsland *mi);
+struct RigidBodyOb *BKE_rigidbody_create_shard(struct Object *ob, struct Object *target, struct Shard *mi);
 struct RigidBodyShardCon *BKE_rigidbody_create_shard_constraint(struct Scene *scene, short type, bool reset);
 
 /* copy */
@@ -88,13 +88,13 @@ void BKE_rigidbody_validate_sim_constraint(struct RigidBodyWorld *rbw, struct Ob
 void BKE_rigidbody_validate_sim_shard_constraint(struct RigidBodyWorld *rbw, struct FractureModifierData* fmd, struct Object*,
                                                  struct RigidBodyShardCon *rbsc, short rebuild);
 
-void BKE_rigidbody_validate_sim_shard(struct RigidBodyWorld *rbw, struct MeshIsland *mi, struct Object *ob,
+void BKE_rigidbody_validate_sim_shard(struct RigidBodyWorld *rbw, struct Shard *mi, struct Object *ob,
                                       struct FractureModifierData *fmd, short rebuild, int transfer_speeds, float size[3]);
 
-void BKE_rigidbody_validate_sim_shard_shape(struct MeshIsland *mi, struct Object *ob, short rebuild);
+void BKE_rigidbody_validate_sim_shard_shape(struct Shard *mi, struct Object *ob, short rebuild);
 
-bool BKE_rigidbody_check_island_size(struct FractureModifierData *fmd, struct MeshIsland *mi, float check_size);
-bool BKE_rigidbody_activate_by_size_check(struct Object *ob, struct MeshIsland *mi);
+bool BKE_rigidbody_check_island_size(struct FractureModifierData *fmd, struct Shard *mi, float check_size);
+bool BKE_rigidbody_activate_by_size_check(struct Object *ob, struct Shard *mi);
 
 void BKE_rigidbody_calc_center_of_mass(struct Object *ob, float r_center[3]);
 
@@ -105,13 +105,13 @@ struct RigidBodyWorld *BKE_rigidbody_get_world(struct Scene *scene);
 void BKE_rigidbody_remove_object(struct Main *bmain, struct Scene *scene, struct Object *ob);
 void BKE_rigidbody_remove_constraint(struct Scene *scene, struct Object *ob);
 float BKE_rigidbody_calc_volume_dm(struct Mesh *dm, struct RigidBodyOb *rbo, struct Object *ob);
-void BKE_rigidbody_calc_shard_mass(struct Object* ob, struct MeshIsland* mi);
+void BKE_rigidbody_calc_shard_mass(struct Object* ob, struct Shard* mi);
 void BKE_rigidbody_calc_threshold(float max_con_mass, struct FractureModifierData* rmd, struct RigidBodyShardCon *con);
 float BKE_rigidbody_calc_max_con_mass(struct Object* ob);
 float BKE_rigidbody_calc_min_con_dist(struct Object* ob);
 void BKE_rigidbody_start_dist_angle(struct RigidBodyShardCon* con, bool exact, bool both);
 void BKE_rigidbody_remove_shard_con(struct RigidBodyWorld* rbw, struct RigidBodyShardCon* con);
-void BKE_rigidbody_remove_shard(struct Scene* scene, struct MeshIsland *mi);
+void BKE_rigidbody_remove_shard(struct Scene* scene, struct Shard *mi);
 void BKE_rigidbody_update_ob_array(struct RigidBodyWorld *rbw, bool do_bake_correction);
 /* -------------- */
 /* Utility Macros */
@@ -139,10 +139,10 @@ void BKE_rigidbody_do_simulation(struct Depsgraph *depsgraph, struct Scene *scen
 struct rbCollisionShape *BKE_rigidbody_get_shape_trimesh_from_mesh(struct Object *ob, struct Mesh* me);
 struct rbCollisionShape *BKE_rigidbody_get_shape_convexhull_from_mesh(struct Mesh *dm, float margin, bool *can_embed);
 void BKE_rigidbody_update_sim_ob(struct Scene *scene, struct RigidBodyWorld *rbw, struct Object *ob,
-                                   struct RigidBodyOb *rbo, float centroid[3], struct MeshIsland *mi, float size[3],
+                                   struct RigidBodyOb *rbo, float centroid[3], struct Shard *mi, float size[3],
                                    struct FractureModifierData *fmd, struct Depsgraph *depsgraph);
 
-struct MeshIsland* BKE_rigidbody_closest_meshisland_to_point(struct FractureModifierData* fmd, struct Object *ob,
+struct Shard* BKE_rigidbody_closest_meshisland_to_point(struct FractureModifierData* fmd, struct Object *ob,
                                                              struct Object *ob2, struct Scene* scene);
 
 int BKE_rigidbody_filter_callback(void* scene, void* island1, void* island2, void *blenderOb1, void* blenderOb2, bool activate);
@@ -150,15 +150,15 @@ void BKE_rigidbody_contact_callback(struct rbContactPoint* cp, void* sc);
 void BKE_rigidbody_id_callback(void* island, int* objectId, int* islandId);
 
 bool BKE_rigidbody_modifier_active(struct FractureModifierData *rmd);
-void BKE_rigidbody_shard_validate(struct RigidBodyWorld *rbw, struct MeshIsland *mi, struct Object *ob,
+void BKE_rigidbody_shard_validate(struct RigidBodyWorld *rbw, struct Shard *mi, struct Object *ob,
                                   struct FractureModifierData *fmd, int rebuild, int transfer_speed, float size[3], float frame);
 
-void BKE_rigidbody_activate(struct RigidBodyOb* rbo, struct RigidBodyWorld *rbw, struct MeshIsland *mi, struct Object *ob);
+void BKE_rigidbody_activate(struct RigidBodyOb* rbo, struct RigidBodyWorld *rbw, struct Shard *mi, struct Object *ob);
 bool BKE_rigidbody_modifier_update(struct Scene* scene, struct Object* ob, struct RigidBodyWorld *rbw,  bool rebuild,
                                    struct Depsgraph *depsgraph);
 
 bool BKE_rigidbody_modifier_sync(struct ModifierData *md, struct Object *ob, struct Scene *scene, float ctime);
-void BKE_rigidbody_passive_hook(struct FractureModifierData *fmd, struct MeshIsland *mi, struct Object* ob,
+void BKE_rigidbody_passive_hook(struct FractureModifierData *fmd, struct Shard *mi, struct Object* ob,
                                 struct Scene* scene, struct Depsgraph *depsgraph);
 
 void BKE_rigidbody_passive_fake_parenting(struct FractureModifierData *fmd, struct Object *ob, struct RigidBodyOb *rbo,

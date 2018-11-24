@@ -2441,15 +2441,6 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 		BKE_rigidbody_cache_reset(scene);
 	}
 
-	rmd->shared->reset_shards = RNA_boolean_get(op->ptr, "reset");
-
-#if 0
-	if (rmd->fracture_mode == MOD_FRACTURE_EXTERNAL)
-	{
-		BKE_fracture_update_visual_mesh(rmd, obact, true);
-	}
-#endif
-
 	if (scene->rigidbody_world != NULL)
 	{
 		start = (double)scene->rigidbody_world->shared->pointcache->startframe;
@@ -2457,8 +2448,8 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 		scene->rigidbody_world->shared->pointcache->flag &= ~PTCACHE_BAKED;
 	}
 
-	if (!rmd || (rmd && rmd->shared->refresh)) {
-		rmd->shared->refresh = false;
+	if (!rmd || (rmd && (rmd->shared->flag & MOD_FRACTURE_REFRESH))) {
+		rmd->shared->flag &= ~MOD_FRACTURE_REFRESH;
 		return OPERATOR_CANCELLED;
 	}
 
@@ -2476,7 +2467,7 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 		ED_rigidbody_object_add(bmain, scene, obact, RBO_TYPE_ACTIVE, op->reports, false);
 	}
 
-	rmd->shared->refresh = true;
+	rmd->shared->flag |= MOD_FRACTURE_REFRESH;
 	rmd->last_frame = 0;
 
 	DEG_id_tag_update(&obact->id, OB_RECALC_DATA | DEG_TAG_COPY_ON_WRITE);
@@ -2703,7 +2694,7 @@ static bool do_unchecked_constraint_add(Main *bmain, Scene *scene, Object *ob, R
 	return true;
 }
 
-static Object* do_convert_meshisland_to_object(Main* bmain, MeshIsland *mi, Scene* scene, Collection* g, Object* ob,
+static Object* do_convert_meshisland_to_object(Main* bmain, Shard *mi, Scene* scene, Collection* g, Object* ob,
 											   RigidBodyWorld *rbw, int i, Object*** objs, KDTree **objtree,
 											   ViewLayer *layer)
 {
@@ -2771,7 +2762,7 @@ static Object* do_convert_meshisland_to_object(Main* bmain, MeshIsland *mi, Scen
 	//correct vertex positions, they are off by centroid location
 	for (mv = me->mvert, v = 0; v < me->totvert; v++, mv++)
 	{
-		sub_v3_v3(mv->co, mi->centroid);
+		sub_v3_v3(mv->co, mi->loc);
 	}
 
 	{
@@ -2803,7 +2794,7 @@ static Object* do_convert_meshisland_to_object(Main* bmain, MeshIsland *mi, Scen
 	}
 
 	/*store obj indexes in kdtree and objs in array*/
-	BLI_kdtree_insert(*objtree, i, mi->centroid);
+	BLI_kdtree_insert(*objtree, i, mi->loc);
 	(*objs)[i] = ob_new;
 
 	BKE_rigidbody_remove_shard(scene, mi);
@@ -2815,8 +2806,8 @@ static Object* do_convert_constraints(Main* bmain, FractureModifierData *fmd, Ri
 									  Scene* scene, Object* ob, KDTree *objtree, Object **objs,
 									  float max_con_mass, ReportList* reports, ViewLayer *layer)
 {
-	int index1 = BLI_kdtree_find_nearest(objtree, con->mi1->centroid, NULL);
-	int index2 =  BLI_kdtree_find_nearest(objtree, con->mi2->centroid, NULL);
+	int index1 = BLI_kdtree_find_nearest(objtree, con->mi1->loc, NULL);
+	int index2 =  BLI_kdtree_find_nearest(objtree, con->mi2->loc, NULL);
 	Object* ob1 = objs[index1];
 	Object* ob2 = objs[index2];
 	char *name;
@@ -2850,7 +2841,7 @@ static Object* do_convert_constraints(Main* bmain, FractureModifierData *fmd, Ri
 		con->num_solver_iterations = iterations;
 	}
 
-	if ((fmd->use_mass_dependent_thresholds)) {
+	if ((fmd->flag & MOD_FRACTURE_USE_MASS_DEP_THRESHOLDS)) {
 		BKE_rigidbody_calc_threshold(max_con_mass, fmd, con);
 	}
 
@@ -2872,7 +2863,7 @@ static Object* do_convert_constraints(Main* bmain, FractureModifierData *fmd, Ri
 		copy_m4_m4(rbcon->obmat, mat);
 
 
-		if ((fmd->use_mass_dependent_thresholds)) {
+		if (fmd->flag & MOD_FRACTURE_USE_MASS_DEP_THRESHOLDS) {
 			BKE_rigidbody_calc_threshold(max_con_mass, fmd, con);
 		}
 	}
@@ -2915,14 +2906,14 @@ static Object* do_convert_constraints(Main* bmain, FractureModifierData *fmd, Ri
 static void convert_modifier_to_objects(Main* bmain, ReportList *reports, Scene* scene, Object* ob,
 										FractureModifierData *rmd, ViewLayer *layer)
 {
-	MeshIsland *mi;
+	Shard *mi;
 	RigidBodyShardCon* con;
 	int i = 0;
 	RigidBodyWorld *rbw = scene->rigidbody_world;
 	const char *name = BLI_strdupcat(ob->id.name, "_conv");
 	Collection *g = BKE_collection_add(bmain, NULL, name);
 
-	int count = BLI_listbase_count(&rmd->shared->mesh_islands);
+	int count = BLI_listbase_count(&rmd->shared->shards);
 	KDTree* objtree = BLI_kdtree_new(count);
 	Object** objs = MEM_callocN(sizeof(Object*) * count, "convert_objs");
 	float max_con_mass = 0;
@@ -2930,7 +2921,7 @@ static void convert_modifier_to_objects(Main* bmain, ReportList *reports, Scene*
 	/*use a common array for both constraints and objects ! */
 	double start;
 
-	rmd->shared->refresh = false;
+	rmd->shared->flag &= ~MOD_FRACTURE_REFRESH;
 	MEM_freeN((void*)name);
 
 	if (rbw)
@@ -2938,7 +2929,7 @@ static void convert_modifier_to_objects(Main* bmain, ReportList *reports, Scene*
 
 	start = PIL_check_seconds_timer();
 
-	for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
+	for (mi = rmd->shared->shards.first; mi; mi = mi->next) {
 		do_convert_meshisland_to_object(bmain, mi, scene, g, ob, rbw, i, &objs, &objtree, layer);
 		i++;
 	}
@@ -2950,7 +2941,7 @@ static void convert_modifier_to_objects(Main* bmain, ReportList *reports, Scene*
 	/* go through constraints and find objects by position
 	 * constrain them with regular constraints */
 
-	if (rmd->use_mass_dependent_thresholds) {
+	if (rmd->flag & MOD_FRACTURE_USE_MASS_DEP_THRESHOLDS) {
 		max_con_mass = BKE_rigidbody_calc_max_con_mass(ob);
 	}
 
@@ -2958,9 +2949,9 @@ static void convert_modifier_to_objects(Main* bmain, ReportList *reports, Scene*
 
 	start = PIL_check_seconds_timer();
 
-	if (rmd->use_constraints)
+	if (rmd->flag & MOD_FRACTURE_USE_CONSTRAINTS)
 	{
-		for (con = rmd->shared->mesh_constraints.first; con; con = con->next) {
+		for (con = rmd->shared->constraints.first; con; con = con->next) {
 			do_convert_constraints(bmain, rmd, con, scene, ob, objtree, objs, max_con_mass, reports, layer);
 			i++;
 		}
@@ -2983,7 +2974,7 @@ static int rigidbody_convert_exec(bContext *C, wmOperator *op)
 	FractureModifierData *rmd;
 
 	rmd = (FractureModifierData *)modifiers_findByType(obact, eModifierType_Fracture);
-	if (rmd && rmd->shared->refresh) {
+	if (rmd && (rmd->shared->flag & MOD_FRACTURE_REFRESH)) {
 		return OPERATOR_CANCELLED;
 	}
 
@@ -3145,7 +3136,7 @@ MINLINE void compare_v4_fl(bool r[4], const float a[4], const float b)
 	r[3] = fabsf(1.0f - a[3]) > b;
 }
 
-static Object* do_convert_meshIsland(Main* bmain, Depsgraph *depsgraph, MeshIsland *mi,
+static Object* do_convert_meshIsland(Main* bmain, Depsgraph *depsgraph, Shard *mi,
 									 Collection* gr, Object* ob, Scene* scene, int start, int end, int count,
 									 Object* parent,bool is_baked, float obloc[3],
 									 float diff[3], int *j, float threshold, int step, bool calc_handles,
@@ -3184,7 +3175,7 @@ static Object* do_convert_meshIsland(Main* bmain, Depsgraph *depsgraph, MeshIsla
 	ob_new->rigidbody_object->mass = mi->rigidbody->mass;
 
 	/*set origin to centroid*/
-	copy_v3_v3(cent, mi->centroid);
+	copy_v3_v3(cent, mi->loc);
 	mul_m4_v3(ob_new->obmat, cent);
 	copy_v3_v3(ob_new->loc, cent);
 
@@ -3399,9 +3390,9 @@ static bool convert_modifier_to_keyframes(bContext *C, FractureModifierData* fmd
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 
 	bool is_baked = false;
-	MeshIsland *mi = NULL;
+	Shard *mi = NULL;
 	Object *parent = NULL;
-	int count = BLI_listbase_count(&fmd->shared->mesh_islands);
+	int count = BLI_listbase_count(&fmd->shared->shards);
 	char *name = BLI_strdupcat(ob->id.name + 2, "_p_key");
 	float diff[3] = {0.0f, 0.0f, 0.0f};
 	float obloc[3];
@@ -3416,7 +3407,7 @@ static bool convert_modifier_to_keyframes(bContext *C, FractureModifierData* fmd
 	sub_v3_v3v3(diff, obloc, parent->loc);
 
 	starttime = PIL_check_seconds_timer();
-	for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next)
+	for (mi = fmd->shared->shards.first; mi; mi = mi->next)
 	{
 		do_convert_meshIsland(bmain, depsgraph, mi, gr, ob, scene, start, end, count,
 											parent, is_baked, obloc, diff, &k,
@@ -3466,7 +3457,7 @@ static int rigidbody_convert_keyframes_exec(bContext *C, wmOperator *op)
 		CTX_DATA_BEGIN(C, Object *, selob, selected_objects)
 		{
 			rmd = (FractureModifierData *)modifiers_findByType(selob, eModifierType_Fracture);
-			if (rmd && rmd->shared->refresh) {
+			if (rmd && (rmd->shared->flag & MOD_FRACTURE_REFRESH)) {
 				return OPERATOR_CANCELLED;
 			}
 
@@ -3482,14 +3473,14 @@ static int rigidbody_convert_keyframes_exec(bContext *C, wmOperator *op)
 			}
 
 			if (rmd) {
-				int count = BLI_listbase_count(&rmd->shared->mesh_islands);
+				int count = BLI_listbase_count(&rmd->shared->shards);
 
 				if (count == 0)
 				{
 					//gaaah, undo frees sim data, rebuild....
-					rmd->shared->refresh = true;
+					rmd->shared->flag |= MOD_FRACTURE_REFRESH;
 					makeDerivedMesh(depsgraph, scene, selob, NULL, scene->customdata_mask | CD_MASK_BAREMESH, 0);
-					count = BLI_listbase_count(&rmd->shared->mesh_islands);
+					count = BLI_listbase_count(&rmd->shared->shards);
 
 					if (count == 0)
 					{

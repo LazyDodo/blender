@@ -54,7 +54,7 @@
 #include "DNA_rigidbody_types.h"
 #include "DNA_scene_types.h"
 
-static MeshIsland* fracture_object_to_island(FractureModifierData *fmd, Object *own, Object* target, Main* bmain, Scene* scene);
+static Shard* fracture_object_to_island(FractureModifierData *fmd, Object *own, Object* target, Scene* scene);
 
 static int fracture_collect_defgrp(Object* o, Object* ob, int defstart, GHash** def_index_map)
 {
@@ -114,9 +114,9 @@ short BKE_fracture_collect_materials(Main* bmain, Object* o, Object* ob, int mat
 	return (*totcolp);
 }
 
-MeshIsland* BKE_fracture_mesh_island_add(Main* bmain, FractureModifierData *fmd, Object* own, Object *target, Scene *scene)
+Shard* BKE_fracture_mesh_island_add(Main* bmain, FractureModifierData *fmd, Object* own, Object *target, Scene *scene)
 {
-	MeshIsland *mi;
+	Shard *mi;
 	short totcol = 0, totdef = 0;
 	float loc[3], quat[4];
 	int endframe = scene->rigidbody_world->shared->pointcache->endframe;
@@ -131,21 +131,12 @@ MeshIsland* BKE_fracture_mesh_island_add(Main* bmain, FractureModifierData *fmd,
 	//lets see whether we need to add loc here too XXX TODO
 	mat4_to_loc_quat(loc, quat, target->obmat);
 
-	mi = fracture_object_to_island(fmd, own, target, bmain, scene);
+	mi = fracture_object_to_island(fmd, own, target, scene);
 	mi->endframe = endframe;
 
-	copy_v3_v3(mi->centroid, loc);
-
-	//fracture_update_shards(fmd, s);
-	//vertstart = fmd->shared->frac_mesh->progress_counter;
-	//fmd->shared->frac_mesh->progress_counter += s->totvert;
-
-	//hrm need to rebuild ALL islands since vertex refs are bonkers now after mesh has changed
-	//invert_qt_qt(iquat, quat);
-	//mi = fracture_shard_to_island(scene, fmd, s, vertstart, iquat);
-
+	copy_v3_v3(mi->loc, loc);
 	copy_qt_qt(mi->rot, quat);
-	copy_v3_v3(mi->centroid, loc);
+	copy_v3_v3(mi->loc, loc);
 
 	//mi->rigidbody = BKE_rigidbody_create_shard(bmain, scene, own, target, mi);
 	BLI_strncpy(mi->name, target->id.name + 2, MAX_ID_NAME - 2);
@@ -187,7 +178,7 @@ MeshIsland* BKE_fracture_mesh_island_add(Main* bmain, FractureModifierData *fmd,
 	return mi;
 }
 
-void BKE_fracture_mesh_island_free(MeshIsland *mi, Scene* scene)
+void BKE_fracture_mesh_island_free(Shard *mi, Scene* scene)
 {
 	if (mi->mesh) {
 		BKE_fracture_mesh_free(mi->mesh);
@@ -249,9 +240,9 @@ void BKE_fracture_mesh_island_free(MeshIsland *mi, Scene* scene)
 	mi = NULL;
 }
 
-void BKE_fracture_mesh_island_remove(FractureModifierData *fmd, MeshIsland *mi, Scene* scene)
+void BKE_fracture_mesh_island_remove(FractureModifierData *fmd, Shard *mi, Scene* scene)
 {
-	if (BLI_listbase_is_single(&fmd->shared->mesh_islands))
+	if (BLI_listbase_is_single(&fmd->shared->shards))
 	{
 		BKE_fracture_mesh_island_remove_all(fmd, scene);
 		return;
@@ -261,13 +252,13 @@ void BKE_fracture_mesh_island_remove(FractureModifierData *fmd, MeshIsland *mi, 
 	{
 		int i;
 
-		BLI_remlink(&fmd->shared->mesh_islands, mi);
+		BLI_remlink(&fmd->shared->shards, mi);
 //		pack_storage_remove(fmd, mi, scene);
 
 		for (i = 0; i < mi->participating_constraint_count; i++)
 		{
 			RigidBodyShardCon *con = mi->participating_constraints[i];
-			BLI_remlink(&fmd->shared->mesh_constraints, con);
+			BLI_remlink(&fmd->shared->constraints, con);
 			BKE_rigidbody_remove_shard_con(scene->rigidbody_world, con);
 		}
 
@@ -277,7 +268,7 @@ void BKE_fracture_mesh_island_remove(FractureModifierData *fmd, MeshIsland *mi, 
 
 void BKE_fracture_mesh_island_remove_all(FractureModifierData *fmd, Scene* scene)
 {
-	MeshIsland *mi;
+	Shard *mi;
 
 	//free pack storage
 //	pack_storage_remove_all(fmd, scene);
@@ -286,14 +277,14 @@ void BKE_fracture_mesh_island_remove_all(FractureModifierData *fmd, Scene* scene
 	BKE_fracture_constraints_free(fmd, scene);
 
 	//free all meshislands
-	while (fmd->shared->mesh_islands.first) {
-		mi = fmd->shared->mesh_islands.first;
-		BLI_remlink(&fmd->shared->mesh_islands, mi);
+	while (fmd->shared->shards.first) {
+		mi = fmd->shared->shards.first;
+		BLI_remlink(&fmd->shared->shards, mi);
 		BKE_fracture_mesh_island_free(mi, scene);
 	}
 
-	fmd->shared->mesh_islands.first = NULL;
-	fmd->shared->mesh_islands.last = NULL;
+	fmd->shared->shards.first = NULL;
+	fmd->shared->shards.last = NULL;
 
 	if (fmd->shared->material_index_map)
 	{
@@ -310,9 +301,9 @@ void BKE_fracture_mesh_island_remove_all(FractureModifierData *fmd, Scene* scene
 	}
 }
 
-static MeshIsland* fracture_object_to_island(FractureModifierData* fmd, Object *own, Object* target, Main* bmain, Scene* scene)
+static Shard* fracture_object_to_island(FractureModifierData* fmd, Object *own, Object* target, Scene* scene)
 {
-	MeshIsland *mi;
+	Shard *mi;
 	Mesh *me = target->runtime.mesh_eval;
 	MVert *mv;
 	int v;
@@ -333,7 +324,7 @@ static MeshIsland* fracture_object_to_island(FractureModifierData* fmd, Object *
 
 	// create temp shard -> that necessary at all ?
 	mi = BKE_fracture_mesh_island_create(me, scene, own, frame);
-	BLI_addtail(&fmd->shared->mesh_islands, mi);
+	BLI_addtail(&fmd->shared->shards, mi);
 
 	for (v = 0, mv = mi->mesh->mvert; v < mi->mesh->totvert; v++, mv++)
 	{
@@ -341,7 +332,7 @@ static MeshIsland* fracture_object_to_island(FractureModifierData* fmd, Object *
 		BLI_space_transform_apply(&trans, mv->co);
 	}
 
-	BLI_space_transform_apply(&trans, mi->centroid);
+	BLI_space_transform_apply(&trans, mi->loc);
 
 	return mi;
 }

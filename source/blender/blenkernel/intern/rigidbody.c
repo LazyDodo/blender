@@ -687,7 +687,7 @@ static void rigidbody_validate_sim_object(RigidBodyWorld *rbw, Object *ob, bool 
 
 		mat4_to_loc_quat(loc, rot, ob->obmat);
 
-		rbo->shared->physics_object = RB_body_new(rbo->shared->physics_shape, loc, rot, false, 0.0f, 0.0f, 0.0f, 0.0f, size);
+		rbo->shared->physics_object = RB_body_new(rbo->shared->physics_shape, loc, rot);
 
 		RB_body_set_friction(rbo->shared->physics_object, rbo->friction);
 		RB_body_set_restitution(rbo->shared->physics_object, rbo->restitution);
@@ -714,7 +714,7 @@ static void rigidbody_validate_sim_object(RigidBodyWorld *rbw, Object *ob, bool 
 	}
 
 	if (rbw && rbw->shared->physics_world)
-		RB_dworld_add_body(rbw->shared->physics_world, rbo->shared->physics_object, rbo->col_groups, NULL, ob, -1);
+		RB_dworld_add_body(rbw->shared->physics_world, rbo->shared->physics_object, rbo->col_groups, NULL, ob);
 
 }
 
@@ -822,7 +822,7 @@ static void rigidbody_validate_sim_constraint(Scene* scene, Object *ob, bool reb
 	if (rbc->physics_constraint == NULL || rebuild) {
 		rbRigidBody *rb1 = NULL, *rb2 = NULL;
 		FractureModifierData *fmd1 = NULL, *fmd2 = NULL;
-		MeshIsland *mi1, *mi2;
+		Shard *mi1, *mi2;
 
 		/*add logic to find closest shards of 2 FM objects, or to attach one shard to one regular */
 		/*for now, just take the first meshislands... later find the closest ones or the closest to center*/
@@ -1104,7 +1104,7 @@ void BKE_rigidbody_world_id_loop(RigidBodyWorld *rbw, RigidbodyWorldIDFunc func,
 }
 
 /* Add rigid body settings to the specified object */
-RigidBodyOb *BKE_rigidbody_create_object(Scene *scene, Object *ob, short type, MeshIsland *mi)
+RigidBodyOb *BKE_rigidbody_create_object(Scene *scene, Object *ob, short type, Shard *mi)
 {
 	RigidBodyOb *rbo;
 	FractureModifierData *fmd = NULL;
@@ -1195,7 +1195,7 @@ RigidBodyOb *BKE_rigidbody_create_object(Scene *scene, Object *ob, short type, M
 	zero_v3(rbo->ang_vel);
 
 	fmd = (FractureModifierData*)modifiers_findByType(ob, eModifierType_Fracture);
-	if (fmd && fmd->use_dynamic)
+	if (fmd && (fmd->flag & MOD_FRACTURE_USE_DYNAMIC))
 	{	//keep cache here
 		return rbo;
 	}
@@ -1452,7 +1452,7 @@ static void rigidbody_update_sim_world(Scene *scene, RigidBodyWorld *rbw, bool r
 }
 
 void BKE_rigidbody_update_sim_ob(Scene *scene, RigidBodyWorld *rbw, Object *ob, RigidBodyOb *rbo, float centroid[3],
-									MeshIsland *mi, float size[3], FractureModifierData *fmd, Depsgraph *depsgraph)
+									Shard *mi, float size[3], FractureModifierData *fmd, Depsgraph *depsgraph)
 {
 	float loc[3];
 	float rot[4];
@@ -1523,7 +1523,7 @@ void BKE_rigidbody_update_sim_ob(Scene *scene, RigidBodyWorld *rbw, Object *ob, 
 	if ((rbo->flag & RBO_FLAG_KINEMATIC && rbo->force_thresh == 0.0f) || (ob->flag & SELECT && G.moving & G_TRANSFORM_OBJ)) {
 		if (((rbo->type == RBO_TYPE_ACTIVE || mi == NULL) && (rbo->flag & RBO_FLAG_KINEMATIC_REBUILD) == 0))
 		{
-			if (!(fmd && fmd->anim_mesh_ob && fmd->use_animated_mesh))
+			if (!(fmd && fmd->anim_mesh_ob && (fmd->flag & MOD_FRACTURE_USE_ANIMATED_MESH)))
 			{
 				//override for externally animated rbs
 				mul_v3_v3(centr, scale);
@@ -1573,7 +1573,7 @@ void BKE_rigidbody_update_sim_ob(Scene *scene, RigidBodyWorld *rbw, Object *ob, 
 				{   //XXXXX TODO, maybe this is wrong here
 					/* do the same here as above, but here we needed the eff_force value to compare against threshold */
 
-					if (!(fmd && fmd->anim_mesh_ob && fmd->use_animated_mesh))
+					if (!(fmd && fmd->anim_mesh_ob && (fmd->flag & MOD_FRACTURE_USE_ANIMATED_MESH)))
 					{	//same override as above
 						mul_v3_v3(centr, scale);
 						mul_qt_v3(rot, centr);
@@ -1748,12 +1748,12 @@ static void rigidbody_update_simulation_post_step(RigidBodyWorld *rbw)
 	FractureModifierData *rmd;
 	int modFound = false;
 	RigidBodyOb *rbo;
-	MeshIsland *mi;
+	Shard *mi;
 
 	FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rbw->group, ob) {
 		rmd = (FractureModifierData*)modifiers_findByType(ob, eModifierType_Fracture);
 		if (BKE_rigidbody_modifier_active(rmd)) {
-			for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next) {
+			for (mi = rmd->shared->shards.first; mi; mi = mi->next) {
 				rbo = mi->rigidbody;
 
 				if (!rbo) continue;
@@ -1769,7 +1769,7 @@ static void rigidbody_update_simulation_post_step(RigidBodyWorld *rbw)
 				}
 
 				/* update stored velocities, can be set again after sim rebuild */
-				if (rmd->use_dynamic && rbo->shared->physics_object) {
+				if ((rmd->flag & MOD_FRACTURE_USE_DYNAMIC) && rbo->shared->physics_object) {
 					if (!(rbo->flag & RBO_FLAG_KINEMATIC)) {
 						RB_body_get_linear_velocity(rbo->shared->physics_object, rbo->lin_vel);
 						RB_body_get_angular_velocity(rbo->shared->physics_object, rbo->ang_vel);
@@ -1868,7 +1868,7 @@ void BKE_rigidbody_sync_transforms(Scene *scene, Object *ob, float ctime)
 	}
 }
 
-static void do_reset_rigidbody(RigidBodyOb *rbo, Object *ob, MeshIsland* mi, float loc[3],
+static void do_reset_rigidbody(RigidBodyOb *rbo, Object *ob, Shard* mi, float loc[3],
 							  float rot[3], float quat[4], float rotAxis[3], float rotAngle)
 {
 	bool correct_delta = !(rbo->flag & RBO_FLAG_KINEMATIC || rbo->type == RBO_TYPE_PASSIVE);
@@ -1876,7 +1876,7 @@ static void do_reset_rigidbody(RigidBodyOb *rbo, Object *ob, MeshIsland* mi, flo
 	/* return rigid body and object to their initial states */
 	copy_v3_v3(rbo->pos, ob->loc);
 	if (mi)
-		add_v3_v3(rbo->pos, mi->centroid);
+		add_v3_v3(rbo->pos, mi->loc);
 	copy_v3_v3(ob->loc, loc);
 
 	if (correct_delta) {
@@ -1955,10 +1955,10 @@ void BKE_rigidbody_aftertrans_update(Object *ob, float loc[3], float rot[3], flo
 	md = modifiers_findByType(ob, eModifierType_Fracture);
 	if (md != NULL)
 	{
-		MeshIsland *mi;
+		Shard *mi;
 		rmd = (FractureModifierData *)md;
 		invert_m4_m4(imat, ob->obmat);
-		for (mi = rmd->shared->mesh_islands.first; mi; mi = mi->next)
+		for (mi = rmd->shared->shards.first; mi; mi = mi->next)
 		{
 			rbo = mi->rigidbody;
 			do_reset_rigidbody(rbo, ob, mi, loc, rot, quat, rotAxis, rotAngle);

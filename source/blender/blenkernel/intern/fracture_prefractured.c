@@ -82,15 +82,15 @@ Mesh *BKE_fracture_prefractured_apply(FractureModifierData *fmd, Object *ob, Mes
 }
 #endif
 
-MeshIsland *BKE_fracture_mesh_island_create(Mesh* me, Scene *scene, Object *ob, int frame)
+Shard *BKE_fracture_mesh_island_create(Mesh* me, Scene *scene, Object *ob, int frame)
 {
 	int endframe = scene->rigidbody_world->shared->pointcache->endframe;
-	MeshIsland *mi = MEM_callocN(sizeof(MeshIsland), "mesh_island");
+	Shard *mi = MEM_callocN(sizeof(Shard), "mesh_island");
 	mi->mesh = me;
 
 	INIT_MINMAX(mi->min, mi->max);
 	BKE_mesh_minmax(mi->mesh, mi->min, mi->max);
-	BKE_fracture_mesh_center_centroid_area(mi->mesh, mi->centroid);
+	BKE_fracture_mesh_center_centroid_area(mi->mesh, mi->loc);
 	unit_qt(mi->rot);
 
 	mi->startframe = frame;
@@ -114,12 +114,12 @@ MeshIsland *BKE_fracture_mesh_island_create(Mesh* me, Scene *scene, Object *ob, 
 
 static bool handle_initial_shards(FractureModifierData* fmd, Object* ob, Depsgraph *depsgraph, Main* bmain, Scene* scene, int frame)
 {
-	MeshIsland *mi = NULL;
-	MeshIsland** mi_tmp = NULL;
+	Shard *mi = NULL;
+	Shard** mi_tmp = NULL;
 	int i = 0;
 
 	int count = 0;
-	for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next)
+	for (mi = fmd->shared->shards.first; mi; mi = mi->next)
 	{
 		if (!BKE_fracture_meshisland_check_frame(fmd, mi, frame) && mi->id > 0)
 		{
@@ -131,8 +131,8 @@ static bool handle_initial_shards(FractureModifierData* fmd, Object* ob, Depsgra
 		return false;
 	}
 
-	mi_tmp = MEM_callocN(sizeof(MeshIsland*) * count, "mi_tmp");
-	for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next)
+	mi_tmp = MEM_callocN(sizeof(Shard*) * count, "mi_tmp");
+	for (mi = fmd->shared->shards.first; mi; mi = mi->next)
 	{
 		if (!BKE_fracture_meshisland_check_frame(fmd, mi, frame) && mi->id > 0)
 		{
@@ -156,7 +156,7 @@ static bool handle_initial_shards(FractureModifierData* fmd, Object* ob, Depsgra
 static void do_initial_prefracture(FractureModifierData* fmd, Object* ob, Depsgraph *depsgraph, Main* bmain,
                             Scene* scene, int frame, Mesh* me)
 {
-	MeshIsland *mi = NULL;
+	Shard *mi = NULL;
 	Mesh *me_tmp = NULL;
 
 	BKE_fracture_meshislands_free(fmd, scene);
@@ -164,17 +164,17 @@ static void do_initial_prefracture(FractureModifierData* fmd, Object* ob, Depsgr
 
 	mi = BKE_fracture_mesh_island_create(me_tmp, scene, ob, frame);
 	mi->id = 0;
-	BLI_addtail(&fmd->shared->mesh_islands, mi);
+	BLI_addtail(&fmd->shared->shards, mi);
 
 	if (fmd->shared->last_islands) {
 		MEM_freeN(fmd->shared->last_islands);
 		fmd->shared->last_islands = NULL;
-		fmd->shared->last_expected_islands = 0;
+		fmd->shared->last_islands_count = 0;
 	}
 
-	fmd->shared->last_islands = MEM_callocN(sizeof(MeshIsland*), "island initial");
+	fmd->shared->last_islands = MEM_callocN(sizeof(Shard*), "island initial");
 	fmd->shared->last_islands[0] = mi;
-	fmd->shared->last_expected_islands = 1;
+	fmd->shared->last_islands_count = 1;
 
 	BKE_fracture_do(fmd, mi, ob, depsgraph, bmain, scene, true);
 
@@ -195,28 +195,28 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 	Mesh *me_final = NULL;
 	Mesh *me = me_orig;
 
-	if (fmd->auto_execute && !BKE_rigidbody_check_sim_running(rbw, ctime)) {
+	if ((fmd->flag & MOD_FRACTURE_USE_AUTOEXECUTE) && !BKE_rigidbody_check_sim_running(rbw, ctime)) {
 		if (ob->rigidbody_object)
-			fmd->shared->refresh = true;
+			fmd->shared->flag |= MOD_FRACTURE_REFRESH;
 	}
 
-	if (fmd->use_dynamic && !fmd->shared->refresh) {
+	if ((fmd->flag & MOD_FRACTURE_USE_DYNAMIC) && !(fmd->shared->flag & MOD_FRACTURE_REFRESH)) {
 		/* very important, since old constraints may mess up the simulation after stopping and restarting */
 		BKE_fracture_constraints_free(fmd, scene);
 	}
 
-	if (fmd->shared->refresh)
+	if (fmd->shared->flag & MOD_FRACTURE_REFRESH)
 	{
 		/*reset_shards called from readfile.c; refresh from operator */
 
 		/*free old stuff here */
 		BKE_fracture_constraints_free(fmd, scene);
 
-		int dynamic = fmd->use_dynamic;
-		fmd->use_dynamic = false;
+		int dynamic = fmd->flag & MOD_FRACTURE_USE_DYNAMIC;
+		fmd->flag &= ~MOD_FRACTURE_USE_DYNAMIC;
 
 		/*keep shards at packing and at dynamic refresh */
-		if (fmd->dm_group)
+		if (fmd->pack_group)
 		{
 			if (!handle_initial_shards(fmd, ob, depsgraph, bmain, scene, frame))
 			{
@@ -224,35 +224,34 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 			}
 		}
 		else {
-			if (BLI_listbase_is_empty(&fmd->shared->mesh_islands) || !fmd->use_dynamic) {
+			if (BLI_listbase_is_empty(&fmd->shared->shards) || !(fmd->flag & MOD_FRACTURE_USE_DYNAMIC)) {
 				/*rebuild shards after loading and prefracture refresh*/
 				do_initial_prefracture(fmd, ob, depsgraph, bmain, scene, frame, me);
 			}
 		}
 
-		fmd->use_dynamic = dynamic;
+		if (dynamic) {
+			fmd->flag |= MOD_FRACTURE_USE_DYNAMIC;
+		}
 
-		fmd->shared->refresh_constraints = true;
-		fmd->shared->refresh_autohide = true;
-		//fmd->shared->reset_shards = false;
+		fmd->shared->flag |= (MOD_FRACTURE_REFRESH_CONSTRAINTS | MOD_FRACTURE_REFRESH_AUTOHIDE);
 	}
-	else if (fmd->shared->refresh_dynamic) {
+	else if (fmd->shared->flag & MOD_FRACTURE_REFRESH_DYNAMIC) {
 
 		/*if dynamic event, push state to fracture sequence*/
 		BKE_fracture_dynamic_do(fmd, ob, scene, depsgraph, bmain);
-		fmd->shared->refresh_dynamic = false;
-		fmd->shared->refresh_constraints = true;
-		fmd->shared->refresh_autohide = true;
+		fmd->shared->flag &= ~ MOD_FRACTURE_REFRESH_DYNAMIC;
+		fmd->shared->flag |= (MOD_FRACTURE_REFRESH_CONSTRAINTS | MOD_FRACTURE_REFRESH_AUTOHIDE);
 	}
 
-	if (fmd->use_animated_mesh && fmd->anim_mesh_ob)
+	if ((fmd->flag & MOD_FRACTURE_USE_ANIMATED_MESH) && fmd->anim_mesh_ob)
 	{
 		/*update bound island positions to follow bind object, after physics ran */
 		BKE_fracture_animated_loc_rot(fmd, ob, false, depsgraph);
 	}
 
 	/* assemble mesh from transformed meshislands */
-	if (fmd->shared->mesh_islands.first) {
+	if (fmd->shared->shards.first) {
 		me_assembled = BKE_fracture_assemble_mesh_from_islands(fmd, ob, ctime);
 	}
 	else {
@@ -262,18 +261,18 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 	fmd->shared->mesh_cached = me_assembled;
 
 	/*if refresh constraints, build constraints */
-	if (fmd->shared->refresh_constraints) {
-		if (!fmd->shared->refresh)
+	if (fmd->shared->flag & MOD_FRACTURE_REFRESH_CONSTRAINTS) {
+		if (!(fmd->shared->flag & MOD_FRACTURE_REFRESH))
 			// do not free twice
 			BKE_fracture_constraints_free(fmd, scene);
 
 		BKE_fracture_external_constraints_setup(fmd, scene, ob);
 	}
 
-	fmd->shared->refresh = false;
+	fmd->shared->flag &= ~MOD_FRACTURE_REFRESH;
 
 	/*if refresh autohide, initialize its structures */
-	if (fmd->shared->refresh_autohide) {
+	if (fmd->shared->flag & MOD_FRACTURE_REFRESH_AUTOHIDE) {
 		fmd->distortion_cached = false;
 		BKE_fracture_autohide_refresh(fmd, ob, me_assembled);
 
@@ -290,7 +289,8 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 	else
 	{
 		/* if autohide / automerge etc perform postprocess */
-		if (fmd->autohide_dist > 0 || fmd->automerge_dist > 0 || fmd->use_centroids || fmd->use_vertices)
+		if (fmd->autohide_dist > 0 || fmd->automerge_dist > 0 ||
+		   (fmd->flag & (MOD_FRACTURE_USE_CENTROIDS | MOD_FRACTURE_USE_VERTICES)))
 		{
 			//printf("Autohide \n");
 			me_final = BKE_fracture_autohide_do(fmd, me_assembled, ob, scene);
@@ -299,7 +299,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		}
 		else {
 			me_final = me_assembled;
-			if (!fmd->fix_normals) {
+			if (!(fmd->flag & MOD_FRACTURE_USE_FIX_NORMALS)) {
 				BKE_mesh_calc_normals(me_final);
 			}
 		}

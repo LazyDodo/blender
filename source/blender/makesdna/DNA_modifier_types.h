@@ -1560,18 +1560,111 @@ enum {
 	MOD_WIREFRAME_CREASE        = (1 << 5),
 };
 
+/*FractureModifierData->flag */
+enum {
+	/* enable dynamic fracturing */
+	MOD_FRACTURE_USE_DYNAMIC                      = (1 << 0),
+
+	/* constrain the shards */
+	MOD_FRACTURE_USE_CONSTRAINTS                  = (1 << 1),
+
+	/* let constraints break */
+	MOD_FRACTURE_USE_BREAKING                     = (1 << 2),
+
+	/* split shards to their elementary islands, in case they consist of several islands */
+	MOD_FRACTURE_USE_SPLIT_TO_ISLANDS             = (1 << 3),
+
+	/* automatically refracture (prefracture setting) while editing the modifier settings
+	 * not active during simulation, allows faster feedback of changes, can be slow on high settings
+	 * use "Execute Fracture" operator then instead */
+	MOD_FRACTURE_USE_AUTOEXECUTE                  = (1 << 4),
+
+	/* limit the dynamic point cloud around the impact location with the impact size of the shard */
+	MOD_FRACTURE_USE_LIMIT_IMPACT                 = (1 << 5),
+
+	/* activate clusters or constraint partners in case a constraint breaks,
+	 * helps to avoid remaining shards stuck in the air, in kinematic state */
+	MOD_FRACTURE_USE_ACTIVATE_BROKEN              = (1 << 6),
+
+	/* copy over closest original normals to try to hide cracks with smooth shading
+	 * works best if original mesh was regularly subdivided, and use with edgesplit and triangulate modifiers
+	 * to avoid bad looking normals and flicker due to uncertain / not fixed tessface triangulation of ngons */
+	MOD_FRACTURE_USE_FIX_NORMALS                  = (1 << 7),
+	MOD_FRACTURE_USE_ANIMATED_MESH                = (1 << 8),
+	MOD_FRACTURE_USE_CONSTRAINT_COLLISION         = (1 << 9),
+
+	/* TODO find out exact purpose again !!! */
+	MOD_FRACTURE_USE_SELF_COLLISION               = (1 << 10),
+
+	/* multiply values for angle, distance, percentage with
+	 * threshold weight values, in order to have different settings
+	 * on different parts of the object, depending on threshold weight map */
+	MOD_FRACTURE_USE_BREAKING_ANGLE_WEIGHTED      = (1 << 11),
+	MOD_FRACTURE_USE_BREAKING_DISTANCE_WEIGHTED   = (1 << 12),
+	MOD_FRACTURE_USE_BREAKING_PERCENTAGE_WEIGHTED = (1 << 13),
+
+	/* the lower the mass, the lower the threshold */
+	MOD_FRACTURE_USE_MASS_DEP_THRESHOLDS          = (1 << 14),
+
+	/* use unborn particle locations (birth locations)
+	 * instead of simulated values
+	 * was more of a debug-like flag, possibly not necessary any more*/
+	MOD_FRACTURE_USE_PARTICLE_BIRTH_COORDS        = (1 << 15),
+
+	/* smooth inner faces */
+	MOD_FRACTURE_USE_SMOOTH                       = (1 << 16),
+
+	/* keep distortions of mesh after shared vertices tore apart */
+	MOD_FRACTURE_USE_KEEP_DISTORT                 = (1 << 17),
+
+	/* multiply deform angle / distance with threshold map weight values*/
+	MOD_FRACTURE_USE_DEFORM_ANGLE_WEIGHTED        = (1 << 18),
+	MOD_FRACTURE_USE_DEFORM_DISTANCE_WEIGHTED     = (1 << 19),
+
+	/* output only shard centroids or vertices at the autohide / merge postprocess stage
+	 * useful for usage with remesh metaball modifier */
+	MOD_FRACTURE_USE_CENTROIDS                    = (1 << 20),
+	MOD_FRACTURE_USE_VERTICES                     = (1 << 21),
+
+	/* with a packing group, only use the constraints as in, "external constraints" */
+	MOD_FRACTURE_USE_GROUP_CONSTRAINTS_ONLY       = (1 << 22),
+
+	/* whether to use animation mesh guiding vert "rotation" (useful only if faces are available etc) */
+	MOD_FRACTURE_USE_ANIMATED_MESH_ROTATION       = (1 << 23),
+};
+
 typedef struct FractureModifierData {
 
 	ModifierData modifier;
 
+	/* collection of helper objects, whose vertices or particles are taken into account as parts of the pointcloud
+	 * for the next prefracture step, makes no sense for dynamic fracturing usecase though (there only uniform is
+	 * being used) */
 	struct Collection *extra_group;
-	struct Collection *dm_group;
+
+	/* collection of objects, which are about to packed into the Fracture modifier as individual shards */
+	/* TODO investigate: if they have FMs, pack all their shards too ? */
+	struct Collection *pack_group;
+
+	/* collection of objects, whose centers define "cluster cores" around which clusters of shards will be assembled
+	 * each shard is "consumed" by one cluster exactly, as in being attached to it
+	 * TODO investigate, are cluster shapes taken into account ? if not, do similar to autohide filter group
+	 * without this group, random shards are picked as cluster cores. Can also be combined with the count, as in
+	 * some defined and some random clusters */
 	struct Collection *cluster_group;
+
+	/* this is used for "custom" fracturing, as in the FM base geometry is being cut against each of the
+	 * collection's  objects. You can keep the intersection, the difference or both results of those operations.
+	 */
 	struct Collection *cutter_group;
+
+	/* reveals all cracks if autohide is enabled within the shapes of those collection's objects */
 	struct Collection *autohide_filter_group;
+
+	/* material to put on generated inner faces */
 	struct Material *inner_material;
 
-	//all the output and runtime stuff which is not to be cow'ed
+	/* all the output and runtime stuff which is not to be cow'ed */
 	struct FractureModifierData_Shared *shared;
 
 	char thresh_defgrp_name[64];  /* MAX_VGROUP_NAME */
@@ -1579,111 +1672,176 @@ typedef struct FractureModifierData {
 	char inner_defgrp_name[64];  /* MAX_VGROUP_NAME */
 	char uvlayer_name[64];  /* MAX_CUSTOMDATA_LAYER_NAME */
 
-	struct Object *anim_mesh_ob; /*input object for animated mesh */
-	int anim_mesh_rot;
+	/*input object for animated mesh */
+	struct Object *anim_mesh_ob;
 
 	/* values */
+	/* which fracture algorithm to use */
 	int frac_algorithm;
-	int shard_count;
-	int shard_id;
-	int point_source;
-	int point_seed;
-	int percentage;
-	int cluster_count;
-	int constraint_count;
 
+	/* number of prefractured uniform shards */
+	int shard_count;
+
+	/* which pointsource combination to use for prefracture, dynamic only uses uniform */
+	int point_source;
+
+	/* seed for uniform fracture*/
+	/* TODO maybe have seed and algorithm separately for dynamic, too ? */
+	int point_seed;
+
+	/* global percentage of the pointcloud, how many percent of the points to use (randomly) */
+	/* 0 - 100 */
+	int percentage;
+
+	/* number of random clusters */
+	int cluster_count;
+
+	/* how many constraints are being built at maximum around a single shard */
 	int constraint_limit;
+
+	/* override solver iterations per FM */
 	int solver_iterations_override;
+
+	/* override solver iterations between shards of different clusters */
 	int cluster_solver_iterations_override;
+
+	/* percentage of broken constraints per shard, above which all other constraints of this shard break */
 	int breaking_percentage;
+
+	/* same, but constraint between shards of different clusters */
 	int cluster_breaking_percentage;
+
+	/* axis of splinters, local X, Y, or Z, can be combined. For diagonal splinters, rotate in editmode. */
 	int splinter_axis;
+
+	/* number of cuts per fractal iteration */
 	int fractal_cuts;
+
+	/* number of fractal iterations, to have more irregular fractal shapes */
 	int fractal_iterations;
-	int grease_decimate;
-	int cutter_axis;
+
+	/* type of constraint between shards of different clusters */
+	/* only point and fixed makes sense here */
 	int cluster_constraint_type;
+
+	/* number of uniform shards per dynamic fracture event*/
 	int dynamic_shard_count;
+
+	/* percentage of constraints which need to be broken before a dynamic fracture is allowed */
 	int dynamic_percentage;
+
+	/* type of constraint between shards (within same cluster, if clusters is 0 or 1 there is only one cluster -
+	 * the entire object */
 	int constraint_type;
+
+	/* X, Y, Z resolution of the fracture grid */
 	int grid_resolution[3];
 
+	/* None: do not build new constraints between dynamically fractured shards,
+	 * All: build constraints between all dynamically fractured shards (and old shards)
+	 * Mixed : only build constraints between dynamically fractured and old (prefracture) shards */
+	int dynamic_new_constraints;
+
+	/* Centroid: search distance between shards applies to distances between centroids of different shards */
+	/* Vertex: search distance between shards applies to distances between vertices of different shards */
+	int constraint_target;
+
+	/* angle in radians between shards above which a constraint between them will break
+	 * useful when objects are bent */
 	float breaking_angle;
+
+	/* distance in blenderunits between shards above a constraint between them will break
+	 * useful when objects are "linearly" torn apart */
 	float breaking_distance;
+
+	/* same as with breaking angle, but between shards of same cluster */
 	float cluster_breaking_angle;
+
+	/* same as with breaking distance, but between shards of same cluster */
 	float cluster_breaking_distance;
-	//float origmat[4][4];
-	//float passive_parent_mat[4][4];
+
+	/* phyisically correct force threshold which must be exceeded (by bullet) to let the constraint break */
 	float breaking_threshold;
+
+	/* same as with breaking threshold, but between shards of same cluster */
 	float cluster_breaking_threshold;
+
+	/* search radius around every shard, where to look for nearby shards to connect */
 	float contact_dist;
+
+	/* minimum size (max boundbox dim) of shards to consider for connecting with constraints */
 	float contact_size;
+
+	/* search distance around face centroids (for nearby other face centroids) for what to consider as adjacent*/
 	float autohide_dist;
+
+	/* search distance around vertices for what to consider as "shared/nearby" verts */
 	float automerge_dist;
+
+	/* length of splinters */
 	float splinter_length;
-	float nor_range;
+
+	/* fix normals search radius */
+	float normal_search_radius;
+
+	/* strength of fractality for boolean fractal cuts */
 	float fractal_amount;
-	float physics_mesh_scale;
-	float grease_offset;
+
+	/* minimum force which must effect a shard in order to start a dynamic fracture event, as in putting
+	 * the shard into the fracture queue */
 	float dynamic_force;
+
+	/* angle (radians) or distance (blenderunits) which must be exceeded to make a deformation permanant,
+	 * as in to rebuild the constraint with the current angle / dist as new rest position */
 	float deform_angle;
 	float deform_distance;
+
+	/* similar angle / distance between different shards of different clusters */
 	float cluster_deform_angle;
 	float cluster_deform_distance;
+
+	/* factor with which to weaken a constraint threshold on each deformation (when deformation is permanent)
+	 * as in angle / dist exceeded and rebuilt */
 	float deform_weakening;
 
-	float impulse_dampening;
-	float minimum_impulse;
-	float directional_factor;
+	/* (somehow, TODO) prefer smaller thresholds for smaller masses or so */
 	float mass_threshold_factor;
+
+	/* parameter for bmesh boolean fracture, similar to boolean modifier */
 	float boolean_double_threshold;
+
+	/* minimum size of dynamic shards, do not further fracture when the shard size (max bbox dim)
+	 * is smaller than this value */
 	float dynamic_min_size;
+
+	/* only activate shards below this size (max bbox dim) */
+	/* to keep bigger shards longer in place in case of animated / triggered / dynamic trigger / trigger setup */
 	float dynamic_activation_size;
+
+	/* make "sharp" tearing edges, in case automerge + subsurf is being used */
+	/* crease factor */
 	float inner_crease;
-	float orthogonality_factor;
+
+	/* rectangular alignment factor, this means if 1 only cutting planes with 90 degree angles are allowed */
+	/* this just prefers the maximum dimension of the cutting plane vector */
+	float rectangular_alignment;
+
+	/* searching radius limit between guiding verts and shards for Animated Mesh Bind */
 	float anim_bind_limit;
+
+	/* offset of grid elements against each other, per axis... used to generate brick patterns */
 	float grid_offset[3];
+
+	/* spacing between grid elements to create gaps for e.g tiles and bricks */
 	float grid_spacing[3];
 
 	/* flags */
-
-	int use_constraints;
-	int use_compounds;
-	int use_mass_dependent_thresholds;
-	int use_particle_birth_coordinates;
-	int use_breaking;
-	int use_smooth;
-	int use_greasepencil_edges;
-	int use_constraint_collision;
-	int use_self_collision;
-	int use_animated_mesh;
-	int use_constraint_group;
-	int use_dynamic;
-
-	int split_islands;
-	int execute_threaded;
-	int fix_normals;
-	int auto_execute;
-
-	int breaking_distance_weighted;
-	int breaking_angle_weighted;
-	int breaking_percentage_weighted;
-	int constraint_target;
-	int limit_impact;
-	int dynamic_new_constraints;
-	int is_dynamic_external;
-	int keep_distort;
-	int do_merge;
-	int deform_angle_weighted;
-	int deform_distance_weighted;
-	int use_centroids;
-	int use_vertices;
-	int activate_broken;
+	int flag;
 
 	/* internal flags */
-	int valid_mesh;
 	int update_dynamic;
 	int distortion_cached;
+	int perform_merge;
 
 	/* internal values */
 	float max_vol;
@@ -1694,7 +1852,7 @@ typedef struct FractureModifierData {
 	short mat_ofs_intersect;
 	short mat_ofs_difference;
 
-	char pad[4];
+	//char pad[4];
 } FractureModifierData;
 
 typedef struct DataTransferModifierData {

@@ -53,13 +53,13 @@ class PHYSICS_PT_fracture_anim_mesh(PhysicButtonsPanel, Panel):
         md = context.fracture
         layout.context_pointer_set("modifier", md)
         layout.active = md.use_animated_mesh
-        row = layout.row()
-        row.prop(md, "animated_mesh_limit")
-        row.prop(md, "use_animated_mesh_rotation")
-        row = layout.row()
-        row.prop(md, "animated_mesh_input")
-        row = layout.row()
-        row.operator("object.fracture_anim_bind", text="Bind", icon="UV_VERTEXSEL")
+        layout.use_property_split = True
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=True);
+        col = layout.column()
+        col.prop(md, "animated_mesh_limit")
+        col.prop(md, "use_animated_mesh_rotation")
+        col.prop(md, "animated_mesh_input")
+        col.operator("object.fracture_anim_bind", text="Bind", icon="UV_VERTEXSEL")
 
 class PHYSICS_PT_fracture_advanced(PhysicButtonsPanel, Panel):
     bl_label = "Advanced"
@@ -71,43 +71,33 @@ class PHYSICS_PT_fracture_advanced(PhysicButtonsPanel, Panel):
         md = context.fracture
         ob = context.object
 
-        layout.label(text="Fracture Point Source")
-        col = layout.column()
-        col.context_pointer_set("modifier", md)
+        layout.context_pointer_set("modifier", md)
+        layout.use_property_split = True
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=True);
+        col = flow.column()
         col.prop(md, "point_source")
         if 'GRID' in md.point_source:
-            sub = col.split(factor=0.33)
-            sub.prop(md, "grid_resolution")
-            sub.prop(md, "grid_offset")
-            sub.prop(md, "grid_spacing")
-        #if 'GREASE_PENCIL' in md.point_source:
-        #    col.prop(md, "use_greasepencil_edges")
-        #    col.prop(md, "grease_offset")
-        #    col.prop(md, "grease_decimate")
-        #    col.prop(md, "cutter_axis")
+            col.prop(md, "grid_resolution")
+            col.prop(md, "grid_offset")
+            col.prop(md, "grid_spacing")
         if 'EXTRA_PARTICLES' in md.point_source or 'EXTRA_VERTS' in md.point_source:
             col.prop(md, "extra_group", text="Helpers")
         if 'CUSTOM' in md.point_source:
             col.prop(md, "cutter_group")
             if (md.cutter_group):
                 col.prop(md, "keep_cutter_shards")
-                col.label(text="Material Index Offset")
-                row = col.row(align=True)
-                row.prop(md, "material_offset_intersect", text="Intersect")
-                row.prop(md, "material_offset_difference", text="Difference")
-        row = col.row()
-        row.prop(md, "dm_group", text="Pack Group")
-        row.prop(md, "use_constraint_group", text="Constraints Only")
+                col.prop(md, "material_offset_intersect", text="Intersect Material")
+                col.prop(md, "material_offset_difference", text="Difference Material")
+        col.prop(md, "pack_group", text="Pack Group")
+        col.prop(md, "use_constraint_group", text="Constraints Only")
         col.operator("object.fracture_pack", text="Pack", icon="PACKAGE")
         col.prop(md, "use_particle_birth_coordinates")
         col.prop(md, "percentage")
-        sub = col.column(align=True)
-        sub.prop_search(md, "thresh_vertex_group", ob, "vertex_groups", text = "Threshold")
-        sub.prop_search(md, "passive_vertex_group", ob, "vertex_groups", text = "Passive")
-        sub.prop_search(md, "inner_vertex_group", ob, "vertex_groups", text = "Inner")
-        sub.prop(md, "inner_crease")
-        if (md.frac_algorithm in {'BISECT_FAST', 'BISECT_FAST_FILL', 'BOOLEAN_FRACTAL'}):
-            col.prop(md, "orthogonality_factor", text="Rectangular Alignment")
+
+        col.prop_search(md, "thresh_vertex_group", ob, "vertex_groups", text = "Threshold")
+        col.prop_search(md, "passive_vertex_group", ob, "vertex_groups", text = "Passive")
+        col.prop_search(md, "inner_vertex_group", ob, "vertex_groups", text = "Inner")
+        col.prop(md, "inner_crease")
 
 class PHYSICS_PT_fracture_dynamic(PhysicButtonsPanel, Panel):
       bl_label = "Dynamic"
@@ -122,18 +112,17 @@ class PHYSICS_PT_fracture_dynamic(PhysicButtonsPanel, Panel):
           md = context.fracture
           layout = self.layout
           layout.active = md.use_dynamic
-          row = layout.row(align=True)
-          row.prop(md, "dynamic_shard_count")
-          row = layout.row(align=True)
-          row.prop(md, "dynamic_force")
-          row.prop(md, "dynamic_percentage")
-          col = layout.column(align=True)
+
+          layout.use_property_split = True
+          flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=True);
+          col = flow.column()
+          col.prop(md, "dynamic_shard_count")
+          col.prop(md, "dynamic_force")
+          col.prop(md, "dynamic_percentage")
           col.prop(md, "dynamic_new_constraints")
-          row = col.row(align=True)
-          row.prop(md, "dynamic_activation_size")
-          row.prop(md, "dynamic_min_size")
-          row = col.row()
-          row.prop(md, "limit_impact")
+          col.prop(md, "dynamic_activation_size")
+          col.prop(md, "dynamic_min_size")
+          col.prop(md, "limit_impact")
 
 class PHYSICS_PT_fracture(PhysicButtonsPanel, Panel):
     bl_label = "Fracture"
@@ -166,38 +155,32 @@ class PHYSICS_PT_fracture_basic(PhysicButtonsPanel, Panel):
         md = context.fracture
         ob = context.object
 
-        layout.prop(md, "frac_algorithm")
+        layout.use_property_split = True
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=True);
+        col = flow.column()
+
+        col.prop(md, "frac_algorithm")
         if md.frac_algorithm in {'BOOLEAN', 'BOOLEAN_FRACTAL'}:
-            col = layout.column(align=True)
             col.prop(md, "boolean_double_threshold")
-        col = layout.column(align=True)
         col.prop(md, "shard_count")
         col.prop(md, "point_seed")
 
+        if (md.frac_algorithm in {'BISECT_FAST', 'BISECT_FAST_FILL', 'BOOLEAN_FRACTAL'}):
+            col.prop(md, "rectangular_alignment", text="Rectangular Alignment")
         if md.frac_algorithm in {'BOOLEAN', 'BISECT_FILL', 'BISECT_FAST_FILL', 'BOOLEAN_FRACTAL'}:
-            col = layout.column()
             col.prop(md, "inner_material")
             col.prop_search(md, "uv_layer", ob.data, "uv_layers", icon="GROUP_UVS")
         if md.frac_algorithm == 'BOOLEAN_FRACTAL':
-            col = layout.column(align=True)
-            row = col.row(align=True)
-            row.prop(md, "fractal_cuts")
-            row.prop(md, "fractal_iterations")
-            row = col.row(align=True)
-            row.prop(md, "fractal_amount")
-            row.prop(md, "physics_mesh_scale")
-        row = layout.row(align=True)
-        row.prop(md, "splinter_axis")
-        row = layout.row(align=True)
-        row.prop(md, "splinter_length")
-        row = layout.row()
-        row.prop(md, "split_islands")
-        row.prop(md, "use_smooth")
-        row = layout.row()
-        row.prop(md, "auto_execute")
-        row.prop(md, "execute_threaded", text="Threaded (WIP)")
+            col.prop(md, "fractal_cuts")
+            col.prop(md, "fractal_iterations")
+            col.prop(md, "fractal_amount")
+        col.prop(md, "splinter_axis")
+        col.prop(md, "splinter_length")
+        col.prop(md, "split_islands")
+        col.prop(md, "use_smooth")
+        col.prop(md, "auto_execute")
 
-class PHYSICS_PT_fracture_simulation(PhysicButtonsPanel, Panel):
+class PHYSICS_PT_fracture_constraints(PhysicButtonsPanel, Panel):
     bl_label = "Constraints"
     bl_options = {'DEFAULT_CLOSED'}
     bl_parent_id = 'PHYSICS_PT_fracture'
@@ -217,98 +200,24 @@ class PHYSICS_PT_fracture_simulation(PhysicButtonsPanel, Panel):
         ob = context.object
 
         layout.active = md.use_constraints
-        layout.label(text="Constraint Building Settings")
-        row = layout.row()
-        row.prop(md, "use_breaking")
-        row.prop(md, "activate_broken")
-        row = layout.row()
-        row.prop(md, "use_constraint_collision")
-        row.prop(md, "use_self_collision")
+        layout.use_property_split = True
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=True);
+        col = flow.column()
 
-        col = layout.column(align=True)
+        col.prop(md, "use_breaking")
+        col.prop(md, "activate_broken")
+        col.prop(md, "use_constraint_collision")
+        col.prop(md, "use_self_collision")
+
         col.prop(md, "constraint_type")
         col.prop(md, "constraint_target")
-        col = layout.column(align=True)
         col.prop(md, "constraint_limit")
         col.prop(md, "contact_dist")
         col.prop(md, "contact_size")
 
-        layout.label(text="Constraint Cluster Settings")
-        layout.prop(md, "cluster_count")
-        col = layout.column(align=True)
+        col.prop(md, "cluster_count")
         col.prop(md, "cluster_group")
         col.prop(md, "cluster_constraint_type", text="Cluster Type")
-
-        layout.label(text="Constraint Breaking Settings")
-
-        col = layout.column(align=True)
-        col.prop(md, "breaking_threshold", text="Threshold")
-        col.prop(md, "cluster_breaking_threshold")
-
-        layout.label(text="Constraint Special Breaking Settings")
-        col = layout.column(align=True)
-        row = col.row(align=True)
-        row.prop(md, "breaking_percentage", text="Percentage")
-        row.prop(md, "cluster_breaking_percentage", text="Cluster Percentage")
-
-        row = col.row(align=True)
-        row.prop(md, "breaking_angle", text="Angle")
-        row.prop(md, "cluster_breaking_angle", text="Cluster Angle")
-
-        row = col.row(align=True)
-        row.prop(md, "breaking_distance", text="Distance")
-        row.prop(md, "cluster_breaking_distance", text="Cluster Distance")
-
-        col = layout.column(align=True)
-        col.prop(md, "solver_iterations_override")
-        col.prop(md, "cluster_solver_iterations_override")
-
-        row = layout.row(align=True)
-        row.prop(md, "breaking_angle_weighted")
-        row.prop(md, "breaking_distance_weighted")
-
-        row = layout.row(align=True)
-        row.prop(md, "breaking_percentage_weighted")
-        row.prop(md, "use_mass_dependent_thresholds", text="Mass Dependent Thresholds")
-
-        layout.label(text="Constraint Deform Settings")
-        col = layout.column(align=True)
-        row = col.row(align=True)
-        row.prop(md, "deform_angle", text="Deforming Angle")
-        row.prop(md, "cluster_deform_angle", text="Cluster Deforming Angle")
-
-        row = col.row(align=True)
-        row.prop(md, "deform_distance", text="Deforming Distance")
-        row.prop(md, "cluster_deform_distance", text="Cluster Deforming Distance")
-
-        col.prop(md, "deform_weakening")
-        row = layout.row(align=True)
-        row.prop(md, "deform_angle_weighted")
-        row.prop(md, "deform_distance_weighted")
-
-class PHYSICS_PT_fracture_compounds(PhysicButtonsPanel, Panel):
-    bl_label = "Compounds"
-    bl_options = {'DEFAULT_CLOSED'}
-    bl_parent_id = 'PHYSICS_PT_fracture'
-
-    @classmethod
-    def poll(cls, context):
-        md = context.fracture
-        return PhysicButtonsPanel.poll(context) # and md.fracture_mode != 'EXTERNAL'
-
-    def draw_header(self, context):
-        md = context.fracture
-        self.layout.prop(md, "use_compounds", text="")
-
-    def draw(self, context):
-        layout = self.layout
-        md = context.fracture
-        layout.label(text="Constraint building settings apply here too")
-        col = layout.column(align=True)
-        col.prop(md, "minimum_impulse")
-        col.prop(md, "mass_threshold_factor")
-        #col.prop(md, "impulse_dampening")
-        #col.prop(md, "directional_factor")
 
 
 class PHYSICS_PT_fracture_utilities(PhysicButtonsPanel, Panel):
@@ -319,40 +228,105 @@ class PHYSICS_PT_fracture_utilities(PhysicButtonsPanel, Panel):
     @classmethod
     def poll(cls, context):
         md = context.fracture
-        return PhysicButtonsPanel.poll(context) # and md.fracture_mode != 'EXTERNAL'
+        return PhysicButtonsPanel.poll(context)
 
     def draw(self, context):
         layout = self.layout
         md = context.fracture
-        layout.prop(md, "autohide_filter_group", text = "Filter Group")
-        col = layout.column(align=True)
+
+        layout.use_property_split = True
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=True);
+        col = flow.column()
+
+        col.prop(md, "autohide_filter_group", text = "Filter Group")
         col.prop(md, "autohide_dist")
         col.prop(md, "automerge_dist")
-        row = layout.row()
-        row.prop(md, "keep_distort")
-        row.prop(md, "do_merge")
-        row = layout.row()
-        row.prop(md, "use_centroids")
-        row.prop(md, "use_vertices")
-        row = layout.row()
-        row.prop(md, "fix_normals")
-        row.prop(md, "nor_range")
+        col.prop(md, "perform_merge")
+        col.prop(md, "keep_distort")
+        col.prop(md, "use_centroids")
+        col.prop(md, "use_vertices")
+        col.prop(md, "fix_normals")
+        col.prop(md, "normal_search_radius")
 
-        col = layout.column(align=True)
         col.context_pointer_set("modifier", md)
         col.operator("object.rigidbody_convert_to_objects", text = "Convert To Objects", icon="UGLYPACKAGE")
         col.operator("object.rigidbody_convert_to_keyframes", text = "Convert To Keyframed Objects", icon="KEY_HLT")
+
+class PHYSICS_PT_fracture_constraints_breaking(PhysicButtonsPanel, Panel):
+    bl_label = "Breaking"
+    bl_options = {'DEFAULT_CLOSED'}
+    bl_parent_id = 'PHYSICS_PT_fracture_constraints'
+
+    @classmethod
+    def poll(cls, context):
+        md = context.fracture
+        return PhysicButtonsPanel.poll(context)
+
+    def draw(self, context):
+        layout = self.layout
+        md = context.fracture
+
+        layout.use_property_split = True
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=True);
+        col = flow.column()
+        col.prop(md, "breaking_threshold", text="Threshold")
+        col.prop(md, "cluster_breaking_threshold")
+        col.prop(md, "breaking_percentage", text="Percentage")
+        col.prop(md, "cluster_breaking_percentage", text="Cluster Percentage")
+
+        col.prop(md, "breaking_angle", text="Angle")
+        col.prop(md, "cluster_breaking_angle", text="Cluster Angle")
+
+        col.prop(md, "breaking_distance", text="Distance")
+        col.prop(md, "cluster_breaking_distance", text="Cluster Distance")
+        col.prop(md, "solver_iterations_override")
+        col.prop(md, "cluster_solver_iterations_override")
+
+        col.prop(md, "breaking_angle_weighted")
+        col.prop(md, "breaking_distance_weighted")
+        col.prop(md, "breaking_percentage_weighted")
+        col.prop(md, "use_mass_dependent_thresholds", text="Mass Dependent Thresholds")
+
+class PHYSICS_PT_fracture_constraints_deforming(PhysicButtonsPanel, Panel):
+    bl_label = "Deforming"
+    bl_options = {'DEFAULT_CLOSED'}
+    bl_parent_id = 'PHYSICS_PT_fracture_constraints'
+
+    @classmethod
+    def poll(cls, context):
+        md = context.fracture
+        return PhysicButtonsPanel.poll(context)
+
+    def draw(self, context):
+        layout = self.layout
+        md = context.fracture
+
+        layout.use_property_split = True
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=True);
+        col = flow.column()
+
+        col.prop(md, "deform_angle", text="Deforming Angle")
+        col.prop(md, "cluster_deform_angle", text="Cluster Deforming Angle")
+
+        col.prop(md, "deform_distance", text="Deforming Distance")
+        col.prop(md, "cluster_deform_distance", text="Cluster Deforming Distance")
+
+        col.prop(md, "deform_weakening")
+        col.prop(md, "deform_angle_weighted")
+        col.prop(md, "deform_distance_weighted")
+
 
 classes = (
     FRACTURE_PT_presets,
     PHYSICS_PT_fracture,
     PHYSICS_PT_fracture_basic,
     PHYSICS_PT_fracture_advanced,
-    PHYSICS_PT_fracture_dynamic,
-    PHYSICS_PT_fracture_simulation,
-    PHYSICS_PT_fracture_compounds,
     PHYSICS_PT_fracture_utilities,
+    PHYSICS_PT_fracture_dynamic,
+    PHYSICS_PT_fracture_constraints,
     PHYSICS_PT_fracture_anim_mesh,
+    PHYSICS_PT_fracture_constraints_breaking,
+    PHYSICS_PT_fracture_constraints_deforming,
 )
 
 if __name__ == "__main__":  # only for live edit.

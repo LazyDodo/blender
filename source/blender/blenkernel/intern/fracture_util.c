@@ -562,7 +562,7 @@ static void do_bisect(BMesh* bm_geometry, BMesh* bm_raw_shard, BisectContext* ct
 	}
 }
 
-static BMesh *limit_geometry(Mesh* geometry, MeshIsland *shard, KDTree *preselect_tree)
+static BMesh *limit_geometry(Mesh* geometry, Shard *shard, KDTree *preselect_tree)
 {
 	int i = 0, r = 0;
 	float max_dist = 0;
@@ -658,7 +658,7 @@ static BMesh *limit_geometry(Mesh* geometry, MeshIsland *shard, KDTree *preselec
 	return bm_new;
 }
 
-Mesh* BKE_fracture_mesh_bisect(Mesh* geometry, MeshIsland* raw_shard, BisectContext *ctx)
+Mesh* BKE_fracture_mesh_bisect(Mesh* geometry, Shard* raw_shard, BisectContext *ctx)
 {
 	BMesh *bm_raw_shard;
 	BMesh *bm_geometry;

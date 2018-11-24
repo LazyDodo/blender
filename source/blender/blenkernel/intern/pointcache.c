@@ -1315,7 +1315,7 @@ static void copy_from_4(float* dst, float src[4], int index)
 	dst[3] = src[index * 4 + 3];
 }
 
-static int calc_frame(RigidBodyWorld *rbw, MeshIsland *mi, int frame)
+static int calc_frame(RigidBodyWorld *rbw, Shard *mi, int frame)
 {
 	frame = frame - mi->startframe;
 	if (mi->startframe > rbw->shared->pointcache->startframe && frame > 0) {
@@ -1351,10 +1351,10 @@ static int  ptcache_rigidbody_write(int index, void *rb_v, void **data, int cfra
 		}
 	}
 	else {
-		MeshIsland *mi;
+		Shard *mi;
 		bool changed = false;
 
-		for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next)
+		for (mi = fmd->shared->shards.first; mi; mi = mi->next)
 		{
 			int frame = (int)cfra;
 
@@ -1421,8 +1421,8 @@ static void ptcache_rigidbody_read(int index, void *rb_v, void **data, float cfr
 		}
 	}
 	else {
-		MeshIsland *mi;
-		for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next)
+		Shard *mi;
+		for (mi = fmd->shared->shards.first; mi; mi = mi->next)
 		{
 			int frame = (int)cfra;
 
@@ -1485,8 +1485,8 @@ static void ptcache_rigidbody_interpolate(int index, void *rb_v, void **data, fl
 		}
 	}
 	else {
-		MeshIsland *mi;
-		for (mi = fmd->shared->mesh_islands.first; mi; mi = mi->next)
+		Shard *mi;
+		for (mi = fmd->shared->shards.first; mi; mi = mi->next)
 		{
 			int frame = (int)cfra; //currentframe
 			int frame1 = (int)cfra1; //old frame(-step?)
@@ -3606,7 +3606,8 @@ int  BKE_ptcache_object_reset(Scene *scene, Object *ob, int mode)
 	if (scene->rigidbody_world && (ob->rigidbody_object || ob->rigidbody_constraint)) {
 		FractureModifierData *fmd = (FractureModifierData*)modifiers_findByType(ob, eModifierType_Fracture);
 		if (fmd) {
-			if (!fmd->shared->refresh_autohide) {
+			if (!(fmd->shared->flag & MOD_FRACTURE_REFRESH_AUTOHIDE)) {
+				/* dont flag as outdated via autohide refresh */
 				if (ob->rigidbody_object)
 					ob->rigidbody_object->flag |= RBO_FLAG_NEEDS_RESHAPE;
 				BKE_ptcache_id_from_rigidbody(&pid, ob, scene->rigidbody_world);

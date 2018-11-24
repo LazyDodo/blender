@@ -318,8 +318,8 @@ typedef struct RigidBodyCon {
 typedef struct RigidBodyShardCon {
 
 	struct RigidBodyShardCon *next, *prev;
-	struct MeshIsland *mi1;			/* First meshisland influenced by the constraint */
-	struct MeshIsland *mi2;			/* Second meshisland influenced by the constraint */
+	struct Shard *mi1;			/* First shard influenced by the constraint */
+	struct Shard *mi2;			/* Second shard influenced by the constraint */
 
 	/* References to Physics Sim object. Exist at runtime only */
 	void *physics_constraint;	/* Physics object representation (i.e. btTypedConstraint) */
