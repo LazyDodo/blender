@@ -884,7 +884,7 @@ class USERPREF_PT_file(Panel):
     @classmethod
     def poll(cls, context):
         userpref = context.user_preferences
-        return (userpref.active_section == 'FILES')
+        return (userpref.active_section == 'SYSTEM_FILES')
 
     def draw(self, context):
         layout = self.layout

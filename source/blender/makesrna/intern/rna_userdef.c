@@ -4932,7 +4932,6 @@ void RNA_def_userdef(BlenderRNA *brna)
 		{USER_SECTION_ADDONS, "ADDONS", 0, "Add-ons", ""},
 		{USER_SECTION_THEME, "THEMES", 0, "Themes", ""},
 		{USER_SECTION_LIGHT, "LIGHTS", 0, "Lights", ""},
-		{USER_SECTION_FILE, "FILES", 0, "File", ""},
 #ifdef WITH_USERDEF_WORKSPACES
 		{0, "", ICON_WORKSPACE, "Workspaces", ""},
 		{USER_SECTION_WORKSPACE_CONFIG, "WORKSPACE_CONFIG", 0, "Configuration File", ""},
@@ -4941,6 +4940,7 @@ void RNA_def_userdef(BlenderRNA *brna)
 #endif
 		{0, "", ICON_SYSTEM, "System", ""},
 		{USER_SECTION_SYSTEM_GENERAL, "SYSTEM_GENERAL", 0, "General", ""},
+		{USER_SECTION_SYSTEM_FILES,   "SYSTEM_FILES",   0, "Files",   ""},
 #ifdef WITH_USERDEF_SYSTEM_SPLIT
 		{USER_SECTION_SYSTEM_DISPLAY, "SYSTEM_DISPLAY", 0, "Display", ""},
 		{USER_SECTION_SYSTEM_DEVICES, "SYSTEM_DEVICES", 0, "Devices", ""},
