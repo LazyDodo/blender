@@ -182,24 +182,24 @@ static void hair_batch_cache_fill_segments_proc_pos(
 	HairFollicle *follicle;
 	HairFiberCurve *curve;
 	BKE_HAIR_ITER_FOLLICLE_CURVES(follicle, curve, &iter, curve_data) {
-		const HairFiberVertex *verts = &verts[curve->vertstart];
 		if (curve->numverts < 2) {
 			continue;
 		}
+		const HairFiberVertex *vert_start = &verts[curve->vertstart];
 		float total_len = 0.0f;
 		const float *co_prev = NULL;
 		float *seg_data_first;
 		for (int j = 0; j < curve->numverts; j++) {
 			float *seg_data = (float *)GPU_vertbuf_raw_step(attr_step);
-			copy_v3_v3(seg_data, verts[j].co);
+			copy_v3_v3(seg_data, vert_start[j].co);
 			if (co_prev) {
-				total_len += len_v3v3(co_prev, verts[j].co);
+				total_len += len_v3v3(co_prev, vert_start[j].co);
 			}
 			else {
 				seg_data_first = seg_data;
 			}
 			seg_data[3] = total_len;
-			co_prev = verts[j].co;
+			co_prev = vert_start[j].co;
 		}
 		if (total_len > 0.0f) {
 			/* Divide by total length to have a [0-1] number. */
