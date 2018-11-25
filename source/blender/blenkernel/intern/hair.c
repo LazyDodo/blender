@@ -183,16 +183,24 @@ HairSystem *BKE_hair_copy(Main *bmain, const HairSystem *hsys)
 }
 
 /* Custom data layer functions; those assume that totXXX are set correctly. */
-static void hair_ensure_cdlayers_primary(HairSystem *hsys)
+static void hair_ensure_cdlayers_primary(HairCurveData *data)
 {
-	// if (!CustomData_get_layer(&hsys->curve_data.fdata, CD_MVERT))
-	// 	CustomData_add_layer(&mesh->vdata, CD_MVERT, CD_CALLOC, NULL, mesh->totvert);
+	if (!CustomData_get_layer(&data->vdata, CD_HAIRVERT))
+		CustomData_add_layer(&data->vdata, CD_HAIRVERT, CD_CALLOC, NULL, data->totverts);
+	if (!CustomData_get_layer(&data->cdata, CD_HAIRCURVE))
+		CustomData_add_layer(&data->cdata, CD_HAIRCURVE, CD_CALLOC, NULL, data->totcurves);
+	if (!CustomData_get_layer(&data->fdata, CD_HAIRFOLLICLE))
+		CustomData_add_layer(&data->fdata, CD_HAIRFOLLICLE, CD_CALLOC, NULL, data->totfollicles);
 }
 
-static void hair_ensure_cdlayers_origindex(HairSystem *hsys)
+static void hair_ensure_cdlayers_origindex(HairCurveData *data)
 {
-	// if (!CustomData_get_layer(&mesh->vdata, CD_ORIGINDEX))
-	// 	CustomData_add_layer(&mesh->vdata, CD_ORIGINDEX, CD_CALLOC, NULL, mesh->totvert);
+	if (!CustomData_get_layer(&data->vdata, CD_ORIGINDEX))
+		CustomData_add_layer(&data->vdata, CD_ORIGINDEX, CD_CALLOC, NULL, data->totverts);
+	if (!CustomData_get_layer(&data->cdata, CD_ORIGINDEX))
+		CustomData_add_layer(&data->cdata, CD_ORIGINDEX, CD_CALLOC, NULL, data->totcurves);
+	if (!CustomData_get_layer(&data->fdata, CD_ORIGINDEX))
+		CustomData_add_layer(&data->fdata, CD_ORIGINDEX, CD_CALLOC, NULL, data->totfollicles);
 }
 
 HairSystem *BKE_hair_new_nomain(int verts_len, int curves_len, int follicles_len)
@@ -214,8 +222,8 @@ HairSystem *BKE_hair_new_nomain(int verts_len, int curves_len, int follicles_len
 	hsys->curve_data.totcurves = curves_len;
 	hsys->curve_data.totfollicles = follicles_len;
 
-	hair_ensure_cdlayers_primary(hsys);
-	hair_ensure_cdlayers_origindex(hsys);
+	hair_ensure_cdlayers_primary(&hsys->curve_data);
+	hair_ensure_cdlayers_origindex(&hsys->curve_data);
 
 	return hsys;
 }
@@ -239,8 +247,8 @@ static HairSystem *hair_new_nomain_from_template_ex(
 
 	/* The destination hair system should at least have valid primary CD layers,
 	 * even in cases where the source hair system does not. */
-	hair_ensure_cdlayers_primary(hsys_dst);
-	hair_ensure_cdlayers_origindex(hsys_dst);
+	hair_ensure_cdlayers_primary(&hsys_dst->curve_data);
+	hair_ensure_cdlayers_origindex(&hsys_dst->curve_data);
 
 	return hsys_dst;
 }
