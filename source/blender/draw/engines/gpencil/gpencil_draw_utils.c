@@ -244,13 +244,15 @@ static void gpencil_stroke_2d_flat(const bGPDspoint *points, int totpoints, floa
 }
 
 /* recalc the internal geometry caches for fill and uvs */
-static void DRW_gpencil_recalc_geometry_caches(Object *ob, MaterialGPencilStyle *gp_style, bGPDstroke *gps)
+static void DRW_gpencil_recalc_geometry_caches(
+	Object *ob, bGPDlayer *gpl, MaterialGPencilStyle *gp_style, bGPDstroke *gps)
 {
 	if (gps->flag & GP_STROKE_RECALC_CACHES) {
 		/* Calculate triangles cache for filling area (must be done only after changes) */
 		if ((gps->tot_triangles == 0) || (gps->triangles == NULL)) {
 			if ((gps->totpoints > 2) &&
-			    ((gp_style->fill_rgba[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gp_style->fill_style > 0)))
+			    ((gp_style->fill_rgba[3] > GPENCIL_ALPHA_OPACITY_THRESH) ||
+				(gp_style->fill_style > 0) || (gpl->blend_mode != eGplBlendMode_Normal)))
 			{
 				DRW_gpencil_triangulate_stroke_fill(ob, gps);
 			}
@@ -554,13 +556,14 @@ static void gpencil_add_fill_vertexdata(
         float opacity, const float tintcolor[4], const bool onion, const bool custonion)
 {
 	MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
-
 	if (gps->totpoints >= 3) {
 		float tfill[4];
 		/* set color using material, tint color and opacity */
 		interp_v3_v3v3(tfill, gps->runtime.tmp_fill_rgba, tintcolor, tintcolor[3]);
 		tfill[3] = gps->runtime.tmp_fill_rgba[3] * opacity;
-		if ((tfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) || (gp_style->fill_style > 0)) {
+		if ((tfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) ||
+			(gp_style->fill_style > 0) ||
+			(gpl->blend_mode != eGplBlendMode_Normal)) {
 			if (cache->is_dirty) {
 				const float *color;
 				if (!onion) {
@@ -776,13 +779,14 @@ static void gpencil_draw_strokes(
 		/* be sure recalc all cache in source stroke to avoid recalculation when frame change
 		 * and improve fps */
 		if (src_gps) {
-			DRW_gpencil_recalc_geometry_caches(ob, gp_style, src_gps);
+			DRW_gpencil_recalc_geometry_caches(ob, gpl, gp_style, src_gps);
 		}
 
 		/* if the fill has any value, it's considered a fill and is not drawn if simplify fill is enabled */
 		if ((stl->storage->simplify_fill) && (scene->r.simplify_gpencil & SIMPLIFY_GPENCIL_REMOVE_FILL_LINE)) {
 			if ((gp_style->fill_rgba[3] > GPENCIL_ALPHA_OPACITY_THRESH) ||
-			    (gp_style->fill_style > GP_STYLE_FILL_STYLE_SOLID))
+			    (gp_style->fill_style > GP_STYLE_FILL_STYLE_SOLID) ||
+				(gpl->blend_mode != eGplBlendMode_Normal))
 			{
 				GP_SET_SRC_GPS(src_gps);
 				continue;
@@ -818,7 +822,8 @@ static void gpencil_draw_strokes(
 				}
 				/* stroke */
 				if ((gp_style->flag & GP_STYLE_STROKE_SHOW) &&
-					(gp_style->stroke_rgba[3] > GPENCIL_ALPHA_OPACITY_THRESH))
+					((gp_style->stroke_rgba[3] > GPENCIL_ALPHA_OPACITY_THRESH) ||
+					(gpl->blend_mode == eGplBlendMode_Normal)))
 				{
 					gpencil_add_stroke_vertexdata(
 						cache, ob, gpl, derived_gpf, gps,
