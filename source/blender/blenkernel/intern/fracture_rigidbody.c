@@ -539,11 +539,6 @@ void BKE_rigidbody_validate_sim_shard_shape(Shard *mi, Object *ob, short rebuild
 			new_shape = BKE_rigidbody_get_shape_trimesh_from_mesh(ob, me_phys);
 			break;
 		}
-		case RB_SHAPE_COMPOUND:
-		{
-			new_shape = RB_shape_new_compound();
-			break;
-		}
 	}
 	/* assign new collision shape if creation was successful */
 	if (new_shape) {
@@ -932,9 +927,6 @@ static void rigidbody_create_shard_physics_constraint(FractureModifierData* fmd,
 				RB_constraint_set_enable_motor(rbc->physics_constraint, rbc->flag & RBC_FLAG_USE_MOTOR_LIN, rbc->flag & RBC_FLAG_USE_MOTOR_ANG);
 				RB_constraint_set_max_impulse_motor(rbc->physics_constraint, rbc->motor_lin_max_impulse, rbc->motor_ang_max_impulse);
 				RB_constraint_set_target_velocity_motor(rbc->physics_constraint, rbc->motor_lin_target_velocity, rbc->motor_ang_target_velocity);
-				break;
-			case RBC_TYPE_COMPOUND:
-				rbc->physics_constraint = RB_constraint_new_compound(rb1, rb2);
 				break;
 		}
 	}

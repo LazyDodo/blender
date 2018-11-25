@@ -1003,9 +1003,10 @@ void BKE_rigidbody_validate_sim_world(Scene *scene, RigidBodyWorld *rbw, bool re
 			RB_dworld_delete(rbw->shared->physics_world);
 		}
 
-		rbw->shared->physics_world = RB_dworld_new(scene->physics_settings.gravity, rbw, scene,
-													BKE_rigidbody_filter_callback, BKE_rigidbody_contact_callback,
-													BKE_rigidbody_id_callback, NULL);
+		rbw->shared->physics_world = RB_dworld_new(scene->physics_settings.gravity,
+		                                           scene,
+		                                           BKE_rigidbody_filter_callback,
+		                                           BKE_rigidbody_contact_callback);
 	}
 
 	RB_dworld_set_solver_iterations(rbw->shared->physics_world, rbw->num_solver_iterations);
@@ -1681,15 +1682,6 @@ void BKE_rigidbody_update_simulation(Scene *scene, RigidBodyWorld *rbw, bool reb
 	}
 	FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 
-	if (rbw->shared->physics_world && rbw->flag & RBW_FLAG_REBUILD_CONSTRAINTS)
-	{
-		double start = PIL_check_seconds_timer();
-		RB_dworld_init_compounds(rbw->shared->physics_world);
-		printf("Building compounds done, %g\n", PIL_check_seconds_timer() - start);
-	}
-
-	rbw->flag &= ~RBW_FLAG_REFRESH_MODIFIERS;
-
 	/* update constraints */
 	if (rbw->constraints == NULL) /* no constraints, move on */
 		return;
@@ -2184,7 +2176,7 @@ void BKE_rigidbody_eval_simulation(Depsgraph *depsgraph,
 								   Scene *scene)
 {
 	float ctime = DEG_get_ctime(depsgraph);
-	//Scene *scene = DEG_get_original_id(&sc->id);
+	RigidBodyWorld *rbw = NULL;
 
 	DEG_debug_print_eval_time(depsgraph, __func__, scene->id.name, scene, ctime);
 
@@ -2193,7 +2185,13 @@ void BKE_rigidbody_eval_simulation(Depsgraph *depsgraph,
 		return;
 	}
 
+	rbw = scene->rigidbody_world;
 	BKE_rigidbody_do_simulation(depsgraph, scene, ctime);
+
+	/* visualize physics if wanted */
+	if (rbw && rbw->shared->physics_world && (rbw->flag & RBW_FLAG_VISUALIZE_PHYSICS)) {
+		RB_dworld_debug_draw(rbw->shared->physics_world, NULL);
+	}
 }
 
 void BKE_rigidbody_object_sync_transforms(Depsgraph *depsgraph,

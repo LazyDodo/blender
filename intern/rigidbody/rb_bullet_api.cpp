@@ -59,6 +59,7 @@ subject to the following restrictions:
 #include <stdio.h>
 #include <errno.h>
 #include <iomanip>
+#include <sstream>
 
 #include "RBI_api.h"
 
@@ -74,9 +75,6 @@ subject to the following restrictions:
 #include "BulletCollision/Gimpact/btGImpactCollisionAlgorithm.h"
 #include "BulletCollision/CollisionShapes/btScaledBvhTriangleMeshShape.h"
 #include "BulletCollision/CollisionDispatch/btCollisionWorld.h"
-
-#include "BulletDynamics/Dynamics/btFractureBody.h"
-#include "BulletDynamics/Dynamics/btFractureDynamicsWorld.h"
 
 #include "../../extern/glew/include/GL/glew.h"
 
@@ -105,7 +103,7 @@ struct	ViewportDebugDraw : public btIDebugDraw
 	{
 		if (m_debugMode >0)
 		{
-			//draw lines
+			//draw lines, TODO, crashes on newer OpenGL ? hmmm
 			glBegin(GL_LINES);
 				glColor4f(color[0], color[1], color[2], 1.0f);
 				glVertex3fv(from);
@@ -150,19 +148,6 @@ struct rbRigidBody {
 	rbDynamicsWorld *world;
 };
 
-typedef void (*IdOutCallback)(void *meshisland, int *objectId, int *shardId);
-
-static btRigidBody* getBodyFromShape(void *shapePtr)
-{
-	rbRigidBody *body = (rbRigidBody*)shapePtr;
-/*	if (body->body->getInternalType() & CUSTOM_FRACTURE_TYPE)
-	{
-		btFractureBody* fbody = (btFractureBody*)body->body;
-		return fbody;
-	}*/
-	return body->body;
-}
-
 static inline void copy_v3_btvec3(float vec[3], const btVector3 &btvec)
 {
 	vec[0] = (float)btvec[0];
@@ -171,158 +156,53 @@ static inline void copy_v3_btvec3(float vec[3], const btVector3 &btvec)
 }
 
 typedef void (*rbContactCallback)(rbContactPoint * cp, void *bworld);
-typedef void (*rbTickCallback)(btScalar timeStep, void *bworld);
 
-class TickDiscreteDynamicsWorld : public btFractureDynamicsWorld
+class CallbackDynamicsWorld : public btDiscreteDynamicsWorld
 {
 	public:
-		TickDiscreteDynamicsWorld(btDispatcher* dispatcher, btBroadphaseInterface* pairCache,
+		CallbackDynamicsWorld(btDispatcher* dispatcher, btBroadphaseInterface* pairCache,
 		                          btConstraintSolver* constraintSolver, btCollisionConfiguration* collisionConfiguration,
-		                          rbContactCallback cont_callback, void *bworld, void *bScene, IdCallback id_callback, rbTickCallback tick_callback);
+		                          rbContactCallback cont_callback, void *bScene);
+
 		rbContactPoint* make_contact_point(btManifoldPoint& point, const btCollisionObject *body0, const btCollisionObject *body1);
 		rbContactCallback m_contactCallback;
-		rbTickCallback m_tickCallback;
-		void* m_bworld;
 		void* m_bscene;
+
 		virtual void debugDrawConstraints(rbConstraint *con, draw_string str_callback, float loc[]);
 		virtual void debugDrawWorld(draw_string str_callback);
+
 };
 
-static btScalar connection_dist(btFractureBody *fbody, int index, btVector3 impact)
-{
-	btConnection& con = fbody->m_connections[index];
-	btVector3 con_posA = con.m_parent->getWorldTransform().inverse() * con.m_obA->getWorldTransform().getOrigin();
-	btVector3 con_posB = con.m_parent->getWorldTransform().inverse() * con.m_obB->getWorldTransform().getOrigin();
-	btVector3 con_pos = (con_posA + con_posB) * 0.5f;
-
-	return impact.distance(con_pos);
-}
-
-//KDTree needed here, we need a range search of which points are closer than distance x to the impact point
-static int connection_binary_search(btFractureBody *fbody, btVector3 impact, btScalar range)
-{
-	int mid, low = 0, high = fbody->m_connections.size();
-
-	while (low <= high) {
-		mid = (low + high)/2;
-
-		if (mid == high-1)
-			return mid;
-
-		btScalar dist = connection_dist(fbody, mid, impact);
-		btScalar dist1 = connection_dist(fbody, mid+1, impact);
-
-		if (dist < range && range <= dist1)
-		{
-			return mid;
-		}
-
-		if (dist >= range)
-			high= mid - 1;
-		else if (dist < range)
-			low= mid + 1;
-		else
-			return mid;
-	}
-
-	return low;
-}
-
-static void manifold_callback(TickDiscreteDynamicsWorld* tworld, btManifoldPoint& pt,
+static void manifold_callback(CallbackDynamicsWorld* tworld, btManifoldPoint& pt,
                               const btCollisionObject *obA,  const btCollisionObject *obB)
 {
-	btFractureDynamicsWorld *fworld = (btFractureDynamicsWorld*)tworld;
-
 	if (pt.getDistance()<0.f)
 	{
 		if (tworld->m_contactCallback)
 		{
 			rbContactPoint* cp = tworld->make_contact_point(pt, obA, obB);
-			//broken = weakenCompound(obA, cp->contact_force, pt.getPositionWorldOnA(), fworld);
-			//broken = broken || weakenCompound(obB, cp->contact_force, pt.getPositionWorldOnB(), fworld);
 			tworld->m_contactCallback(cp, tworld->m_bscene);
 			delete cp;
 		}
 	}
 }
 
-
-static void tickCallback(btDynamicsWorld *world, btScalar timeStep)
-{
-	btFractureDynamicsWorld *fworld = (btFractureDynamicsWorld*)world;
-	fworld->updateBodies();
-
-	TickDiscreteDynamicsWorld* tworld = (TickDiscreteDynamicsWorld*)world;
-	bool broken = false;
-
-	int numManifolds = world->getDispatcher()->getNumManifolds();
-	for (int i=0;i<numManifolds;i++)
-	{
-		btPersistentManifold* contactManifold =  world->getDispatcher()->getManifoldByIndexInternal(i);
-		const btCollisionObject* obA = contactManifold->getBody0();
-		const btCollisionObject* obB = contactManifold->getBody1();
-
-		int numContacts = contactManifold->getNumContacts();
-		for (int j=0;j<numContacts;j++)
-		{
-			manifold_callback(tworld, contactManifold->getContactPoint(j), obA, obB);
-#if 0
-			btManifoldPoint& pt = contactManifold->getContactPoint(j);
-			if (pt.getDistance()<0.f)
-			{
-				/*const btVector3& ptA = pt.getPositionWorldOnA();
-				const btVector3& ptB = pt.getPositionWorldOnB();
-				const btVector3& normalOnB = pt.m_normalWorldOnB;*/
-
-				//TickDiscreteDynamicsWorld* tworld = (TickDiscreteDynamicsWorld*)world;
-				//odd check, but in debug mode we had already numcontacts = 2 but didnt have ANY contacts... gah
-				if (tworld->m_contactCallback && j < contactManifold->getNumContacts())
-				{
-					rbContactPoint* cp = tworld->make_contact_point(pt, obA, obB);
-					broken = weakenCompound(obA, cp->contact_force, pt.getPositionWorldOnA(), fworld);
-					broken = broken || weakenCompound(obB, cp->contact_force, pt.getPositionWorldOnB(), fworld);
-					tworld->m_contactCallback(cp, tworld->m_bscene);
-					delete cp;
-				}
-
-				//if (broken)
-				//	break;
-			}
-#endif
-		}
-
-		//if (broken)
-		//	break;
-	}
-
-	if (tworld->m_tickCallback)
-	{
-		tworld->m_tickCallback(timeStep, tworld->m_bscene);
-	}
-}
-
-TickDiscreteDynamicsWorld::TickDiscreteDynamicsWorld(btDispatcher* dispatcher, btBroadphaseInterface* pairCache,
+CallbackDynamicsWorld::CallbackDynamicsWorld(btDispatcher* dispatcher, btBroadphaseInterface* pairCache,
                                                      btConstraintSolver* constraintSolver,
                                                      btCollisionConfiguration* collisionConfiguration,
-                                                     rbContactCallback cont_callback, void *bworld, void *bScene,
-                                                     IdCallback id_callback,
-                                                     rbTickCallback tick_callback) :
-                                                     btFractureDynamicsWorld(dispatcher, pairCache,
-                                                                             constraintSolver, collisionConfiguration,
-                                                                             id_callback, getBodyFromShape)
+                                                     rbContactCallback cont_callback, void *bScene) :
+                                                     btDiscreteDynamicsWorld(dispatcher, pairCache,
+                                                                             constraintSolver, collisionConfiguration)
 {
-	m_internalTickCallback = tickCallback;
 	m_contactCallback = cont_callback;
-	m_bworld = bworld;
 	m_bscene = bScene;
-	m_tickCallback = tick_callback;
 }
 
-rbContactPoint* TickDiscreteDynamicsWorld::make_contact_point(btManifoldPoint& point, const btCollisionObject* body0, const btCollisionObject* body1)
+rbContactPoint* CallbackDynamicsWorld::make_contact_point(btManifoldPoint& point, const btCollisionObject* body0, const btCollisionObject* body1)
 {
 	rbContactPoint *cp = new rbContactPoint;
-	btFractureBody* bodyA = (btFractureBody*)(body0);
-	btFractureBody* bodyB = (btFractureBody*)(body1);
+	btRigidBody* bodyA = (btRigidBody*)(body0);
+	btRigidBody* bodyB = (btRigidBody*)(body1);
 	rbRigidBody* rbA = (rbRigidBody*)(bodyA->getUserPointer());
 	rbRigidBody* rbB = (rbRigidBody*)(bodyB->getUserPointer());
 	if (rbA)
@@ -343,7 +223,7 @@ rbContactPoint* TickDiscreteDynamicsWorld::make_contact_point(btManifoldPoint& p
 	return cp;
 }
 
-void TickDiscreteDynamicsWorld::debugDrawWorld(draw_string str_callback)
+void CallbackDynamicsWorld::debugDrawWorld(draw_string str_callback)
 {
 	BT_PROFILE("debugDrawWorld");
 
@@ -384,8 +264,6 @@ void TickDiscreteDynamicsWorld::debugDrawWorld(draw_string str_callback)
 		}
 	}
 
-
-
     if (getDebugDrawer() && (getDebugDrawer()->getDebugMode() & (btIDebugDraw::DBG_DrawWireframe | btIDebugDraw::DBG_DrawAabb | btIDebugDraw::DBG_DrawNormals)))
 	{
 		int i;
@@ -415,7 +293,7 @@ static const char* val_to_str(rbConstraint* con, int precision, int *length)
 	return ret;
 }
 
-void TickDiscreteDynamicsWorld::debugDrawConstraints(rbConstraint* con , draw_string str_callback, float loc[3])
+void CallbackDynamicsWorld::debugDrawConstraints(rbConstraint* con , draw_string str_callback, float loc[3])
 {
 	btTypedConstraint *constraint = con->con;
 	bool drawFrames = (getDebugDrawer()->getDebugMode() & btIDebugDraw::DBG_DrawConstraints) != 0;
@@ -429,11 +307,8 @@ void TickDiscreteDynamicsWorld::debugDrawConstraints(rbConstraint* con , draw_st
 	btScalar imp = constraint->getAppliedImpulse();
 	btScalar thr = constraint->getBreakingImpulseThreshold();
 	float ratio = fabs(imp) / thr;
-	int len = 0; // strlen(con->id);
+	int len = 0;
 	const char *str = val_to_str(con, p, &len);
-	//const char *str = con->id;
-	//float loc[3];
-	//copy_v3_btvec3(loc, con->pivot.getOrigin());
 
 	if (ratio <= 0.5f)
 	{
@@ -638,15 +513,13 @@ void TickDiscreteDynamicsWorld::debugDrawConstraints(rbConstraint* con , draw_st
 struct rbFilterCallback;
 
 struct rbDynamicsWorld {
-	TickDiscreteDynamicsWorld *dynamicsWorld;
+	CallbackDynamicsWorld *dynamicsWorld;
 	btDefaultCollisionConfiguration *collisionConfiguration;
 	btDispatcher *dispatcher;
 	btBroadphaseInterface *pairCache;
 	btConstraintSolver *constraintSolver;
 	rbFilterCallback *filterCallback;
-	void *blenderWorld;
-	IdOutCallback idOutCallback;
-	void *blenderScene; // ouch, very very clumsy approach, this is just a borrowed pointer
+	void *blenderScene; // this is just a borrowed pointer
 };
 
 struct rbVert {
@@ -716,8 +589,8 @@ struct rbFilterCallback : public btOverlapFilterCallback
 			return false;
 		}
 
-		rbRigidBody *rb0 = (rbRigidBody *)((btFractureBody *)proxy0->m_clientObject)->getUserPointer();
-		rbRigidBody *rb1 = (rbRigidBody *)((btFractureBody *)proxy1->m_clientObject)->getUserPointer();
+		rbRigidBody *rb0 = (rbRigidBody *)((btRigidBody *)proxy0->m_clientObject)->getUserPointer();
+		rbRigidBody *rb1 = (rbRigidBody *)((btRigidBody *)proxy1->m_clientObject)->getUserPointer();
 		
 		bool collides;
 		collides = (proxy0->m_collisionFilterGroup &
@@ -737,7 +610,7 @@ struct rbFilterCallback : public btOverlapFilterCallback
 		           (rb0->blenderOb != rb1->blenderOb)));
 
 		//only apply to trigger and triggered, to improve performance, but do not actually activate
-		return collides; // this->check_collision(rb0, rb1, false, collides);
+		return collides;
 	}
 };
 
@@ -753,24 +626,6 @@ static inline void copy_quat_btquat(float quat[4], const btQuaternion &btquat)
 /* Dynamics World Methods */
 
 /* Setup ---------------------------- */
-
-void RB_dworld_init_compounds(rbDynamicsWorld *world)
-{
-	//world->dynamicsWorld->glueCallback();
-	world->dynamicsWorld->m_fracturingMode = false;
-	//trigger the glueing only at beginning ?!
-}
-
-static void idCallback(void *userPtr, int* objectId, int* shardId)
-{
-	rbRigidBody *body = (rbRigidBody*)userPtr;
-	if (body)
-	{
-		rbDynamicsWorld *world = body->world;
-		if (world->idOutCallback)
-			world->idOutCallback(body->meshIsland, objectId, shardId);
-	}
-}
 
 class CollisionFilterDispatcher : public btCollisionDispatcher
 {
@@ -836,27 +691,6 @@ void	CollisionFilterDispatcher::dispatchAllCollisionPairs(btOverlappingPairCache
 	pairCache->processAllOverlappingPairs(&collisionCallback,dispatcher);
 }
 
-#if 0
-bool CollisionFilterDispatcher::needsCollision(const btCollisionObject *body0, const btCollisionObject *body1)
-{
-	rbRigidBody *rb0 = (rbRigidBody *)((btFractureBody *)body0)->getUserPointer();
-	rbRigidBody *rb1 = (rbRigidBody *)((btFractureBody *)body1)->getUserPointer();
-
-	if (((btRigidBody*)body0)->checkCollideWithOverride(body1))
-	{
-
-		if (this->filterCallback)
-		{
-			return this->filterCallback->check_collision(rb0, rb1, false, true);
-		}
-
-		return true;
-	}
-
-	return false;
-}
-#endif
-
 /*taken from btCollisionDispatcher defaultNearCallback */
 static void nearCallback(btBroadphasePair &collisionPair, btCollisionDispatcher &dispatcher, const btDispatcherInfo &dispatchInfo)
 {
@@ -891,9 +725,6 @@ static void nearCallback(btBroadphasePair &collisionPair, btCollisionDispatcher 
 				rbRigidBody *rb0 = (rbRigidBody*)colObj0->getUserPointer();
 				rbRigidBody *rb1 = (rbRigidBody*)colObj1->getUserPointer();
 
-				//handle_activation(manifold, rb0, rb1);
-				//handle_activation(manifold, rb1, rb0);
-
 				for (int i = 0; i < manifold->getNumContacts(); i++)
 				{
 					manifold_callback(rb0->world->dynamicsWorld, manifold->getContactPoint(i), colObj0, colObj1);
@@ -908,18 +739,16 @@ static void nearCallback(btBroadphasePair &collisionPair, btCollisionDispatcher 
 }
 
 //yuck, but need a handle for the world somewhere for collision callback...
-rbDynamicsWorld *RB_dworld_new(const float gravity[3], void* blenderWorld, void* blenderScene,
-							   int (*callback)(void *, void *, void *, void *, void *, bool),
-							   void (*contactCallback)(rbContactPoint* cp, void *bworld),
-							   void (*idCallbackOut)(void*, int*, int*),
-							   void (*tickCallback)(float timestep, void *bworld))
+rbDynamicsWorld *RB_dworld_new(const float gravity[3], void* blenderScene,
+							   int (*filter_callback)(void *, void *, void *, void *, void *, bool),
+							   void (*contact_callback)(rbContactPoint* cp, void *bworld))
 {
 	rbDynamicsWorld *world = new rbDynamicsWorld;
 
 	/* collision detection/handling */
 	world->collisionConfiguration = new btDefaultCollisionConfiguration();
 
-	world->filterCallback = new rbFilterCallback(callback);
+	world->filterCallback = new rbFilterCallback(filter_callback);
 	world->dispatcher = new CollisionFilterDispatcher(world->collisionConfiguration, world->filterCallback);
 	((btCollisionDispatcher*)world->dispatcher)->setNearCallback(nearCallback);
 
@@ -933,20 +762,17 @@ rbDynamicsWorld *RB_dworld_new(const float gravity[3], void* blenderWorld, void*
 	/* constraint solving */
 	world->constraintSolver = new btSequentialImpulseConstraintSolver();
 
-	TickDiscreteDynamicsWorld *tworld = new TickDiscreteDynamicsWorld(world->dispatcher,
-	                                                                  world->pairCache,
-														  world->constraintSolver,
-	                                                      world->collisionConfiguration,
-	                                                      contactCallback, blenderWorld, blenderScene, idCallback, tickCallback);
+	CallbackDynamicsWorld *tworld = new CallbackDynamicsWorld(world->dispatcher,
+	                                                          world->pairCache,
+	                                                          world->constraintSolver,
+	                                                          world->collisionConfiguration,
+	                                                          contact_callback, blenderScene);
 
 	/* world */
 	world->dynamicsWorld = tworld;
-	world->blenderWorld = blenderWorld;
-	world->idOutCallback = idCallbackOut;
 	world->blenderScene = blenderScene;
 
 	RB_dworld_set_gravity(world, gravity);
-
 
 	/*debug drawer*/
 	world->dynamicsWorld->setDebugDrawer(new ViewportDebugDraw());
@@ -955,13 +781,6 @@ rbDynamicsWorld *RB_dworld_new(const float gravity[3], void* blenderWorld, void*
 	            btIDebugDraw::DBG_DrawContactPoints|btIDebugDraw::DBG_DrawText|
 	            btIDebugDraw::DBG_DrawConstraints| /*btIDebugDraw::DBG_DrawConstraintLimits*/
 	            ViewportDebugDraw::DBG_DrawImpulses);
-
-	/*contact callback */
-/*
-	if (contactCallback)
-	{
-		world->contactCallback = new rbContactCallback(contactCallback, world->blenderWorld);
-	} */
 	
 	return world;
 }
@@ -1055,13 +874,6 @@ void RB_dworld_add_body(rbDynamicsWorld *world, rbRigidBody *object, int col_gro
                         void* meshIsland, void* blenderOb)
 {
 	btRigidBody *body = object->body;
-
-	if (body->getInternalType() == CUSTOM_FRACTURE_TYPE)
-	{
-		btFractureBody* fbody = (btFractureBody*)body;
-		fbody->setWorld(world->dynamicsWorld);
-	}
-
 	object->col_groups = col_groups;
 	object->meshIsland = meshIsland;
 	object->world = world;
@@ -1938,20 +1750,6 @@ rbConstraint *RB_constraint_new_motor(float pivot[3], float orn[4], rbRigidBody 
 
 	btVector3 vec(pivot[0], pivot[1], pivot[2]);
 	rbc->pivot.setOrigin(vec);
-
-	return rbc;
-}
-
-rbConstraint *RB_constraint_new_compound(rbRigidBody *rb1, rbRigidBody *rb2)
-{
-	btRigidBody *body1 = rb1->body;
-	btRigidBody *body2 = rb2->body;
-
-	btCompoundConstraint *con = new btCompoundConstraint(*body1, *body2);
-
-	rbConstraint *rbc = new rbConstraint();
-	rbc->con = con;
-	rbc->pivot.setOrigin(btVector3(0, 0, 0));
 
 	return rbc;
 }

@@ -79,7 +79,7 @@ typedef struct rbContactPoint {
 
 /*Subclass because of Internal Tick Callback... sigh why doesnt this work with a simple collision callback ? */
 
-
+//something with OB_DRAWNAME, complicated to set up...
 typedef void (*draw_string)(float loc[3], const char *str, const size_t len, float color[3]);
 
 /* ********************************** */
@@ -87,14 +87,11 @@ typedef void (*draw_string)(float loc[3], const char *str, const size_t len, flo
 
 /* Setup ---------------------------- */
 
-void RB_dworld_init_compounds(rbDynamicsWorld *world);
-
 /* Create a new dynamics world instance */
 // TODO: add args to set the type of constraint solvers, etc.
-rbDynamicsWorld *RB_dworld_new(const float gravity[3], void* blenderWorld, void *blenderScene,
-							   int (*callback)(void*, void*, void*, void*, void*, bool),
-							   void (*contactCallback)(rbContactPoint*, void *), void (*idCallbackOut)(void*, int*, int*),
-							  void (*tickCallback)(float, void *));
+rbDynamicsWorld *RB_dworld_new(const float gravity[3], void *blenderScene,
+							   int (*filter_callback)(void*, void*, void*, void*, void*, bool),
+							   void (*contact_callback)(rbContactPoint*, void *));
 
 /* Delete the given dynamics world, and free any extra data it may require */
 void RB_dworld_delete(rbDynamicsWorld *world);
@@ -271,9 +268,6 @@ rbCollisionShape *RB_shape_new_gimpact_mesh(rbMeshData *mesh);
 
 int RB_shape_get_num_verts(rbCollisionShape *shape);
 
-rbCollisionShape *RB_shape_new_compound(void);
-void RB_shape_add_compound_child(rbCollisionShape** compound, rbCollisionShape* child, float loc[3], float rot[4]);
-
 /* Cleanup --------------------------- */
 
 void RB_shape_delete(rbCollisionShape *shape);
@@ -306,7 +300,6 @@ rbConstraint *RB_constraint_new_6dof(float pivot[3], float orn[4], rbRigidBody *
 rbConstraint *RB_constraint_new_6dof_spring(float pivot[3], float orn[4], rbRigidBody *rb1, rbRigidBody *rb2);
 rbConstraint *RB_constraint_new_6dof_spring2(float pivot[3], float orn[4], rbRigidBody *rb1, rbRigidBody *rb2);
 rbConstraint *RB_constraint_new_motor(float pivot[3], float orn[4], rbRigidBody *rb1, rbRigidBody *rb2);
-rbConstraint *RB_constraint_new_compound(rbRigidBody *rb1, rbRigidBody *rb2);
 
 /* ............ */
 

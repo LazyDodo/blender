@@ -91,14 +91,10 @@ typedef enum eRigidBodyWorld_Flag {
 	RBW_FLAG_NEEDS_REBUILD		= (1 << 1),
 	/* use split impulse when stepping the simulation */
 	RBW_FLAG_USE_SPLIT_IMPULSE	= (1 << 2),
-	/* Flag changes to objects (especially those with modifiers)*/
-	RBW_FLAG_OBJECT_CHANGED		= (1 << 3),
-	/* If we have rigidbody modifiers, time to refresh them if flag is set*/
-	RBW_FLAG_REFRESH_MODIFIERS	= (1 << 4),
 	/* Flag rebuild of constraints in fracture modifier objects */
-	RBW_FLAG_REBUILD_CONSTRAINTS = (1 << 5),
+	RBW_FLAG_REBUILD_CONSTRAINTS = (1 << 3),
 	/* Visualize physics objects like in game engine*/
-	RBW_FLAG_VISUALIZE_PHYSICS = (1 << 6),
+	RBW_FLAG_VISUALIZE_PHYSICS = (1 << 4),
 } eRigidBodyWorld_Flag;
 
 /* ******************************** */
