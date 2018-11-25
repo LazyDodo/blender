@@ -835,7 +835,7 @@ class TOPBAR_MT_edit(Menu):
 
         layout.separator()
 
-        layout.operator("screen.userpref_show", text="User Preferences...", icon='PREFERENCES')
+        layout.operator("screen.settings_show", text="Settings...", icon='PREFERENCES')
 
 
 class TOPBAR_MT_window(Menu):
@@ -988,7 +988,7 @@ class TOPBAR_MT_window_specials(Menu):
 
         layout.separator()
 
-        layout.operator("screen.userpref_show", text="User Preferences...", icon='PREFERENCES')
+        layout.operator("screen.settings_show", text="Settings...", icon='PREFERENCES')
 
 
 class TOPBAR_MT_workspace_menu(Menu):
