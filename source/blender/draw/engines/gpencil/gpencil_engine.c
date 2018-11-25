@@ -675,21 +675,21 @@ static void gpencil_draw_pass_range(
 	GPENCIL_FramebufferList *fbl, GPENCIL_StorageList *stl,
 	GPENCIL_PassList *psl, GPENCIL_TextureList *txl,
 	GPUFrameBuffer *fb,
-	DRWShadingGroup *init_shgrp, DRWShadingGroup *end_shgrp)
+	DRWShadingGroup *init_shgrp, DRWShadingGroup *end_shgrp, int mode)
 {
 	if (init_shgrp == NULL) {
 		return;
 	}
 
 	/* previews don't use AA */
-	if (!stl->storage->is_mat_preview) {
+	if ((!stl->storage->is_mat_preview) && (mode == eGplBlendMode_Normal)) {
 		MULTISAMPLE_GP_SYNC_ENABLE(stl->storage->multisamples, fbl);
 	}
 
 	DRW_draw_pass_subset(
 		psl->stroke_pass, init_shgrp, end_shgrp);
 
-	if (!stl->storage->is_mat_preview) {
+	if ((!stl->storage->is_mat_preview) && (mode == eGplBlendMode_Normal)) {
 		MULTISAMPLE_GP_SYNC_DISABLE(stl->storage->multisamples, fbl, fb, txl);
 	}
 
@@ -790,7 +790,7 @@ void GPENCIL_draw_scene(void *ved)
 							/* draw pending groups */
 							gpencil_draw_pass_range(
 								fbl, stl, psl, txl, fbl->temp_fb_a,
-								init_shgrp, end_shgrp);
+								init_shgrp, end_shgrp, array_elm->mode);
 
 							/* draw current group in separated texture */
 							init_shgrp = array_elm->init_shgrp;
@@ -800,7 +800,7 @@ void GPENCIL_draw_scene(void *ved)
 							GPU_framebuffer_clear_color_depth(fbl->temp_fb_fx, clearcol, 1.0f);
 							gpencil_draw_pass_range(
 								fbl, stl, psl, txl, fbl->temp_fb_fx,
-								init_shgrp, end_shgrp);
+								init_shgrp, end_shgrp, array_elm->mode);
 
 							/* Blend A texture and FX texture */
 							GPU_framebuffer_bind(fbl->temp_fb_b);
@@ -824,7 +824,7 @@ void GPENCIL_draw_scene(void *ved)
 
 					}
 					/* last group */
-					gpencil_draw_pass_range(fbl, stl, psl, txl, fbl->temp_fb_a, init_shgrp, end_shgrp);
+					gpencil_draw_pass_range(fbl, stl, psl, txl, fbl->temp_fb_a, init_shgrp, end_shgrp, array_elm->mode);
 				}
 
 				/* Current buffer drawing */
