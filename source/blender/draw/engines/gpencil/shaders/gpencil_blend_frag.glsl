@@ -81,9 +81,6 @@ void main()
 	ivec2 uv = ivec2(gl_FragCoord.xy);
 	vec4 stroke_color =  texelFetch(strokeColor, uv, 0).rgba;
 	float stroke_depth = texelFetch(strokeDepth, uv, 0).r;
-	if ((stroke_color.a == 0) && (disable_mask == ON)) {
-		discard;
-	}
 	
 	vec4 mix_color =  texelFetch(blendColor, uv, 0).rgba;
 	float mix_depth = texelFetch(blendDepth, uv, 0).r;
