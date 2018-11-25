@@ -2428,7 +2428,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 		}
 	}
 
-	{
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 34)) {
 		for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
 			for (ScrArea *area = screen->areabase.first; area; area = area->next) {
 				for (SpaceLink *slink = area->spacedata.first; slink; slink = slink->next) {
