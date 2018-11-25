@@ -803,21 +803,26 @@ static void gpencil_draw_strokes(
 				}
 			}
 
-			/* fill */
-			if ((gp_style->flag & GP_STYLE_FILL_SHOW) &&
-			    (!stl->storage->simplify_fill))
+			/* hide any blend layer */
+			if ((!stl->storage->simplify_blend) ||
+				(gpl->blend_mode == eGplBlendMode_Normal))
 			{
-				gpencil_add_fill_vertexdata(
-				        cache, ob, gpl, derived_gpf, gps,
-				        opacity, tintcolor, false, custonion);
-			}
-			/* stroke */
-			if ((gp_style->flag & GP_STYLE_STROKE_SHOW) &&
-			    (gp_style->stroke_rgba[3] > GPENCIL_ALPHA_OPACITY_THRESH))
-			{
-				gpencil_add_stroke_vertexdata(
-				        cache, ob, gpl, derived_gpf, gps,
-				        opacity, tintcolor, false, custonion);
+				/* fill */
+				if ((gp_style->flag & GP_STYLE_FILL_SHOW) &&
+					(!stl->storage->simplify_fill))
+				{
+					gpencil_add_fill_vertexdata(
+						cache, ob, gpl, derived_gpf, gps,
+						opacity, tintcolor, false, custonion);
+				}
+				/* stroke */
+				if ((gp_style->flag & GP_STYLE_STROKE_SHOW) &&
+					(gp_style->stroke_rgba[3] > GPENCIL_ALPHA_OPACITY_THRESH))
+				{
+					gpencil_add_stroke_vertexdata(
+						cache, ob, gpl, derived_gpf, gps,
+						opacity, tintcolor, false, custonion);
+				}
 			}
 		}
 
@@ -1283,6 +1288,7 @@ static void DRW_gpencil_shgroups_create(
 	for (int i = 0; i < cache->grp_used; i++) {
 		elm = &cache->grp_cache[i];
 		array_elm = &cache_ob->shgrp_array[idx];
+
 		/* save last group when change */
 		if (gpl_prev == NULL) {
 			gpl_prev = elm->gpl;
@@ -1518,8 +1524,9 @@ void DRW_gpencil_populate_datablock(
 	/* draw normal strokes */
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		/* don't draw layer if hidden */
-		if (gpl->flag & GP_LAYER_HIDE)
+		if (gpl->flag & GP_LAYER_HIDE) {
 			continue;
+		}
 
 		/* filter view layer to gp layers in the same view layer (for compo) */
 		if ((stl->storage->is_render) && (gpl->viewlayername[0] != '\0')) {

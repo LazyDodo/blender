@@ -378,6 +378,7 @@ void GPENCIL_cache_init(void *vedata)
 		stl->storage->simplify_fill = GP_SIMPLIFY_FILL(scene, stl->storage->is_playing);
 		stl->storage->simplify_modif = GP_SIMPLIFY_MODIF(scene, stl->storage->is_playing);
 		stl->storage->simplify_fx = GP_SIMPLIFY_FX(scene, stl->storage->is_playing);
+		stl->storage->simplify_blend = GP_SIMPLIFY_BLEND(scene, stl->storage->is_playing);
 
 		/* save pixsize */
 		stl->storage->pixsize = DRW_viewport_pixelsize_get();
@@ -778,8 +779,7 @@ void GPENCIL_draw_scene(void *ved)
 					for (int e = 0; e < cache_ob->tot_layers; e++) {
 						array_elm = &cache_ob->shgrp_array[e];
 
-						if ((array_elm->mode == eGplBlendMode_Normal) && (!use_blend))
-						{
+						if ((array_elm->mode == eGplBlendMode_Normal) && (!use_blend)) {
 							if (init_shgrp == NULL) {
 								init_shgrp = array_elm->init_shgrp;
 							}

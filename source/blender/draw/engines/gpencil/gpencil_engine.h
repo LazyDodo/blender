@@ -54,6 +54,7 @@ struct RenderLayer;
 #define GP_SIMPLIFY_FILL(scene, playing) ((GP_SIMPLIFY_ONPLAY(playing) && (GP_SIMPLIFY(scene)) && (scene->r.simplify_gpencil & SIMPLIFY_GPENCIL_FILL)))
 #define GP_SIMPLIFY_MODIF(scene, playing) ((GP_SIMPLIFY_ONPLAY(playing) && (GP_SIMPLIFY(scene)) && (scene->r.simplify_gpencil & SIMPLIFY_GPENCIL_MODIFIER)))
 #define GP_SIMPLIFY_FX(scene, playing) ((GP_SIMPLIFY_ONPLAY(playing) && (GP_SIMPLIFY(scene)) && (scene->r.simplify_gpencil & SIMPLIFY_GPENCIL_FX)))
+#define GP_SIMPLIFY_BLEND(scene, playing) ((GP_SIMPLIFY_ONPLAY(playing) && (GP_SIMPLIFY(scene)) && (scene->r.simplify_gpencil & SIMPLIFY_GPENCIL_BLEND)))
 
 #define GP_IS_CAMERAVIEW ((rv3d != NULL) && (rv3d->persp == RV3D_CAMOB && v3d->camera))
 
@@ -145,6 +146,7 @@ typedef struct GPENCIL_Storage {
 	bool simplify_fill;
 	bool simplify_modif;
 	bool simplify_fx;
+	bool simplify_blend;
 
 	/* Render Matrices and data */
 	float persmat[4][4], persinv[4][4];
