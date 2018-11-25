@@ -197,7 +197,8 @@ class RENDER_PT_eevee_depth_of_field(RenderButtonsPanel, Panel):
         layout.active = props.use_dof
         col = layout.column()
         col.prop(props, "bokeh_max_size")
-        col.prop(props, "bokeh_threshold")
+        # Not supported yet
+        # col.prop(props, "bokeh_threshold")
 
 
 class RENDER_PT_eevee_bloom(RenderButtonsPanel, Panel):
@@ -261,7 +262,7 @@ class RENDER_PT_eevee_volumetric(RenderButtonsPanel, Panel):
         col = layout.column()
         col.prop(props, "volumetric_tile_size")
         col.prop(props, "volumetric_samples")
-        col.prop(props, "volumetric_sample_distribution")
+        col.prop(props, "volumetric_sample_distribution", text="Distribution")
 
 
 class RENDER_PT_eevee_volumetric_lighting(RenderButtonsPanel, Panel):
@@ -389,6 +390,7 @@ class RENDER_PT_eevee_shadows(RenderButtonsPanel, Panel):
         col.prop(props, "shadow_cascade_size", text="Cascade Size")
         col.prop(props, "use_shadow_high_bitdepth")
         col.prop(props, "use_soft_shadows")
+        col.prop(props, "light_threshold")
 
 
 class RENDER_PT_eevee_sampling(RenderButtonsPanel, Panel):
@@ -444,6 +446,10 @@ class RENDER_PT_eevee_indirect_lighting(RenderButtonsPanel, Panel):
         col.prop(props, "gi_diffuse_bounces")
         col.prop(props, "gi_cubemap_resolution")
         col.prop(props, "gi_visibility_resolution", text="Diffuse Occlusion")
+        col.prop(props, "gi_irradiance_smoothing")
+        col.prop(props, "gi_glossy_clamp")
+        col.prop(props, "gi_filter_quality")
+
 
 class RENDER_PT_eevee_indirect_lighting_display(RenderButtonsPanel, Panel):
     bl_label = "Display"
@@ -464,17 +470,11 @@ class RENDER_PT_eevee_indirect_lighting_display(RenderButtonsPanel, Panel):
 
         row = layout.row(align=True)
         row.prop(props, "gi_cubemap_display_size", text="Cubemap Size")
-        if props.gi_show_cubemaps:
-            row.prop(props, "gi_show_cubemaps", text="", toggle=True, icon='HIDE_OFF')
-        else:
-            row.prop(props, "gi_show_cubemaps", text="", toggle=True, icon='HIDE_ON')
+        row.prop(props, "gi_show_cubemaps", text="", toggle=True)
 
         row = layout.row(align=True)
         row.prop(props, "gi_irradiance_display_size", text="Irradiance Size")
-        if props.gi_show_irradiance:
-            row.prop(props, "gi_show_irradiance", text="", toggle=True, icon='HIDE_OFF')
-        else:
-            row.prop(props, "gi_show_irradiance", text="", toggle=True, icon='HIDE_ON')
+        row.prop(props, "gi_show_irradiance", text="", toggle=True)
 
 
 class RENDER_PT_eevee_film(RenderButtonsPanel, Panel):

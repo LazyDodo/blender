@@ -136,7 +136,7 @@ void BKE_object_eval_constraints(Depsgraph *depsgraph,
 	BKE_constraints_clear_evalob(cob);
 }
 
-void BKE_object_eval_done(Depsgraph *depsgraph, Object *ob)
+void BKE_object_eval_transform_final(Depsgraph *depsgraph, Object *ob)
 {
 	DEG_debug_print_eval(depsgraph, __func__, ob->id.name, ob);
 
@@ -150,14 +150,6 @@ void BKE_object_eval_done(Depsgraph *depsgraph, Object *ob)
 		copy_m4_m4(ob_orig->constinv, ob->constinv);
 		ob_orig->transflag = ob->transflag;
 		ob_orig->flag = ob->flag;
-
-		BoundBox *bb = BKE_object_boundbox_get(ob);
-		if (bb != NULL) {
-			if (ob_orig->bb == NULL) {
-				ob_orig->bb = MEM_mallocN(sizeof(*ob_orig->bb), __func__);
-			}
-			*ob_orig->bb = *bb;
-		}
 	}
 }
 
@@ -281,8 +273,22 @@ void BKE_object_handle_data_update(
 				psys = psys->next;
 		}
 	}
+	BKE_object_eval_boundbox(depsgraph, ob);
+}
 
-	/* quick cache removed */
+void BKE_object_eval_boundbox(Depsgraph *depsgraph, Object *object)
+{
+	if (!DEG_is_active(depsgraph)) {
+		return;
+	}
+	Object *ob_orig = DEG_get_original_object(object);
+	BoundBox *bb = BKE_object_boundbox_get(object);
+	if (bb != NULL) {
+		if (ob_orig->bb == NULL) {
+			ob_orig->bb = MEM_mallocN(sizeof(*ob_orig->bb), __func__);
+		}
+		*ob_orig->bb = *bb;
+	}
 }
 
 bool BKE_object_eval_proxy_copy(Depsgraph *depsgraph,
@@ -351,9 +357,9 @@ void BKE_object_eval_uber_data(Depsgraph *depsgraph,
 	BKE_object_batch_cache_dirty_tag(ob);
 }
 
-void BKE_object_eval_cloth(Depsgraph *depsgraph,
-                           Scene *scene,
-                           Object *object)
+void BKE_object_eval_ptcache_reset(Depsgraph *depsgraph,
+                                   Scene *scene,
+                                   Object *object)
 {
 	DEG_debug_print_eval(depsgraph, __func__, object->id.name, object);
 	BKE_ptcache_object_reset(scene, object, PTCACHE_RESET_DEPSGRAPH);
@@ -372,7 +378,7 @@ void BKE_object_eval_transform_all(Depsgraph *depsgraph,
 		BKE_object_eval_constraints(depsgraph, scene, object);
 	}
 	BKE_object_eval_uber_transform(depsgraph, object);
-	BKE_object_eval_done(depsgraph, object);
+	BKE_object_eval_transform_final(depsgraph, object);
 }
 
 void BKE_object_eval_update_shading(Depsgraph *depsgraph, Object *object)

@@ -51,16 +51,16 @@
 #include "BKE_context.h"
 #include "BKE_deform.h"
 #include "BKE_fcurve.h"
-#include "BKE_gpencil.h"
 #include "BKE_global.h"
+#include "BKE_gpencil.h"
 #include "BKE_idcode.h"
 #include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_modifier.h"
+#include "BKE_object.h"
 #include "BKE_report.h"
 #include "BKE_scene.h"
-#include "BKE_object.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
@@ -335,6 +335,14 @@ static void namebutton_cb(bContext *C, void *tsep, char *oldname)
 					WM_event_add_notifier(C, NC_IMAGE, NULL); break;
 				case ID_SCE:
 					WM_event_add_notifier(C, NC_SCENE, NULL); break;
+				case ID_OB:
+				{
+					Object *ob = (Object *)tselem->id;
+					if (ob->type == OB_MBALL) {
+						DEG_id_tag_update(&ob->id, DEG_TAG_GEOMETRY);
+					}
+					WM_event_add_notifier(C, NC_ID | NA_RENAME, NULL); break;
+				}
 				default:
 					WM_event_add_notifier(C, NC_ID | NA_RENAME, NULL); break;
 			}
@@ -1266,8 +1274,6 @@ TreeElementIcon tree_element_get_icon(TreeStoreElem *tselem, TreeElement *te)
 							data.icon = ICON_LIGHT_SUN; break;
 						case LA_SPOT:
 							data.icon = ICON_LIGHT_SPOT; break;
-						case LA_HEMI:
-							data.icon = ICON_LIGHT_HEMI; break;
 						case LA_AREA:
 							data.icon = ICON_LIGHT_AREA; break;
 						default:
@@ -2157,9 +2163,9 @@ void draw_outliner(const bContext *C)
 
 	if (soops->outlinevis == SO_DATA_API) {
 		/* RNA has two columns:
-		 *  - column 1 is (max_width + OL_RNA_COL_SPACEX) or
-		 *				 (OL_RNA_COL_X), whichever is wider...
-		 *	- column 2 is fixed at OL_RNA_COL_SIZEX
+		 * - column 1 is (max_width + OL_RNA_COL_SPACEX) or
+		 *   (OL_RNA_COL_X), whichever is wider...
+		 * - column 2 is fixed at OL_RNA_COL_SIZEX
 		 *
 		 *  (*) XXX max width for now is a fixed factor of (UI_UNIT_X * (max_indention + 100))
 		 */

@@ -268,7 +268,7 @@ static int ui_item_fit(int item, int pos, int all, int available, bool is_last, 
 static int ui_layout_vary_direction(uiLayout *layout)
 {
 	return ((ELEM(layout->root->type, UI_LAYOUT_HEADER, UI_LAYOUT_PIEMENU) ||
-	        (layout->alignment != UI_LAYOUT_ALIGN_EXPAND)) ?
+	         (layout->alignment != UI_LAYOUT_ALIGN_EXPAND)) ?
 	        UI_ITEM_VARY_X : UI_ITEM_VARY_Y);
 }
 
@@ -718,6 +718,11 @@ static void ui_item_enum_expand_exec(
 
 		if (ui_layout_local_dir(layout) != UI_LAYOUT_HORIZONTAL)
 			but->drawflag |= UI_BUT_TEXT_LEFT;
+
+		/* Allow quick, inaccurate swipe motions to switch tabs (no need to keep cursor over them). */
+		if (but_type == UI_BTYPE_TAB) {
+			but->flag |= UI_BUT_DRAG_LOCK;
+		}
 	}
 	UI_block_layout_set_current(block, layout);
 
@@ -2259,7 +2264,9 @@ void uiItemM(uiLayout *layout, const char *menuname, const char *name, int icon)
 	if (layout->root->type == UI_LAYOUT_MENU && !icon)
 		icon = ICON_BLANK1;
 
-	ui_item_menu(layout, name, icon, ui_item_menutype_func, mt, NULL, TIP_(mt->description), false);
+	ui_item_menu(
+	        layout, name, icon, ui_item_menutype_func, mt, NULL,
+	        mt->description ? TIP_(mt->description) : "", false);
 }
 
 /* popover */
@@ -2440,10 +2447,10 @@ void uiItemS(uiLayout *layout)
 void uiItemSpacer(uiLayout *layout)
 {
 	uiBlock *block = layout->root->block;
-	bool is_menu = ui_block_is_menu(block);
+	const bool is_popup = ui_block_is_popup_any(block);
 
-	if (is_menu) {
-		printf("Error: separator_spacer() not supported in menus.\n");
+	if (is_popup) {
+		printf("Error: separator_spacer() not supported in popups.\n");
 		return;
 	}
 
@@ -2531,8 +2538,8 @@ void uiItemMenuEnumO_ptr(
 	{
 		char keybuf[128];
 		if (WM_key_event_operator_string(
-		        C, ot->idname, layout->root->opcontext, NULL, false,
-		        keybuf, sizeof(keybuf)))
+		            C, ot->idname, layout->root->opcontext, NULL, false,
+		            keybuf, sizeof(keybuf)))
 		{
 			ui_but_add_shortcut(but, keybuf, false);
 		}
@@ -2955,7 +2962,7 @@ static void ui_litem_layout_root_radial(uiLayout *litem)
 
 		ui_item_size(item, &itemw, &itemh);
 
-		ui_item_position(item, x - itemw / 2, y + U.pixelsize * (U.pie_menu_threshold + 9.0f), itemw, itemh);
+		ui_item_position(item, x - itemw / 2, y + U.dpi_fac * (U.pie_menu_threshold + 9.0f), itemw, itemh);
 	}
 }
 
@@ -4302,10 +4309,6 @@ uiLayout *UI_block_layout(uiBlock *block, int dir, int type, int x, int y, int s
 
 	if (type == UI_LAYOUT_MENU || type == UI_LAYOUT_PIEMENU)
 		layout->space = 0;
-
-	if (type == UI_LAYOUT_TOOLBAR) {
-		block->flag |= UI_BLOCK_SHOW_SHORTCUT_ALWAYS;
-	}
 
 	if (dir == UI_LAYOUT_HORIZONTAL) {
 		layout->h = size;

@@ -436,8 +436,8 @@ static void object_deselect_cb(
 }
 
 static void object_delete_cb(
-        bContext *C, ReportList *reports, Scene *scene, TreeElement *te,
-        TreeStoreElem *tsep, TreeStoreElem *tselem, void *user_data)
+        bContext *C, ReportList *reports, Scene *scene, TreeElement *UNUSED(te),
+        TreeStoreElem *UNUSED(tsep), TreeStoreElem *tselem, void *UNUSED(user_data))
 {
 	Object *ob = (Object *)tselem->id;
 	if (ob) {
@@ -465,13 +465,6 @@ static void object_delete_cb(
 		te->directdata = NULL;
 		tselem->id = NULL;
 #endif
-	}
-	else {
-		/* No base, means object is no more instantiated in any scene.
-		 * Should not happen ideally, but does happens, see T51625.
-		 * Rather than twisting in all kind of ways to address all possible cases leading to that situation, simpler
-		 * to allow deleting such object as a mere generic data-block. */
-		id_delete_cb(C, reports, scene, te, tsep, tselem, user_data);
 	}
 }
 
@@ -1047,7 +1040,6 @@ void OUTLINER_OT_object_operation(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Outliner Object Operation";
 	ot->idname = "OUTLINER_OT_object_operation";
-	ot->description = "";
 
 	/* callbacks */
 	ot->invoke = WM_menu_invoke;
@@ -1291,7 +1283,6 @@ void OUTLINER_OT_id_operation(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Outliner ID data Operation";
 	ot->idname = "OUTLINER_OT_id_operation";
-	ot->description = "";
 
 	/* callbacks */
 	ot->invoke = WM_menu_invoke;
@@ -1387,7 +1378,6 @@ void OUTLINER_OT_lib_operation(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Outliner Library Operation";
 	ot->idname = "OUTLINER_OT_lib_operation";
-	ot->description = "";
 
 	/* callbacks */
 	ot->invoke = WM_menu_invoke;
@@ -1611,7 +1601,6 @@ void OUTLINER_OT_animdata_operation(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Outliner Animation Data Operation";
 	ot->idname = "OUTLINER_OT_animdata_operation";
-	ot->description = "";
 
 	/* callbacks */
 	ot->invoke = WM_menu_invoke;
@@ -1657,7 +1646,6 @@ void OUTLINER_OT_constraint_operation(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Outliner Constraint Operation";
 	ot->idname = "OUTLINER_OT_constraint_operation";
-	ot->description = "";
 
 	/* callbacks */
 	ot->invoke = WM_menu_invoke;
@@ -1703,7 +1691,6 @@ void OUTLINER_OT_modifier_operation(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Outliner Modifier Operation";
 	ot->idname = "OUTLINER_OT_modifier_operation";
-	ot->description = "";
 
 	/* callbacks */
 	ot->invoke = WM_menu_invoke;
@@ -1801,7 +1788,6 @@ void OUTLINER_OT_data_operation(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Outliner Data Operation";
 	ot->idname = "OUTLINER_OT_data_operation";
-	ot->description = "";
 
 	/* callbacks */
 	ot->invoke = WM_menu_invoke;

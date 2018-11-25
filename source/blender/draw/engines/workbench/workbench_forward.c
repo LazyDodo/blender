@@ -171,8 +171,8 @@ static WORKBENCH_MaterialData *get_or_create_material_data(
 		workbench_material_set_normal_world_matrix(grp, wpd, e_data.normal_world_matrix);
 		workbench_material_copy(material, &material_template);
 		if (STUDIOLIGHT_ORIENTATION_VIEWNORMAL_ENABLED(wpd)) {
-			BKE_studiolight_ensure_flag(wpd->studio_light, STUDIOLIGHT_EQUIRECTANGULAR_RADIANCE_GPUTEXTURE);
-			DRW_shgroup_uniform_texture(grp, "matcapImage", wpd->studio_light->equirectangular_radiance_gputexture);
+			BKE_studiolight_ensure_flag(wpd->studio_light, STUDIOLIGHT_EQUIRECT_RADIANCE_GPUTEXTURE);
+			DRW_shgroup_uniform_texture(grp, "matcapImage", wpd->studio_light->equirect_radiance_gputexture );
 		}
 		if (SPECULAR_HIGHLIGHT_ENABLED(wpd) || MATCAP_ENABLED(wpd)) {
 			DRW_shgroup_uniform_vec2(grp, "invertedViewportSize", DRW_viewport_invert_size_get(), 1);
@@ -374,7 +374,7 @@ void workbench_forward_engine_init(WORKBENCH_Data *vedata)
 		}
 
 		if (wpd->shading.flag & XRAY_FLAG(wpd)) {
-			blend_threshold = 0.75f - XRAY_ALPHA(wpd) * 0.5f;
+			blend_threshold = 1.0f - XRAY_ALPHA(wpd) * 0.9f;
 		}
 
 		if (wpd->shading.type == OB_WIRE) {
@@ -458,8 +458,8 @@ static void workbench_forward_cache_populate_particles(WORKBENCH_Data *vedata, O
 			float hair_alpha = XRAY_ALPHA(wpd) * 0.33f;
 			DRW_shgroup_uniform_float_copy(shgrp, "alpha", hair_alpha);
 			if (STUDIOLIGHT_ORIENTATION_VIEWNORMAL_ENABLED(wpd)) {
-				BKE_studiolight_ensure_flag(wpd->studio_light, STUDIOLIGHT_EQUIRECTANGULAR_RADIANCE_GPUTEXTURE);
-				DRW_shgroup_uniform_texture(shgrp, "matcapImage", wpd->studio_light->equirectangular_radiance_gputexture);
+				BKE_studiolight_ensure_flag(wpd->studio_light, STUDIOLIGHT_EQUIRECT_RADIANCE_GPUTEXTURE);
+				DRW_shgroup_uniform_texture(shgrp, "matcapImage", wpd->studio_light->equirect_radiance_gputexture );
 			}
 			if (SPECULAR_HIGHLIGHT_ENABLED(wpd) || MATCAP_ENABLED(wpd)) {
 				DRW_shgroup_uniform_vec2(shgrp, "invertedViewportSize", DRW_viewport_invert_size_get(), 1);
@@ -500,13 +500,9 @@ static void workbench_forward_cache_populate_hair(WORKBENCH_Data *vedata, Object
 	 * So lower their alpha artificially. */
 	float hair_alpha = wpd->shading.xray_alpha * 0.33f;
 	DRW_shgroup_uniform_float_copy(shgrp, "alpha", hair_alpha);
-	if (image) {
-		GPUTexture *tex = GPU_texture_from_blender(image, NULL, GL_TEXTURE_2D, false, 0.0f);
-		DRW_shgroup_uniform_texture(shgrp, "image", tex);
-	}
 	if (STUDIOLIGHT_ORIENTATION_VIEWNORMAL_ENABLED(wpd)) {
-		BKE_studiolight_ensure_flag(wpd->studio_light, STUDIOLIGHT_EQUIRECTANGULAR_RADIANCE_GPUTEXTURE);
-		DRW_shgroup_uniform_texture(shgrp, "matcapImage", wpd->studio_light->equirectangular_radiance_gputexture);
+		BKE_studiolight_ensure_flag(wpd->studio_light, STUDIOLIGHT_EQUIRECT_RADIANCE_GPUTEXTURE);
+		DRW_shgroup_uniform_texture(shgrp, "matcapImage", wpd->studio_light->equirect_radiance_gputexture );
 	}
 	if (SPECULAR_HIGHLIGHT_ENABLED(wpd) || MATCAP_ENABLED(wpd)) {
 		DRW_shgroup_uniform_vec2(shgrp, "invertedViewportSize", DRW_viewport_invert_size_get(), 1);

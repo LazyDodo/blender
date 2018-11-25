@@ -247,7 +247,8 @@ static short compare_ak_gpframe(void *node, void *data)
 {
 	bGPDframe *gpf = (bGPDframe *)data;
 
-	return compare_ak_cfraPtr(node, &gpf->framenum);
+	float frame = gpf->framenum;
+	return compare_ak_cfraPtr(node, &frame);
 }
 
 /* New node callback used for building ActKeyColumns from GPencil frames */
@@ -291,7 +292,8 @@ static short compare_ak_masklayshape(void *node, void *data)
 {
 	MaskLayerShape *masklay_shape = (MaskLayerShape *)data;
 
-	return compare_ak_cfraPtr(node, &masklay_shape->frame);
+	float frame = masklay_shape->frame;
+	return compare_ak_cfraPtr(node, &frame);
 }
 
 /* New node callback used for building ActKeyColumns from GPencil frames */
@@ -738,7 +740,7 @@ static void draw_keylist(View2D *v2d, DLRBT_Tree *keys, float ypos, float yscale
 		uint key_len = 0;
 		for (ActKeyColumn *ak = keys->first; ak; ak = ak->next) {
 			/* optimization: if keyframe doesn't appear within 5 units (screenspace) in visible area, don't draw
-			 *	- this might give some improvements, since we current have to flip between view/region matrices
+			 * - this might give some improvements, since we current have to flip between view/region matrices
 			 */
 			if (IN_RANGE_INCL(ak->cfra, v2d->cur.xmin, v2d->cur.xmax))
 				key_len++;

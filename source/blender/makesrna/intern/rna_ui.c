@@ -249,6 +249,9 @@ static StructRNA *rna_Panel_register(
 		if (dummypt.category[0] == '\0') {
 			/* Use a fallback, otherwise an empty value will draw the panel in every category. */
 			strcpy(dummypt.category, PNL_CATEGORY_FALLBACK);
+#ifndef NDEBUG
+			printf("Registering panel class: '%s' misses category, please update the script\n", dummypt.idname);
+#endif
 		}
 	}
 	else {
@@ -829,8 +832,9 @@ static StructRNA *rna_Menu_register(
 		memcpy(buf, _menu_descr, description_size);
 		mt->description = buf;
 	}
-	else
-		mt->description = "";
+	else {
+		mt->description = NULL;
+	}
 
 	mt->ext.srna = RNA_def_struct_ptr(&BLENDER_RNA, mt->idname, &RNA_Menu);
 	RNA_def_struct_translation_context(mt->ext.srna, mt->translation_context);

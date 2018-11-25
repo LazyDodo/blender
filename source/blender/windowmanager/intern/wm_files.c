@@ -79,7 +79,6 @@
 #include "BKE_blender_undo.h"
 #include "BKE_context.h"
 #include "BKE_global.h"
-#include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_packedFile.h"
 #include "BKE_report.h"
@@ -501,10 +500,14 @@ static void wm_file_read_post(bContext *C, const bool is_startup_file, const boo
 			if (reset_app_template) {
 				/* Only run when we have a template path found. */
 				if (BKE_appdir_app_template_any()) {
-					BPY_execute_string(C, "__import__('bl_app_template_utils').reset()");
+					BPY_execute_string(
+					        C, (const char *[]){"bl_app_template_utils", NULL},
+					        "bl_app_template_utils.reset()");
 				}
 				/* sync addons, these may have changed from the defaults */
-				BPY_execute_string(C, "__import__('addon_utils').reset_all()");
+				BPY_execute_string(
+				        C, (const char *[]){"addon_utils", NULL},
+				        "addon_utils.reset_all()");
 			}
 			BPY_python_reset(C);
 			addons_loaded = true;
@@ -591,7 +594,10 @@ bool WM_file_read(bContext *C, const char *filepath, ReportList *reports)
 
 		/* confusing this global... */
 		G.relbase_valid = 1;
-		retval = BKE_blendfile_read(C, filepath, reports, 0);
+		retval = BKE_blendfile_read(
+		        C, filepath,
+		        &(const struct BlendFileReadParams){0},
+		        reports);
 
 		/* BKE_file_read sets new Main into context. */
 		Main *bmain = CTX_data_main(C);
@@ -862,7 +868,13 @@ int wm_homefile_read(
 
 	if (!use_factory_settings || (filepath_startup[0] != '\0')) {
 		if (BLI_access(filepath_startup, R_OK) == 0) {
-			success = (BKE_blendfile_read(C, filepath_startup, NULL, skip_flags) != BKE_BLENDFILE_READ_FAIL);
+			success = BKE_blendfile_read(
+			        C, filepath_startup,
+			        &(const struct BlendFileReadParams){
+			            .is_startup = true,
+			            .skip_flags = skip_flags,
+			        },
+			        NULL) != BKE_BLENDFILE_READ_FAIL;
 		}
 		if (BLI_listbase_is_empty(&U.themes)) {
 			if (G.debug & G_DEBUG)
@@ -881,8 +893,12 @@ int wm_homefile_read(
 
 	if (success == false) {
 		success = BKE_blendfile_read_from_memory(
-		        C, datatoc_startup_blend, datatoc_startup_blend_size,
-		        NULL, skip_flags, true);
+		        C, datatoc_startup_blend, datatoc_startup_blend_size, true,
+		        &(const struct BlendFileReadParams){
+		            .is_startup = true,
+		            .skip_flags = skip_flags,
+		        },
+		        NULL);
 		if (success) {
 			if (use_userdef) {
 				if ((skip_flags & BLO_READ_SKIP_USERDEF) == 0) {
@@ -953,6 +969,17 @@ int wm_homefile_read(
 
 	/* match the read WM with current WM */
 	wm_window_match_do(C, &wmbase, &bmain->wm, &bmain->wm);
+
+	if (use_factory_settings) {
+		/*  Clear keymaps because the current default keymap may have been initialized from user preferences,
+		 *  which have been reset. */
+		for (wmWindowManager *wm = bmain->wm.first; wm; wm = wm->id.next) {
+			if (wm->defaultconf) {
+				wm->defaultconf->flag &= ~KEYCONF_INIT_DEFAULT;
+			}
+		}
+	}
+
 	WM_check(C); /* opens window(s), checks keymaps */
 
 	bmain->name[0] = '\0';

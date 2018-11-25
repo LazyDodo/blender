@@ -36,9 +36,13 @@
 
 #include "BKE_addon.h"
 #include "BKE_colorband.h"
+#include "BKE_idprop.h"
 #include "BKE_main.h"
+#include "BKE_keyconfig.h"
 
 #include "BLO_readfile.h"  /* Own include. */
+
+#include "wm_event_types.h"
 
 /* Disallow access to global userdef. */
 #define U (_error_)
@@ -85,8 +89,34 @@ static void do_versions_theme(UserDef *userdef, bTheme *btheme)
 	if (!USER_VERSION_ATLEAST(280, 29)) {
 		copy_v4_v4_char(btheme->tbuts.navigation_bar, U_theme_default.ttopbar.header);
 	}
+	if (!USER_VERSION_ATLEAST(280, 31)) {
+		copy_v4_v4_char(btheme->tclip.list_text, U_theme_default.tclip.list_text);
+	}
 
 #undef USER_VERSION_ATLEAST
+}
+
+/* UserDef.flag */
+#define USER_LMOUSESELECT (1 << 14)  /* deprecated */
+
+static void do_version_select_mouse(UserDef *userdef, wmKeyMapItem *kmi)
+{
+	/* Remove select/action mouse from user defined keymaps. */
+	enum {
+		ACTIONMOUSE = 0x0005,
+		SELECTMOUSE = 0x0006,
+		EVT_TWEAK_A = 0x5005,
+		EVT_TWEAK_S = 0x5006,
+	};
+	const bool left = (userdef->flag & USER_LMOUSESELECT) != 0;
+
+	switch (kmi->type) {
+		case SELECTMOUSE: kmi->type = (left) ? LEFTMOUSE : RIGHTMOUSE; break;
+		case ACTIONMOUSE: kmi->type = (left) ? RIGHTMOUSE : LEFTMOUSE; break;
+		case EVT_TWEAK_S: kmi->type = (left) ? EVT_TWEAK_L : EVT_TWEAK_R; break;
+		case EVT_TWEAK_A: kmi->type = (left) ? EVT_TWEAK_R : EVT_TWEAK_L; break;
+		default: break;
+	}
 }
 
 /* patching UserDef struct and Themes */
@@ -350,6 +380,37 @@ void BLO_version_defaults_userpref_blend(Main *bmain, UserDef *userdef)
 		}
 	}
 
+	if (!USER_VERSION_ATLEAST(280, 31)) {
+		/* Remove select/action mouse from user defined keymaps. */
+		for (wmKeyMap *keymap = userdef->user_keymaps.first; keymap; keymap = keymap->next) {
+			for (wmKeyMapDiffItem *kmdi = keymap->diff_items.first; kmdi; kmdi = kmdi->next) {
+				if (kmdi->remove_item) {
+					do_version_select_mouse(userdef, kmdi->remove_item);
+				}
+				if (kmdi->add_item) {
+					do_version_select_mouse(userdef, kmdi->add_item);
+				}
+			}
+
+			for (wmKeyMapItem *kmi = keymap->items.first; kmi; kmi = kmi->next) {
+				do_version_select_mouse(userdef, kmi);
+			}
+		}
+	}
+
+	if (!USER_VERSION_ATLEAST(280, 32)) {
+		if ((userdef->flag & USER_LMOUSESELECT) ) {
+			userdef->flag &= ~USER_LMOUSESELECT;
+			wmKeyConfigPref *kpt = BKE_keyconfig_pref_ensure(userdef, WM_KEYCONFIG_STR_DEFAULT);
+			IDP_AddToGroup(kpt->prop, IDP_New(IDP_INT, &(IDPropertyTemplate){ .i = 0, }, "select_mouse"));
+		}
+	}
+
+	if (!USER_VERSION_ATLEAST(280, 33)) {
+		/* Enable GLTF addon by default. */
+		BKE_addon_ensure(&userdef->addons, "io_scene_gltf2");
+	}
+
 	/**
 	 * Include next version bump.
 	 */
@@ -372,3 +433,5 @@ void BLO_version_defaults_userpref_blend(Main *bmain, UserDef *userdef)
 #undef USER_VERSION_ATLEAST
 
 }
+
+#undef USER_LMOUSESELECT

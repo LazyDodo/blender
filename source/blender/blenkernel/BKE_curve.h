@@ -89,7 +89,7 @@ void BKE_curve_curve_dimension_update(struct Curve *cu);
 void BKE_curve_boundbox_calc(struct Curve *cu, float r_loc[3], float r_size[3]);
 struct BoundBox *BKE_curve_boundbox_get(struct Object *ob);
 void BKE_curve_texspace_calc(struct Curve *cu);
-void BKE_curve_texspace_get(struct Curve *cu, float r_loc[3], float r_rot[3], float r_size[3]);
+struct BoundBox *BKE_curve_texspace_get(struct Curve *cu, float r_loc[3], float r_rot[3], float r_size[3]);
 
 bool BKE_curve_minmax(struct Curve *cu, bool use_radius, float min[3], float max[3]);
 bool BKE_curve_center_median(struct Curve *cu, float cent[3]);
@@ -156,7 +156,7 @@ void BKE_nurb_free(struct Nurb *nu);
 struct Nurb *BKE_nurb_duplicate(const struct Nurb *nu);
 struct Nurb *BKE_nurb_copy(struct Nurb *src, int pntsu, int pntsv);
 
-void BKE_nurb_test2D(struct Nurb *nu);
+void BKE_nurb_test_2d(struct Nurb *nu);
 void BKE_nurb_minmax(struct Nurb *nu, bool use_radius, float min[3], float max[3]);
 float BKE_nurb_calc_length(const struct Nurb *nu, int resolution);
 

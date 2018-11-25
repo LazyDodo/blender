@@ -289,7 +289,7 @@ typedef enum {
 	DRW_STATE_BLEND         = (1 << 15),
 	DRW_STATE_ADDITIVE      = (1 << 16),
 	DRW_STATE_MULTIPLY      = (1 << 17),
-	DRW_STATE_TRANSMISSION  = (1 << 18),
+	/* DRW_STATE_TRANSMISSION  = (1 << 18), */ /* Not used */
 	DRW_STATE_CLIP_PLANES   = (1 << 19),
 	DRW_STATE_ADDITIVE_FULL = (1 << 20), /* Same as DRW_STATE_ADDITIVE but let alpha accumulate without premult. */
 	DRW_STATE_BLEND_PREMUL  = (1 << 21), /* Use that if color is already premult by alpha. */
@@ -524,9 +524,6 @@ void DRW_draw_text_cache_queue(struct DRWTextStore *dt);
 void DRW_draw_callbacks_pre_scene(void);
 void DRW_draw_callbacks_post_scene(void);
 
-int DRW_draw_region_engine_info_offset(void);
-void DRW_draw_region_engine_info(void);
-
 void DRW_state_reset_ex(DRWState state);
 void DRW_state_reset(void);
 void DRW_state_lock(DRWState state);
@@ -595,7 +592,7 @@ typedef struct DRWContextState {
 const DRWContextState *DRW_context_state_get(void);
 
 #define XRAY_ALPHA(v3d)   (((v3d)->shading.type == OB_WIRE) ? (v3d)->shading.xray_alpha_wire : (v3d)->shading.xray_alpha)
-#define XRAY_FLAG(v3d)    (((v3d)->shading.type == OB_WIRE) ? V3D_SHADING_XRAY_WIREFRAME : V3D_SHADING_XRAY)
+#define XRAY_FLAG(v3d)    (((v3d)->shading.type == OB_WIRE) ? V3D_SHADING_XRAY_BONE : V3D_SHADING_XRAY)
 #define XRAY_ENABLED(v3d) ((((v3d)->shading.flag & XRAY_FLAG(v3d)) != 0) && (XRAY_ALPHA(v3d) < 1.0f))
 
 #endif /* __DRW_RENDER_H__ */

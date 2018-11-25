@@ -226,27 +226,29 @@ Material *BKE_material_copy(Main *bmain, const Material *ma)
 /* XXX (see above) material copy without adding to main dbase */
 Material *BKE_material_localize(Material *ma)
 {
-	/* TODO replace with something like
-	 * 	Material *ma_copy;
-	 * 	BKE_id_copy_ex(bmain, &ma->id, (ID **)&ma_copy, LIB_ID_COPY_NO_MAIN | LIB_ID_COPY_NO_PREVIEW | LIB_ID_COPY_NO_USER_REFCOUNT, false);
-	 * 	return ma_copy;
+	/* TODO(bastien): Replace with something like:
 	 *
-	 * ... Once f*** nodes are fully converted to that too :( */
+	 *   Material *ma_copy;
+	 *   BKE_id_copy_ex(bmain, &ma->id, (ID **)&ma_copy,
+	 *                  LIB_ID_COPY_NO_MAIN | LIB_ID_COPY_NO_PREVIEW | LIB_ID_COPY_NO_USER_REFCOUNT,
+	 *                  false);
+	 *   return ma_copy;
+	 *
+	 * NOTE: Only possible once nested node trees are fully converted to that too. */
 
-	Material *man;
-
-	BKE_id_copy_ex(
-	        NULL, &ma->id, (ID **)&man,
-	        (LIB_ID_CREATE_NO_MAIN |
-	         LIB_ID_CREATE_NO_USER_REFCOUNT |
-	         LIB_ID_COPY_NO_PREVIEW |
-	         LIB_ID_COPY_NO_ANIMDATA),
-	        false);
+	Material *man = BKE_libblock_copy_nolib(&ma->id, false);
 
 	man->texpaintslot = NULL;
 	man->preview = NULL;
 
-	/* man->gp_style = NULL; */ /* XXX: We probably don't want to clear here, or else we may get problems with COW later? */
+	if (ma->nodetree != NULL) {
+		man->nodetree = ntreeLocalize(ma->nodetree);
+	}
+
+	if (ma->gp_style != NULL) {
+		man->gp_style = MEM_dupallocN(ma->gp_style);
+	}
+
 	BLI_listbase_clear(&man->gpumaterial);
 
 	/* TODO Duplicate Engine Settings and set runtime to NULL */
@@ -811,7 +813,7 @@ void BKE_material_remap_object(Object *ob, const unsigned int *remap)
 	else if (ELEM(ob->type, OB_CURVE, OB_SURF, OB_FONT)) {
 		BKE_curve_material_remap(ob->data, remap, ob->totcol);
 	}
-	if (ob->type == OB_GPENCIL) {
+	else if (ob->type == OB_GPENCIL) {
 		BKE_gpencil_material_remap(ob->data, remap, ob->totcol);
 	}
 	else {

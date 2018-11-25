@@ -305,14 +305,16 @@ static void view_layer_bases_hash_create(ViewLayer *view_layer)
 {
 	static ThreadMutex hash_lock = BLI_MUTEX_INITIALIZER;
 
-	if (!view_layer->object_bases_hash) {
+	if (view_layer->object_bases_hash == NULL) {
 		BLI_mutex_lock(&hash_lock);
 
-		view_layer->object_bases_hash = BLI_ghash_new(BLI_ghashutil_ptrhash, BLI_ghashutil_ptrcmp, __func__);
+		if (view_layer->object_bases_hash == NULL) {
+			view_layer->object_bases_hash = BLI_ghash_new(BLI_ghashutil_ptrhash, BLI_ghashutil_ptrcmp, __func__);
 
-		for (Base *base = view_layer->object_bases.first; base; base = base->next) {
-			if (base->object) {
-				BLI_ghash_insert(view_layer->object_bases_hash, base->object, base);
+			for (Base *base = view_layer->object_bases.first; base; base = base->next) {
+				if (base->object) {
+					BLI_ghash_insert(view_layer->object_bases_hash, base->object, base);
+				}
 			}
 		}
 
@@ -338,12 +340,17 @@ void BKE_view_layer_base_deselect_all(ViewLayer *view_layer)
 	}
 }
 
-void BKE_view_layer_base_select(struct ViewLayer *view_layer, Base *selbase)
+void BKE_view_layer_base_select(Base *selbase)
 {
-	view_layer->basact = selbase;
 	if ((selbase->flag & BASE_SELECTABLE) != 0) {
 		selbase->flag |= BASE_SELECTED;
 	}
+}
+
+void BKE_view_layer_base_select_and_set_active(struct ViewLayer *view_layer, Base *selbase)
+{
+	view_layer->basact = selbase;
+	BKE_view_layer_base_select(selbase);
 }
 
 /**************************** Copy View Layer and Layer Collections ***********************/
@@ -600,10 +607,10 @@ int BKE_layer_collection_findindex(ViewLayer *view_layer, const LayerCollection 
  * in at least one layer collection. That list is also synchronized here, and
  * stores state like selection. */
 
-static int layer_collection_sync(
+static short layer_collection_sync(
         ViewLayer *view_layer, const ListBase *lb_scene,
         ListBase *lb_layer, ListBase *new_object_bases,
-        int parent_exclude, int parent_restrict)
+        short parent_exclude, short parent_restrict)
 {
 	/* TODO: support recovery after removal of intermediate collections, reordering, ..
 	 * For local edits we can make editing operating do the appropriate thing, but for
@@ -631,7 +638,7 @@ static int layer_collection_sync(
 
 	/* Add layer collections for any new scene collections, and ensure order is the same. */
 	ListBase new_lb_layer = {NULL, NULL};
-	int runtime_flag = 0;
+	short runtime_flag = 0;
 
 	for (const CollectionChild *child = lb_scene->first; child; child = child->next) {
 		Collection *collection = child->collection;
@@ -647,13 +654,13 @@ static int layer_collection_sync(
 		}
 
 		/* Collection restrict is inherited. */
-		int child_restrict = parent_restrict;
+		short child_restrict = parent_restrict;
 		if (!(collection->flag & COLLECTION_IS_MASTER)) {
 			child_restrict |= collection->flag;
 		}
 
 		/* Sync child collections. */
-		int child_runtime_flag = layer_collection_sync(
+		short child_runtime_flag = layer_collection_sync(
 		        view_layer, &collection->children,
 		        &lc->layer_collections, new_object_bases,
 		        lc->flag, child_restrict);
@@ -669,6 +676,10 @@ static int layer_collection_sync(
 
 		/* Sync objects, except if collection was excluded. */
 		for (CollectionObject *cob = collection->gobject.first; cob; cob = cob->next) {
+			if (cob->ob == NULL) {
+				continue;
+			}
+
 			Base *base = BLI_ghash_lookup(view_layer->object_bases_hash, cob->ob);
 
 			if (base) {
@@ -715,6 +726,7 @@ static int layer_collection_sync(
 
 			if (base->flag & BASE_HIDDEN) {
 				view_layer->runtime_flag |= VIEW_LAYER_HAS_HIDE;
+				lc->runtime_flag |= LAYER_COLLECTION_HAS_HIDDEN_OBJECTS;
 			}
 			else if (base->flag & BASE_VISIBLE) {
 				lc->runtime_flag |= LAYER_COLLECTION_HAS_VISIBLE_OBJECTS;
@@ -779,7 +791,7 @@ void BKE_layer_collection_sync(const Scene *scene, ViewLayer *view_layer)
 	const ListBase collections = {&child, &child};
 	ListBase new_object_bases = {NULL, NULL};
 
-	const int parent_exclude = 0, parent_restrict = 0;
+	const short parent_exclude = 0, parent_restrict = 0;
 	layer_collection_sync(
 	        view_layer, &collections,
 	        &view_layer->layer_collections, &new_object_bases,
@@ -1414,8 +1426,9 @@ void BKE_layer_eval_view_layer(
 
 	/* Visibility based on depsgraph mode. */
 	const eEvaluationMode mode = DEG_get_mode(depsgraph);
-	const int base_flag = (mode == DAG_EVAL_VIEWPORT) ? BASE_ENABLED_VIEWPORT : BASE_ENABLED_RENDER;
-
+	const int base_visible_flag = (mode == DAG_EVAL_VIEWPORT)
+	        ? BASE_ENABLED_VIEWPORT
+	        : BASE_ENABLED_RENDER;
 	/* Create array of bases, for fast index-based lookup. */
 	const int num_object_bases = BLI_listbase_count(&view_layer->object_bases);
 	MEM_SAFE_FREE(view_layer->object_bases_array);
@@ -1424,9 +1437,8 @@ void BKE_layer_eval_view_layer(
 	int base_index = 0;
 	for (Base *base = view_layer->object_bases.first; base; base = base->next) {
 		/* Compute visibility for depsgraph evaluation mode. */
-		if (base->flag & base_flag) {
+		if (base->flag & base_visible_flag) {
 			base->flag |= BASE_ENABLED | BASE_VISIBLE;
-
 			if (mode == DAG_EVAL_VIEWPORT && (base->flag & BASE_HIDDEN)) {
 				base->flag &= ~BASE_VISIBLE;
 			}
@@ -1434,24 +1446,23 @@ void BKE_layer_eval_view_layer(
 		else {
 			base->flag &= ~(BASE_ENABLED | BASE_VISIBLE | BASE_SELECTABLE);
 		}
-
 		/* If base is not selectabled, clear select. */
 		if ((base->flag & BASE_SELECTABLE) == 0) {
 			base->flag &= ~BASE_SELECTED;
 		}
-
 		view_layer->object_bases_array[base_index++] = base;
 	}
-
 	/* Flush back base flag to the original view layer for editing. */
 	if (view_layer == DEG_get_evaluated_view_layer(depsgraph)) {
 		ViewLayer *view_layer_orig = DEG_get_input_view_layer(depsgraph);
 		Base *base_orig = view_layer_orig->object_bases.first;
 		const Base *base_eval = view_layer->object_bases.first;
 		while (base_orig != NULL) {
-			base_orig->flag = base_eval->flag;
+			if (base_orig->flag & base_visible_flag) {
+				base_orig->flag = base_eval->flag;
+				base_eval = base_eval->next;
+			}
 			base_orig = base_orig->next;
-			base_eval = base_eval->next;
 		}
 	}
 }

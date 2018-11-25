@@ -43,7 +43,6 @@
 #include "DNA_texture_types.h"
 
 #include "BKE_animsys.h"
-#include "BKE_main.h"
 #include "BKE_node.h"
 #include "BKE_image.h"
 #include "BKE_texture.h"
@@ -190,7 +189,6 @@ static const EnumPropertyItem prop_shader_output_target_items[] = {
 
 #include "BKE_context.h"
 #include "BKE_idprop.h"
-#include "BKE_library.h"
 
 #include "BKE_global.h"
 
@@ -750,7 +748,7 @@ static void rna_NodeTree_node_remove(bNodeTree *ntree, Main *bmain, ReportList *
 	}
 
 	id_us_min(node->id);
-	nodeFreeNode(ntree, node);
+	nodeDeleteNode(bmain, ntree, node);
 	RNA_POINTER_INVALIDATE(node_ptr);
 
 	ntreeUpdateTree(bmain, ntree); /* update group node socket links */
@@ -770,7 +768,7 @@ static void rna_NodeTree_node_clear(bNodeTree *ntree, Main *bmain, ReportList *r
 		if (node->id)
 			id_us_min(node->id);
 
-		nodeFreeNode(ntree, node);
+		nodeDeleteNode(bmain, ntree, node);
 
 		node = next_node;
 	}

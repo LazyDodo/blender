@@ -305,7 +305,6 @@ const EnumPropertyItem rna_enum_axis_flag_xyz_items[] = {
 
 #include "BKE_cachefile.h"
 #include "BKE_context.h"
-#include "BKE_library.h"
 #include "BKE_mesh_runtime.h"
 #include "BKE_modifier.h"
 #include "BKE_object.h"
@@ -1542,19 +1541,22 @@ static void rna_def_modifier_mirror(BlenderRNA *brna)
 	RNA_def_struct_sdna(srna, "MirrorModifierData");
 	RNA_def_struct_ui_icon(srna, ICON_MOD_MIRROR);
 
-	prop = RNA_def_property(srna, "use_x", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "use_axis", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_MIR_AXIS_X);
-	RNA_def_property_ui_text(prop, "X", "Enable X axis mirror");
+	RNA_def_property_array(prop, 3);
+	RNA_def_property_ui_text(prop, "Mirror Axis", "Enable axis mirror");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
-	prop = RNA_def_property(srna, "use_y", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_MIR_AXIS_Y);
-	RNA_def_property_ui_text(prop, "Y", "Enable Y axis mirror");
+	prop = RNA_def_property(srna, "use_bisect_axis", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_MIR_BISECT_AXIS_X);
+	RNA_def_property_array(prop, 3);
+	RNA_def_property_ui_text(prop, "Bisect Axis", "Cuts the mesh across the mirrorplane");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
-	prop = RNA_def_property(srna, "use_z", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_MIR_AXIS_Z);
-	RNA_def_property_ui_text(prop, "Z", "Enable Z axis mirror");
+	prop = RNA_def_property(srna, "use_bisect_flip_axis", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_MIR_BISECT_FLIP_AXIS_X);
+	RNA_def_property_array(prop, 3);
+	RNA_def_property_ui_text(prop, "Bisect Flip Axis", "Flips the direction of the slice");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
 	prop = RNA_def_property(srna, "use_clip", PROP_BOOLEAN, PROP_NONE);
@@ -3167,6 +3169,9 @@ static void rna_def_modifier_shrinkwrap(BlenderRNA *brna)
 		                         "Shrink the mesh to the nearest target surface along a given axis"},
 		{MOD_SHRINKWRAP_NEAREST_VERTEX, "NEAREST_VERTEX", 0, "Nearest Vertex",
 		                                "Shrink the mesh to the nearest target vertex"},
+		{MOD_SHRINKWRAP_TARGET_PROJECT, "TARGET_PROJECT", 0, "Target Normal Project",
+		                                "Shrink the mesh to the nearest target surface "
+		                                "along the interpolated vertex normals of the target"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
@@ -5086,7 +5091,7 @@ void RNA_def_modifier(BlenderRNA *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "mode", eModifierMode_Expanded);
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
 	RNA_def_property_ui_text(prop, "Expanded", "Set modifier expanded in the user interface");
-	RNA_def_property_ui_icon(prop, ICON_TRIA_RIGHT, 1);
+	RNA_def_property_ui_icon(prop, ICON_DISCLOSURE_TRI_RIGHT, 1);
 
 	prop = RNA_def_property(srna, "use_apply_on_spline", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "mode", eModifierMode_ApplyOnSpline);

@@ -688,9 +688,6 @@ void BKE_scene_init(Scene *sce)
 	sce->toolsettings->imapaint.normal_angle = 80;
 	sce->toolsettings->imapaint.seam_bleed = 2;
 
-	/* alloc grease pencil drawing brushes */
-	sce->toolsettings->gp_paint = MEM_callocN(sizeof(GpPaint), "GpPaint");
-
 	/* grease pencil multiframe falloff curve */
 	sce->toolsettings->gp_sculpt.cur_falloff = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
 	CurveMapping *gp_falloff_curve = sce->toolsettings->gp_sculpt.cur_falloff;
@@ -778,65 +775,65 @@ void BKE_scene_init(Scene *sce)
 
 	/* GP Sculpt brushes */
 	{
-		GP_BrushEdit_Settings *gset = &sce->toolsettings->gp_sculpt;
-		GP_EditBrush_Data *gp_brush;
+		GP_Sculpt_Settings *gset = &sce->toolsettings->gp_sculpt;
+		GP_Sculpt_Data *gp_brush;
 		float curcolor_add[3], curcolor_sub[3];
 		ARRAY_SET_ITEMS(curcolor_add, 1.0f, 0.6f, 0.6f);
 		ARRAY_SET_ITEMS(curcolor_sub, 0.6f, 0.6f, 1.0f);
 
-		gp_brush = &gset->brush[GP_EDITBRUSH_TYPE_SMOOTH];
+		gp_brush = &gset->brush[GP_SCULPT_TYPE_SMOOTH];
 		gp_brush->size = 25;
 		gp_brush->strength = 0.3f;
-		gp_brush->flag = GP_EDITBRUSH_FLAG_USE_FALLOFF | GP_EDITBRUSH_FLAG_SMOOTH_PRESSURE | GP_EDITBRUSH_FLAG_ENABLE_CURSOR;
+		gp_brush->flag = GP_SCULPT_FLAG_USE_FALLOFF | GP_SCULPT_FLAG_SMOOTH_PRESSURE | GP_SCULPT_FLAG_ENABLE_CURSOR;
 		copy_v3_v3(gp_brush->curcolor_add, curcolor_add);
 		copy_v3_v3(gp_brush->curcolor_sub, curcolor_sub);
 
-		gp_brush = &gset->brush[GP_EDITBRUSH_TYPE_THICKNESS];
+		gp_brush = &gset->brush[GP_SCULPT_TYPE_THICKNESS];
 		gp_brush->size = 25;
 		gp_brush->strength = 0.5f;
-		gp_brush->flag = GP_EDITBRUSH_FLAG_USE_FALLOFF | GP_EDITBRUSH_FLAG_ENABLE_CURSOR;
+		gp_brush->flag = GP_SCULPT_FLAG_USE_FALLOFF | GP_SCULPT_FLAG_ENABLE_CURSOR;
 		copy_v3_v3(gp_brush->curcolor_add, curcolor_add);
 		copy_v3_v3(gp_brush->curcolor_sub, curcolor_sub);
 
-		gp_brush = &gset->brush[GP_EDITBRUSH_TYPE_STRENGTH];
+		gp_brush = &gset->brush[GP_SCULPT_TYPE_STRENGTH];
 		gp_brush->size = 25;
 		gp_brush->strength = 0.5f;
-		gp_brush->flag = GP_EDITBRUSH_FLAG_USE_FALLOFF | GP_EDITBRUSH_FLAG_ENABLE_CURSOR;
+		gp_brush->flag = GP_SCULPT_FLAG_USE_FALLOFF | GP_SCULPT_FLAG_ENABLE_CURSOR;
 		copy_v3_v3(gp_brush->curcolor_add, curcolor_add);
 		copy_v3_v3(gp_brush->curcolor_sub, curcolor_sub);
 
-		gp_brush = &gset->brush[GP_EDITBRUSH_TYPE_GRAB];
+		gp_brush = &gset->brush[GP_SCULPT_TYPE_GRAB];
 		gp_brush->size = 50;
 		gp_brush->strength = 0.3f;
-		gp_brush->flag = GP_EDITBRUSH_FLAG_USE_FALLOFF | GP_EDITBRUSH_FLAG_ENABLE_CURSOR;
+		gp_brush->flag = GP_SCULPT_FLAG_USE_FALLOFF | GP_SCULPT_FLAG_ENABLE_CURSOR;
 		copy_v3_v3(gp_brush->curcolor_add, curcolor_add);
 		copy_v3_v3(gp_brush->curcolor_sub, curcolor_sub);
 
-		gp_brush = &gset->brush[GP_EDITBRUSH_TYPE_PUSH];
+		gp_brush = &gset->brush[GP_SCULPT_TYPE_PUSH];
 		gp_brush->size = 25;
 		gp_brush->strength = 0.3f;
-		gp_brush->flag = GP_EDITBRUSH_FLAG_USE_FALLOFF | GP_EDITBRUSH_FLAG_ENABLE_CURSOR;
+		gp_brush->flag = GP_SCULPT_FLAG_USE_FALLOFF | GP_SCULPT_FLAG_ENABLE_CURSOR;
 		copy_v3_v3(gp_brush->curcolor_add, curcolor_add);
 		copy_v3_v3(gp_brush->curcolor_sub, curcolor_sub);
 
-		gp_brush = &gset->brush[GP_EDITBRUSH_TYPE_TWIST];
+		gp_brush = &gset->brush[GP_SCULPT_TYPE_TWIST];
 		gp_brush->size = 50;
-		gp_brush->strength = 0.3f; // XXX?
-		gp_brush->flag = GP_EDITBRUSH_FLAG_USE_FALLOFF | GP_EDITBRUSH_FLAG_ENABLE_CURSOR;
+		gp_brush->strength = 0.3f;
+		gp_brush->flag = GP_SCULPT_FLAG_USE_FALLOFF | GP_SCULPT_FLAG_ENABLE_CURSOR;
 		copy_v3_v3(gp_brush->curcolor_add, curcolor_add);
 		copy_v3_v3(gp_brush->curcolor_sub, curcolor_sub);
 
-		gp_brush = &gset->brush[GP_EDITBRUSH_TYPE_PINCH];
+		gp_brush = &gset->brush[GP_SCULPT_TYPE_PINCH];
 		gp_brush->size = 50;
-		gp_brush->strength = 0.5f; // XXX?
-		gp_brush->flag = GP_EDITBRUSH_FLAG_USE_FALLOFF | GP_EDITBRUSH_FLAG_ENABLE_CURSOR;
+		gp_brush->strength = 0.5f;
+		gp_brush->flag = GP_SCULPT_FLAG_USE_FALLOFF | GP_SCULPT_FLAG_ENABLE_CURSOR;
 		copy_v3_v3(gp_brush->curcolor_add, curcolor_add);
 		copy_v3_v3(gp_brush->curcolor_sub, curcolor_sub);
 
-		gp_brush = &gset->brush[GP_EDITBRUSH_TYPE_RANDOMIZE];
+		gp_brush = &gset->brush[GP_SCULPT_TYPE_RANDOMIZE];
 		gp_brush->size = 25;
 		gp_brush->strength = 0.5f;
-		gp_brush->flag = GP_EDITBRUSH_FLAG_USE_FALLOFF | GP_EDITBRUSH_FLAG_ENABLE_CURSOR;
+		gp_brush->flag = GP_SCULPT_FLAG_USE_FALLOFF | GP_SCULPT_FLAG_ENABLE_CURSOR;
 		copy_v3_v3(gp_brush->curcolor_add, curcolor_add);
 		copy_v3_v3(gp_brush->curcolor_sub, curcolor_sub);
 	}
@@ -875,6 +872,8 @@ void BKE_scene_init(Scene *sce)
 	sce->eevee.gi_visibility_resolution = 32;
 	sce->eevee.gi_cubemap_draw_size = 0.3f;
 	sce->eevee.gi_irradiance_draw_size = 0.1f;
+	sce->eevee.gi_irradiance_smoothing = 0.1f;
+	sce->eevee.gi_filter_quality = 1.0f;
 
 	sce->eevee.taa_samples = 16;
 	sce->eevee.taa_render_samples = 64;
@@ -918,6 +917,7 @@ void BKE_scene_init(Scene *sce)
 	sce->eevee.shadow_cascade_size = 1024;
 
 	sce->eevee.light_cache = NULL;
+	sce->eevee.light_threshold = 0.01f;
 
 	sce->eevee.overscan = 3.0f;
 
@@ -1412,6 +1412,11 @@ void BKE_scene_graph_update_tagged(Depsgraph *depsgraph,
 	Scene *scene = DEG_get_input_scene(depsgraph);
 	ViewLayer *view_layer = DEG_get_input_view_layer(depsgraph);
 
+	bool run_callbacks = DEG_id_type_any_updated(depsgraph);
+	if (run_callbacks) {
+		BLI_callback_exec(bmain, &scene->id, BLI_CB_EVT_DEPSGRAPH_UPDATE_PRE);
+	}
+
 	/* TODO(sergey): Some functions here are changing global state,
 	 * for example, clearing update tags from bmain.
 	 */
@@ -1429,6 +1434,11 @@ void BKE_scene_graph_update_tagged(Depsgraph *depsgraph,
 	DEG_evaluate_on_refresh(depsgraph);
 	/* Update sound system animation (TODO, move to depsgraph). */
 	BKE_sound_update_scene(bmain, scene);
+
+	/* Notify python about depsgraph update */
+	if (run_callbacks) {
+		BLI_callback_exec(bmain, &scene->id, BLI_CB_EVT_DEPSGRAPH_UPDATE_POST);
+	}
 	/* Inform editors about possible changes. */
 	DEG_ids_check_recalc(bmain, depsgraph, scene, view_layer, false);
 	/* Clear recalc flags. */

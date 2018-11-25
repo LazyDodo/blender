@@ -47,7 +47,6 @@
 #include "BKE_collection.h"
 #include "BKE_global.h"
 #include "BKE_layer.h"
-#include "BKE_library.h"
 
 #include "WM_api.h"
 
@@ -163,7 +162,7 @@ static PointerRNA rna_Collection_children_get(CollectionPropertyIterator *iter)
 {
 	ListBaseIterator *internal = &iter->internal.listbase;
 
-	/* we are actually iterating a CollectionBase list, so override get */
+	/* we are actually iterating a CollectionChild list, so override get */
 	CollectionChild *child = (CollectionChild *)internal->link;
 	return rna_pointer_inherit_refine(&iter->parent, &RNA_Collection, child->collection);
 }

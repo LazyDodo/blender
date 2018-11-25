@@ -67,14 +67,6 @@ void ED_operatormacros_hair(void)
 
 void ED_keymap_hair(wmKeyConfig *keyconf)
 {
-	wmKeyMap *keymap;
-	wmKeyMapItem *kmi;
-
-	UNUSED_VARS(kmi);
-	
-	keymap = WM_keymap_ensure(keyconf, "Hair", 0, 0);
+	wmKeyMap *keymap = WM_keymap_ensure(keyconf, "Hair", 0, 0);
 	keymap->poll = ED_operator_edithair;
-	
-	ED_keymap_proportional_cycle(keyconf, keymap);
-	ED_keymap_proportional_editmode(keyconf, keymap, true);
 }

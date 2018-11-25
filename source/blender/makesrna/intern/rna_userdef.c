@@ -81,7 +81,8 @@ const EnumPropertyItem rna_enum_navigation_mode_items[] = {
 
 #if defined(WITH_INTERNATIONAL) || !defined(RNA_RUNTIME)
 static const EnumPropertyItem rna_enum_language_default_items[] = {
-	{0, "DEFAULT", 0, "Default (Default)", ""},
+	{0, "DEFAULT", 0, "Automatic (Automatic)",
+	 "Automatically choose system's defined language if available, or fall-back to English"},
 	{0, NULL, 0, NULL, NULL}
 };
 #endif
@@ -208,18 +209,6 @@ static void rna_userdef_undo_steps_set(PointerRNA *ptr, int value)
 
 	/* Do not allow 1 undo steps, useless and breaks undo/redo process (see T42531). */
 	userdef->undosteps = (value == 1) ? 2 : value;
-}
-
-static void rna_userdef_select_mouse_set(PointerRNA *ptr, int value)
-{
-	UserDef *userdef = (UserDef *)ptr->data;
-
-	if (value) {
-		userdef->flag |= USER_LMOUSESELECT;
-		userdef->flag &= ~USER_TWOBUTTONMOUSE;
-	}
-	else
-		userdef->flag &= ~USER_LMOUSESELECT;
 }
 
 static int rna_userdef_autokeymode_get(PointerRNA *ptr)
@@ -560,34 +549,34 @@ static StructRNA *rna_AddonPref_register(
         Main *bmain, ReportList *reports, void *data, const char *identifier,
         StructValidateFunc validate, StructCallbackFunc call, StructFreeFunc free)
 {
-	bAddonPrefType *apt, dummyapt = {{'\0'}};
-	bAddon dummyaddon = {NULL};
-	PointerRNA dummyhtr;
+	bAddonPrefType *apt, dummy_apt = {{'\0'}};
+	bAddon dummy_addon = {NULL};
+	PointerRNA dummy_ptr;
 	// int have_function[1];
 
-	/* setup dummy header & header type to store static properties in */
-	RNA_pointer_create(NULL, &RNA_AddonPreferences, &dummyaddon, &dummyhtr);
+	/* setup dummy addon-pref & addon-pref type to store static properties in */
+	RNA_pointer_create(NULL, &RNA_AddonPreferences, &dummy_addon, &dummy_ptr);
 
 	/* validate the python class */
-	if (validate(&dummyhtr, data, NULL /* have_function */ ) != 0)
+	if (validate(&dummy_ptr, data, NULL /* have_function */ ) != 0)
 		return NULL;
 
-	BLI_strncpy(dummyapt.idname, dummyaddon.module, sizeof(dummyapt.idname));
-	if (strlen(identifier) >= sizeof(dummyapt.idname)) {
+	BLI_strncpy(dummy_apt.idname, dummy_addon.module, sizeof(dummy_apt.idname));
+	if (strlen(identifier) >= sizeof(dummy_apt.idname)) {
 		BKE_reportf(reports, RPT_ERROR, "Registering add-on preferences class: '%s' is too long, maximum length is %d",
-		            identifier, (int)sizeof(dummyapt.idname));
+		            identifier, (int)sizeof(dummy_apt.idname));
 		return NULL;
 	}
 
-	/* check if we have registered this header type before, and remove it */
-	apt = BKE_addon_pref_type_find(dummyaddon.module, true);
+	/* check if we have registered this addon-pref type before, and remove it */
+	apt = BKE_addon_pref_type_find(dummy_addon.module, true);
 	if (apt && apt->ext.srna) {
 		rna_AddonPref_unregister(bmain, apt->ext.srna);
 	}
 
-	/* create a new header type */
+	/* create a new addon-pref type */
 	apt = MEM_mallocN(sizeof(bAddonPrefType), "addonpreftype");
-	memcpy(apt, &dummyapt, sizeof(dummyapt));
+	memcpy(apt, &dummy_apt, sizeof(dummy_apt));
 	BKE_addon_pref_type_add(apt);
 
 	apt->ext.srna = RNA_def_struct_ptr(&BLENDER_RNA, identifier, &RNA_AddonPreferences);
@@ -738,7 +727,7 @@ static void rna_UserDef_studiolight_spherical_harmonics_coefficients_get(Pointer
 {
 	StudioLight *sl = (StudioLight *)ptr->data;
 	float *value = values;
-	for (int i = 0; i < STUDIOLIGHT_SPHERICAL_HARMONICS_COMPONENTS; i++) {
+	for (int i = 0; i < STUDIOLIGHT_SH_EFFECTIVE_COEFS_LEN; i++) {
 		copy_v3_v3(value, sl->spherical_harmonics_coefs[i]);
 		value += 3;
 	}
@@ -1733,7 +1722,7 @@ static void rna_def_userdef_theme_space_view3d(BlenderRNA *brna)
 	/* General Viewport options */
 
 	prop = RNA_def_property(srna, "grid", PROP_FLOAT, PROP_COLOR_GAMMA);
-	RNA_def_property_array(prop, 3);
+	RNA_def_property_array(prop, 4);
 	RNA_def_property_ui_text(prop, "Grid", "");
 	RNA_def_property_update(prop, 0, "rna_userdef_update");
 
@@ -3391,7 +3380,7 @@ static void rna_def_userdef_studiolight(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "SH Cache Path", "Path where the spherical harmonics cache is stored");
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 
-	const int spherical_harmonics_dim[] = {STUDIOLIGHT_SPHERICAL_HARMONICS_COMPONENTS, 3};
+	const int spherical_harmonics_dim[] = {STUDIOLIGHT_SH_EFFECTIVE_COEFS_LEN, 3};
 	prop = RNA_def_property(srna, "spherical_harmonics_coefficients", PROP_FLOAT, PROP_COLOR);
 	RNA_def_property_multi_array(prop, 2, spherical_harmonics_dim);
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
@@ -3733,8 +3722,8 @@ static void rna_def_userdef_view(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "use_mouse_depth_cursor", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_DEPTH_CURSOR);
-	RNA_def_property_ui_text(prop, "Cursor Depth",
-	                         "Use the depth under the mouse when placing the cursor");
+	RNA_def_property_ui_text(prop, "Cursor Surface Project",
+	                         "Use the surface depth for cursor placement");
 
 	prop = RNA_def_property(srna, "use_cursor_lock_adjust", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_LOCK_CURSOR_ADJUST);
@@ -4208,12 +4197,7 @@ static void rna_def_userdef_system(BlenderRNA *brna)
 	RNA_def_struct_clear_flag(srna, STRUCT_UNDO);
 	RNA_def_struct_ui_text(srna, "System & OpenGL", "Graphics driver and operating system settings");
 
-	/* Language */
-
-	prop = RNA_def_property(srna, "use_international_fonts", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "transopts", USER_DOTRANSLATE);
-	RNA_def_property_ui_text(prop, "International Fonts", "Use international fonts");
-	RNA_def_property_update(prop, NC_WINDOW, "rna_userdef_language_update");
+	/* UI settings. */
 
 	prop = RNA_def_property(srna, "ui_scale", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
@@ -4258,7 +4242,12 @@ static void rna_def_userdef_system(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Author",
 	                         "Name that will be used in exported files when format supports such feature");
 
-	/* Language Selection */
+	/* Language. */
+
+	prop = RNA_def_property(srna, "use_international_fonts", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "transopts", USER_DOTRANSLATE);
+	RNA_def_property_ui_text(prop, "Translate UI", "Enable UI translation and use international fonts");
+	RNA_def_property_update(prop, NC_WINDOW, "rna_userdef_language_update");
 
 	prop = RNA_def_property(srna, "language", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_items(prop, rna_enum_language_default_items);
@@ -4270,17 +4259,21 @@ static void rna_def_userdef_system(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "use_translate_tooltips", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "transopts", USER_TR_TOOLTIPS);
-	RNA_def_property_ui_text(prop, "Translate Tooltips", "Translate tooltips");
+	RNA_def_property_ui_text(prop, "Translate Tooltips",
+	                         "Translate the descriptions when hovering UI elements (recommended)");
 	RNA_def_property_update(prop, 0, "rna_userdef_update");
 
 	prop = RNA_def_property(srna, "use_translate_interface", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "transopts", USER_TR_IFACE);
-	RNA_def_property_ui_text(prop, "Translate Interface", "Translate interface");
+	RNA_def_property_ui_text(prop, "Translate Interface",
+	                         "Translate all labels in menus, buttons and panels "
+	                         "(note that this might make it hard to follow tutorials or the manual)");
 	RNA_def_property_update(prop, 0, "rna_userdef_update");
 
 	prop = RNA_def_property(srna, "use_translate_new_dataname", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "transopts", USER_TR_NEWDATANAME);
-	RNA_def_property_ui_text(prop, "Translate New Names", "Translate new data names (when adding/creating some)");
+	RNA_def_property_ui_text(prop, "Translate New Names",
+	                         "Translate the names of new data-blocks (objects, materials...)");
 	RNA_def_property_update(prop, 0, "rna_userdef_update");
 
 	/* System & OpenGL */
@@ -4495,12 +4488,6 @@ static void rna_def_userdef_input(BlenderRNA *brna)
 	PropertyRNA *prop;
 	StructRNA *srna;
 
-	static const EnumPropertyItem select_mouse_items[] = {
-		{USER_LMOUSESELECT, "LEFT", 0, "Left", "Use left Mouse Button for selection"},
-		{0, "RIGHT", 0, "Right", "Use Right Mouse Button for selection"},
-		{0, NULL, 0, NULL, NULL}
-	};
-
 	static const EnumPropertyItem view_rotation_items[] = {
 		{0, "TURNTABLE", 0, "Turntable", "Use turntable style rotation in the viewport"},
 		{USER_TRACKBALL, "TRACKBALL", 0, "Trackball", "Use trackball style rotation in the viewport"},
@@ -4541,11 +4528,9 @@ static void rna_def_userdef_input(BlenderRNA *brna)
 	RNA_def_struct_clear_flag(srna, STRUCT_UNDO);
 	RNA_def_struct_ui_text(srna, "Input", "Settings for input devices");
 
-	prop = RNA_def_property(srna, "select_mouse", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_bitflag_sdna(prop, NULL, "flag");
-	RNA_def_property_enum_items(prop, select_mouse_items);
-	RNA_def_property_enum_funcs(prop, NULL, "rna_userdef_select_mouse_set", NULL);
-	RNA_def_property_ui_text(prop, "Select Mouse", "Mouse button used for selection");
+	prop = RNA_def_property(srna, "show_ui_keyconfig", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_negative_sdna(prop, NULL, "userpref_flag", USER_SECTION_INPUT_HIDE_UI_KEYCONFIG);
+	RNA_def_property_ui_text(prop, "Show UI Key-Config", "");
 
 	prop = RNA_def_property(srna, "view_zoom_method", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "viewzoom");
@@ -4596,6 +4581,20 @@ static void rna_def_userdef_input(BlenderRNA *brna)
 	RNA_def_property_range(prop, 3, 1024);
 	RNA_def_property_ui_text(prop, "Tweak Threshold",
 	                         "Number of pixels you have to drag before tweak event is triggered");
+
+	/* tablet pressure curve */
+	prop = RNA_def_property(srna, "pressure_threshold_max", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_range(prop, 0.0f, 1.0f);
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 0.01f, 3);
+	RNA_def_property_ui_text(prop, "Max Threshold",
+	                         "Raw input pressure value that is interpreted as 100% by Blender");
+
+	prop = RNA_def_property(srna, "pressure_softness", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_range(prop, -FLT_MAX, FLT_MAX);
+	RNA_def_property_ui_range(prop, -1.0f, 1.0f, 0.1f, 2);
+	RNA_def_property_ui_text(prop, "Softness",
+	                         "Adjusts softness of the low pressure response onset using a gamma curve");
 
 #ifdef WITH_INPUT_NDOF
 	/* 3D mouse settings */

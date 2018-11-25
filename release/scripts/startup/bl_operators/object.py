@@ -92,7 +92,7 @@ class SelectPattern(Operator):
                         if item_parent is not None:
                             item_parent.select_tail = True
                 else:
-                    item.select_set(action='SELECT')
+                    item.select_set(True)
 
         return {'FINISHED'}
 
@@ -139,7 +139,7 @@ class SelectCamera(Operator):
                 bpy.ops.object.select_all(action='DESELECT')
             view_layer.objects.active = camera
             # camera.hide = False  # XXX TODO where is this now?
-            camera.select_set(action='SELECT')
+            camera.select_set(True)
             return {'FINISHED'}
 
         return {'CANCELLED'}
@@ -205,7 +205,7 @@ class SelectHierarchy(Operator):
                 bpy.ops.object.select_all(action='DESELECT')
 
             for obj in select_new:
-                obj.select_set(action='SELECT')
+                obj.select_set(True)
 
             view_layer.objects.active = act_new
             return {'FINISHED'}
@@ -646,8 +646,8 @@ class MakeDupliFace(Operator):
             ob_new.use_dupli_faces_scale = True
             ob_new.dupli_faces_scale = 1.0 / SCALE_FAC
 
-            ob_inst.select_set(action='SELECT')
-            ob_new.select_set(action='SELECT')
+            ob_inst.select_set(True)
+            ob_new.select_set(True)
 
     def execute(self, context):
         self._main(context)
@@ -870,10 +870,7 @@ class DupliOffsetFromCursor(Operator):
         return {'FINISHED'}
 
 
-class LoadImageAsEmpty(Operator):
-    """Select an image file and create a new image empty with it"""
-    bl_idname = "object.load_image_as_empty"
-    bl_label = "Load Image as Empty"
+class LoadImageAsEmpty:
     bl_options = {'REGISTER', 'UNDO'}
 
     filepath: StringProperty(
@@ -896,6 +893,7 @@ class LoadImageAsEmpty(Operator):
         scene = context.scene
         space = context.space_data
         cursor = (space if space and space.type == 'VIEW_3D' else scene).cursor_location
+
         try:
             image = bpy.data.images.load(self.filepath, check_existing=True)
         except RuntimeError as ex:
@@ -908,10 +906,38 @@ class LoadImageAsEmpty(Operator):
             location=cursor,
             view_align=self.view_align,
         )
+
         obj = context.active_object
         obj.data = image
         obj.empty_display_size = 5.0
+        self.set_settings(context, obj)
         return {'FINISHED'}
+
+    def set_settings(self, context, obj):
+        pass
+
+
+class LoadBackgroundImage(LoadImageAsEmpty, Operator):
+    """Add a reference image into the background behind objects"""
+    bl_idname = "object.load_background_image"
+    bl_label = "Load Background Image"
+
+    def set_settings(self, context, obj):
+        obj.empty_image_depth = "BACK"
+        obj.show_empty_image_backside = False
+
+        if context.space_data.type == "VIEW_3D":
+            if not context.space_data.region_3d.is_perspective:
+                obj.show_empty_image_perspective = False
+
+
+class LoadReferenceImage(LoadImageAsEmpty, Operator):
+    """Add a reference image into the scene between objects"""
+    bl_idname = "object.load_reference_image"
+    bl_label = "Load Reference Image"
+
+    def set_settings(self, context, obj):
+        pass
 
 
 classes = (
@@ -919,7 +945,8 @@ classes = (
     DupliOffsetFromCursor,
     IsolateTypeRender,
     JoinUVs,
-    LoadImageAsEmpty,
+    LoadBackgroundImage,
+    LoadReferenceImage,
     MakeDupliFace,
     SelectCamera,
     SelectHierarchy,

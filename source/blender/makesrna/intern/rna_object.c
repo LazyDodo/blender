@@ -99,14 +99,14 @@ const EnumPropertyItem rna_enum_workspace_object_mode_items[] = {
 };
 
 const EnumPropertyItem rna_enum_object_empty_drawtype_items[] = {
-	{OB_PLAINAXES, "PLAIN_AXES", 0, "Plain Axes", ""},
-	{OB_ARROWS, "ARROWS", 0, "Arrows", ""},
-	{OB_SINGLE_ARROW, "SINGLE_ARROW", 0, "Single Arrow", ""},
-	{OB_CIRCLE, "CIRCLE", 0, "Circle", ""},
-	{OB_CUBE, "CUBE", 0, "Cube", ""},
-	{OB_EMPTY_SPHERE, "SPHERE", 0, "Sphere", ""},
-	{OB_EMPTY_CONE, "CONE", 0, "Cone", ""},
-	{OB_EMPTY_IMAGE, "IMAGE", 0, "Image", ""},
+	{OB_PLAINAXES, "PLAIN_AXES", ICON_EMPTY_AXIS, "Plain Axes", ""},
+	{OB_ARROWS, "ARROWS", ICON_EMPTY_ARROWS, "Arrows", ""},
+	{OB_SINGLE_ARROW, "SINGLE_ARROW", ICON_EMPTY_SINGLE_ARROW, "Single Arrow", ""},
+	{OB_CIRCLE, "CIRCLE", ICON_MESH_CIRCLE, "Circle", ""},
+	{OB_CUBE, "CUBE", ICON_CUBE, "Cube", ""},
+	{OB_EMPTY_SPHERE, "SPHERE", ICON_SPHERE, "Sphere", ""},
+	{OB_EMPTY_CONE, "CONE", ICON_CONE, "Cone", ""},
+	{OB_EMPTY_IMAGE, "IMAGE", ICON_FILE_IMAGE, "Image", ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -118,8 +118,8 @@ const EnumPropertyItem rna_enum_object_empty_image_depth_items[] = {
 };
 
 const EnumPropertyItem rna_enum_object_gpencil_type_items[] = {
-	{GP_EMPTY, "EMPTY", ICON_GP_EMPTY, "Blank", "Create an empty grease pencil object"},
-	{GP_STROKE, "STROKE", ICON_GP_STROKE, "Stroke", "Create a simple stroke with basic colors"},
+	{GP_EMPTY, "EMPTY", ICON_EMPTY_AXIS, "Blank", "Create an empty grease pencil object"},
+	{GP_STROKE, "STROKE", ICON_STROKE, "Stroke", "Create a simple stroke with basic colors"},
 	{GP_MONKEY, "MONKEY", ICON_MONKEY, "Monkey", "Construct a Suzanne grease pencil object"},
 	{0, NULL, 0, NULL, NULL }
 };
@@ -381,8 +381,8 @@ static void rna_Object_data_set(PointerRNA *ptr, PointerRNA value)
 		return;
 	}
 
-	BLI_assert(BKE_id_is_in_gobal_main(&ob->id));
-	BLI_assert(BKE_id_is_in_gobal_main(id));
+	BLI_assert(BKE_id_is_in_global_main(&ob->id));
+	BLI_assert(BKE_id_is_in_global_main(id));
 
 	if (ob->type == OB_EMPTY) {
 		if (ob->data) {
@@ -812,8 +812,8 @@ static void rna_Object_active_material_set(PointerRNA *ptr, PointerRNA value)
 	Object *ob = (Object *)ptr->id.data;
 
 	DEG_id_tag_update(value.data, 0);
-	BLI_assert(BKE_id_is_in_gobal_main(&ob->id));
-	BLI_assert(BKE_id_is_in_gobal_main(value.data));
+	BLI_assert(BKE_id_is_in_global_main(&ob->id));
+	BLI_assert(BKE_id_is_in_global_main(value.data));
 	assign_material(G_MAIN, ob, value.data, ob->actcol, BKE_MAT_ASSIGN_EXISTING);
 }
 
@@ -1006,8 +1006,8 @@ static void rna_MaterialSlot_material_set(PointerRNA *ptr, PointerRNA value)
 	Object *ob = (Object *)ptr->id.data;
 	int index = (Material **)ptr->data - ob->mat;
 
-	BLI_assert(BKE_id_is_in_gobal_main(&ob->id));
-	BLI_assert(BKE_id_is_in_gobal_main(value.data));
+	BLI_assert(BKE_id_is_in_global_main(&ob->id));
+	BLI_assert(BKE_id_is_in_global_main(value.data));
 	assign_material(G_MAIN, ob, value.data, index + 1, BKE_MAT_ASSIGN_EXISTING);
 }
 
@@ -2510,6 +2510,11 @@ static void rna_def_object(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "show_empty_image_orthographic", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "empty_image_visibility_flag", OB_EMPTY_IMAGE_VISIBLE_ORTHOGRAPHIC);
 	RNA_def_property_ui_text(prop, "Display in Orthographic Mode", "Display image in orthographic mode");
+	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
+
+	prop = RNA_def_property(srna, "show_empty_image_backside", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "empty_image_visibility_flag", OB_EMPTY_IMAGE_VISIBLE_BACKSIDE);
+	RNA_def_property_ui_text(prop, "Display Back Side", "Display empty image even when viewed from the back");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
 
 	/* render */

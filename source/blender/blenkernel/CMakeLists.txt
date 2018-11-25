@@ -131,6 +131,7 @@ set(SRC
 	intern/image_gen.c
 	intern/ipo.c
 	intern/key.c
+	intern/keyconfig.c
 	intern/lamp.c
 	intern/lattice.c
 	intern/library.c
@@ -139,6 +140,7 @@ set(SRC
 	intern/library_query.c
 	intern/library_remap.c
 	intern/linestyle.c
+	intern/main.c
 	intern/mask.c
 	intern/mask_evaluate.c
 	intern/mask_rasterize.c
@@ -286,6 +288,7 @@ set(SRC
 	BKE_image.h
 	BKE_ipo.h
 	BKE_key.h
+	BKE_keyconfig.h
 	BKE_lamp.h
 	BKE_lattice.h
 	BKE_library.h

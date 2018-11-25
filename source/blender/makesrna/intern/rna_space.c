@@ -275,21 +275,21 @@ const EnumPropertyItem rna_enum_clip_editor_mode_items[] = {
 
 /* Actually populated dynamically trough a function, but helps for context-less access (e.g. doc, i18n...). */
 static const EnumPropertyItem buttons_context_items[] = {
-	{BCONTEXT_TOOL, "TOOL", ICON_TOOL_SETTINGS, "Tool", "Tool settings"},
+	{BCONTEXT_TOOL, "TOOL", ICON_TOOL_SETTINGS, "Tool", "Active Tool and Workspace settings"},
 	{BCONTEXT_SCENE, "SCENE", ICON_SCENE_DATA, "Scene", "Scene"},
 	{BCONTEXT_RENDER, "RENDER", ICON_SCENE, "Render", "Render"},
-	{BCONTEXT_OUTPUT, "OUTPUT", ICON_IMAGE_DATA, "Output", "Render output"},
-	{BCONTEXT_VIEW_LAYER, "VIEW_LAYER", ICON_RENDER_RESULT, "View Layer", "View layer"},
+	{BCONTEXT_OUTPUT, "OUTPUT", ICON_OUTPUT, "Output", "Output"},
+	{BCONTEXT_VIEW_LAYER, "VIEW_LAYER", ICON_RENDER_RESULT, "View Layer", "View Layer"},
 	{BCONTEXT_WORLD, "WORLD", ICON_WORLD, "World", "World"},
 	{BCONTEXT_OBJECT, "OBJECT", ICON_OBJECT_DATA, "Object", "Object"},
-	{BCONTEXT_CONSTRAINT, "CONSTRAINT", ICON_CONSTRAINT, "Constraints", "Object constraints"},
-	{BCONTEXT_MODIFIER, "MODIFIER", ICON_MODIFIER, "Modifiers", "Object modifiers"},
-	{BCONTEXT_DATA, "DATA", ICON_NONE, "Data", "Object data"},
+	{BCONTEXT_CONSTRAINT, "CONSTRAINT", ICON_CONSTRAINT, "Constraints", "Object Constraints"},
+	{BCONTEXT_MODIFIER, "MODIFIER", ICON_MODIFIER, "Modifiers", "Modifiers"},
+	{BCONTEXT_DATA, "DATA", ICON_NONE, "Data", "Object Data"},
 	{BCONTEXT_BONE, "BONE", ICON_BONE_DATA, "Bone", "Bone"},
-	{BCONTEXT_BONE_CONSTRAINT, "BONE_CONSTRAINT", ICON_CONSTRAINT_BONE, "Bone Constraints", "Bone constraints"},
+	{BCONTEXT_BONE_CONSTRAINT, "BONE_CONSTRAINT", ICON_CONSTRAINT_BONE, "Bone Constraints", "Bone Constraints"},
 	{BCONTEXT_MATERIAL, "MATERIAL", ICON_MATERIAL, "Material", "Material"},
 	{BCONTEXT_TEXTURE, "TEXTURE", ICON_TEXTURE, "Texture", "Texture"},
-	{BCONTEXT_PARTICLE, "PARTICLES", ICON_PARTICLES, "Particles", "Particle"},
+	{BCONTEXT_PARTICLE, "PARTICLES", ICON_PARTICLES, "Particles", "Particles"},
 	{BCONTEXT_PHYSICS, "PHYSICS", ICON_PHYSICS, "Physics", "Physics"},
 	{BCONTEXT_SHADERFX, "SHADERFX", ICON_SHADERFX, "Effects", "Object visual effects" },
 	{0, NULL, 0, NULL, NULL}
@@ -1060,7 +1060,7 @@ static void rna_SpaceImageEditor_image_set(PointerRNA *ptr, PointerRNA value)
 	ViewLayer *view_layer = WM_window_get_active_view_layer(win);
 	Object *obedit = OBEDIT_FROM_VIEW_LAYER(view_layer);
 
-	BLI_assert(BKE_id_is_in_gobal_main(value.data));
+	BLI_assert(BKE_id_is_in_global_main(value.data));
 	ED_space_image_set(G_MAIN, sima, scene, obedit, (Image *)value.data);
 }
 
@@ -1560,21 +1560,21 @@ static void rna_SpaceDopeSheetEditor_mode_update(bContext *C, PointerRNA *ptr)
 	if (saction->mode == SACTCONT_SHAPEKEY) {
 		Key *key = BKE_key_from_object(obact);
 
-		/* 1)	update the action stored for the editor */
+		/* 1) update the action stored for the editor */
 		if (key)
 			saction->action = (key->adt) ? key->adt->action : NULL;
 		else
 			saction->action = NULL;
 
-		/* 2)	enable 'show sliders' by default, since one of the main
-		 *		points of the ShapeKey Editor is to provide a one-stop shop
-		 *		for controlling the shapekeys, whose main control is the value
+		/* 2) enable 'show sliders' by default, since one of the main
+		 *    points of the ShapeKey Editor is to provide a one-stop shop
+		 *    for controlling the shapekeys, whose main control is the value
 		 */
 		saction->flag |= SACTION_SLIDERS;
 	}
 	/* make sure action stored is valid */
 	else if (saction->mode == SACTCONT_ACTION) {
-		/* 1)	update the action stored for the editor */
+		/* 1) update the action stored for the editor */
 		/* TODO: context selector could help decide this with more control? */
 		if (obact)
 			saction->action = (obact->adt) ? obact->adt->action : NULL;
@@ -2550,7 +2550,7 @@ static void rna_def_space_view3d_shading(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	prop = RNA_def_property(srna, "show_xray_wireframe", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", V3D_SHADING_XRAY_WIREFRAME);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", V3D_SHADING_XRAY_BONE);
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_ui_text(prop, "Show X-Ray", "Show whole scene transparent");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
@@ -2733,14 +2733,14 @@ static void rna_def_space_view3d_overlay(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Face Orientation", "Show the Face Orientation Overlay");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
-	prop = RNA_def_property(srna, "show_bone_select", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "show_xray_bone", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "overlay.flag", V3D_OVERLAY_BONE_SELECT);
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
-	RNA_def_property_ui_text(prop, "Bone Selection", "Show the Bone Selection Overlay");
+	RNA_def_property_ui_text(prop, "Show Bone X-Ray", "Show the bone selection overlay");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_GPencil_update");
 
-	prop = RNA_def_property(srna, "bone_select_alpha", PROP_FLOAT, PROP_FACTOR);
-	RNA_def_property_float_sdna(prop, NULL, "overlay.bone_select_alpha");
+	prop = RNA_def_property(srna, "xray_alpha_bone", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_float_sdna(prop, NULL, "overlay.xray_alpha_bone");
 	RNA_def_property_float_default(prop, 0.5f);
 	RNA_def_property_ui_text(prop, "Opacity", "Opacity to use for bone selection");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
@@ -3460,7 +3460,7 @@ static void rna_def_space_buttons(BlenderRNA *brna)
 	RNA_def_property_enum_sdna(prop, NULL, "mainb");
 	RNA_def_property_enum_items(prop, buttons_context_items);
 	RNA_def_property_enum_funcs(prop, NULL, "rna_SpaceProperties_context_set", "rna_SpaceProperties_context_itemf");
-	RNA_def_property_ui_text(prop, "Context", "Type of active data to display and edit");
+	RNA_def_property_ui_text(prop, "Context", "");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_PROPERTIES, "rna_SpaceProperties_context_update");
 
 	/* pinned data */
@@ -3629,7 +3629,7 @@ static void rna_def_space_sequencer(BlenderRNA *brna)
 
 	static const EnumPropertyItem view_type_items[] = {
 		{SEQ_VIEW_SEQUENCE, "SEQUENCER", ICON_SEQ_SEQUENCER, "Sequencer", ""},
-		{SEQ_VIEW_PREVIEW,  "PREVIEW", ICON_SEQ_PREVIEW, "Image Preview", ""},
+		{SEQ_VIEW_PREVIEW,  "PREVIEW", ICON_SEQ_PREVIEW, "Preview", ""},
 		{SEQ_VIEW_SEQUENCE_PREVIEW,  "SEQUENCER_PREVIEW", ICON_SEQ_SPLITVIEW, "Sequencer/Preview", ""},
 		{0, NULL, 0, NULL, NULL}
 	};

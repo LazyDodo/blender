@@ -134,7 +134,6 @@ static void gp_draw_stroke_buffer(
 		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 		immUniformColor3fvAlpha(ink, ink[3]);
 
-		/* TODO: implement this with a geometry shader to draw one continuous tapered stroke */
 		immBeginAtMost(GPU_PRIM_LINE_STRIP, totpoints);
 
 		for (int i = 0; i < totpoints; i++, pt++) {
@@ -263,8 +262,6 @@ static void gp_draw_stroke_3d(
 	immBindBuiltinProgram(GPU_SHADER_3D_UNIFORM_COLOR);
 	immUniformColor3fvAlpha(ink, ink[3]);
 
-	/* TODO: implement this with a geometry shader to draw one continuous tapered stroke */
-
 	/* draw stroke curve */
 	GPU_line_width(max_ff(curpressure * thickness, 1.0f));
 	immBeginAtMost(GPU_PRIM_LINE_STRIP, totpoints + cyclic_add);
@@ -337,8 +334,6 @@ static void gp_draw_stroke_2d(
 		scalefac = 0.001f;
 	}
 
-	/* TODO: fancy++ with the magic of shaders */
-
 	/* tessellation code - draw stroke as series of connected quads (triangle strips in fact) with connection
 	 * edges rotated to minimize shrinking artifacts, and rounded endcaps
 	 */
@@ -380,7 +375,7 @@ static void gp_draw_stroke_2d(
 			/* if the first segment, start of segment is segment's normal */
 			if (i == 0) {
 				/* draw start cap first
-				 *	- make points slightly closer to center (about halfway across)
+				 * - make points slightly closer to center (about halfway across)
 				 */
 				mt[0] = m2[0] * pthick * 0.5f;
 				mt[1] = m2[1] * pthick * 0.5f;
@@ -421,7 +416,7 @@ static void gp_draw_stroke_2d(
 
 				/* calculate gradient to apply
 				 *  - as basis, use just pthick * bisector gradient
-				 *	- if cross-section not as thick as it should be, add extra padding to fix it
+				 * - if cross-section not as thick as it should be, add extra padding to fix it
 				 */
 				mt[0] = mb[0] * pthick;
 				mt[1] = mb[1] * pthick;
@@ -463,7 +458,7 @@ static void gp_draw_stroke_2d(
 				immVertex2fv(pos, t1);
 
 				/* draw end cap as last step
-				 *	- make points slightly closer to center (about halfway across)
+				 * - make points slightly closer to center (about halfway across)
 				 */
 				mt[0] = m2[0] * pthick * 0.5f;
 				mt[1] = m2[1] * pthick * 0.5f;
@@ -893,8 +888,8 @@ static void gp_draw_data_all(
 
 /* ............................
  * XXX
- *	We need to review the calls below, since they may be/are not that suitable for
- *	the new ways that we intend to be drawing data...
+ * We need to review the calls below, since they may be/are not that suitable for
+ * the new ways that we intend to be drawing data...
  * ............................ */
 
 /* draw grease-pencil sketches to specified 2d-view that uses ibuf corrections */
