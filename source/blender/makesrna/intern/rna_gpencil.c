@@ -1200,8 +1200,8 @@ static void rna_def_gpencil_layer(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Lock Material", "Disable Material editing");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
-	prop = RNA_def_property(srna, "use_mask", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_LAYER_USE_MASK);
+	prop = RNA_def_property(srna, "disable_mask", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_negative_sdna(prop, NULL, "flag", GP_LAYER_USE_MASK);
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_ui_text(prop, "Mask", "Use underlying layers as mask");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);

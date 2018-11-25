@@ -7,7 +7,10 @@ uniform sampler2D strokeDepth;
 uniform sampler2D blendColor;
 uniform sampler2D blendDepth;
 uniform int mode;
-uniform int use_mask;
+uniform int disable_mask;
+
+const float weight = 1.0 / 9.0;
+#define THRESHOLD 0.01f
 
 #define MODE_NORMAL   0
 #define MODE_OVERLAY  1
@@ -36,9 +39,6 @@ vec4 get_blend_color(int mode, vec4 src_color, vec4 blend_color)
 
 	if (mix_color.a == 0) {
 		outcolor = src_color;
-	}
-	else if (mode == MODE_NORMAL) {
-		outcolor = mix_color;
 	}
 	else if (mode == MODE_OVERLAY) {
 		mix_color.rgb = mix_color.rgb * mix_color.a;
@@ -74,16 +74,24 @@ vec4 get_blend_color(int mode, vec4 src_color, vec4 blend_color)
 	return outcolor;
 }
 
+vec4 get_blurcolor(ivec2 uv, ivec2 xy)
+{
+	vec4 blend_color =  texelFetch(blendColor, uv + xy, 0).rgba;
+	return blend_color; // * weight;
+}
+
 void main()
 {
+	vec4 outcolor;
 	ivec2 uv = ivec2(gl_FragCoord.xy);
 	vec4 stroke_color =  texelFetch(strokeColor, uv, 0).rgba;
 	float stroke_depth = texelFetch(strokeDepth, uv, 0).r;
-	if ((stroke_color.a == 0) && (use_mask == 1)) {
+	if ((stroke_color.a == 0) && (disable_mask == 1)) {
 		discard;
 	}
 	
 	vec4 mix_color =  texelFetch(blendColor, uv, 0).rgba;
+	float mix_depth = texelFetch(blendDepth, uv, 0).r;
 
 	/* premult alpha factor to remove double blend effects */
 	if (stroke_color.a > 0) {
@@ -92,16 +100,44 @@ void main()
 	if (mix_color.a > 0) {
 		mix_color = vec4(vec3(mix_color.rgb / mix_color.a), mix_color.a);
 	}
+	
+	/* Normal mode */
+	if (mode == MODE_NORMAL) {
+		if (mix_color.a > THRESHOLD) {
+			outcolor =  mix_color;
+			gl_FragDepth = mix_depth;
+		}
+		else {
+			/* blur edges with box blur */
+			vec4 blur = mix_color * weight;
+			blur += get_blurcolor(uv, ivec2(-1, -1));
+			blur += get_blurcolor(uv, ivec2(0, -1));
+			blur += get_blurcolor(uv, ivec2(+1, -1));
 
-	vec4 outcolor = get_blend_color(mode, stroke_color, mix_color);
+			blur += get_blurcolor(uv, ivec2(-1, 0));
+			blur += get_blurcolor(uv, ivec2(+1, 0));
+			
+			blur += get_blurcolor(uv, ivec2(-1, 1));
+			blur += get_blurcolor(uv, ivec2(0, 1));
+			blur += get_blurcolor(uv, ivec2(+1, 1));
+			
+			vec3 adj_blur =stroke_color.rgb * blur.a;
 
-	/* if not using mask, return mix color */
-	if ((stroke_color.a == 0) && (use_mask == 0)) {
-		FragColor = mix_color;
-		gl_FragDepth = texelFetch(blendDepth, uv, 0).r;
+			outcolor = vec4(vec3(stroke_color.rgb + adj_blur.rgb), stroke_color.a); 
+			gl_FragDepth = stroke_depth;
+		}
+		FragColor = outcolor;
 		return;
 	}
 	
-	FragColor = outcolor;
+	/* if not using mask, return mix color */
+	if ((stroke_color.a == 0) && (disable_mask == 0)) {
+		FragColor = mix_color;
+		gl_FragDepth = mix_depth;
+		return;
+	}
+
+	/* apply blend mode */
+	FragColor = get_blend_color(mode, stroke_color, mix_color);
 	gl_FragDepth = stroke_depth;
 }

@@ -503,7 +503,7 @@ void GPENCIL_cache_init(void *vedata)
 		DRW_shgroup_uniform_texture_ref(blend_shgrp, "blendColor", &e_data.temp_color_tx_fx);
 		DRW_shgroup_uniform_texture_ref(blend_shgrp, "blendDepth", &e_data.temp_depth_tx_fx);
 		DRW_shgroup_uniform_int(blend_shgrp, "mode", &stl->storage->blend_mode, 1);
-		DRW_shgroup_uniform_int(blend_shgrp, "use_mask", &stl->storage->use_mask, 1);
+		DRW_shgroup_uniform_int(blend_shgrp, "disable_mask", &stl->storage->disable_mask, 1);
 
 		/* create effects passes */
 		if (!stl->storage->simplify_fx) {
@@ -771,53 +771,53 @@ void GPENCIL_draw_scene(void *ved)
 				/* Stroke Pass:
 				 * draw only a subset that usually starts with a fill and ends with stroke
 				 */
+				bool use_blend = false;
 				if (cache_ob->tot_layers > 0) {
 					for (int e = 0; e < cache_ob->tot_layers; e++) {
 						array_elm = &cache_ob->shgrp_array[e];
-						if ((array_elm->mode == eGplBlendMode_Normal) && (init_shgrp == NULL))
+
+						if ((array_elm->mode == eGplBlendMode_Normal) && (!use_blend))
 						{
-							init_shgrp = array_elm->init_shgrp;
+							if (init_shgrp == NULL) {
+								init_shgrp = array_elm->init_shgrp;
+							}
 							end_shgrp = array_elm->end_shgrp;
 						}
 						else {
-							if (array_elm->mode == eGplBlendMode_Normal) {
-								end_shgrp = array_elm->end_shgrp;
-							}
-							else {
-								/* draw pending groups */
-								gpencil_draw_pass_range(fbl, stl, psl, txl, init_shgrp, end_shgrp);
+							use_blend = true;
+							/* draw pending groups */
+							gpencil_draw_pass_range(fbl, stl, psl, txl, init_shgrp, end_shgrp);
 
-								/* draw current group in separated texture */
-								init_shgrp = array_elm->init_shgrp;
-								end_shgrp = array_elm->end_shgrp;
+							/* draw current group in separated texture */
+							init_shgrp = array_elm->init_shgrp;
+							end_shgrp = array_elm->end_shgrp;
 
-								GPU_framebuffer_bind(fbl->temp_fb_fx);
-								GPU_framebuffer_clear_color_depth(fbl->temp_fb_fx, clearcol, 1.0f);
-								DRW_draw_pass_subset(psl->stroke_pass, init_shgrp, end_shgrp);
+							GPU_framebuffer_bind(fbl->temp_fb_fx);
+							GPU_framebuffer_clear_color_depth(fbl->temp_fb_fx, clearcol, 1.0f);
+							DRW_draw_pass_subset(psl->stroke_pass, init_shgrp, end_shgrp);
 
-								/* Blend A texture and FX texture */
-								GPU_framebuffer_bind(fbl->temp_fb_b);
-								GPU_framebuffer_clear_color_depth(fbl->temp_fb_b, clearcol, 1.0f);
-								stl->storage->blend_mode = array_elm->mode;
-								stl->storage->use_mask = (int)array_elm->use_mask;
-								DRW_draw_pass(psl->blend_pass);
+							/* Blend A texture and FX texture */
+							GPU_framebuffer_bind(fbl->temp_fb_b);
+							GPU_framebuffer_clear_color_depth(fbl->temp_fb_b, clearcol, 1.0f);
+							stl->storage->blend_mode = array_elm->mode;
+							stl->storage->disable_mask = (int)array_elm->disable_mask;
+							DRW_draw_pass(psl->blend_pass);
 
-								/* Copy B texture to A texture to follow loop */
-								e_data.input_depth_tx = e_data.temp_depth_tx_b;
-								e_data.input_color_tx = e_data.temp_color_tx_b;
+							/* Copy B texture to A texture to follow loop */
+							e_data.input_depth_tx = e_data.temp_depth_tx_b;
+							e_data.input_color_tx = e_data.temp_color_tx_b;
 
-								GPU_framebuffer_bind(fbl->temp_fb_a);
-								GPU_framebuffer_clear_color_depth(fbl->temp_fb_a, clearcol, 1.0f);
-								DRW_draw_pass(psl->mix_pass_noblend);
-								/* prepare next group */
-								init_shgrp = NULL;
-							}
+							GPU_framebuffer_bind(fbl->temp_fb_a);
+							GPU_framebuffer_clear_color_depth(fbl->temp_fb_a, clearcol, 1.0f);
+							DRW_draw_pass(psl->mix_pass_noblend);
+
+							/* prepare next group */
+							init_shgrp = NULL;
 						}
 
 					}
 					/* last group */
 					gpencil_draw_pass_range(fbl, stl, psl, txl, init_shgrp, end_shgrp);
-
 				}
 
 				/* Current buffer drawing */
