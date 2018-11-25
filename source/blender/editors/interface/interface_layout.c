@@ -691,22 +691,23 @@ static void ui_item_enum_expand_exec(
 		const bool is_first = item == item_array;
 
 		if (!item->identifier[0]) {
-			if (item->name) {
-				if (!is_first) {
-					uiItemS(block->curlayout);
-				}
-				BLI_snprintf(group_name, sizeof(group_name), "%s:", item->name);
-				uiItemL(block->curlayout, group_name, item->icon);
-			}
-			else {
-				const EnumPropertyItem *next_item = item + 1;
-				if (next_item->identifier) {
-					if (radial && layout_radial) {
-						uiItemS(layout_radial);
-					}
-					else {
+			const EnumPropertyItem *next_item = item + 1;
+
+			/* Separate items, potentially with a label. */
+			if (next_item->identifier) {
+				/* Item without identifier but with name: Add group label for the following items. */
+				if (item->name) {
+					if (!is_first) {
 						uiItemS(block->curlayout);
 					}
+					BLI_snprintf(group_name, sizeof(group_name), "%s:", item->name);
+					uiItemL(block->curlayout, group_name, item->icon);
+				}
+				else if (radial && layout_radial) {
+					uiItemS(layout_radial);
+				}
+				else {
+					uiItemS(block->curlayout);
 				}
 			}
 			continue;
