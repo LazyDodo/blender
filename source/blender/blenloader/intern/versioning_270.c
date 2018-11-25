@@ -51,7 +51,6 @@
 #include "DNA_mesh_types.h"
 #include "DNA_modifier_types.h"
 #include "DNA_particle_types.h"
-#include "DNA_rigidbody_types.h"
 #include "DNA_linestyle_types.h"
 #include "DNA_view3d_types.h"
 #include "DNA_smoke_types.h"

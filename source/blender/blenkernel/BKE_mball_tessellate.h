@@ -27,18 +27,11 @@ struct Depsgraph;
 struct Main;
 struct Object;
 struct Scene;
-struct DerivedMesh;
-struct DispList;
 
 void BKE_mball_polygonize(
         struct Depsgraph *depsgraph, struct Scene *scene,
         struct Object *ob, struct ListBase *dispbase);
 
 void BKE_mball_cubeTable_free(void);
-
-struct DerivedMesh* BKE_repolygonize_dm(struct DerivedMesh *dm, float thresh, float basesize[3], float wiresize,
-                                        float rendersize, bool render, bool override_size, int defgrp_size);
-
-void BKE_dm_from_metaball(struct DispList *dl, struct DerivedMesh *dm, struct DerivedMesh *odm, int *orig_index);
 
 #endif  /* __BKE_MBALL_TESSELLATE_H__ */

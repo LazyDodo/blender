@@ -1667,8 +1667,6 @@ static void make_object_duplilist_real(bContext *C, Scene *scene, Base *base,
 
 	BKE_main_id_clear_newpoins(bmain);
 
-	BKE_main_id_clear_newpoins(bmain);
-
 	base->object->transflag &= ~OB_DUPLI;
 }
 

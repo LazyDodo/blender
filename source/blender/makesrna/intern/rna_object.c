@@ -215,7 +215,6 @@ const EnumPropertyItem rna_enum_object_axis_items[] = {
 #include "DNA_gpencil_types.h"
 #include "DNA_ID.h"
 #include "DNA_lattice_types.h"
-#include "DNA_modifier_types.h"
 #include "DNA_node_types.h"
 
 #include "BKE_armature.h"

@@ -30,9 +30,6 @@ from .properties_physics_common import (
 COMPAT_OB_TYPES = {'MESH', 'LATTICE', 'CURVE', 'SURFACE', 'FONT'}
 
 
-COMPAT_OB_TYPES = {'MESH', 'LATTICE', 'CURVE', 'SURFACE', 'FONT'}
-
-
 def softbody_panel_enabled(md):
     return (md.point_cache.is_baked is False)
 

@@ -50,7 +50,6 @@ set(SRC
 	object_bake_api.c
 	object_collection.c
 	object_constraint.c
-	object_data_transfer.c
 	object_edit.c
 	object_facemap_ops.c
 	object_hook.c
@@ -63,6 +62,7 @@ set(SRC
 	object_relations.c
 	object_select.c
 	object_shapekey.c
+	object_data_transfer.c
 	object_transform.c
 	object_warp.c
 	object_vgroup.c

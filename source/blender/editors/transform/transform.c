@@ -9032,11 +9032,6 @@ static void applyTimeSlideValue(TransInfo *t, float sval)
 					*(td->val) = BKE_nla_tweakedit_remap(adt, *(td->val), NLATIME_CONVERT_UNMAP);
 				}
 			}
-			
-			if (adt) {
-				/* global to strip */
-				*(td->val) = BKE_nla_tweakedit_remap(adt, *(td->val), NLATIME_CONVERT_UNMAP);
-			}
 		}
 	}
 }

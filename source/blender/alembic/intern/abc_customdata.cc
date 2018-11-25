@@ -276,7 +276,6 @@ static void read_uvs(const CDStreamConfig &config, void *data,
 		unsigned int rev_loop_offset = poly.loopstart + poly.totloop - 1;
 
 		for (int f = 0; f < poly.totloop; ++f) {
-			rev_loop_index = poly.loopstart + poly.totloop - f - 1;
 			loop_index = poly.loopstart + f;
 			rev_loop_index = rev_loop_offset - f;
 			uv_index = (*indices)[loop_index];

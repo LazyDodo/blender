@@ -243,6 +243,7 @@ static void setup_app_data(
 	CTX_data_main_set(C, bmain);
 
 	if (bfd->user) {
+
 		/* only here free userdef themes... */
 		BKE_blender_userdef_data_set_and_free(bfd->user);
 		bfd->user = NULL;

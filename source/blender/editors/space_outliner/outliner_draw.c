@@ -985,6 +985,7 @@ TreeElementIcon tree_element_get_icon(TreeStoreElem *tselem, TreeElement *te)
 							data.icon = ICON_MOD_CLOTH;
 							break;
 						case eModifierType_Explode:
+						case eModifierType_Fracture:
 							data.icon = ICON_MOD_EXPLODE;
 							break;
 						case eModifierType_Collision:

@@ -654,7 +654,6 @@ void RE_bake_pixels_populate(
 		zbuf_alloc_span(&bd.zspan[i], bake_images->data[i].width, bake_images->data[i].height);
 	}
 
-
 	looptri = MEM_mallocN(sizeof(*looptri) * tottri, __func__);
 
 	BKE_mesh_recalc_looptri(

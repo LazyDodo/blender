@@ -566,8 +566,8 @@ static void export_fluid_objects(const bContext *C, ListBase *fobjects, Scene *s
 			fsmesh.channelScale            = NULL;
 
 			/* Override user settings, only noslip is supported here! */
-			//if (fsmesh.type != OB_FLUIDSIM_CONTROL)
-			//	fsmesh.obstacleType = FLUIDSIM_OBSTACLE_NOSLIP;
+			if (fsmesh.type != OB_FLUIDSIM_CONTROL)
+				fsmesh.obstacleType = FLUIDSIM_OBSTACLE_NOSLIP;
 		}
 
 		elbeemAddMesh(&fsmesh);

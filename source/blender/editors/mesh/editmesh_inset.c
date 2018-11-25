@@ -128,11 +128,6 @@ static bool edbm_inset_init(bContext *C, wmOperator *op, const bool is_modal)
 		RNA_float_set(op->ptr, "depth", 0.0f);
 	}
 
-	if (is_modal) {
-		RNA_float_set(op->ptr, "thickness", 0.01f);
-		RNA_float_set(op->ptr, "depth", 0.0f);
-	}
-
 	op->customdata = opdata = MEM_mallocN(sizeof(InsetData), "inset_operator_data");
 
 	uint objects_used_len = 0;

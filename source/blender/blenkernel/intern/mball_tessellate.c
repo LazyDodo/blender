@@ -61,10 +61,6 @@
 /* experimental (faster) normal calculation */
 // #define USE_ACCUM_NORMAL
 
-struct MVert;
-struct MLoop;
-struct MPoly;
-
 /* Data types */
 
 typedef struct corner {         /* corner of a cube */
@@ -74,7 +70,7 @@ typedef struct corner {         /* corner of a cube */
 } CORNER;
 
 typedef struct cube {           /* partitioning cell (cube) */
-	int i, j, k, index;         /* lattice location of cube + original index ? */
+	int i, j, k;                /* lattice location of cube */
 	CORNER *corners[8];         /* eight corners */
 } CUBE;
 
@@ -141,15 +137,13 @@ typedef struct process {        /* parameters, storage */
 	unsigned int totvertex;		/* memory size */
 	unsigned int curvertex;		/* currently added vertices */
 
-	int* orig_index;			/* map new vertices to original ones */
-
 	/* memory allocation from common pool */
 	MemArena *pgn_elements;
 } PROCESS;
 
 /* Forward declarations */
-static int vertid(PROCESS *process, const CORNER *c1, const CORNER *c2, int index);
-static void add_cube(PROCESS *process, int i, int j, int k, int index);
+static int vertid(PROCESS *process, const CORNER *c1, const CORNER *c2);
+static void add_cube(PROCESS *process, int i, int j, int k);
 static void make_face(PROCESS *process, int i1, int i2, int i3, int i4);
 static void converge(PROCESS *process, const CORNER *c1, const CORNER *c2, float r_p[3]);
 
@@ -449,7 +443,6 @@ static void freepolygonize(PROCESS *process)
 	if (process->mainb) MEM_freeN(process->mainb);
 	if (process->bvh_queue) MEM_freeN(process->bvh_queue);
 	if (process->pgn_elements) BLI_memarena_free(process->pgn_elements);
-	if (process->orig_index) MEM_freeN(process->orig_index);
 }
 
 /* **************** POLYGONIZATION ************************ */
@@ -505,12 +498,12 @@ static void docube(PROCESS *process, CUBE *cube)
 	}
 
 	/* Using faces[] table, adds neighbouring cube if surface intersects face in this direction. */
-	if (MB_BIT(faces[index], 0)) add_cube(process, cube->i - 1, cube->j, cube->k, cube->index);
-	if (MB_BIT(faces[index], 1)) add_cube(process, cube->i + 1, cube->j, cube->k, cube->index);
-	if (MB_BIT(faces[index], 2)) add_cube(process, cube->i, cube->j - 1, cube->k, cube->index);
-	if (MB_BIT(faces[index], 3)) add_cube(process, cube->i, cube->j + 1, cube->k, cube->index);
-	if (MB_BIT(faces[index], 4)) add_cube(process, cube->i, cube->j, cube->k - 1, cube->index);
-	if (MB_BIT(faces[index], 5)) add_cube(process, cube->i, cube->j, cube->k + 1, cube->index);
+	if (MB_BIT(faces[index], 0)) add_cube(process, cube->i - 1, cube->j, cube->k);
+	if (MB_BIT(faces[index], 1)) add_cube(process, cube->i + 1, cube->j, cube->k);
+	if (MB_BIT(faces[index], 2)) add_cube(process, cube->i, cube->j - 1, cube->k);
+	if (MB_BIT(faces[index], 3)) add_cube(process, cube->i, cube->j + 1, cube->k);
+	if (MB_BIT(faces[index], 4)) add_cube(process, cube->i, cube->j, cube->k - 1);
+	if (MB_BIT(faces[index], 5)) add_cube(process, cube->i, cube->j, cube->k + 1);
 
 	/* Using cubetable[], determines polygons for output. */
 	for (polys = cubetable[index]; polys; polys = polys->next) {
@@ -522,7 +515,7 @@ static void docube(PROCESS *process, CUBE *cube)
 			c1 = cube->corners[corner1[edges->i]];
 			c2 = cube->corners[corner2[edges->i]];
 
-			indexar[count] = vertid(process, c1, c2, cube->index);
+			indexar[count] = vertid(process, c1, c2);
 			count++;
 		}
 
@@ -818,18 +811,16 @@ static int getedge(EDGELIST *table[],
 /**
  * Adds a vertex, expands memory if needed.
  */
-static void addtovertices(PROCESS *process, const float v[3], const float no[3], const int index)
+static void addtovertices(PROCESS *process, const float v[3], const float no[3])
 {
 	if (process->curvertex == process->totvertex) {
 		process->totvertex += 4096;
 		process->co = MEM_reallocN(process->co, process->totvertex * sizeof(float[3]));
 		process->no = MEM_reallocN(process->no, process->totvertex * sizeof(float[3]));
-		process->orig_index = MEM_reallocN(process->orig_index, process->totvertex * sizeof(int));
 	}
 
 	copy_v3_v3(process->co[process->curvertex], v);
 	copy_v3_v3(process->no[process->curvertex], no);
-	process->orig_index[process->curvertex] = index;
 
 	process->curvertex++;
 }
@@ -856,7 +847,7 @@ static void vnormal(PROCESS *process, const float point[3], float r_no[3])
  *
  * If it wasn't previously computed, does #converge() and adds vertex to process.
  */
-static int vertid(PROCESS *process, const CORNER *c1, const CORNER *c2, int index)
+static int vertid(PROCESS *process, const CORNER *c1, const CORNER *c2)
 {
 	float v[3], no[3];
 	int vid = getedge(process->edges, c1->i, c1->j, c1->k, c2->i, c2->j, c2->k);
@@ -871,7 +862,7 @@ static int vertid(PROCESS *process, const CORNER *c1, const CORNER *c2, int inde
 	vnormal(process, v, no);
 #endif
 
-	addtovertices(process, v, no, index);            /* save vertex */
+	addtovertices(process, v, no);            /* save vertex */
 	vid = (int)process->curvertex - 1;
 	setedge(process, c1->i, c1->j, c1->k, c2->i, c2->j, c2->k, vid);
 
@@ -924,7 +915,7 @@ static void converge(PROCESS *process, const CORNER *c1, const CORNER *c2, float
 /**
  * Adds cube at given lattice position to cube stack of process.
  */
-static void add_cube(PROCESS *process, int i, int j, int k, int index)
+static void add_cube(PROCESS *process, int i, int j, int k)
 {
 	CUBES *ncube;
 	int n;
@@ -939,7 +930,6 @@ static void add_cube(PROCESS *process, int i, int j, int k, int index)
 		ncube->cube.i = i;
 		ncube->cube.j = j;
 		ncube->cube.k = k;
-		ncube->cube.index = index;
 
 		/* set corners of initial cube: */
 		for (n = 0; n < 8; n++)
@@ -1003,7 +993,7 @@ static void find_first_points(PROCESS *process, const unsigned int em)
 						add[1] = it[1] - dir[1];
 						add[2] = it[2] - dir[2];
 						DO_MIN(it, add);
-						add_cube(process, add[0], add[1], add[2], (int)em);
+						add_cube(process, add[0], add[1], add[2]);
 						break;
 					}
 				} while ((it[0] > lbn[0]) && (it[1] > lbn[1]) && (it[2] > lbn[2]) &&
@@ -1234,7 +1224,6 @@ void BKE_mball_polygonize(Depsgraph *depsgraph, Scene *scene, Object *ob, ListBa
 
 	mb = ob->data;
 
-	process.orig_index = NULL;
 	process.thresh = mb->thresh;
 
 	if      (process.thresh < 0.001f) process.converge_res = 16;

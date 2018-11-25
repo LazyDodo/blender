@@ -370,11 +370,6 @@ static enum eViewOpsFlag viewops_flag_from_prefs(void)
 
 /**
  * Calculate the values for #ViewOpsData
- *
- * \param use_ensure_persp: When enabled run #view3d_ensure_persp this may switch out of
- * camera view when orbiting or switch from ortho to perspective when auto-persp is enabled.
- * Some operations don't require this (view zoom/pan or ndof where subtle rotation is common
- * so we don't want it to trigger auto-perspective).
  */
 static void viewops_data_create(
         bContext *C, wmOperator *op, const wmEvent *event,

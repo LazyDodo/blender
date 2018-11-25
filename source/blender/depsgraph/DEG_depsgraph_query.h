@@ -131,7 +131,7 @@ typedef struct DEGObjectIterData {
 	/* Temporary storage to report fully populated DNA to the render engine or
 	 * other users of the iterator.
 	 */
-    struct Object temp_dupli_object;
+	struct Object temp_dupli_object;
 
 	/* **** Iteration over ID nodes **** */
 	size_t id_node_index;
@@ -193,7 +193,7 @@ void DEG_iterator_ids_end(struct BLI_Iterator *iter);
 
 /* ************************ DEG traversal ********************* */
 
-typedef void (*DEGForeachIDCallback)(struct ID *id, void *user_data);
+typedef void (*DEGForeachIDCallback)(ID *id, void *user_data);
 
 /* NOTE: Modifies runtime flags in depsgraph nodes, so can not be used in
  * parallel. Keep an eye on that!
@@ -202,7 +202,7 @@ void DEG_foreach_ancestor_ID(const Depsgraph *depsgraph,
                              const ID *id,
                              DEGForeachIDCallback callback, void *user_data);
 void DEG_foreach_dependent_ID(const Depsgraph *depsgraph,
-                              const struct ID *id,
+                              const ID *id,
                               DEGForeachIDCallback callback, void *user_data);
 
 void DEG_foreach_ID(const Depsgraph *depsgraph,

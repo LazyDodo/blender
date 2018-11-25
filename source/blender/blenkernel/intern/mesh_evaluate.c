@@ -291,7 +291,6 @@ void BKE_mesh_calc_normals_poly(
         int numLoops, int numPolys, float (*r_polynors)[3],
         const bool only_face_normals)
 {
-	const bool do_threaded = (numPolys > BKE_MESH_OMP_LIMIT);
 	float (*pnors)[3] = r_polynors;
 
 	ParallelRangeSettings settings;

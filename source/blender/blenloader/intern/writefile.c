@@ -121,7 +121,6 @@
 #include "DNA_gpencil_modifier_types.h"
 #include "DNA_shader_fx_types.h"
 #include "DNA_fileglobal_types.h"
-#include "DNA_fracture_types.h"
 #include "DNA_key_types.h"
 #include "DNA_lattice_types.h"
 #include "DNA_lamp_types.h"

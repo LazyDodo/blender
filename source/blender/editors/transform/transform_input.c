@@ -42,11 +42,6 @@
 
 #include "MEM_guardedalloc.h"
 
-struct InputTrackBall_Data {
-	float value_accum[2];
-	float value_prev[2];
-};
-
 /* ************************** INPUT FROM MOUSE *************************** */
 
 static void InputVector(TransInfo *t, MouseInput *mi, const double mval[2], float output[3])
@@ -328,7 +323,6 @@ void initMouseInputMode(TransInfo *t, MouseInput *mi, MouseInputMode mode)
 			mi->precision_factor = 1.0f / 30.0f;
 			/* factor has to become setting or so */
 			mi->factor = 0.01f;
-			mi->data = MEM_callocN(sizeof(struct InputTrackBall_Data), "angle accumulator");
 			mi->apply = InputTrackBall;
 			t->helpline = HLP_TRACKBALL;
 			break;

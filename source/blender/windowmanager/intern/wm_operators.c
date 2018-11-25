@@ -2677,6 +2677,14 @@ static int radial_control_modal(bContext *C, wmOperator *op, const wmEvent *even
 		/* Modal numinput inactive, try to handle numeric inputs last... */
 		if (!handled && event->val == KM_PRESS && handleNumInput(C, &rc->num_input, event)) {
 			applyNumInput(&rc->num_input, &numValue);
+
+			if (rc->subtype == PROP_ANGLE) {
+				numValue = DEG2RADF(numValue);
+				numValue = fmod(numValue, 2.0f * (float)M_PI);
+				if (numValue < 0.0f)
+					numValue += 2.0f * (float)M_PI;
+			}
+
 			CLAMP(numValue, rc->min_value, rc->max_value);
 			new_value = numValue;
 

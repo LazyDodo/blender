@@ -91,7 +91,7 @@ void verify_id_properties_freed(DEGObjectIterData *data)
 		return;
 	}
 	const Object *dupli_object = data->dupli_object_current->ob;
-    Object *temp_dupli_object = &data->temp_dupli_object;
+	Object *temp_dupli_object = &data->temp_dupli_object;
 	if (temp_dupli_object->id.properties == NULL) {
 		// No ID properties in temp datablock -- no leak is possible.
 		return;
@@ -133,7 +133,7 @@ bool deg_objects_dupli_iterator_next(BLI_Iterator *iter)
 
 		/* Temporary object to evaluate. */
 		Object *dupli_parent = data->dupli_parent;
-        Object *temp_dupli_object = &data->temp_dupli_object;
+		Object *temp_dupli_object = &data->temp_dupli_object;
 		*temp_dupli_object = *dob->ob;
 		temp_dupli_object->select_color = dupli_parent->select_color;
 		temp_dupli_object->base_flag = dupli_parent->base_flag | BASE_FROMDUPLI;
@@ -147,7 +147,7 @@ bool deg_objects_dupli_iterator_next(BLI_Iterator *iter)
 
 		temp_dupli_object->transflag &= ~OB_DUPLI;
 
-        copy_m4_m4(data->temp_dupli_object.obmat, dob->mat);
+		copy_m4_m4(data->temp_dupli_object.obmat, dob->mat);
 		iter->current = &data->temp_dupli_object;
 		BLI_assert(
 		        DEG::deg_validate_copy_on_write_datablock(

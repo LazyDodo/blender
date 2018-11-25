@@ -177,9 +177,6 @@ void DEG_ids_clear_recalc(struct Main *bmain, Depsgraph *depsgraph);
 /* Flush updates for IDs in a single scene. */
 void DEG_graph_flush_update(struct Main *bmain, Depsgraph *depsgraph);
 
-/* Flush updates for IDs in a single scene. */
-void DEG_scene_flush_update(struct Main *bmain, struct Scene *scene);
-
 /* Check if something was changed in the database and inform
  * editors about this.
  */

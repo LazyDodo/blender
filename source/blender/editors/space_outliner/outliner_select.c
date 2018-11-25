@@ -869,7 +869,7 @@ eOLDrawState tree_element_active(bContext *C, Scene *scene, ViewLayer *view_laye
 {
 	switch (te->idcode) {
 		/* Note: ID_OB only if handle_all_type is true, else objects are handled specially to allow multiple
-		 * selection. See do_outliner_item_activate_from_cursor. */
+		 * selection. See do_outliner_item_activate. */
 		case ID_OB:
 			if (handle_all_types) {
 				return tree_element_set_active_object(C, scene, view_layer, soops, te, set, false);

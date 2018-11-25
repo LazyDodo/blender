@@ -225,15 +225,6 @@ def display_name(name):
     name = _clean_utf8(name)
     return name
 
-def display_name_to_filepath(name):
-    """
-    Performs the reverse of display_name using literal versions of characters
-    which aren't supported in a filepath.
-    """
-    for disp_value, file_value in _display_name_literals.items():
-        name = name.replace(disp_value, file_value)
-    return name
-
 
 def display_name_to_filepath(name):
     """

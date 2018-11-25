@@ -821,7 +821,7 @@ static void ui_apply_but_BLOCK(bContext *C, uiBut *but, uiHandleButtonData *data
 	if (but->type == UI_BTYPE_MENU)
 		ui_but_value_set(but, data->value);
 
-	ui_but_update(but);
+	ui_but_update_edited(but);
 	ui_apply_but_func(C, but);
 	data->retval = but->retval;
 	data->applied = true;
@@ -841,7 +841,9 @@ static void ui_apply_but_TOG(bContext *C, uiBut *but, uiHandleButtonData *data)
 		else   lvalue = UI_BITBUT_SET(lvalue, but->bitnr);
 
 		ui_but_value_set(but, (double)lvalue);
-		if (but->type == UI_BTYPE_ICON_TOGGLE || but->type == UI_BTYPE_ICON_TOGGLE_N) ui_but_update(but);
+		if (but->type == UI_BTYPE_ICON_TOGGLE || but->type == UI_BTYPE_ICON_TOGGLE_N) {
+			ui_but_update_edited(but);
+		}
 	}
 	else {
 
@@ -850,7 +852,9 @@ static void ui_apply_but_TOG(bContext *C, uiBut *but, uiHandleButtonData *data)
 
 		if (ELEM(but->type, UI_BTYPE_TOGGLE_N, UI_BTYPE_ICON_TOGGLE_N, UI_BTYPE_CHECKBOX_N)) push = !push;
 		ui_but_value_set(but, (double)push);
-		if (but->type == UI_BTYPE_ICON_TOGGLE || but->type == UI_BTYPE_ICON_TOGGLE_N) ui_but_update(but);
+		if (but->type == UI_BTYPE_ICON_TOGGLE || but->type == UI_BTYPE_ICON_TOGGLE_N) {
+			ui_but_update_edited(but);
+		}
 	}
 
 	ui_apply_but_func(C, but);
@@ -868,9 +872,11 @@ static void ui_apply_but_ROW(bContext *C, uiBlock *block, uiBut *but, uiHandleBu
 	ui_apply_but_func(C, but);
 
 	/* states of other row buttons */
-	for (bt = block->buttons.first; bt; bt = bt->next)
-		if (bt != but && bt->poin == but->poin && ELEM(bt->type, UI_BTYPE_ROW, UI_BTYPE_LISTROW))
-			ui_but_update(bt);
+	for (bt = block->buttons.first; bt; bt = bt->next) {
+		if (bt != but && bt->poin == but->poin && ELEM(bt->type, UI_BTYPE_ROW, UI_BTYPE_LISTROW)) {
+			ui_but_update_edited(bt);
+		}
+	}
 
 	data->retval = but->retval;
 	data->applied = true;
@@ -882,7 +888,7 @@ static void ui_apply_but_TEX(bContext *C, uiBut *but, uiHandleButtonData *data)
 		return;
 
 	ui_but_string_set(C, but, data->str);
-	ui_but_update(but);
+	ui_but_update_edited(but);
 
 	/* give butfunc a copy of the original text too.
 	 * feature used for bone renaming, channels, etc.
@@ -907,7 +913,7 @@ static void ui_apply_but_TAB(bContext *C, uiBut *but, uiHandleButtonData *data)
 {
 	if (data->str) {
 		ui_but_string_set(C, but, data->str);
-        ui_but_update(but);
+		ui_but_update_edited(but);
 	}
 	else {
 		ui_but_value_set(but, but->hardmax);
@@ -929,10 +935,11 @@ static void ui_apply_but_NUM(bContext *C, uiBut *but, uiHandleButtonData *data)
 			return;
 		}
 	}
-	else
+	else {
 		ui_but_value_set(but, data->value);
+	}
 
-	ui_but_update(but);
+	ui_but_update_edited(but);
 	ui_apply_but_func(C, but);
 
 	data->retval = but->retval;
@@ -942,7 +949,7 @@ static void ui_apply_but_NUM(bContext *C, uiBut *but, uiHandleButtonData *data)
 static void ui_apply_but_VEC(bContext *C, uiBut *but, uiHandleButtonData *data)
 {
 	ui_but_v3_set(but, data->vec);
-	ui_but_update(but);
+	ui_but_update_edited(but);
 	ui_apply_but_func(C, but);
 
 	data->retval = but->retval;
@@ -1283,7 +1290,7 @@ static bool ui_drag_toggle_set_xy_xy(
 						if (is_set_but != is_set) {
 							UI_but_execute(C, but);
 							if (do_check) {
-								ui_but_update(but);
+								ui_but_update_edited(but);
 							}
 							changed = true;
 						}
@@ -3479,7 +3486,7 @@ static void ui_do_but_textedit(
 			ui_apply_but(C, block, but, data, true);
 		}
 		else {
-			ui_but_update(but);
+			ui_but_update_edited(but);
 		}
 		but->changed = true;
 

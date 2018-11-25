@@ -240,10 +240,6 @@ static bool edbm_bevel_init(bContext *C, wmOperator *op, const bool is_modal)
 		RNA_float_set(op->ptr, "offset", 0.0f);
 	}
 
-	if (is_modal) {
-		RNA_float_set(op->ptr, "offset", 0.0f);
-	}
-
 	op->customdata = opdata = MEM_mallocN(sizeof(BevelData), "beveldata_mesh_operator");
 	uint objects_used_len = 0;
 
