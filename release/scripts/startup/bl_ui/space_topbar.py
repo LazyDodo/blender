@@ -516,6 +516,18 @@ class TOPBAR_PT_gpencil_layers(Panel):
         col.template_list("GPENCIL_UL_layer", "", gpd, "layers", gpd.layers, "active_index",
                           rows=layer_rows, reverse=True)
 
+        gpl = context.active_gpencil_layer
+        if gpl:
+            srow = col.row(align=True)
+            srow.prop(gpl, "blend_mode", text="Blend")
+            subrow = srow.row(align=True)
+            subrow.enabled = gpl.blend_mode != 'NORMAL'
+            subrow.prop(gpl, "disable_mask", text="", icon='MOD_MASK')
+
+            srow = col.row(align=True)
+            srow.enabled = gpl.blend_mode == 'NORMAL'
+            srow.prop(gpl, "opacity", text="Opacity", slider=True)
+
         col = row.column()
 
         sub = col.column(align=True)
@@ -538,16 +550,6 @@ class TOPBAR_PT_gpencil_layers(Panel):
                 sub = col.column(align=True)
                 sub.operator("gpencil.layer_isolate", icon='LOCKED', text="").affect_visibility = False
                 sub.operator("gpencil.layer_isolate", icon='HIDE_OFF', text="").affect_visibility = True
-
-        if gpl:
-            row = layout.row(align=True)
-            row.prop(gpl, "blend_mode", text="Blend")
-            subrow = row.row(align=True)
-            subrow.enabled = gpl.blend_mode != 'NORMAL'
-            subrow.prop(gpl, "disable_mask", text="", icon='MOD_MASK')
-            row = layout.row(align=True)
-            row.enabled = gpl.blend_mode == 'NORMAL'
-            row.prop(gpl, "opacity", text="Opacity", slider=True)
 
 
 class TOPBAR_MT_editor_menus(Menu):
