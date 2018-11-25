@@ -140,7 +140,7 @@ void BKE_hair_clear_fiber_curves(struct HairSystem *hsys);
 /* === Follicles === */
 
 /* Calculate surface area of a scalp mesh */
-float BKE_hair7_calc_surface_area(const struct Mesh *scalp);
+float BKE_hair_calc_surface_area(const struct Mesh *scalp);
 
 /* Calculate a density value based on surface area and sample count */
 float BKE_hair_calc_density_from_count(float area, int count);
