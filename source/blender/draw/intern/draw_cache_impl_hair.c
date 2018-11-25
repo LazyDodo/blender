@@ -861,6 +861,7 @@ GPUBatch *DRW_hair_batch_cache_get_edit_strands(Object *ob, HairSystem *hsys)
 	else {
 		curve_data = &hsys->curve_data;
 	}
+	hair_batch_cache_ensure_count(curve_data, &cache->edit_hair);
 	hair_batch_cache_ensure_pos_and_seg(curve_data, scalp, &cache->edit_hair);
 	cache->edit_hair.hairs = GPU_batch_create(
 	        GPU_PRIM_LINE_STRIP,
