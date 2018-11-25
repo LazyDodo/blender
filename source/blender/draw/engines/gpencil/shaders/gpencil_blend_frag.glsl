@@ -9,7 +9,6 @@ uniform sampler2D blendDepth;
 uniform int mode;
 uniform int disable_mask;
 
-#define THRESHOLD 0.001f
 #define ON 1
 #define OFF 0
 
@@ -75,33 +74,6 @@ vec4 get_blend_color(int mode, vec4 src_color, vec4 blend_color)
 	return outcolor;
 }
 
-vec4 get_blurcolor(ivec2 uv, int limit)
-{
-	int pixels = ((limit * 2) + 1) * ((limit * 2) + 1);
-	vec4 blend_color = vec4(0, 0, 0, 0);
-	vec4 color;
-	int hit = 0;
-	for (int x = -limit; x < limit + 1; x++) {
-		for (int y = -limit; y < limit + 1; y++) {
-			color = texelFetch(blendColor, uv + ivec2(x, y), 0).rgba;
-			if (color.a > THRESHOLD) {
-				hit++;
-			}
-			blend_color += color;
-		}
-		
-	}
-	/* color is the result of the visible pixel */
-	if (hit > 0) {
-		blend_color.rgb = blend_color.rgb / hit;
-	}
-	/* alpha is divided by numberof pixels */
-	blend_color.a = blend_color.a / pixels;
-	
-
-	return blend_color;
-}
-
 void main()
 {
 	vec4 outcolor;
@@ -125,18 +97,20 @@ void main()
 	
 	/* Normal mode */
 	if (mode == MODE_NORMAL) {
-		if (mix_color.a > THRESHOLD) {
-			outcolor =  mix_color;
-			gl_FragDepth = mix_depth;
+		if (stroke_color.a > 0) {
+			if (mix_color.a > 0) {
+				FragColor = mix(stroke_color, mix_color, mix_color.a);
+				gl_FragDepth = mix_depth;
+			}
+			else {
+				FragColor = stroke_color;
+				gl_FragDepth = stroke_depth;
+			}
 		}
 		else {
-			/* blur edges with box blur */
-			vec4 blur = get_blurcolor(uv, 1);
-			/* interpolate color using the alpha factor */
-			outcolor = vec4(mix(stroke_color.rgb, blur.rgb, blur.a), stroke_color.a); 
-			gl_FragDepth = stroke_depth;
+			FragColor = mix_color;
+			gl_FragDepth = mix_depth;
 		}
-		FragColor = outcolor;
 		return;
 	}
 	

@@ -672,6 +672,7 @@ static void gpencil_free_obj_runtime(GPENCIL_StorageList *stl)
 static void gpencil_draw_pass_range(
 	GPENCIL_FramebufferList *fbl, GPENCIL_StorageList *stl,
 	GPENCIL_PassList *psl, GPENCIL_TextureList *txl,
+	GPUFrameBuffer *fb,
 	DRWShadingGroup *init_shgrp, DRWShadingGroup *end_shgrp)
 {
 	if (init_shgrp == NULL) {
@@ -687,7 +688,7 @@ static void gpencil_draw_pass_range(
 		psl->stroke_pass, init_shgrp, end_shgrp);
 
 	if (!stl->storage->is_mat_preview) {
-		MULTISAMPLE_GP_SYNC_DISABLE(stl->storage->multisamples, fbl, fbl->temp_fb_a, txl);
+		MULTISAMPLE_GP_SYNC_DISABLE(stl->storage->multisamples, fbl, fb, txl);
 	}
 
 }
@@ -786,7 +787,9 @@ void GPENCIL_draw_scene(void *ved)
 						else {
 							use_blend = true;
 							/* draw pending groups */
-							gpencil_draw_pass_range(fbl, stl, psl, txl, init_shgrp, end_shgrp);
+							gpencil_draw_pass_range(
+								fbl, stl, psl, txl, fbl->temp_fb_a,
+								init_shgrp, end_shgrp);
 
 							/* draw current group in separated texture */
 							init_shgrp = array_elm->init_shgrp;
@@ -794,7 +797,9 @@ void GPENCIL_draw_scene(void *ved)
 
 							GPU_framebuffer_bind(fbl->temp_fb_fx);
 							GPU_framebuffer_clear_color_depth(fbl->temp_fb_fx, clearcol, 1.0f);
-							DRW_draw_pass_subset(psl->stroke_pass, init_shgrp, end_shgrp);
+							gpencil_draw_pass_range(
+								fbl, stl, psl, txl, fbl->temp_fb_fx,
+								init_shgrp, end_shgrp);
 
 							/* Blend A texture and FX texture */
 							GPU_framebuffer_bind(fbl->temp_fb_b);
@@ -817,7 +822,7 @@ void GPENCIL_draw_scene(void *ved)
 
 					}
 					/* last group */
-					gpencil_draw_pass_range(fbl, stl, psl, txl, init_shgrp, end_shgrp);
+					gpencil_draw_pass_range(fbl, stl, psl, txl, fbl->temp_fb_a, init_shgrp, end_shgrp);
 				}
 
 				/* Current buffer drawing */
