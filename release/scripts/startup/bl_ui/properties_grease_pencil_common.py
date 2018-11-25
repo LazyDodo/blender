@@ -867,10 +867,6 @@ class GPENCIL_UL_layer(UIList):
             row = layout.row(align=True)
             row.label(
                 text="",
-                icon='MOD_MASK' if gpl.blend_mode != 'NORMAL' and gpl.disable_mask else 'BLANK1'
-            )
-            row.label(
-                text="",
                 icon='BONE_DATA' if gpl.is_parented else 'BLANK1',
             )
             row.prop(gpl, "info", text="", emboss=False)
