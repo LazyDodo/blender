@@ -168,7 +168,8 @@ static void hair_batch_cache_ensure_count(
 	HairFollicle *follicle;
 	HairFiberCurve *curve;
 	BKE_HAIR_ITER_FOLLICLE_CURVES(follicle, curve, &iter, curve_data) {
-		cache->elems_len += curve->numverts - 1;
+		/* Add one for primitive restart */
+		cache->elems_len += curve->numverts + 1;
 		cache->point_len += curve->numverts;
 	}
 }
@@ -713,7 +714,6 @@ static int hair_batch_cache_fill_segments(
 
 		/* Add restart primitive. */
 		GPU_indexbuf_add_primitive_restart(elb);
-		++curr_point;
 	}
 
 	return curr_point;
