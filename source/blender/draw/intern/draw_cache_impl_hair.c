@@ -177,11 +177,12 @@ static void hair_batch_cache_fill_segments_proc_pos(
         const HairCurveData *curve_data,
         GPUVertBufRaw *attr_step)
 {
+	const HairFiberVertex *verts = BKE_hair_get_verts(curve_data);
 	HairIterator iter;
 	HairFollicle *follicle;
 	HairFiberCurve *curve;
 	BKE_HAIR_ITER_FOLLICLE_CURVES(follicle, curve, &iter, curve_data) {
-		const HairFiberVertex *verts = &curve_data->verts[curve->vertstart];
+		const HairFiberVertex *verts = &verts[curve->vertstart];
 		if (curve->numverts < 2) {
 			continue;
 		}
@@ -669,6 +670,7 @@ static int hair_batch_cache_fill_segments(
         ParticleHairCache *hair_cache)
 {
 	int curr_point = 0;
+	const HairFiberVertex *verts = BKE_hair_get_verts(curve_data);
 	const HairFollicle *follicle;
 	const HairFiberCurve *curve;
 	HairIterator iter;
@@ -686,7 +688,7 @@ static int hair_batch_cache_fill_segments(
 			hair_pack_mcol(&col, scalp_attr->hair_col[k]);
 		}
 
-		const HairFiberVertex *vert_start = &curve_data->verts[curve->vertstart];
+		const HairFiberVertex *vert_start = &verts[curve->vertstart];
 		for (int j = 0; j < curve->numverts; ++j) {
 			const HairFiberVertex *vert = vert_start + j;
 			const HairFiberVertex *vert_prev = (j > 0 ? vert_start + j - 1 : vert_start + j);

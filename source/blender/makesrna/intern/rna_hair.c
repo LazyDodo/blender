@@ -91,26 +91,6 @@ static PointerRNA rna_HairSystem_get_scalp_mesh(HairSystem *hsys, struct bContex
 	return r_ptr;
 }
 
-static void rna_HairSystem_generate_follicles(
-        HairSystem *hsys,
-        struct bContext *C,
-        Object *scalp,
-        int seed,
-        int count)
-{
-	if (!scalp)
-	{
-		return;
-	}
-	
-	struct Depsgraph *depsgraph = CTX_data_depsgraph(C);
-	
-	BLI_assert(scalp && scalp->type == OB_MESH);
-	Mesh *scalp_mesh = (Mesh *)DEG_get_evaluated_id(depsgraph, scalp->data);
-	
-	BKE_hair_generate_follicles(hsys, scalp_mesh, (unsigned int)seed, count);
-}
-
 #else
 
 static void rna_def_hair_follicle(BlenderRNA *brna)
@@ -151,14 +131,6 @@ static void rna_def_hair_system(BlenderRNA *brna)
 	parm = RNA_def_pointer(func, "scalp", "Mesh", "Scalp", "Scalp mesh used for hair placement");
 	RNA_def_function_return(func, parm);
 	RNA_def_parameter_flags(parm, 0, PARM_RNAPTR);
-
-	func = RNA_def_function(srna, "generate_follicles", "rna_HairSystem_generate_follicles");
-	RNA_def_function_flag(func, FUNC_USE_CONTEXT);
-	parm = RNA_def_pointer(func, "scalp", "Object", "Scalp", "Scalp object on which to place hair follicles");
-	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-	parm = RNA_def_int(func, "seed", 0, 0, INT_MAX, "Seed", "Seed value for random numbers", 0, INT_MAX);
-	parm = RNA_def_int(func, "count", 0, 0, INT_MAX, "Count", "Maximum number of follicles to generate", 1, 1e5);
-	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 }
 
 static void rna_def_hair_draw_settings(BlenderRNA *brna)

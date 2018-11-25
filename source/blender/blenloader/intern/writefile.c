@@ -2266,9 +2266,6 @@ static void write_hair(WriteData *wd, HairSystem *hsys)
 		write_animdata(wd, hsys->adt);
 	}
 
-	writestruct(wd, DATA, HairFiberVertex, hsys->curve_data.totverts, hsys->curve_data.verts);
-	writestruct(wd, DATA, HairFiberCurve, hsys->curve_data.totcurves, hsys->curve_data.curves);
-	writestruct(wd, DATA, HairFollicle, hsys->curve_data.totfollicles, hsys->curve_data.follicles);
 	write_customdata(wd, &hsys->id, hsys->curve_data.totverts, &hsys->curve_data.vdata, vlayers, -1, 0);
 	write_customdata(wd, &hsys->id, hsys->curve_data.totcurves, &hsys->curve_data.cdata, clayers, -1, 0);
 	write_customdata(wd, &hsys->id, hsys->curve_data.totfollicles, &hsys->curve_data.fdata, flayers, -1, 0);

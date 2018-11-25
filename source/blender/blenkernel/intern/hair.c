@@ -94,9 +94,6 @@ void BKE_hair_curve_data_init(HairCurveData *data)
 /* Does not free the data pointer itself! */
 void BKE_hair_curve_data_free(HairCurveData *data)
 {
-	MEM_SAFE_FREE(data->curves);
-	MEM_SAFE_FREE(data->verts);
-	MEM_SAFE_FREE(data->follicles);
 	CustomData_free(&data->vdata, data->totverts);
 	CustomData_free(&data->cdata, data->totcurves);
 	CustomData_free(&data->fdata, data->totfollicles);
@@ -104,16 +101,6 @@ void BKE_hair_curve_data_free(HairCurveData *data)
 
 void BKE_hair_curve_data_copy(HairCurveData *dst_data, const HairCurveData *src_data, int flag)
 {
-	if (src_data->curves) {
-		dst_data->curves = MEM_dupallocN(src_data->curves);
-	}
-	if (src_data->verts) {
-		dst_data->verts = MEM_dupallocN(src_data->verts);
-	}
-	if (src_data->follicles) {
-		dst_data->follicles = MEM_dupallocN(src_data->follicles);
-	}
-
 	dst_data->totcurves = src_data->totcurves;
 	dst_data->totverts = src_data->totverts;
 	dst_data->totfollicles = src_data->totfollicles;
@@ -180,6 +167,21 @@ HairSystem *BKE_hair_copy(Main *bmain, const HairSystem *hsys)
 	HairSystem *hsys_copy;
 	BKE_id_copy_ex(bmain, &hsys->id, (ID **)&hsys_copy, 0, false);
 	return hsys_copy;
+}
+
+HairFiberVertex* BKE_hair_get_verts(const HairCurveData *data)
+{
+	return CustomData_get_layer(&data->vdata, CD_HAIRVERT);
+}
+
+HairFiberCurve* BKE_hair_get_curves(const HairCurveData *data)
+{
+	return CustomData_get_layer(&data->cdata, CD_HAIRCURVE);
+}
+
+HairFollicle* BKE_hair_get_follicles(const HairCurveData *data)
+{
+	return CustomData_get_layer(&data->fdata, CD_HAIRFOLLICLE);
 }
 
 /* Custom data layer functions; those assume that totXXX are set correctly. */
@@ -291,7 +293,7 @@ bool BKE_hair_minmax(HairSystem *hsys, float min[3], float max[3])
 		return false;
 	}
 
-	HairFiberVertex *vert = hsys->curve_data.verts;
+	const HairFiberVertex *vert = BKE_hair_get_verts(&hsys->curve_data);
 	for (int i = 0; i < hsys->curve_data.totverts; ++i) {
 		minmax_v3v3_v3(min, max, vert->co);
 	}
@@ -409,6 +411,7 @@ float BKE_hair_calc_min_distance_from_density(float density)
 	return density > 0.0f ? sqrt(max_factor / density) : 0.0f;
 }
 
+#if 0
 /* Distribute hair follicles on a scalp mesh */
 void BKE_hair_generate_follicles(
         HairSystem* hsys,
@@ -458,9 +461,11 @@ void BKE_hair_generate_follicles_ex(
 	
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 }
+#endif
 
 /* ================================= */
 
+#if 0
 void BKE_hair_fiber_curves_begin(HairSystem *hsys, int totcurves)
 {
 	if (totcurves != hsys->curve_data.totcurves)
@@ -565,6 +570,7 @@ void BKE_hair_clear_fiber_curves(HairSystem *hsys)
 
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 }
+#endif
 
 /* === Depsgraph evaluation === */
 
@@ -611,7 +617,7 @@ void BKE_hair_ensure_follicle_space(const Mesh *scalp, HairCurveData *curve_data
 	float (*co)[3] = orco;
 	float (*nor)[3] = normals;
 	float (*tang)[3] = tangents;
-	HairFollicle *follicle = curve_data->follicles;
+	const HairFollicle *follicle = BKE_hair_get_follicles(curve_data);
 	for (int i = 0; i < num_follicles; ++i) {
 		BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, co, nor, tang);
 
@@ -846,24 +852,25 @@ int BKE_hair_export_cache_update(HairExportCache *cache, const HairSystem *hsys,
 		cache->fiber_tangents = MEM_reallocN_id(cache->fiber_tangents, sizeof(float[3]) * totverts, "hair export tangents");
 		cache->fiber_normals = MEM_reallocN_id(cache->fiber_normals, sizeof(float[3]) * totverts, "hair export normals");
 		
+		const HairFiberVertex *verts_orig = BKE_hair_get_verts(&hsys->curve_data);
 		HairFiberCurve *curve_orig;
 		HairIterator iter;
 		int i;
 		BKE_HAIR_ITER_CURVES_INDEX(curve_orig, &iter, &hsys->curve_data, i) {
-			const HairFiberVertex *verts_orig = &hsys->curve_data.verts[curve_orig->vertstart];
+			const HairFiberVertex *curve_verts_orig = &verts_orig[curve_orig->vertstart];
 			const HairFiberCurve *curve = &cache->fiber_curves[i];
 			HairFiberVertex *verts = &cache->fiber_verts[curve->vertstart];
 			float (*tangents)[3] = &cache->fiber_tangents[curve->vertstart];
 			float (*normals)[3] = &cache->fiber_normals[curve->vertstart];
 			
-			hair_curve_subdivide(curve_orig, verts_orig, subdiv, verts);
+			hair_curve_subdivide(curve_orig, curve_verts_orig, subdiv, verts);
 			
 			hair_curve_calc_vectors(verts, curve->numverts, tangents, normals);
 		}
 	}
 
 	if (data & HAIR_EXPORT_FOLLICLE_BINDING) {
-		cache->follicles = hsys->curve_data.follicles;
+		cache->follicles = BKE_hair_get_follicles(&hsys->curve_data);
 		cache->totfollicles = hsys->curve_data.totfollicles;
 	}
 

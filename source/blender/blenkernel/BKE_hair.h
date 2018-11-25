@@ -78,6 +78,11 @@ void BKE_hair_curve_data_init(struct HairCurveData *data);
 void BKE_hair_curve_data_free(struct HairCurveData *data);
 void BKE_hair_curve_data_copy(struct HairCurveData *dst_data, const struct HairCurveData *src_data, int flag);
 
+/* Base data layers */
+struct HairFiberVertex* BKE_hair_get_verts(const struct HairCurveData *data);
+struct HairFiberCurve* BKE_hair_get_curves(const struct HairCurveData *data);
+struct HairFollicle* BKE_hair_get_follicles(const struct HairCurveData *data);
+
 /* === Scalp object === */
 
 /* Find the mesh used as the scalp surface */
@@ -91,6 +96,7 @@ struct Object* BKE_hair_get_scalp_object(
         const struct Object *ob,
         const struct HairSystem *hsys);
 
+#if 0
 /* === Fiber curves === */
 
 /* Allocate buffers for defining fiber curves
@@ -129,11 +135,12 @@ void BKE_hair_set_fiber_curves(struct HairSystem *hsys, struct HairCurveData *cu
 /* Remove all fiber curves.
  */
 void BKE_hair_clear_fiber_curves(struct HairSystem *hsys);
+#endif
 
 /* === Follicles === */
 
 /* Calculate surface area of a scalp mesh */
-float BKE_hair_calc_surface_area(const struct Mesh *scalp);
+float BKE_hair7_calc_surface_area(const struct Mesh *scalp);
 
 /* Calculate a density value based on surface area and sample count */
 float BKE_hair_calc_density_from_count(float area, int count);
@@ -145,6 +152,7 @@ float BKE_hair_calc_density_from_min_distance(float min_distance);
 /* Calculate a minimum distance based on density */
 float BKE_hair_calc_min_distance_from_density(float density);
 
+#if 0
 /* Distribute hair follicles on a scalp mesh */
 void BKE_hair_generate_follicles(
         struct HairSystem* hsys,
@@ -161,6 +169,7 @@ void BKE_hair_generate_follicles_ex(
         unsigned int seed,
         int count,
         const float *loop_weights);
+#endif
 
 /* === Draw Settings === */
 

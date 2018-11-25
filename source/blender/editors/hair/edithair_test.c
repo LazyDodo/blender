@@ -65,6 +65,8 @@
  * Test operator for quickly adding hair
  * \{ */
 
+// TODO this was based on directly creating vertex/curve buffers in hair data, now using CustomData layers */
+#if 0
 /* Distribute hair follicles on a scalp mesh.
  * Optional per-loop weights control follicle density on the scalp.
  */
@@ -231,6 +233,7 @@ static void hair_generate_curves(
 	BKE_hair_curve_data_free(curve_data);
 	BKE_hair_curve_builder_apply(&hcb, curve_data);
 }
+#endif
 
 static int add_test_hair_exec(bContext *C, wmOperator *op)
 {
@@ -247,8 +250,8 @@ static int add_test_hair_exec(bContext *C, wmOperator *op)
 	const int seed = RNA_int_get(op->ptr, "seed");
 	const int count = RNA_int_get(op->ptr, "count");
 
-	hair_generate_follicles_ex(&edit->curve_data, scalp, seed, count, NULL);
-	hair_generate_curves(&edit->curve_data, scalp);
+	// hair_generate_follicles_ex(&edit->curve_data, scalp, seed, count, NULL);
+	// hair_generate_curves(&edit->curve_data, scalp);
 
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 	DEG_id_tag_update(obedit->data, DEG_TAG_SELECT_UPDATE);

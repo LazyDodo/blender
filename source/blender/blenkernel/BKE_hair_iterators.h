@@ -89,8 +89,8 @@ typedef struct HairIterator
 
 BLI_INLINE HairFiberCurve* BKE_hair_iter__curves_init(HairIterator *iter, const HairCurveData *curve_data)
 {
-	iter->data.curves.last = curve_data->curves + curve_data->totcurves;
-	iter->data.curves.curve = curve_data->curves;
+	iter->data.curves.last = BKE_hair_get_curves(curve_data) + curve_data->totcurves;
+	iter->data.curves.curve = BKE_hair_get_curves(curve_data);
 	return iter->data.curves.curve;
 }
 
@@ -109,8 +109,8 @@ BLI_INLINE HairFiberCurve* BKE_hair_iter__curves_next(HairIterator *iter)
 
 BLI_INLINE HairFiberVertex* BKE_hair_iter__verts_init(HairIterator *iter, const HairCurveData *curve_data)
 {
-	iter->data.verts.last = curve_data->verts + curve_data->totverts;
-	iter->data.verts.vertex = curve_data->verts;
+	iter->data.verts.last = BKE_hair_get_verts(curve_data) + curve_data->totverts;
+	iter->data.verts.vertex = BKE_hair_get_verts(curve_data);
 	return iter->data.verts.vertex;
 }
 
@@ -129,8 +129,8 @@ BLI_INLINE HairFiberVertex* BKE_hair_iter__verts_next(HairIterator *iter)
 
 BLI_INLINE HairFollicle* BKE_hair_iter__follicles_init(HairIterator *iter, const HairCurveData *curve_data)
 {
-	iter->data.follicles.last = curve_data->follicles + curve_data->totfollicles;
-	iter->data.follicles.follicle = curve_data->follicles;
+	iter->data.follicles.last = BKE_hair_get_follicles(curve_data) + curve_data->totfollicles;
+	iter->data.follicles.follicle = BKE_hair_get_follicles(curve_data);
 	return iter->data.follicles.follicle;
 }
 
@@ -151,10 +151,10 @@ BLI_INLINE HairFollicle* BKE_hair_iter__follicle_curves_init(HairIterator *iter,
 {
 	HairIter__follicle_curves *intern = &iter->data.follicle_curves;
 
-	intern->last = curve_data->follicles + curve_data->totfollicles;
-	intern->curves_array = curve_data->curves;
+	intern->last = BKE_hair_get_follicles(curve_data) + curve_data->totfollicles;
+	intern->curves_array = BKE_hair_get_curves(curve_data);
 
-	intern->follicle = curve_data->follicles;
+	intern->follicle = BKE_hair_get_follicles(curve_data);
 	while (intern->follicle != intern->last) {
 		if (intern->follicle->curve != HAIR_CURVE_INDEX_NONE) {
 			intern->curve = &intern->curves_array[intern->follicle->curve];
@@ -193,8 +193,8 @@ BLI_INLINE HairFiberVertex* BKE_hair_iter__curve_verts_init(HairIterator *iter, 
 {
 	HairIter__curve_verts *intern = &iter->data.curve_verts;
 
-	intern->last = &curve_data->verts[curve->vertstart + curve->numverts];
-	intern->vertex = &curve_data->verts[curve->vertstart];
+	intern->last = &BKE_hair_get_verts(curve_data)[curve->vertstart + curve->numverts];
+	intern->vertex = &BKE_hair_get_verts(curve_data)[curve->vertstart];
 	return intern->vertex;
 }
 

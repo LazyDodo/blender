@@ -72,10 +72,6 @@ typedef enum HairFiberVertexFlag
 /* Hair curve data */
 typedef struct HairCurveData
 {
-	struct HairFiberVertex *verts;      /* Control vertices on curves */
-	struct HairFiberCurve *curves;      /* Curves for shaping hair fibers */
-	struct HairFollicle *follicles;     /* Hair instances on a mesh surface */
-
 	int totverts;                       /* Number of curve vertices */
 	int totcurves;                      /* Number of curves */
 	int totfollicles;                   /* Number of follicles */
