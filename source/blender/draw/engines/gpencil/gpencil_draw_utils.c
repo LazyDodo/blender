@@ -809,7 +809,8 @@ static void gpencil_draw_strokes(
 			{
 				/* fill */
 				if ((gp_style->flag & GP_STYLE_FILL_SHOW) &&
-					(!stl->storage->simplify_fill))
+					(!stl->storage->simplify_fill) &&
+					((gps->flag & GP_STROKE_NOFILL) == 0))
 				{
 					gpencil_add_fill_vertexdata(
 						cache, ob, gpl, derived_gpf, gps,
