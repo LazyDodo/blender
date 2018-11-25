@@ -172,7 +172,6 @@ void ED_operatortypes_object(void)
 	/* fracture modifier */
 	WM_operatortype_append(OBJECT_OT_fracture_refresh);
 	WM_operatortype_append(OBJECT_OT_fracture_anim_bind);
-	WM_operatortype_append(OBJECT_OT_fracture_pack);
 	WM_operatortype_append(OBJECT_OT_rigidbody_convert_to_objects);
 	WM_operatortype_append(OBJECT_OT_rigidbody_convert_to_keyframes);
 

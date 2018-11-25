@@ -2601,48 +2601,6 @@ static int fracture_anim_bind_invoke(bContext *C, wmOperator *op, const wmEvent 
 	return OPERATOR_CANCELLED;
 }
 
-
-static int fracture_pack_exec(bContext *C, wmOperator *UNUSED(op)) {
-
-	Object *obact = ED_object_active_context(C);
-	Scene* scene = CTX_data_scene(C);
-	Main *bmain = CTX_data_main(C);
-	FractureModifierData *fmd;
-
-	fmd = (FractureModifierData *)modifiers_findByType(obact, eModifierType_Fracture);
-	if (!fmd)
-		return OPERATOR_CANCELLED;
-
-	BKE_fracture_meshislands_pack(fmd, obact, bmain, scene);
-
-	DEG_id_tag_update(&obact->id, OB_RECALC_DATA | DEG_TAG_COPY_ON_WRITE);
-	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
-
-	WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, obact);
-	WM_event_add_notifier(C, NC_OBJECT | ND_POINTCACHE, NULL);
-
-	//DEG_relations_tag_update(bmain);
-	WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, NULL);
-	WM_event_add_notifier(C, NC_OBJECT | ND_PARENT, NULL);
-	WM_event_add_notifier(C, NC_SCENE | ND_FRAME, NULL);
-
-	WM_event_add_notifier(C, NC_WINDOW, NULL);
-	WM_event_add_notifier(C, NC_MATERIAL | ND_SHADING, NULL);
-
-	return OPERATOR_FINISHED;
-}
-
-static int fracture_pack_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
-{
-	if (edit_modifier_invoke_properties(C, op))
-	{
-		return fracture_pack_exec(C, op);
-	}
-
-	return OPERATOR_CANCELLED;
-}
-
-
 void OBJECT_OT_fracture_refresh(wmOperatorType *ot)
 {
 	ot->name = "Fracture Refresh";
@@ -2867,25 +2825,6 @@ static Object* do_convert_constraints(Main* bmain, FractureModifierData *fmd, Ri
 			BKE_rigidbody_calc_threshold(max_con_mass, fmd, con);
 		}
 	}
-
-#if 0
-	else
-	{
-
-		/*use same settings as in modifier
-		 *XXX Maybe use the CENTER between objects ? Might be correct for Non fixed constraints*/
-		/* location for fixed constraints doesnt matter, so keep old setting */
-		/* keep in sync with rigidbody.c, BKE_rigidbody_validate_sim_shard_constraint() */
-		if (con->type == RBC_TYPE_FIXED) {
-			copy_v3_v3(rbcon->loc, ob1->loc);
-		}
-		else {
-			/* else set location to center */
-			add_v3_v3v3(rbcon->loc, ob1->loc, ob2->loc);
-			mul_v3_fl(rbcon->loc, 0.5f);
-		}
-	}
-#endif
 
 	/*omit check for existing objects in group, since this seems very slow, and should not be necessary in this internal function*/
 	do_unchecked_constraint_add(bmain, scene, rbcon, con, reports);
@@ -3554,17 +3493,3 @@ void OBJECT_OT_fracture_anim_bind(wmOperatorType *ot)
 	edit_modifier_properties(ot);
 }
 
-void OBJECT_OT_fracture_pack(wmOperatorType *ot)
-{
-	ot->name = "Fracture Pack";
-	ot->description = "Pack objects as mesh islands into Fracture Modifier";
-	ot->idname = "OBJECT_OT_fracture_pack";
-
-	ot->poll = fracture_poll;
-	ot->invoke = fracture_pack_invoke;
-	ot->exec = fracture_pack_exec;
-
-	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_INTERNAL;
-	edit_modifier_properties(ot);
-}

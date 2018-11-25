@@ -2414,7 +2414,7 @@ bool BKE_restoreKinematic(RigidBodyWorld *rbw, bool override_bind)
 }
 
 /* Add rigid body settings to the specified shard */
-RigidBodyOb *BKE_rigidbody_create_shard(Object *ob, Object *target, Shard *mi)
+RigidBodyOb *BKE_rigidbody_create_shard(Object *ob, Object *target, Shard *mi, Scene* scene)
 {
 	RigidBodyOb *rbo;
 	float centr[3], size[3];
@@ -2436,14 +2436,29 @@ RigidBodyOb *BKE_rigidbody_create_shard(Object *ob, Object *target, Shard *mi)
 	}
 
 	if (!ob->rigidbody_object) {
-		return NULL;
+		ob->rigidbody_object = BKE_rigidbody_create_object(scene, ob, RBO_TYPE_ACTIVE, NULL);
+		/* Could pass bmain thru lotsa functions, or just take a short cut with G.main here */
+		/* In case we are not a rigidbody yet, we need to force-create here one and add ourselves into the rbw group */
+		/* Usually, the world should be created already here */
+		if (scene->rigidbody_world) {
+			BKE_collection_object_add(G.main, scene->rigidbody_world->group, ob);
+		}
+
+		ob->rigidbody_object->flag |= RBO_FLAG_NEEDS_VALIDATE;
 	}
 
 	/* since we are always member of an object, dupe its settings,
 	 * create new settings data, and link it up */
-	if (target && target->rigidbody_object)
+	if (target)
 	{
-		rbo = BKE_rigidbody_copy_object(target, 0);
+		if (target->rigidbody_object) {
+			/* if we have a rigidbody object, copy it */
+			rbo = BKE_rigidbody_copy_object(target, 0);
+		}
+		else {
+			/* else copy own objects rigidbody settings */
+			rbo = BKE_rigidbody_copy_object(ob, 0);
+		}
 
 		mat4_to_loc_quat(rbo->pos, rbo->orn, target->obmat);
 		zero_v3(rbo->lin_vel);

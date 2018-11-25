@@ -73,7 +73,8 @@ void BKE_rigidbody_world_id_loop(struct RigidBodyWorld *rbw, RigidbodyWorldIDFun
 struct RigidBodyWorld *BKE_rigidbody_create_world(struct Scene *scene);
 struct RigidBodyOb *BKE_rigidbody_create_object(struct Scene *scene, struct Object *ob, short type, struct Shard *mi);
 struct RigidBodyCon *BKE_rigidbody_create_constraint(struct Scene *scene, struct Object *ob, short type, struct RigidBodyShardCon *con);
-struct RigidBodyOb *BKE_rigidbody_create_shard(struct Object *ob, struct Object *target, struct Shard *mi);
+struct RigidBodyOb *BKE_rigidbody_create_shard(struct Object *ob, struct Object *target, struct Shard *mi,
+                                               struct Scene *scene);
 struct RigidBodyShardCon *BKE_rigidbody_create_shard_constraint(struct Scene *scene, short type, bool reset);
 
 /* copy */

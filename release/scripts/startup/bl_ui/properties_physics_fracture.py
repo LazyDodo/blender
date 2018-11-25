@@ -88,9 +88,6 @@ class PHYSICS_PT_fracture_advanced(PhysicButtonsPanel, Panel):
                 col.prop(md, "keep_cutter_shards")
                 col.prop(md, "material_offset_intersect", text="Intersect Material")
                 col.prop(md, "material_offset_difference", text="Difference Material")
-        col.prop(md, "pack_group", text="Pack Group")
-        col.prop(md, "use_constraint_group", text="Constraints Only")
-        col.operator("object.fracture_pack", text="Pack", icon="PACKAGE")
         col.prop(md, "use_particle_birth_coordinates")
         col.prop(md, "percentage")
 
@@ -266,6 +263,7 @@ class PHYSICS_PT_fracture_constraints_breaking(PhysicButtonsPanel, Panel):
         layout = self.layout
         md = context.fracture
 
+        layout.active = md.use_constraints
         layout.use_property_split = True
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=True);
         col = flow.column()
@@ -301,6 +299,7 @@ class PHYSICS_PT_fracture_constraints_deforming(PhysicButtonsPanel, Panel):
         layout = self.layout
         md = context.fracture
 
+        layout.active = md.use_constraints
         layout.use_property_split = True
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=True);
         col = flow.column()
@@ -315,11 +314,33 @@ class PHYSICS_PT_fracture_constraints_deforming(PhysicButtonsPanel, Panel):
         col.prop(md, "deform_angle_weighted")
         col.prop(md, "deform_distance_weighted")
 
+class PHYSICS_PT_fracture_basic_packing(PhysicButtonsPanel, Panel):
+    bl_label = "Packing"
+    bl_options = {'DEFAULT_CLOSED'}
+    bl_parent_id = 'PHYSICS_PT_fracture_basic'
+
+    @classmethod
+    def poll(cls, context):
+        md = context.fracture
+        return PhysicButtonsPanel.poll(context)
+
+    def draw(self, context):
+        layout = self.layout
+        md = context.fracture
+
+        layout.context_pointer_set("modifier", md)
+        layout.use_property_split = True
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=True);
+        col = flow.column()
+        col.prop(md, "pack_group", text="Pack Group")
+        col.prop(md, "use_constraint_group", text="Constraints Only")
+
 
 classes = (
     FRACTURE_PT_presets,
     PHYSICS_PT_fracture,
     PHYSICS_PT_fracture_basic,
+    PHYSICS_PT_fracture_basic_packing,
     PHYSICS_PT_fracture_advanced,
     PHYSICS_PT_fracture_utilities,
     PHYSICS_PT_fracture_dynamic,

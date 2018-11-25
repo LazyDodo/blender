@@ -51,42 +51,16 @@
 
 #include "PIL_time.h"
 
-#if 0
-Mesh *BKE_fracture_prefractured_apply(FractureModifierData *fmd, Object *ob, Mesh *derivedData, Depsgraph* depsgraph)
-{
-    bool do_refresh = (fmd->auto_execute) || (fmd->dm_group && fmd->use_constraint_group && fmd->shared->refresh_constraints);
-    Scene *scene = fmd->scene;
-
-    Mesh *final_dm = derivedData;
-  //  Mesh *group_dm = BKE_fracture_group_dm(fmd, derivedData, ob, do_refresh || fmd->refresh);
-
-    if (do_refresh) {
-        fmd->shared->refresh = true;
-    }
-
-    if (fmd->shared->refresh)
-    {
-        BKE_fracture_refresh(fmd, ob, derivedData, depsgraph);
-    }
-
-    /* TODO_5, get rid of fmd->dm and perhaps of fmd->visible_mesh (BMESH!) too, the latter should be runtime data for creating islands ONLY */
-    /* we should ideally only have one cached derivedmesh */
-    if (fmd->shared->dm && fmd->shared->frac_mesh && (fmd->shared->dm->totpoly > 0)) {
-        final_dm = BKE_fracture_prefractured_do(fmd, ob, fmd->shared->dm, derivedData, NULL, 0, scene, depsgraph);
-    }
-    else {
-        final_dm = BKE_fracture_prefractured_do(fmd, ob, derivedData, derivedData, NULL, 0, scene, depsgraph);
-    }
-
-    return final_dm;
-}
-#endif
 
 Shard *BKE_fracture_mesh_island_create(Mesh* me, Scene *scene, Object *ob, int frame)
 {
-	int endframe = scene->rigidbody_world->shared->pointcache->endframe;
+	int endframe = 250;
 	Shard *mi = MEM_callocN(sizeof(Shard), "mesh_island");
 	mi->mesh = me;
+
+	if (scene->rigidbody_world) {
+		endframe = scene->rigidbody_world->shared->pointcache->endframe;
+	}
 
 	INIT_MINMAX(mi->min, mi->max);
 	BKE_mesh_minmax(mi->mesh, mi->min, mi->max);
@@ -104,7 +78,7 @@ Shard *BKE_fracture_mesh_island_create(Mesh* me, Scene *scene, Object *ob, int f
 		mi->aves = MEM_callocN(sizeof (float) * 3 *frame, "mi->aves");
 	}
 
-	mi->rigidbody = BKE_rigidbody_create_shard(ob, NULL, mi);
+	mi->rigidbody = BKE_rigidbody_create_shard(ob, NULL, mi, scene);
 	mi->rigidbody->type = RBO_TYPE_ACTIVE;
 	mi->rigidbody->flag |= (RBO_FLAG_NEEDS_VALIDATE | RBO_FLAG_NEEDS_RESHAPE);
 	BKE_rigidbody_calc_shard_mass(ob, mi);
@@ -121,7 +95,7 @@ static bool handle_initial_shards(FractureModifierData* fmd, Object* ob, Depsgra
 	int count = 0;
 	for (mi = fmd->shared->shards.first; mi; mi = mi->next)
 	{
-		if (!BKE_fracture_meshisland_check_frame(fmd, mi, frame) && mi->id > 0)
+		if (!BKE_fracture_meshisland_check_frame(fmd, mi, frame))
 		{
 			count++;
 		}
@@ -134,7 +108,7 @@ static bool handle_initial_shards(FractureModifierData* fmd, Object* ob, Depsgra
 	mi_tmp = MEM_callocN(sizeof(Shard*) * count, "mi_tmp");
 	for (mi = fmd->shared->shards.first; mi; mi = mi->next)
 	{
-		if (!BKE_fracture_meshisland_check_frame(fmd, mi, frame) && mi->id > 0)
+		if (!BKE_fracture_meshisland_check_frame(fmd, mi, frame))
 		{
 			mi_tmp[i] = mi;
 			i++;
@@ -142,8 +116,19 @@ static bool handle_initial_shards(FractureModifierData* fmd, Object* ob, Depsgra
 	}
 
 	/*decouple from listbase because it will continue growing ... */
-	for (mi = mi_tmp[0], i = 0; i < count; i++)
+	for (i = 0; i < count; i++)
 	{
+		/* make sure to get rid of initial islands after fracture, so "register" them as "Last islands/shards" */
+		if (fmd->shared->last_islands) {
+			MEM_freeN(fmd->shared->last_islands);
+			fmd->shared->last_islands = NULL;
+			fmd->shared->last_islands_count = 0;
+		}
+
+		fmd->shared->last_islands = MEM_callocN(sizeof(Shard*), "islands initial");
+		fmd->shared->last_islands[0] = mi_tmp[i];
+		fmd->shared->last_islands_count = 1;
+
 		BKE_fracture_do(fmd, mi_tmp[i], ob, depsgraph, bmain, scene, true);
 		mi_tmp[i]->endframe = frame;
 	}
@@ -182,7 +167,7 @@ static void do_initial_prefracture(FractureModifierData* fmd, Object* ob, Depsgr
 	//	mi->endframe = frame;
 }
 
-
+/* entry point of all FM operations / apply loop */
 Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, Depsgraph* depsgraph)
 {
 	Scene *scene = DEG_get_input_scene(depsgraph);
@@ -218,6 +203,9 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		/*keep shards at packing and at dynamic refresh */
 		if (fmd->pack_group)
 		{
+			/* keep re-packing, too */
+			BKE_fracture_meshislands_pack(fmd, ob, bmain, scene);
+
 			if (!handle_initial_shards(fmd, ob, depsgraph, bmain, scene, frame))
 			{
 				do_initial_prefracture(fmd, ob, depsgraph, bmain, scene, frame, me);

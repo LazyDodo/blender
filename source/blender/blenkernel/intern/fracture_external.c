@@ -136,7 +136,6 @@ Shard* BKE_fracture_mesh_island_add(Main* bmain, FractureModifierData *fmd, Obje
 
 	copy_v3_v3(mi->loc, loc);
 	copy_qt_qt(mi->rot, quat);
-	copy_v3_v3(mi->loc, loc);
 
 	//mi->rigidbody = BKE_rigidbody_create_shard(bmain, scene, own, target, mi);
 	BLI_strncpy(mi->name, target->id.name + 2, MAX_ID_NAME - 2);
