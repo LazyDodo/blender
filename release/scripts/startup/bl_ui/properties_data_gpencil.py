@@ -144,7 +144,6 @@ class DATA_PT_gpencil_datapanel(Panel):
             subrow.prop(gpl, "disable_mask", text="", icon='MOD_MASK')
 
             srow = col.row(align=True)
-            srow.enabled = gpl.blend_mode == 'NORMAL'
             srow.prop(gpl, "opacity", text="Opacity", slider=True)
 
         col = row.column()

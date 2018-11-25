@@ -8,6 +8,7 @@ uniform sampler2D blendColor;
 uniform sampler2D blendDepth;
 uniform int mode;
 uniform int disable_mask;
+uniform float blend_opacity;
 
 #define ON 1
 #define OFF 0
@@ -41,33 +42,33 @@ vec4 get_blend_color(int mode, vec4 src_color, vec4 blend_color)
 		outcolor = src_color;
 	}
 	else if (mode == MODE_OVERLAY) {
-		mix_color.rgb = mix_color.rgb * mix_color.a;
+		mix_color.rgb = mix_color.rgb * mix_color.a * blend_opacity;
 		outcolor.r = overlay_color(src_color.r, mix_color.r);
 		outcolor.g = overlay_color(src_color.g, mix_color.g);
 		outcolor.b = overlay_color(src_color.b, mix_color.b);
 		outcolor.a = src_color.a;
 	}
 	else if (mode == MODE_ADD){
-		mix_color.rgb = mix_color.rgb * mix_color.a;
+		mix_color.rgb = mix_color.rgb * mix_color.a * blend_opacity;
 		outcolor = src_color + mix_color;
 		outcolor.a = src_color.a;
 	}
 	else if (mode == MODE_SUB){
 		outcolor = src_color - mix_color;
-		outcolor.a = clamp(src_color.a - mix_color.a, 0.0, 1.0);
+		outcolor.a = clamp(src_color.a - (mix_color.a * blend_opacity), 0.0, 1.0);
 	}
 	else if (mode == MODE_MULTIPLY)	{
-		mix_color.rgb = mix_color.rgb * mix_color.a;
+		mix_color.rgb = mix_color.rgb * mix_color.a * blend_opacity;
 		outcolor = src_color * mix_color;
 		outcolor.a = src_color.a;
 	}
 	else if (mode == MODE_DIVIDE) {
-		mix_color.rgb = mix_color.rgb * mix_color.a;
+		mix_color.rgb = mix_color.rgb * mix_color.a * blend_opacity;
 		outcolor = src_color / mix_color;
 		outcolor.a = src_color.a;
 	}
 	else {
-		outcolor = mix_color;
+		outcolor = mix_color * blend_opacity;;
 		outcolor.a = src_color.a;
 	}
 	

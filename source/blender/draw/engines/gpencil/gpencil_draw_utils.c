@@ -1398,6 +1398,7 @@ static void DRW_gpencil_shgroups_create(
 			array_elm = &cache_ob->shgrp_array[idx];
 			array_elm->mode = idx == 0 ? eGplBlendMode_Normal: gpl->blend_mode;
 			array_elm->disable_mask = gpl->flag & GP_LAYER_USE_MASK;
+			array_elm->blend_opacity = gpl->opacity;
 			array_elm->init_shgrp = shgrp;
 			cache_ob->tot_layers++;
 
