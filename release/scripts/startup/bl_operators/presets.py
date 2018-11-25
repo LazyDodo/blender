@@ -246,10 +246,8 @@ class ExecutePreset(Operator):
             preset_class.reset_cb(context)
 
         if ext == ".py":
-            import importlib.util
-            mod_spec = importlib.util.spec_from_file_location("__main__", filepath)
             try:
-                mod_spec.loader.exec_module(importlib.util.module_from_spec(mod_spec))
+                bpy.utils.execfile(filepath)
             except Exception as ex:
                 self.report({'ERROR'}, "Failed to execute the preset: " + repr(ex))
 
@@ -441,32 +439,6 @@ class AddPresetHairDynamics(AddPresetBase, Operator):
         "settings.voxel_cell_size",
         "settings.pin_stiffness",
     ]
-
-
-class AddPresetInteraction(AddPresetBase, Operator):
-    """Add or remove an Application Interaction Preset"""
-    bl_idname = "wm.interaction_preset_add"
-    bl_label = "Add Interaction Preset"
-    preset_menu = "USERPREF_MT_interaction_presets"
-
-    preset_defines = [
-        "user_preferences = bpy.context.user_preferences"
-    ]
-
-    preset_values = [
-        "user_preferences.edit.use_drag_immediately",
-        "user_preferences.edit.use_insertkey_xyz_to_rgb",
-        "user_preferences.inputs.invert_mouse_zoom",
-        "user_preferences.inputs.select_mouse",
-        "user_preferences.inputs.use_emulate_numpad",
-        "user_preferences.inputs.use_mouse_continuous",
-        "user_preferences.inputs.use_mouse_emulate_3_button",
-        "user_preferences.inputs.view_rotate_method",
-        "user_preferences.inputs.view_zoom_axis",
-        "user_preferences.inputs.view_zoom_method",
-    ]
-
-    preset_subdir = "interaction"
 
 
 class AddPresetTrackingCamera(AddPresetBase, Operator):
@@ -844,7 +816,6 @@ classes = (
     AddPresetFluid,
     AddPresetFracture,
     AddPresetHairDynamics,
-    AddPresetInteraction,
     AddPresetInterfaceTheme,
     AddPresetKeyconfig,
     AddPresetNodeColor,

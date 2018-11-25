@@ -170,6 +170,9 @@ void b_bone_spline_setup(struct bPoseChannel *pchan, const bool rest, Mat4 resul
 
 int BKE_compute_b_bone_spline(struct BBoneSplineParameters *param, Mat4 result_array[MAX_BBONE_SUBDIV]);
 
+void BKE_pchan_cache_bbone_segments(struct bPoseChannel *pchan);
+void BKE_pchan_copy_bbone_segments_cache(struct bPoseChannel *pchan, struct bPoseChannel *pchan_from);
+
 /* like EBONE_VISIBLE */
 #define PBONE_VISIBLE(arm, bone) ( \
 	CHECK_TYPE_INLINE(arm, bArmature *), \
@@ -241,6 +244,11 @@ void BKE_pose_bone_done(
         struct Object *ob,
         int pchan_index);
 
+void BKE_pose_eval_bbone_segments(
+        struct Depsgraph *depsgraph,
+        struct Object *ob,
+        int pchan_index);
+
 void BKE_pose_iktree_evaluate(
         struct Depsgraph *depsgraph,
         struct Scene *scene,
@@ -253,12 +261,18 @@ void BKE_pose_splineik_evaluate(
         struct Object *ob,
         int rootchan_index);
 
+void BKE_pose_eval_done(
+        struct Depsgraph *depsgraph,
+        struct Object *object);
+
 void BKE_pose_eval_cleanup(
         struct Depsgraph *depsgraph,
         struct Scene *scene,
         struct Object *ob);
 
 void BKE_pose_eval_proxy_init(struct Depsgraph *depsgraph,
+                              struct Object *object);
+void BKE_pose_eval_proxy_done(struct Depsgraph *depsgraph,
                               struct Object *object);
 void BKE_pose_eval_proxy_cleanup(struct Depsgraph *depsgraph,
                                  struct Object *object);
@@ -267,6 +281,18 @@ void BKE_pose_eval_proxy_copy_bone(
         struct Depsgraph *depsgraph,
         struct Object *object,
         int pchan_index);
+
+/* BBOne deformation cache.
+ *
+ * The idea here is to pre-calculate deformation queternions, matricies and such
+ * used by armature_deform_verts().
+ */
+struct ObjectBBoneDeform;
+struct ObjectBBoneDeform * BKE_armature_cached_bbone_deformation_get(
+        struct Object *object);
+void BKE_armature_cached_bbone_deformation_free_data(struct Object *object);
+void BKE_armature_cached_bbone_deformation_free(struct Object *object);
+void BKE_armature_cached_bbone_deformation_update(struct Object *object);
 
 #ifdef __cplusplus
 }

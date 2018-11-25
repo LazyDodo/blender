@@ -230,7 +230,9 @@ void DepsgraphNodeBuilder::build_rig(Object *object, bool is_object_visible)
 
 	op_node = add_operation_node(&object->id,
 	                             DEG_NODE_TYPE_EVAL_POSE,
-	                             NULL,
+	                             function_bind(BKE_pose_eval_done,
+	                                           _1,
+	                                           object_cow),
 	                             DEG_OPCODE_POSE_DONE);
 	op_node->set_as_exit();
 	/* Bones. */
@@ -259,7 +261,18 @@ void DepsgraphNodeBuilder::build_rig(Object *object, bool is_object_visible)
 		                                           object_cow,
 		                                           pchan_index),
 		                             DEG_OPCODE_BONE_DONE);
+
+		/* B-Bone shape computation - the real last step if present. */
+		if (pchan->bone != NULL && pchan->bone->segments > 1) {
+			op_node = add_operation_node(&object->id, DEG_NODE_TYPE_BONE, pchan->name,
+			                             function_bind(BKE_pose_eval_bbone_segments, _1,
+			                                           object_cow,
+			                                           pchan_index),
+			                             DEG_OPCODE_BONE_SEGMENTS);
+		}
+
 		op_node->set_as_exit();
+
 		/* Custom properties. */
 		if (pchan->prop != NULL) {
 			add_operation_node(&object->id,
@@ -379,7 +392,9 @@ void DepsgraphNodeBuilder::build_proxy_rig(Object *object)
 	                             DEG_OPCODE_POSE_CLEANUP);
 	op_node = add_operation_node(&object->id,
 	                             DEG_NODE_TYPE_EVAL_POSE,
-	                             NULL,
+	                             function_bind(BKE_pose_eval_proxy_done,
+	                                           _1,
+	                                           object_cow),
 	                             DEG_OPCODE_POSE_DONE);
 	op_node->set_as_exit();
 }

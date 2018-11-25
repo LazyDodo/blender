@@ -5801,6 +5801,7 @@ static void set_trans_object_base_flags(TransInfo *t)
 {
 	Main *bmain = CTX_data_main(t->context);
 	ViewLayer *view_layer = t->view_layer;
+	View3D *v3d = t->view;
 	Scene *scene = t->scene;
 	Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene, view_layer, true);
 	/* NOTE: if Base selected and has parent selected:
@@ -5819,7 +5820,7 @@ static void set_trans_object_base_flags(TransInfo *t)
 	/* Traverse all bases and set all possible flags. */
 	for (Base *base = view_layer->object_bases.first; base; base = base->next) {
 		base->flag_legacy &= ~BA_WAS_SEL;
-		if (TESTBASELIB_BGMODE(base)) {
+		if (TESTBASELIB_BGMODE(v3d, base)) {
 			Object *ob = base->object;
 			Object *parsel = ob->parent;
 			/* If parent selected, deselect. */
@@ -5827,7 +5828,7 @@ static void set_trans_object_base_flags(TransInfo *t)
 				if (parsel->base_flag & BASE_SELECTED) {
 					Base *parbase = BKE_view_layer_base_find(view_layer, parsel);
 					if (parbase != NULL) { /* in rare cases this can fail */
-						if (TESTBASELIB_BGMODE(parbase)) {
+						if (TESTBASELIB_BGMODE(v3d, parbase)) {
 							break;
 						}
 					}
@@ -5874,6 +5875,7 @@ static int count_proportional_objects(TransInfo *t)
 {
 	int total = 0;
 	ViewLayer *view_layer = t->view_layer;
+	View3D *v3d = t->view;
 	Scene *scene = t->scene;
 	Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene, view_layer, true);
 	/* Clear all flags we need. It will be used to detect dependencies. */
@@ -5884,7 +5886,7 @@ static int count_proportional_objects(TransInfo *t)
 	{
 		/* Mark all parents. */
 		for (Base *base = view_layer->object_bases.first; base; base = base->next) {
-			if (TESTBASELIB_BGMODE(base)) {
+			if (TESTBASELIB_BGMODE(v3d, base)) {
 				Object *parent = base->object->parent;
 				/* flag all parents */
 				while (parent != NULL) {
@@ -5898,7 +5900,7 @@ static int count_proportional_objects(TransInfo *t)
 			/* all base not already selected or marked that is editable */
 			if ((base->object->flag & (BA_TRANSFORM_CHILD | BA_TRANSFORM_PARENT)) == 0 &&
 			    (base->flag & BASE_SELECTED) == 0 &&
-			    (BASE_EDITABLE_BGMODE(base)))
+			    (BASE_EDITABLE_BGMODE(v3d, base)))
 			{
 				mark_children(base->object);
 			}
@@ -5912,7 +5914,7 @@ static int count_proportional_objects(TransInfo *t)
 		 */
 		if ((ob->flag & (BA_TRANSFORM_CHILD | BA_TRANSFORM_PARENT)) == 0 &&
 		    (base->flag & BASE_SELECTED) == 0 &&
-		    (BASE_EDITABLE_BGMODE(base)))
+		    (BASE_EDITABLE_BGMODE(v3d, base)))
 		{
 			flush_trans_object_base_deps_flag(depsgraph, ob);
 			total += 1;
@@ -6282,8 +6284,9 @@ static void special_aftertrans_update__mask(bContext *C, TransInfo *t)
 	}
 }
 
-static void special_aftertrans_update__node(bContext *UNUSED(C), TransInfo *t)
+static void special_aftertrans_update__node(bContext *C, TransInfo *t)
 {
+	Main *bmain = CTX_data_main(C);
 	const bool canceled = (t->state == TRANS_CANCEL);
 
 	if (canceled && t->remove_on_cancel) {
@@ -6295,7 +6298,7 @@ static void special_aftertrans_update__node(bContext *UNUSED(C), TransInfo *t)
 			for (node = ntree->nodes.first; node; node = node_next) {
 				node_next = node->next;
 				if (node->flag & NODE_SELECT)
-					nodeFreeNode(ntree, node);
+					nodeDeleteNode(bmain, ntree, node);
 			}
 		}
 	}
@@ -6918,6 +6921,7 @@ static void createTransObject(bContext *C, TransInfo *t)
 
 	if (is_prop_edit) {
 		ViewLayer *view_layer = t->view_layer;
+		View3D *v3d = t->view;
 		Base *base;
 
 		for (base = view_layer->object_bases.first; base; base = base->next) {
@@ -6926,7 +6930,7 @@ static void createTransObject(bContext *C, TransInfo *t)
 			/* if base is not selected, not a parent of selection or not a child of selection and it is editable */
 			if ((ob->flag & (BA_TRANSFORM_CHILD | BA_TRANSFORM_PARENT)) == 0 &&
 			    (base->flag & BASE_SELECTED) == 0 &&
-			    BASE_EDITABLE_BGMODE(base))
+			    BASE_EDITABLE_BGMODE(v3d, base))
 			{
 				td->protectflag = ob->protectflag;
 				td->ext = tx;
@@ -8149,7 +8153,7 @@ static void createTransGPencil(bContext *C, TransInfo *t)
 	ToolSettings *ts = CTX_data_tool_settings(C);
 
 	bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd);
-	bool use_multiframe_falloff = (ts->gp_sculpt.flag & GP_BRUSHEDIT_FLAG_FRAME_FALLOFF) != 0;
+	bool use_multiframe_falloff = (ts->gp_sculpt.flag & GP_SCULPT_SETT_FLAG_FRAME_FALLOFF) != 0;
 
 	Object *obact = CTX_data_active_object(C);
 	bGPDlayer *gpl;
@@ -8696,7 +8700,8 @@ void createTransData(bContext *C, TransInfo *t)
 		if (ob_armature && ob_armature->mode & OB_MODE_POSE) {
 			Base *base_arm = BKE_view_layer_base_find(t->view_layer, ob_armature);
 			if (base_arm) {
-				if (BASE_VISIBLE(base_arm)) {
+				View3D *v3d = t->view;
+				if (BASE_VISIBLE(v3d, base_arm)) {
 					Object *objects[1];
 					objects[0] = ob_armature;
 					uint objects_len = 1;

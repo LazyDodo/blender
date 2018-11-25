@@ -308,6 +308,7 @@ extern StructRNA RNA_Itasc;
 extern StructRNA RNA_JoystickSensor;
 extern StructRNA RNA_Key;
 extern StructRNA RNA_KeyConfig;
+extern StructRNA RNA_KeyConfigPreferences;
 extern StructRNA RNA_KeyMap;
 extern StructRNA RNA_KeyMapItem;
 extern StructRNA RNA_KeyMapItems;

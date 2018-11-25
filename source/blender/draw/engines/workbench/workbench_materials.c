@@ -5,6 +5,7 @@
 #include "BIF_gl.h"
 
 #include "BLI_dynstr.h"
+#include "BLI_hash.h"
 
 #define HSV_SATURATION 0.5
 #define HSV_VALUE 0.9
@@ -27,9 +28,9 @@ void workbench_material_update_data(WORKBENCH_PrivateData *wpd, Object *ob, Mate
 		if (ob->id.lib) {
 			hash = (hash * 13) ^ BLI_ghashutil_strhash_p_murmur(ob->id.lib->name);
 		}
-		float offset = fmodf((hash / 100000.0) * M_GOLDEN_RATION_CONJUGATE, 1.0);
 
-		float hsv[3] = {offset, HSV_SATURATION, HSV_VALUE};
+		float hue = BLI_hash_int_01(hash);
+		float hsv[3] = {hue, HSV_SATURATION, HSV_VALUE};
 		hsv_to_rgb_v(hsv, data->diffuse_color);
 	}
 	else {
@@ -91,19 +92,8 @@ char *workbench_material_build_defines(WORKBENCH_PrivateData *wpd, bool use_text
 		BLI_dynstr_appendf(ds, "#define HAIR_SHADER\n");
 	}
 
-#if STUDIOLIGHT_SPHERICAL_HARMONICS_LEVEL == 0
-	BLI_dynstr_appendf(ds, "#define STUDIOLIGHT_SPHERICAL_HARMONICS_LEVEL 0\n");
-#endif
-#if STUDIOLIGHT_SPHERICAL_HARMONICS_LEVEL == 1
-	BLI_dynstr_appendf(ds, "#define STUDIOLIGHT_SPHERICAL_HARMONICS_LEVEL 1\n");
-#endif
-#if STUDIOLIGHT_SPHERICAL_HARMONICS_LEVEL == 2
-	BLI_dynstr_appendf(ds, "#define STUDIOLIGHT_SPHERICAL_HARMONICS_LEVEL 2\n");
-#endif
-#if STUDIOLIGHT_SPHERICAL_HARMONICS_LEVEL == 4
-	BLI_dynstr_appendf(ds, "#define STUDIOLIGHT_SPHERICAL_HARMONICS_LEVEL 4\n");
-#endif
-	BLI_dynstr_appendf(ds, "#define STUDIOLIGHT_SPHERICAL_HARMONICS_MAX_COMPONENTS 18\n");
+	BLI_dynstr_appendf(ds, "#define STUDIOLIGHT_SH_BANDS %d\n", STUDIOLIGHT_SH_BANDS);
+	BLI_dynstr_appendf(ds, "#define STUDIOLIGHT_SH_MAX_COMPONENTS %d\n", WORKBENCH_SH_DATA_LEN);
 
 	str = BLI_dynstr_get_cstring(ds);
 	BLI_dynstr_free(ds);

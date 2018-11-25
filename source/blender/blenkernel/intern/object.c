@@ -458,6 +458,7 @@ void BKE_object_free_derived_caches(Object *ob)
 
 	object_update_from_subsurf_ccg(ob);
 	BKE_object_free_derived_mesh_caches(ob);
+	BKE_armature_cached_bbone_deformation_free(ob);
 
 	if (ob->runtime.mesh_eval != NULL) {
 		Mesh *mesh_eval = ob->runtime.mesh_eval;
@@ -835,7 +836,8 @@ void BKE_object_init(Object *ob)
 	ob->empty_image_depth = OB_EMPTY_IMAGE_DEPTH_DEFAULT;
 	ob->empty_image_visibility_flag = (
 	        OB_EMPTY_IMAGE_VISIBLE_PERSPECTIVE |
-	        OB_EMPTY_IMAGE_VISIBLE_ORTHOGRAPHIC);
+	        OB_EMPTY_IMAGE_VISIBLE_ORTHOGRAPHIC |
+	        OB_EMPTY_IMAGE_VISIBLE_BACKSIDE);
 	if (ob->type == OB_EMPTY) {
 		copy_v2_fl(ob->ima_ofs, -0.5f);
 	}
@@ -1205,13 +1207,13 @@ Object *BKE_object_pose_armature_get(Object *ob)
 	return NULL;
 }
 
-Object *BKE_object_pose_armature_get_visible(Object *ob, ViewLayer *view_layer)
+Object *BKE_object_pose_armature_get_visible(Object *ob, ViewLayer *view_layer, View3D *v3d)
 {
 	Object *ob_armature = BKE_object_pose_armature_get(ob);
 	if (ob_armature) {
 		Base *base = BKE_view_layer_base_find(view_layer, ob_armature);
 		if (base) {
-			if (BASE_VISIBLE(base)) {
+			if (BASE_VISIBLE(v3d, base)) {
 				return ob_armature;
 			}
 		}
@@ -2028,69 +2030,29 @@ static void give_parvert(Object *par, int nr, float vec[3])
 	if (par->type == OB_MESH) {
 		Mesh *me = par->data;
 		BMEditMesh *em = me->edit_btmesh;
-		DerivedMesh *dm = NULL;
 		Mesh *me_eval = (em) ? em->mesh_eval_final : par->runtime.mesh_eval;
-
-		/* Keep this until subsurf code ported away from derived mesh - campbell. */
-		dm = par->derivedFinal;
-		if (dm && dm->type != DM_TYPE_CCGDM) {
-			dm = NULL;
-		}
 
 		if (me_eval) {
 			int count = 0;
 			const int numVerts = me_eval->totvert;
 
 			if (nr < numVerts) {
-				bool use_special_ss_case = false;
-
-				if (dm && dm->type == DM_TYPE_CCGDM) {
-					ModifierData *md;
-					VirtualModifierData virtualModifierData;
-					use_special_ss_case = true;
-					for (md = modifiers_getVirtualModifierList(par, &virtualModifierData);
-					     md != NULL;
-					     md = md->next)
-					{
-						const ModifierTypeInfo *mti = modifierType_getInfo(md->type);
-						/* TODO(sergey): Check for disabled modifiers. */
-						if (mti->type != eModifierTypeType_OnlyDeform && md->next != NULL) {
-							use_special_ss_case = false;
-							break;
-						}
-					}
-				}
-
-				if (!use_special_ss_case) {
-					/* avoid dm->getVertDataArray() since it allocates arrays in the dm (not thread safe) */
-					if (em && me_eval->runtime.is_original) {
-						if (em->bm->elem_table_dirty & BM_VERT) {
+				if (em && me_eval->runtime.is_original) {
+					if (em->bm->elem_table_dirty & BM_VERT) {
 #ifdef VPARENT_THREADING_HACK
-							BLI_mutex_lock(&vparent_lock);
-							if (em->bm->elem_table_dirty & BM_VERT) {
-								BM_mesh_elem_table_ensure(em->bm, BM_VERT);
-							}
-							BLI_mutex_unlock(&vparent_lock);
-#else
-							BLI_assert(!"Not safe for threading");
+						BLI_mutex_lock(&vparent_lock);
+						if (em->bm->elem_table_dirty & BM_VERT) {
 							BM_mesh_elem_table_ensure(em->bm, BM_VERT);
-#endif
 						}
+						BLI_mutex_unlock(&vparent_lock);
+#else
+						BLI_assert(!"Not safe for threading");
+						BM_mesh_elem_table_ensure(em->bm, BM_VERT);
+#endif
 					}
 				}
 
-				if (use_special_ss_case) {
-					/* Special case if the last modifier is SS and no constructive modifier are in front of it. */
-					CCGDerivedMesh *ccgdm = (CCGDerivedMesh *)dm;
-					CCGVert *ccg_vert = ccgSubSurf_getVert(ccgdm->ss, POINTER_FROM_INT(nr));
-					/* In case we deleted some verts, nr may refer to inexistent one now, see T42557. */
-					if (ccg_vert) {
-						float *co = ccgSubSurf_getVertData(ccgdm->ss, ccg_vert);
-						add_v3_v3(vec, co);
-						count++;
-					}
-				}
-				else if (CustomData_has_layer(&me_eval->vdata, CD_ORIGINDEX) &&
+				if (CustomData_has_layer(&me_eval->vdata, CD_ORIGINDEX) &&
 				         !(em && me_eval->runtime.is_original))
 				{
 					const int *index = CustomData_get_layer(&me_eval->vdata, CD_ORIGINDEX);
@@ -2125,7 +2087,7 @@ static void give_parvert(Object *par, int nr, float vec[3])
 		}
 		else {
 			fprintf(stderr,
-			        "%s: DerivedMesh is needed to solve parenting, "
+			        "%s: Evaluated mesh is needed to solve parenting, "
 			        "object position can be wrong now\n", __func__);
 		}
 	}
@@ -3651,8 +3613,8 @@ LinkNode *BKE_object_relational_superset(struct ViewLayer *view_layer, eObjectSe
 			obrel_list_add(&links, ob);
 		}
 		else {
-			if ((objectSet == OB_SET_SELECTED && TESTBASELIB_BGMODE(base)) ||
-			    (objectSet == OB_SET_VISIBLE  && BASE_EDITABLE_BGMODE(base)))
+			if ((objectSet == OB_SET_SELECTED && TESTBASELIB_BGMODE(((View3D *)NULL), base)) ||
+			    (objectSet == OB_SET_VISIBLE  && BASE_EDITABLE_BGMODE(((View3D *)NULL), base)))
 			{
 				Object *ob = base->object;
 
@@ -3682,7 +3644,7 @@ LinkNode *BKE_object_relational_superset(struct ViewLayer *view_layer, eObjectSe
 				if (includeFilter & (OB_REL_CHILDREN | OB_REL_CHILDREN_RECURSIVE)) {
 					Base *local_base;
 					for (local_base = view_layer->object_bases.first; local_base; local_base = local_base->next) {
-						if (BASE_EDITABLE_BGMODE(local_base)) {
+						if (BASE_EDITABLE_BGMODE(((View3D *)NULL), local_base)) {
 
 							Object *child = local_base->object;
 							if (obrel_list_test(child)) {
@@ -4079,4 +4041,22 @@ bool BKE_object_modifier_update_subframe(
 	}
 
 	return false;
+}
+
+bool BKE_image_empty_visible_in_view3d(const Object *ob, const RegionView3D *rv3d)
+{
+	int visibility_flag = ob->empty_image_visibility_flag;
+
+	if ((visibility_flag & OB_EMPTY_IMAGE_VISIBLE_BACKSIDE) == 0) {
+		if (dot_v3v3((float *)&ob->obmat[2], (float *)&rv3d->viewinv[2]) < 0.0f) {
+			return false;
+		}
+	}
+
+	if (rv3d->is_persp) {
+		return visibility_flag & OB_EMPTY_IMAGE_VISIBLE_PERSPECTIVE;
+	}
+	else {
+		return visibility_flag & OB_EMPTY_IMAGE_VISIBLE_ORTHOGRAPHIC;
+	}
 }

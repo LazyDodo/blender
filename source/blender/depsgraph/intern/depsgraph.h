@@ -79,6 +79,8 @@ typedef enum eDepsRelation_Flag {
 	/* Only flush along the relation is update comes from a node which was
 	 * affected by user input. */
 	DEPSREL_FLAG_FLUSH_USER_EDIT_ONLY = (1 << 2),
+	/* The relation can not be killed by the cyclic dependencies solver. */
+	DEPSREL_FLAG_GODMODE              = (1 << 3),
 } eDepsRelation_Flag;
 
 /* B depends on A (A -> B) */
@@ -139,12 +141,14 @@ struct Depsgraph {
 	DepsRelation *add_new_relation(OperationDepsNode *from,
 	                               OperationDepsNode *to,
 	                               const char *description,
-	                               bool check_unique = false);
+	                               bool check_unique = false,
+	                               int flags = 0);
 
 	DepsRelation *add_new_relation(DepsNode *from,
 	                               DepsNode *to,
 	                               const char *description,
-	                               bool check_unique = false);
+	                               bool check_unique = false,
+	                               int flags = 0);
 
 	/* Check whether two nodes are connected by relation with given
 	 * description. Description might be NULL to check ANY relation between

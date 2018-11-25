@@ -2014,7 +2014,7 @@ float WM_cursor_pressure(const struct wmWindow *win)
 	const GHOST_TabletData *td = GHOST_GetTabletData(win->ghostwin);
 	/* if there's tablet data from an active tablet device then add it */
 	if ((td != NULL) && td->Active != GHOST_kTabletModeNone) {
-		return td->Pressure;
+		return wm_pressure_curve(td->Pressure);
 	}
 	else {
 		return -1.0f;
@@ -2230,6 +2230,11 @@ void WM_window_set_active_workspace(bContext *C, wmWindow *win, WorkSpace *works
 
 	for (wmWindow *win_child = wm->windows.first; win_child; win_child = win_child->next) {
 		if (win_child->parent == win_parent) {
+			bScreen *screen = WM_window_get_active_screen(win_child);
+			/* Don't change temporary screens, they only serve a single purpose. */
+			if (screen->temp) {
+				continue;
+			}
 			ED_workspace_change(workspace, C, wm, win_child);
 		}
 	}
