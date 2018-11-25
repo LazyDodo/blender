@@ -38,7 +38,10 @@ vec4 get_blend_color(int mode, vec4 src_color, vec4 blend_color)
 	vec4 mix_color = blend_color;
 	vec4 outcolor;
 
-	if (mode == MODE_OVERLAY) {
+    if (mix_color.a == 0) {
+		outcolor = src_color;
+	}
+	else if (mode == MODE_OVERLAY) {
 		mix_color.rgb = mix_color.rgb * mix_color.a * blend_opacity;
 		outcolor.r = overlay_color(src_color.r, mix_color.r);
 		outcolor.g = overlay_color(src_color.g, mix_color.g);
