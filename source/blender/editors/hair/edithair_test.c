@@ -39,6 +39,7 @@
 #include "DNA_scene_types.h"
 
 #include "BKE_context.h"
+#include "BKE_customdata.h"
 #include "BKE_hair.h"
 #include "BKE_mesh_sample.h"
 
@@ -59,57 +60,6 @@
 #include "BLT_translation.h"
 
 #include "hair_intern.h"  /* own include */
-
-/* -------------------------------------------------------------------- */
-/** \name Add test hair
- * Test operator for quickly adding hair
- * \{ */
-
-// TODO this was based on directly creating vertex/curve buffers in hair data, now using CustomData layers */
-#if 0
-/* Distribute hair follicles on a scalp mesh.
- * Optional per-loop weights control follicle density on the scalp.
- */
-static void hair_generate_follicles_ex(
-        HairCurveData *curve_data,
-        struct Mesh *scalp,
-        unsigned int seed,
-        int count,
-        const float *loop_weights)
-{
-	// Limit max_count to theoretical limit based on area
-	float scalp_area = BKE_hair_calc_surface_area(scalp);
-	float density = BKE_hair_calc_density_from_count(scalp_area, count);
-	float min_distance = BKE_hair_calc_min_distance_from_density(density);
-
-	if (curve_data->follicles)
-	{
-		MEM_freeN(curve_data->follicles);
-	}
-	curve_data->follicles = MEM_callocN(sizeof(HairFollicle) * count, "hair follicles");
-
-	{
-		MeshSampleGenerator *gen = BKE_mesh_sample_gen_surface_poissondisk(seed, min_distance, count, loop_weights);
-
-		BKE_mesh_sample_generator_bind(gen, scalp);
-
-		static const bool use_threads = false;
-		curve_data->totfollicles = BKE_mesh_sample_generate_batch_ex(
-		            gen,
-		            &curve_data->follicles->mesh_sample,
-		            sizeof(HairFollicle),
-		            count,
-		            use_threads);
-
-		BKE_mesh_sample_free_generator(gen);
-	}
-
-	for (int i = 0; i < curve_data->totfollicles; ++i) {
-		HairFollicle *follicle = &curve_data->follicles[i];
-
-		follicle->curve = HAIR_CURVE_INDEX_NONE;
-	}
-}
 
 typedef struct HairCurveBuilder
 {
@@ -169,18 +119,20 @@ static void BKE_hair_curve_builder_add_vertex(HairCurveBuilder *hcb, const float
 
 static void BKE_hair_curve_builder_apply(HairCurveBuilder *hcb, HairCurveData *curve_data)
 {
-	curve_data->totcurves = hcb->totcurves;
-	curve_data->totverts = hcb->totverts;
-	curve_data->curves = MEM_reallocN(hcb->curves, sizeof(*hcb->curves) * hcb->totcurves);
-	curve_data->verts = MEM_reallocN(hcb->verts, sizeof(*hcb->verts) * hcb->totverts);
-
+	/* Compute vertstart indices */
 	int vertstart = 0;
-	HairFiberCurve *curve = curve_data->curves;
+	HairFiberCurve *curve = hcb->curves;
 	for (int i = 0; i < hcb->totcurves; ++i, ++curve) {
 		curve->vertstart = vertstart;
 		vertstart += curve->numverts;
 	}
 
+	curve_data->totcurves = hcb->totcurves;
+	curve_data->totverts = hcb->totverts;
+	CustomData_add_layer(&curve_data->vdata, CD_HAIRVERT, CD_ASSIGN, hcb->verts, hcb->totverts);
+	CustomData_add_layer(&curve_data->cdata, CD_HAIRCURVE, CD_ASSIGN, hcb->curves, hcb->totcurves);
+
+	/* Data owned by HairCurveData now */
 	hcb->maxcurves = 0;
 	hcb->maxverts = 0;
 	hcb->curves = NULL;
@@ -199,6 +151,55 @@ static void BKE_hair_curve_builder_discard(HairCurveBuilder *hcb)
 	hcb->totverts = 0;
 }
 
+/* -------------------------------------------------------------------- */
+/** \name Add test hair
+ * Test operator for quickly adding hair
+ * \{ */
+
+/* Distribute hair follicles on a scalp mesh.
+ * Optional per-loop weights control follicle density on the scalp.
+ */
+static void hair_generate_follicles_ex(
+        HairCurveData *curve_data,
+        struct Mesh *scalp,
+        unsigned int seed,
+        int count,
+        const float *loop_weights)
+{
+	// Limit max_count to theoretical limit based on area
+	float scalp_area = BKE_hair_calc_surface_area(scalp);
+	float density = BKE_hair_calc_density_from_count(scalp_area, count);
+	float min_distance = BKE_hair_calc_min_distance_from_density(density);
+
+	HairFollicle *follicles = MEM_callocN(sizeof(HairFollicle) * count, "hair follicles");
+	int totfollicles = 0;
+
+	{
+		MeshSampleGenerator *gen = BKE_mesh_sample_gen_surface_poissondisk(seed, min_distance, count, loop_weights);
+
+		BKE_mesh_sample_generator_bind(gen, scalp);
+
+		static const bool use_threads = false;
+		totfollicles = BKE_mesh_sample_generate_batch_ex(
+		            gen,
+		            &follicles->mesh_sample,
+		            sizeof(HairFollicle),
+		            count,
+		            use_threads);
+
+		BKE_mesh_sample_free_generator(gen);
+	}
+
+	for (int i = 0; i < totfollicles; ++i) {
+		HairFollicle *follicle = &follicles[i];
+
+		follicle->curve = HAIR_CURVE_INDEX_NONE;
+	}
+
+	curve_data->totfollicles = totfollicles;
+	CustomData_add_layer(&curve_data->fdata, CD_HAIRFOLLICLE, CD_ASSIGN, follicles, totfollicles);
+}
+
 /* Generate a simple hair curve for each follicle */
 static void hair_generate_curves(
 	HairCurveData *curve_data,
@@ -213,8 +214,9 @@ static void hair_generate_curves(
 	HairCurveBuilder hcb;
 	BKE_hair_curve_builder_init(&hcb, totcurves, totverts);
 
+	HairFollicle *follicles = BKE_hair_get_follicles(curve_data);
 	for (int i = 0; i < curve_data->totfollicles; ++i) {
-		HairFollicle *follicle = &curve_data->follicles[i];
+		HairFollicle *follicle = &follicles[i];
 
 		BKE_hair_curve_builder_add_curve(&hcb, taper_length, taper_thickness);
 		for (int j = 0; j < numverts_per_curve; ++j)
@@ -227,13 +229,11 @@ static void hair_generate_curves(
 			BKE_hair_curve_builder_add_vertex(&hcb, co, 0);
 		}
 
-		// follicle->curve = i;
+		follicle->curve = i;
 	}
 
-	BKE_hair_curve_data_free(curve_data);
 	BKE_hair_curve_builder_apply(&hcb, curve_data);
 }
-#endif
 
 static int add_test_hair_exec(bContext *C, wmOperator *op)
 {
@@ -250,8 +250,9 @@ static int add_test_hair_exec(bContext *C, wmOperator *op)
 	const int seed = RNA_int_get(op->ptr, "seed");
 	const int count = RNA_int_get(op->ptr, "count");
 
-	// hair_generate_follicles_ex(&edit->curve_data, scalp, seed, count, NULL);
-	// hair_generate_curves(&edit->curve_data, scalp);
+	BKE_hair_curve_data_free(&edit->curve_data);
+	hair_generate_follicles_ex(&edit->curve_data, scalp, seed, count, NULL);
+	hair_generate_curves(&edit->curve_data, scalp);
 
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 	DEG_id_tag_update(obedit->data, DEG_TAG_SELECT_UPDATE);
