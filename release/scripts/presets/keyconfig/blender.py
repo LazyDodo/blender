@@ -5,7 +5,8 @@ from bpy.props import (
     EnumProperty,
 )
 
-idname = os.path.splitext(os.path.basename(__file__))[0]
+dirname, filename = os.path.split(__file__)
+idname = os.path.splitext(filename)[0]
 
 def update_fn(_self, _context):
     load()
@@ -54,26 +55,49 @@ class Prefs(bpy.types.KeyConfigPreferences):
         update=update_fn,
     )
 
+    # 3D View
+    use_v3d_tab_menu: BoolProperty(
+        name="Tab for Pie Menu",
+        description=(
+            "Causes tab to open pie menu (swaps 'Tab' / 'Ctrl-Tab')"
+        ),
+        default=False,
+        update=update_fn,
+    )
+    use_v3d_shade_ex_pie: BoolProperty(
+        name="Extra Shading Pie Menu Items",
+        description=(
+            "Show additional options in the shading menu ('Z')"
+        ),
+        default=False,
+        update=update_fn,
+    )
+
     def draw(self, layout):
-        col = layout.column(align=True)
+        split = layout.split()
+        col = split.column(align=True)
         col.label(text="Select With:")
         col.row().prop(self, "select_mouse", expand=True)
+        col.prop(self, "use_select_all_toggle")
 
-        col = layout.column(align=True)
+        col = split.column(align=True)
         col.label(text="Spacebar Action:")
         col.row().prop(self, "spacebar_action", expand=True)
 
-        layout.prop(self, "use_select_all_toggle")
+        layout.label(text="3D View:")
+        split = layout.split()
+        col = split.column()
+        col.prop(self, "use_v3d_tab_menu")
+        col = split.column()
+        col.prop(self, "use_v3d_shade_ex_pie")
 
 
-from bpy_extras.keyconfig_utils import (
-    keyconfig_init_from_data,
-    keyconfig_module_from_preset,
-)
+blender_default = bpy.utils.execfile(os.path.join(dirname, "keymap_data", "blender_default.py"))
 
-blender_default = keyconfig_module_from_preset(os.path.join("keymap_data", "blender_default"), __file__)
 
 def load():
+    from bl_keymap_utils.io import keyconfig_init_from_data
+
     kc = bpy.context.window_manager.keyconfigs.new(idname)
     kc_prefs = kc.preferences
 
@@ -82,6 +106,8 @@ def load():
             select_mouse=kc_prefs.select_mouse,
             spacebar_action=kc_prefs.spacebar_action,
             use_select_all_toggle=kc_prefs.use_select_all_toggle,
+            use_v3d_tab_menu=kc_prefs.use_v3d_tab_menu,
+            use_v3d_shade_ex_pie=kc_prefs.use_v3d_shade_ex_pie,
         ),
     )
     keyconfig_init_from_data(kc, keyconfig_data)

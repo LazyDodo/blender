@@ -75,6 +75,8 @@
 
 #include "BIK_api.h"
 
+#include "atomic_ops.h"
+
 /* **************** Generic Functions, data level *************** */
 
 bArmature *BKE_armature_add(Main *bmain, const char *name)
@@ -813,26 +815,53 @@ typedef struct bPoseChanDeform {
 	DualQuat *b_bone_dual_quats;
 } bPoseChanDeform;
 
-static void pchan_b_bone_defmats(bPoseChannel *pchan, bPoseChanDeform *pdef_info, const bool use_quaternion)
+/* Definition of cached object bbone deformations. */
+typedef struct ObjectBBoneDeform {
+	DualQuat *dualquats;
+	bPoseChanDeform *pdef_info_array;
+	int num_pchan;
+} ObjectBBoneDeform;
+
+static void allocate_bbone_cache(bPoseChannel *pchan, int segments)
 {
+	bPoseChannelRuntime *runtime = &pchan->runtime;
+
+	if (runtime->bbone_segments != segments) {
+		if (runtime->bbone_segments != 0) {
+			BKE_pose_channel_free_bbone_cache(pchan);
+		}
+
+		runtime->bbone_segments = segments;
+		runtime->bbone_rest_mats = MEM_malloc_arrayN(sizeof(Mat4), (uint)segments, "bPoseChannelRuntime::bbone_rest_mats");
+		runtime->bbone_pose_mats = MEM_malloc_arrayN(sizeof(Mat4), (uint)segments, "bPoseChannelRuntime::bbone_pose_mats");
+		runtime->bbone_deform_mats = MEM_malloc_arrayN(sizeof(Mat4), 1 + (uint)segments, "bPoseChannelRuntime::bbone_deform_mats");
+		runtime->bbone_dual_quats = MEM_malloc_arrayN(sizeof(DualQuat), (uint)segments, "bPoseChannelRuntime::bbone_dual_quats");
+	}
+}
+
+/** Compute and cache the B-Bone shape in the channel runtime struct. */
+void BKE_pchan_cache_bbone_segments(bPoseChannel *pchan)
+{
+	bPoseChannelRuntime *runtime = &pchan->runtime;
 	Bone *bone = pchan->bone;
-	Mat4 b_bone[MAX_BBONE_SUBDIV], b_bone_rest[MAX_BBONE_SUBDIV];
-	Mat4 *b_bone_mats;
-	DualQuat *b_bone_dual_quats = NULL;
+	int segments = bone->segments;
+
+	BLI_assert(segments > 1);
+
+	/* Allocate the cache if needed. */
+	allocate_bbone_cache(pchan, segments);
+
+	/* Compute the shape. */
+	Mat4 *b_bone = runtime->bbone_pose_mats;
+	Mat4 *b_bone_rest = runtime->bbone_rest_mats;
+	Mat4 *b_bone_mats = runtime->bbone_deform_mats;
+	DualQuat *b_bone_dual_quats = runtime->bbone_dual_quats;
 	int a;
 
 	b_bone_spline_setup(pchan, false, b_bone);
 	b_bone_spline_setup(pchan, true, b_bone_rest);
 
-	/* allocate b_bone matrices and dual quats */
-	b_bone_mats = MEM_mallocN((1 + bone->segments) * sizeof(Mat4), "BBone defmats");
-	pdef_info->b_bone_mats = b_bone_mats;
-
-	if (use_quaternion) {
-		b_bone_dual_quats = MEM_mallocN((bone->segments) * sizeof(DualQuat), "BBone dqs");
-		pdef_info->b_bone_dual_quats = b_bone_dual_quats;
-	}
-
+	/* Compute deform matrices. */
 	/* first matrix is the inverse arm_mat, to bring points in local bone space
 	 * for finding out which segment it belongs to */
 	invert_m4_m4(b_bone_mats[0].mat, bone->arm_mat);
@@ -849,15 +878,34 @@ static void pchan_b_bone_defmats(bPoseChannel *pchan, bPoseChanDeform *pdef_info
 		invert_m4_m4(tmat, b_bone_rest[a].mat);
 		mul_m4_series(b_bone_mats[a + 1].mat, pchan->chan_mat, bone->arm_mat, b_bone[a].mat, tmat, b_bone_mats[0].mat);
 
-		if (use_quaternion)
-			mat4_to_dquat(&b_bone_dual_quats[a], bone->arm_mat, b_bone_mats[a + 1].mat);
+		mat4_to_dquat(&b_bone_dual_quats[a], bone->arm_mat, b_bone_mats[a + 1].mat);
 	}
 }
 
-static void b_bone_deform(bPoseChanDeform *pdef_info, Bone *bone, float co[3], DualQuat *dq, float defmat[3][3])
+/** Copy cached B-Bone segments from one channel to another */
+void BKE_pchan_copy_bbone_segments_cache(bPoseChannel *pchan, bPoseChannel *pchan_from)
 {
-	Mat4 *b_bone = pdef_info->b_bone_mats;
-	float (*mat)[4] = b_bone[0].mat;
+	bPoseChannelRuntime *runtime = &pchan->runtime;
+	bPoseChannelRuntime *runtime_from = &pchan_from->runtime;
+	int segments = runtime_from->bbone_segments;
+
+	if (segments <= 1) {
+		BKE_pose_channel_free_bbone_cache(pchan);
+	}
+	else {
+		allocate_bbone_cache(pchan, segments);
+
+		memcpy(runtime->bbone_rest_mats, runtime_from->bbone_rest_mats, sizeof(Mat4) * segments);
+		memcpy(runtime->bbone_pose_mats, runtime_from->bbone_pose_mats, sizeof(Mat4) * segments);
+		memcpy(runtime->bbone_deform_mats, runtime_from->bbone_deform_mats, sizeof(Mat4) * (1 + segments));
+		memcpy(runtime->bbone_dual_quats, runtime_from->bbone_dual_quats, sizeof(DualQuat) * segments);
+	}
+}
+
+static void b_bone_deform(const bPoseChanDeform *pdef_info, Bone *bone, float co[3], DualQuat *dq, float defmat[3][3])
+{
+	const Mat4 *b_bone = pdef_info->b_bone_mats;
+	const float (*mat)[4] = b_bone[0].mat;
 	float segment, y;
 	int a;
 
@@ -949,7 +997,7 @@ static void pchan_deform_mat_add(bPoseChannel *pchan, float weight, float bbonem
 	add_m3_m3m3(mat, mat, wmat);
 }
 
-static float dist_bone_deform(bPoseChannel *pchan, bPoseChanDeform *pdef_info, float vec[3], DualQuat *dq,
+static float dist_bone_deform(bPoseChannel *pchan, const bPoseChanDeform *pdef_info, float vec[3], DualQuat *dq,
                               float mat[3][3], const float co[3])
 {
 	Bone *bone = pchan->bone;
@@ -969,7 +1017,7 @@ static float dist_bone_deform(bPoseChannel *pchan, bPoseChanDeform *pdef_info, f
 		contrib = fac;
 		if (contrib > 0.0f) {
 			if (vec) {
-				if (bone->segments > 1)
+				if (bone->segments > 1 && pdef_info->b_bone_mats != NULL)
 					/* applies on cop and bbonemat */
 					b_bone_deform(pdef_info, bone, cop, NULL, (mat) ? bbonemat : NULL);
 				else
@@ -983,7 +1031,7 @@ static float dist_bone_deform(bPoseChannel *pchan, bPoseChanDeform *pdef_info, f
 					pchan_deform_mat_add(pchan, fac, bbonemat, mat);
 			}
 			else {
-				if (bone->segments > 1) {
+				if (bone->segments > 1 && pdef_info->b_bone_mats != NULL) {
 					b_bone_deform(pdef_info, bone, cop, &bbonedq, NULL);
 					add_weighted_dq_dq(dq, &bbonedq, fac);
 				}
@@ -996,7 +1044,8 @@ static float dist_bone_deform(bPoseChannel *pchan, bPoseChanDeform *pdef_info, f
 	return contrib;
 }
 
-static void pchan_bone_deform(bPoseChannel *pchan, bPoseChanDeform *pdef_info, float weight, float vec[3], DualQuat *dq,
+static void pchan_bone_deform(bPoseChannel *pchan, const bPoseChanDeform *pdef_info,
+                              float weight, float vec[3], DualQuat *dq,
                               float mat[3][3], const float co[3], float *contrib)
 {
 	float cop[3], bbonemat[3][3];
@@ -1049,7 +1098,10 @@ static void armature_bbone_defmats_cb(void *userdata, Link *iter, int index)
 		const bool use_quaternion = data->use_quaternion;
 
 		if (pchan->bone->segments > 1) {
-			pchan_b_bone_defmats(pchan, pdef_info, use_quaternion);
+			BLI_assert(pchan->runtime.bbone_segments == pchan->bone->segments);
+
+			pdef_info->b_bone_mats = pchan->runtime.bbone_deform_mats;
+			pdef_info->b_bone_dual_quats = pchan->runtime.bbone_dual_quats;
 		}
 
 		if (use_quaternion) {
@@ -1064,14 +1116,12 @@ void armature_deform_verts(
         float (*defMats)[3][3], int numVerts, int deformflag,
         float (*prevCos)[3], const char *defgrp_name, bGPDstroke *gps)
 {
-	bPoseChanDeform *pdef_info_array;
-	bPoseChanDeform *pdef_info = NULL;
+	const bPoseChanDeform *pdef_info = NULL;
 	bArmature *arm = armOb->data;
 	bPoseChannel *pchan, **defnrToPC = NULL;
 	int *defnrToPCIndex = NULL;
 	MDeformVert *dverts = NULL;
 	bDeformGroup *dg;
-	DualQuat *dualquats = NULL;
 	float obinv[4][4], premat[4][4], postmat[4][4];
 	const bool use_envelope   = (deformflag & ARM_DEF_ENVELOPE) != 0;
 	const bool use_quaternion = (deformflag & ARM_DEF_QUATERNION) != 0;
@@ -1080,7 +1130,6 @@ void armature_deform_verts(
 	int i, target_totvert = 0; /* safety for vertexgroup overflow */
 	bool use_dverts = false;
 	int armature_def_nr;
-	int totchan;
 
 	/* in editmode, or not an armature */
 	if (arm->edbo || (armOb->pose == NULL)) {
@@ -1088,7 +1137,7 @@ void armature_deform_verts(
 	}
 
 	if ((armOb->pose->flag & POSE_RECALC) != 0) {
-		printf("ERROR! Trying to evaluate influence of armature '%s' which needs Pose recalc!", armOb->id.name);
+		printf("ERROR! Trying to evaluate influence of armature '%s' which needs Pose recalc!\n", armOb->id.name);
 		BLI_assert(0);
 	}
 
@@ -1097,21 +1146,20 @@ void armature_deform_verts(
 	mul_m4_m4m4(postmat, obinv, armOb->obmat);
 	invert_m4_m4(premat, postmat);
 
-	/* bone defmats are already in the channels, chan_mat */
-
-	/* initialize B_bone matrices and dual quaternions */
-	totchan = BLI_listbase_count(&armOb->pose->chanbase);
-
-	if (use_quaternion) {
-		dualquats = MEM_callocN(sizeof(DualQuat) * totchan, "dualquats");
+	/* Use pre-calculated bbone deformation.
+	 *
+	 * TODO(sergey): Make this code robust somehow when there are dependency
+	 * cycles involved. */
+	ObjectBBoneDeform * bbone_deform =
+	        BKE_armature_cached_bbone_deformation_get(armOb);
+	if (bbone_deform == NULL || bbone_deform->pdef_info_array == NULL) {
+		fprintf(stderr,
+		        "Armature does not have bbone cache %s, "
+		        "usually happens due to a dependency cycle.\n",
+		        armOb->id.name + 2);
+		return;
 	}
-
-	pdef_info_array = MEM_callocN(sizeof(bPoseChanDeform) * totchan, "bPoseChanDeform");
-
-	ArmatureBBoneDefmatsData data = {
-	    .pdef_info_array = pdef_info_array, .dualquats = dualquats, .use_quaternion = use_quaternion
-	};
-	BLI_task_parallel_listbase(&armOb->pose->chanbase, &data, armature_bbone_defmats_cb, totchan > 512);
+	const bPoseChanDeform *pdef_info_array = bbone_deform->pdef_info_array;
 
 	/* get the def_nr for the overall armature vertex group if present */
 	armature_def_nr = defgroup_name_index(target, defgrp_name);
@@ -1343,23 +1391,10 @@ void armature_deform_verts(
 		}
 	}
 
-	if (dualquats)
-		MEM_freeN(dualquats);
 	if (defnrToPC)
 		MEM_freeN(defnrToPC);
 	if (defnrToPCIndex)
 		MEM_freeN(defnrToPCIndex);
-
-	/* free B_bone matrices */
-	pdef_info = pdef_info_array;
-	for (pchan = armOb->pose->chanbase.first; pchan; pchan = pchan->next, pdef_info++) {
-		if (pdef_info->b_bone_mats)
-			MEM_freeN(pdef_info->b_bone_mats);
-		if (pdef_info->b_bone_dual_quats)
-			MEM_freeN(pdef_info->b_bone_dual_quats);
-	}
-
-	MEM_freeN(pdef_info_array);
 }
 
 /* ************ END Armature Deform ******************* */
@@ -2489,4 +2524,79 @@ bPoseChannel *BKE_armature_splineik_solver_find_root(
 		rootchan = rootchan->parent;
 	}
 	return rootchan;
+}
+
+/* ****************************** BBone cache  ****************************** */
+
+ObjectBBoneDeform * BKE_armature_cached_bbone_deformation_get(Object *object)
+{
+	return object->runtime.cached_bbone_deformation;
+}
+
+void BKE_armature_cached_bbone_deformation_free_data(Object *object)
+{
+	ObjectBBoneDeform *bbone_deform =
+	        BKE_armature_cached_bbone_deformation_get(object);
+	if (bbone_deform == NULL) {
+		return;
+	}
+	/* Free arrays. */
+	MEM_SAFE_FREE(bbone_deform->pdef_info_array);
+	MEM_SAFE_FREE(bbone_deform->dualquats);
+	/* Tag that we've got no data, so we are safe for sequential calls to
+	 * data free. */
+	bbone_deform->num_pchan = 0;
+}
+
+void BKE_armature_cached_bbone_deformation_free(Object *object)
+{
+	ObjectBBoneDeform *bbone_deform =
+	        BKE_armature_cached_bbone_deformation_get(object);
+	if (bbone_deform == NULL) {
+		return;
+	}
+	BKE_armature_cached_bbone_deformation_free_data(object);
+	MEM_freeN(bbone_deform);
+	object->runtime.cached_bbone_deformation = NULL;
+}
+
+void BKE_armature_cached_bbone_deformation_update(Object *object)
+{
+	BLI_assert(object->type == OB_ARMATURE);
+	BLI_assert(object->pose != NULL);
+	bPose *pose = object->pose;
+	const int totchan = BLI_listbase_count(&pose->chanbase);
+	const bool use_quaternion = true;
+	/* Make sure cache exists. */
+	ObjectBBoneDeform *bbone_deform =
+	        BKE_armature_cached_bbone_deformation_get(object);
+	if (bbone_deform == NULL) {
+		bbone_deform = MEM_callocN(sizeof(*bbone_deform), "bbone deform cache");
+		object->runtime.cached_bbone_deformation = bbone_deform;
+	}
+	/* Make sure arrays are allocateds at the proper size. */
+	BKE_armature_cached_bbone_deformation_free_data(object);
+	DualQuat *dualquats = NULL;
+	if (use_quaternion) {
+		dualquats = MEM_calloc_arrayN(
+		        sizeof(DualQuat), totchan, "dualquats");
+	}
+	bPoseChanDeform *pdef_info_array = MEM_calloc_arrayN(
+	        sizeof(bPoseChanDeform), totchan, "bPoseChanDeform");
+	/* Calculate deofrmation matricies. */
+	ArmatureBBoneDefmatsData data = {
+		.pdef_info_array = pdef_info_array,
+		.dualquats = dualquats,
+		.use_quaternion = use_quaternion
+	};
+	BLI_task_parallel_listbase(&pose->chanbase,
+	                           &data,
+	                           armature_bbone_defmats_cb,
+	                           totchan > 1024);
+	/* Store pointers. */
+	bbone_deform->dualquats = dualquats;
+	atomic_cas_ptr((void **)&bbone_deform->pdef_info_array,
+	               bbone_deform->pdef_info_array,
+	               pdef_info_array);
+	bbone_deform->num_pchan = totchan;
 }

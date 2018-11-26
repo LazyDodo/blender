@@ -63,6 +63,15 @@ def generate_from_enum_ex(
     return tuple(tool_defs)
 
 
+# Use for shared widget data.
+class _template_widget:
+    class VIEW3D_GGT_xform_extrude:
+        @staticmethod
+        def draw_settings(context, layout, tool):
+            props = tool.gizmo_group_properties("VIEW3D_GGT_xform_extrude")
+            layout.prop(props, "axis_type", expand=True)
+
+
 class _defs_view3d_generic:
     @ToolDef.from_fn
     def cursor():
@@ -270,7 +279,19 @@ class _defs_transform:
 class _defs_view3d_select:
 
     @ToolDef.from_fn
-    def border():
+    def select():
+        def draw_settings(context, layout, tool):
+            pass
+        return dict(
+            text="Select",
+            icon="ops.generic.select",
+            widget=None,
+            keymap=(),
+            draw_settings=draw_settings,
+        )
+
+    @ToolDef.from_fn
+    def box():
         def draw_settings(context, layout, tool):
             props = tool.operator_properties("view3d.select_box")
             layout.prop(props, "mode", expand=True)
@@ -355,8 +376,9 @@ class _defs_edit_armature:
         return dict(
             text="Extrude",
             icon="ops.armature.extrude_move",
-            widget=None,
+            widget="VIEW3D_GGT_xform_extrude",
             keymap=(),
+            draw_settings=_template_widget.VIEW3D_GGT_xform_extrude.draw_settings,
         )
 
     @ToolDef.from_fn
@@ -509,9 +531,6 @@ class _defs_edit_mesh:
 
     @ToolDef.from_fn
     def extrude():
-        def draw_settings(context, layout, tool):
-            props = tool.gizmo_group_properties("MESH_GGT_extrude")
-            layout.prop(props, "axis_type", expand=True)
         return dict(
             text="Extrude Region",
             # The operator description isn't useful in this case, give our own.
@@ -519,11 +538,11 @@ class _defs_edit_mesh:
                 "Extrude freely or along an axis"
             ),
             icon="ops.mesh.extrude_region_move",
-            widget="MESH_GGT_extrude",
+            widget="VIEW3D_GGT_xform_extrude",
             # Important to use same operator as 'E' key.
             operator="view3d.edit_mesh_extrude_move_normal",
             keymap=(),
-            draw_settings=draw_settings,
+            draw_settings=_template_widget.VIEW3D_GGT_xform_extrude.draw_settings,
         )
 
     @ToolDef.from_fn
@@ -733,8 +752,9 @@ class _defs_edit_curve:
         return dict(
             text="Extrude",
             icon="ops.curve.extrude_move",
-            widget=None,
+            widget="VIEW3D_GGT_xform_extrude",
             keymap=(),
+            draw_settings=_template_widget.VIEW3D_GGT_xform_extrude.draw_settings,
         )
 
     @ToolDef.from_fn
@@ -952,10 +972,22 @@ class _defs_image_uv_transform:
 class _defs_image_uv_select:
 
     @ToolDef.from_fn
-    def border():
+    def select():
+        def draw_settings(context, layout, tool):
+            pass
+        return dict(
+            text="Select",
+            icon="ops.generic.select",
+            widget=None,
+            keymap=(),
+            draw_settings=draw_settings,
+        )
+
+    @ToolDef.from_fn
+    def box():
         def draw_settings(context, layout, tool):
             props = tool.operator_properties("uv.select_box")
-            layout.prop(props, "deselect")
+            layout.prop(props, "mode", expand=True)
         return dict(
             text="Select Box",
             icon="ops.generic.select_box",
@@ -966,11 +998,15 @@ class _defs_image_uv_select:
 
     @ToolDef.from_fn
     def lasso():
+        def draw_settings(context, layout, tool):
+            props = tool.operator_properties("uv.select_lasso")
+            layout.prop(props, "mode", expand=True)
         return dict(
             text="Select Lasso",
             icon="ops.generic.select_lasso",
             widget=None,
             keymap=(),
+            draw_settings=draw_settings,
         )
 
     @ToolDef.from_fn
@@ -994,7 +1030,7 @@ class _defs_image_uv_sculpt:
         return generate_from_enum_ex(
             context,
             icon_prefix="brush.uv_sculpt.",
-            data=context.tool_settings,
+            type=bpy.types.ToolSettings,
             attr="uv_sculpt_tool",
         )
 
@@ -1018,6 +1054,7 @@ class _defs_gpencil_paint:
         return dict(
             text="Line",
             icon="ops.gpencil.primitive_line",
+            cursor='CROSSHAIR',
             widget=None,
             keymap=(),
         )
@@ -1027,6 +1064,7 @@ class _defs_gpencil_paint:
         return dict(
             text="Box",
             icon="ops.gpencil.primitive_box",
+            cursor='CROSSHAIR',
             widget=None,
             keymap=(),
         )
@@ -1036,6 +1074,7 @@ class _defs_gpencil_paint:
         return dict(
             text="Circle",
             icon="ops.gpencil.primitive_circle",
+            cursor='CROSSHAIR',
             widget=None,
             keymap=(),
         )
@@ -1049,6 +1088,18 @@ class _defs_gpencil_edit:
             icon="ops.gpencil.edit_bend",
             widget=None,
             keymap=(),
+        )
+
+    @ToolDef.from_fn
+    def select():
+        def draw_settings(context, layout, tool):
+            pass
+        return dict(
+            text="Select",
+            icon="ops.generic.select",
+            widget=None,
+            keymap=(),
+            draw_settings=draw_settings,
         )
 
     @ToolDef.from_fn
@@ -1205,7 +1256,8 @@ class IMAGE_PT_tools_active(ToolSelectPanelHelper, Panel):
 
     _tools_select = (
         (
-            _defs_image_uv_select.border,
+            _defs_image_uv_select.select,
+            _defs_image_uv_select.box,
             _defs_image_uv_select.circle,
             _defs_image_uv_select.lasso,
         ),
@@ -1286,7 +1338,8 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
 
     _tools_select = (
         (
-            _defs_view3d_select.border,
+            _defs_view3d_select.select,
+            _defs_view3d_select.box,
             _defs_view3d_select.circle,
             _defs_view3d_select.lasso,
         ),
@@ -1304,6 +1357,7 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
 
     _tools_gpencil_select = (
         (
+            _defs_gpencil_edit.select,
             _defs_gpencil_edit.box_select,
             _defs_gpencil_edit.circle_select,
             _defs_gpencil_edit.lasso_select,
@@ -1422,6 +1476,24 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
                 _defs_edit_curve.extrude,
                 _defs_edit_curve.extrude_cursor,
             ),
+        ],
+        'EDIT_METABALL': [
+            *_tools_select,
+            _defs_view3d_generic.cursor,
+            None,
+            *_tools_transform,
+            None,
+            *_tools_annotate,
+            None,
+        ],
+        'EDIT_LATTICE': [
+            *_tools_select,
+            _defs_view3d_generic.cursor,
+            None,
+            *_tools_transform,
+            None,
+            *_tools_annotate,
+            None,
         ],
         'PARTICLE': [
             _defs_view3d_generic.cursor,

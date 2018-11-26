@@ -3753,9 +3753,7 @@ static void widget_roundbut_exec(uiWidgetColors *wcol, rcti *rect, int state, in
 
 static void widget_tab(uiWidgetColors *wcol, rcti *rect, int state, int roundboxalign)
 {
-	const uiStyle *style = UI_style_get();
 	const float rad = wcol->roundness * U.widget_unit;
-	const int fontid = style->widget.uifont_id;
 	const bool is_active = (state & UI_SELECT);
 
 /* Draw shaded outline - Disabled for now, seems incorrect and also looks nicer without it imho ;) */
@@ -3796,11 +3794,6 @@ static void widget_tab(uiWidgetColors *wcol, rcti *rect, int state, int roundbox
 	/* draw outline (3d look) */
 	ui_draw_but_TAB_outline(rect, rad, theme_col_tab_highlight, (unsigned char *)wcol->inner);
 #endif
-
-	/* text shadow */
-	BLF_enable(fontid, BLF_SHADOW);
-	BLF_shadow(fontid, 3, (const float[4]){1.0f, 1.0f, 1.0f, 0.25f});
-	BLF_shadow_offset(fontid, 0, -1);
 
 #ifndef USE_TAB_SHADED_HIGHLIGHT
 	UNUSED_VARS(is_active, theme_col_tab_highlight);
@@ -4566,8 +4559,8 @@ void ui_draw_pie_center(uiBlock *block)
 
 	float *pie_dir = block->pie_data.pie_dir;
 
-	float pie_radius_internal = U.pixelsize * U.pie_menu_threshold;
-	float pie_radius_external = U.pixelsize * (U.pie_menu_threshold + 7.0f);
+	float pie_radius_internal = U.dpi_fac * U.pie_menu_threshold;
+	float pie_radius_external = U.dpi_fac * (U.pie_menu_threshold + 7.0f);
 
 	int subd = 40;
 
@@ -4609,8 +4602,8 @@ void ui_draw_pie_center(uiBlock *block)
 	immUnbindProgram();
 
 	if (U.pie_menu_confirm > 0 && !(block->pie_data.flags & (UI_PIE_INVALID_DIR | UI_PIE_CLICK_STYLE))) {
-		float pie_confirm_radius = U.pixelsize * (pie_radius_internal + U.pie_menu_confirm);
-		float pie_confirm_external = U.pixelsize * (pie_radius_internal + U.pie_menu_confirm + 7.0f);
+		float pie_confirm_radius = U.dpi_fac * (pie_radius_internal + U.pie_menu_confirm);
+		float pie_confirm_external = U.dpi_fac * (pie_radius_internal + U.pie_menu_confirm + 7.0f);
 
 		const char col[4] = {btheme->tui.wcol_pie_menu.text_sel[0],
 		                     btheme->tui.wcol_pie_menu.text_sel[1],

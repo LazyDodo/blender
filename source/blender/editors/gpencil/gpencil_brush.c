@@ -479,9 +479,8 @@ static void gp_brush_grab_calc_dvec(tGP_BrushEditData *gso)
 	// TODO: incorporate pressure into this?
 	// XXX: screen-space strokes in 3D space will suffer!
 	if (gso->sa->spacetype == SPACE_VIEW3D) {
-		View3D *v3d = gso->sa->spacedata.first;
 		RegionView3D *rv3d = gso->ar->regiondata;
-		float *rvec = ED_view3d_cursor3d_get(gso->scene, v3d)->location;
+		float *rvec = gso->scene->cursor.location;
 		float zfac = ED_view3d_calc_zfac(rv3d, rvec, NULL);
 
 		float mval_f[2];
@@ -587,9 +586,8 @@ static void gp_brush_calc_midpoint(tGP_BrushEditData *gso)
 		/* Convert mouse position to 3D space
 		 * See: gpencil_paint.c :: gp_stroke_convertcoords()
 		 */
-		View3D *v3d = gso->sa->spacedata.first;
 		RegionView3D *rv3d = gso->ar->regiondata;
-		float *rvec = ED_view3d_cursor3d_get(gso->scene, v3d)->location;
+		const float *rvec = gso->scene->cursor.location;
 		float zfac = ED_view3d_calc_zfac(rv3d, rvec, NULL);
 
 		float mval_f[2];
@@ -909,6 +907,9 @@ static bool gp_brush_weight_apply(
 		/* increase weight */
 		curweight += inf;
 	}
+
+	/* verify target weight */
+	CLAMP_MAX(curweight, gso->gp_brush->target_weight);
 
 	CLAMP(curweight, 0.0f, 1.0f);
 	if (dw) {

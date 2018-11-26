@@ -50,18 +50,12 @@ extern "C" {
 #include "collada_internal.h"
 #include "collada_utils.h"
 
-// TODO: optimize UV sets by making indexed list with duplicates removed
-GeometryExporter::GeometryExporter(COLLADASW::StreamWriter *sw, const ExportSettings *export_settings) : COLLADASW::LibraryGeometries(sw), export_settings(export_settings)
-{
-}
 
-void GeometryExporter::exportGeom(Main *bmain, struct Depsgraph *depsgraph, Scene *sce)
+void GeometryExporter::exportGeom()
 {
+	Scene *sce = blender_context.get_scene();
 	openLibrary();
 
-	mDepsgraph = depsgraph;
-	m_bmain = bmain;
-	mScene = sce;
 	GeometryFunctor gf;
 	gf.forEachMeshObjectInExportSet<GeometryExporter>(sce, *this, this->export_settings->export_set);
 
@@ -72,8 +66,7 @@ void GeometryExporter::operator()(Object *ob)
 {
 	bool use_instantiation = this->export_settings->use_object_instantiation;
 	Mesh *me = bc_get_mesh_copy(
-					mDepsgraph,
-					mScene,
+					blender_context,
 					ob,
 					this->export_settings->export_mesh_type,
 					this->export_settings->apply_modifiers,
@@ -91,6 +84,7 @@ void GeometryExporter::operator()(Object *ob)
 	}
 
 	std::string geom_name = (use_instantiation) ? id_name(ob->data) : id_name(ob);
+	geom_name = encode_xml(geom_name);
 
 	exportedGeometry.insert(geom_id);
 

@@ -75,6 +75,7 @@ enum eGPUFXFlags;
 
 /* for derivedmesh drawing callbacks, for view3d_select, .... */
 typedef struct ViewContext {
+	struct bContext *C;
 	struct Main *bmain;
 	struct Depsgraph *depsgraph;
 	struct Scene *scene;
@@ -108,9 +109,8 @@ enum eV3DCursorOrient {
 };
 
 void ED_view3d_background_color_get(const struct Scene *scene, const struct View3D *v3d, float r_color[3]);
-struct View3DCursor *ED_view3d_cursor3d_get(struct Scene *scene, struct View3D *v3d);
-void ED_view3d_cursor3d_calc_mat3(const struct Scene *scene, const struct View3D *v3d, float mat[3][3]);
-void ED_view3d_cursor3d_calc_mat4(const struct Scene *scene, const struct View3D *v3d, float mat[4][4]);
+void ED_view3d_cursor3d_calc_mat3(const struct Scene *scene, float mat[3][3]);
+void ED_view3d_cursor3d_calc_mat4(const struct Scene *scene, float mat[4][4]);
 void ED_view3d_cursor3d_position(
         struct bContext *C, const int mval[2],
         const bool use_depth,
@@ -383,11 +383,15 @@ typedef enum {
 } eV3DSelectMode;
 
 typedef enum {
-	/* Don't exclude anything. */
+	/** Don't exclude anything. */
 	VIEW3D_SELECT_FILTER_NOP = 0,
-	/* Don't select objects outside the current mode. */
+	/** Don't select objects outside the current mode. */
 	VIEW3D_SELECT_FILTER_OBJECT_MODE_LOCK = 1,
+	/** A version of #VIEW3D_SELECT_FILTER_OBJECT_MODE_LOCK that allows pose-bone selection. */
+	VIEW3D_SELECT_FILTER_WPAINT_POSE_MODE_LOCK = 2,
 } eV3DSelectObjectFilter;
+
+eV3DSelectObjectFilter ED_view3d_select_filter_from_mode(const struct Scene *scene, const struct Object *obact);
 
 void view3d_opengl_select_cache_begin(void);
 void view3d_opengl_select_cache_end(void);
@@ -540,7 +544,7 @@ void ED_view3d_operator_properties_viewmat_get(struct wmOperator *op, int *winx,
 void ED_view3d_stop_render_preview(struct wmWindowManager *wm, struct ARegion *ar);
 void ED_view3d_shade_update(struct Main *bmain, struct View3D *v3d, struct ScrArea *sa);
 
-#define V3D_XRAY_FLAG(v3d)   (((v3d)->shading.type == OB_WIRE) ? V3D_SHADING_XRAY_WIREFRAME : V3D_SHADING_XRAY)
+#define V3D_XRAY_FLAG(v3d)   (((v3d)->shading.type == OB_WIRE) ? V3D_SHADING_XRAY_BONE : V3D_SHADING_XRAY)
 #define V3D_IS_ZBUF(v3d)     (((v3d)->shading.flag & V3D_XRAY_FLAG(v3d)) == 0)
 
 void ED_view3d_id_remap(struct View3D *v3d, const struct ID *old_id, struct ID *new_id);

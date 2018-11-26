@@ -104,6 +104,7 @@ extern "C" {
 
 #include "intern/builder/deg_builder.h"
 #include "intern/builder/deg_builder_pchanmap.h"
+#include "intern/eval/deg_eval_copy_on_write.h"
 
 #include "intern/nodes/deg_node.h"
 #include "intern/nodes/deg_node_component.h"
@@ -205,6 +206,17 @@ static eDepsOperation_Code bone_target_opcode(ID *target,
 	return DEG_OPCODE_BONE_DONE;
 }
 
+static bool bone_has_segments(Object *object, const char *bone_name)
+{
+	/* Proxies don't have BONE_SEGMENTS */
+	if (ID_IS_LINKED(object) && object->proxy_from != NULL) {
+		return false;
+	}
+	/* Only B-Bones have segments. */
+	bPoseChannel *pchan = BKE_pose_channel_find_name(object->pose, bone_name);
+	return pchan && pchan->bone && pchan->bone->segments > 1;
+}
+
 /* **** General purpose functions ****  */
 
 DepsgraphRelationBuilder::DepsgraphRelationBuilder(Main *bmain,
@@ -303,10 +315,12 @@ DepsRelation *DepsgraphRelationBuilder::add_time_relation(
         TimeSourceDepsNode *timesrc,
         DepsNode *node_to,
         const char *description,
-        bool check_unique)
+        bool check_unique,
+        int flags)
 {
 	if (timesrc && node_to) {
-		return graph_->add_new_relation(timesrc, node_to, description, check_unique);
+		return graph_->add_new_relation(
+		        timesrc, node_to, description, check_unique, flags);
 	}
 	else {
 		DEG_DEBUG_PRINTF((::Depsgraph *)graph_,
@@ -322,13 +336,15 @@ DepsRelation *DepsgraphRelationBuilder::add_operation_relation(
         OperationDepsNode *node_from,
         OperationDepsNode *node_to,
         const char *description,
-        bool check_unique)
+        bool check_unique,
+        int flags)
 {
 	if (node_from && node_to) {
 		return graph_->add_new_relation(node_from,
 		                                node_to,
 		                                description,
-		                                check_unique);
+		                                check_unique,
+		                                flags);
 	}
 	else {
 		DEG_DEBUG_PRINTF((::Depsgraph *)graph_,
@@ -1012,39 +1028,20 @@ void DepsgraphRelationBuilder::build_constraints(ID *id,
 					/* relation to bone */
 					opcode = bone_target_opcode(&ct->tar->id, ct->subtarget,
 					                            id, component_subdata, root_map);
+					/* Armature constraint always wants the final position and chan_mat. */
+					if (ELEM(con->type, CONSTRAINT_TYPE_ARMATURE)) {
+						opcode = DEG_OPCODE_BONE_DONE;
+					}
+					/* if needs bbone shape, reference the segment computation */
+					if (BKE_constraint_target_uses_bbone(con, ct) &&
+					    bone_has_segments(ct->tar, ct->subtarget)) {
+						opcode = DEG_OPCODE_BONE_SEGMENTS;
+					}
 					OperationKey target_key(&ct->tar->id,
 					                        DEG_NODE_TYPE_BONE,
 					                        ct->subtarget,
 					                        opcode);
 					add_relation(target_key, constraint_op_key, cti->name);
-					/* if needs bbone shape, also reference handles */
-					if (BKE_constraint_target_uses_bbone(con, ct)) {
-						bPoseChannel *pchan = BKE_pose_channel_find_name(ct->tar->pose, ct->subtarget);
-						/* actually a bbone */
-						if (pchan && pchan->bone && pchan->bone->segments > 1) {
-							bPoseChannel *prev, *next;
-							BKE_pchan_get_bbone_handles(pchan, &prev, &next);
-							/* add handle links */
-							if (prev) {
-								opcode = bone_target_opcode(&ct->tar->id, prev->name,
-								                            id, component_subdata, root_map);
-								OperationKey prev_key(&ct->tar->id,
-								                      DEG_NODE_TYPE_BONE,
-								                      prev->name,
-								                      opcode);
-								add_relation(prev_key, constraint_op_key, cti->name);
-							}
-							if (next) {
-								opcode = bone_target_opcode(&ct->tar->id, next->name,
-								                            id, component_subdata, root_map);
-								OperationKey next_key(&ct->tar->id,
-								                      DEG_NODE_TYPE_BONE,
-								                      next->name,
-								                      opcode);
-								add_relation(next_key, constraint_op_key, cti->name);
-							}
-						}
-					}
 				}
 				else if (ELEM(ct->tar->type, OB_MESH, OB_LATTICE) &&
 				         (ct->subtarget[0]))
@@ -2424,9 +2421,15 @@ void DepsgraphRelationBuilder::build_copy_on_write_relations(IDDepsNode *id_node
 		 *   to preserve that cache in copy-on-write, but for the time being
 		 *   we allow flush to layer collections component which will ensure
 		 *   that cached array fo bases exists and is up-to-date.
+		 *
+		 * - Action is allowed to flush as well, this way it's possible to
+		 *   keep current tagging in animation editors (which tags action for
+		 *   CoW update when it's changed) but yet guarantee evaluation order
+		 *   with objects which are using that action.
 		 */
 		if (comp_node->type == DEG_NODE_TYPE_PARAMETERS ||
-		    comp_node->type == DEG_NODE_TYPE_LAYER_COLLECTIONS)
+		    comp_node->type == DEG_NODE_TYPE_LAYER_COLLECTIONS ||
+		    (comp_node->type == DEG_NODE_TYPE_ANIMATION && id_type == ID_AC))
 		{
 			rel_flag &= ~DEPSREL_FLAG_NO_FLUSH;
 		}
@@ -2488,12 +2491,15 @@ void DepsgraphRelationBuilder::build_copy_on_write_relations(IDDepsNode *id_node
 		Object *object = (Object *)id_orig;
 		ID *object_data_id = (ID *)object->data;
 		if (object_data_id != NULL) {
-			OperationKey data_copy_on_write_key(object_data_id,
-			                                    DEG_NODE_TYPE_COPY_ON_WRITE,
-			                                    DEG_OPCODE_COPY_ON_WRITE);
-			DepsRelation *rel = add_relation(
-			        data_copy_on_write_key, copy_on_write_key, "Eval Order");
-			rel->flag |= DEPSREL_FLAG_GODMODE;
+			if (deg_copy_on_write_is_needed(object_data_id)) {
+				OperationKey data_copy_on_write_key(object_data_id,
+				                                    DEG_NODE_TYPE_COPY_ON_WRITE,
+				                                    DEG_OPCODE_COPY_ON_WRITE);
+				add_relation(data_copy_on_write_key,
+				             copy_on_write_key,
+				             "Eval Order",
+				             DEPSREL_FLAG_GODMODE);
+			}
 		}
 		else {
 			BLI_assert(object->type == OB_EMPTY);

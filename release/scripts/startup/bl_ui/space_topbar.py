@@ -408,6 +408,8 @@ class _draw_left_context_mode:
             row.prop(brush, "strength", slider=True)
             row.prop(brush, "use_pressure_strength", text="")
 
+            layout.prop(brush, "target_weight", slider=True)
+
         @staticmethod
         def PARTICLE(context, layout, tool):
             # See: 'VIEW3D_PT_tools_brush', basically a duplicate
@@ -826,7 +828,7 @@ class TOPBAR_MT_edit(Menu):
 
         layout.separator()
 
-        layout.operator("screen.userpref_show", text="User Preferences...", icon='PREFERENCES')
+        layout.operator("screen.settings_show", text="Settings...", icon='PREFERENCES')
 
 
 class TOPBAR_MT_window(Menu):
@@ -979,7 +981,7 @@ class TOPBAR_MT_window_specials(Menu):
 
         layout.separator()
 
-        layout.operator("screen.userpref_show", text="User Preferences...", icon='PREFERENCES')
+        layout.operator("screen.settings_show", text="Settings...", icon='PREFERENCES')
 
 
 class TOPBAR_MT_workspace_menu(Menu):

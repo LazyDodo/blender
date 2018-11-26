@@ -258,6 +258,8 @@ static int gp_layer_add_exec(bContext *C, wmOperator *op)
 	}
 
 	/* notifiers */
+	bGPdata *gpd = *gpd_ptr;
+	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA | DEG_TAG_COPY_ON_WRITE);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 
 	return OPERATOR_FINISHED;
@@ -479,8 +481,6 @@ static int gp_layer_duplicate_object_exec(bContext *C, wmOperator *op)
 	/* make copy of layer */
 	bGPDlayer *gpl_dst = MEM_dupallocN(gpl_src);
 	gpl_dst->prev = gpl_dst->next = NULL;
-	gpl_dst->runtime.derived_array = NULL;
-	gpl_dst->runtime.len_derived = 0;
 	BLI_addtail(&gpd_dst->layers, gpl_dst);
 	BLI_uniquename(&gpd_dst->layers, gpl_dst, DATA_("GP_Layer"), '.', offsetof(bGPDlayer, info), sizeof(gpl_dst->info));
 

@@ -200,6 +200,7 @@ enum {
 
 #define UI_PANEL_WIDTH          340
 #define UI_COMPACT_PANEL_WIDTH  160
+#define UI_NAVIGATION_REGION_WIDTH UI_COMPACT_PANEL_WIDTH
 
 #define UI_PANEL_CATEGORY_MARGIN_WIDTH (U.widget_unit * 1.0f)
 
@@ -938,7 +939,7 @@ void UI_exit(void);
 #define UI_ITEM_O_DEPRESS       (1 << 9)
 #define UI_ITEM_R_COMPACT       (1 << 10)
 
-#define UI_HEADER_OFFSET ((void)0, 0.2f * UI_UNIT_X)
+#define UI_HEADER_OFFSET ((void)0, 0.4f * UI_UNIT_X)
 
 /* uiLayoutOperatorButs flags */
 enum {

@@ -59,10 +59,10 @@ class USERPREF_HT_header(Header):
         layout.operator("wm.save_userpref")
 
 
-class USERPREF_PT_tabs(Panel):
+class USERPREF_PT_navigation(Panel):
     bl_label = ""
     bl_space_type = 'USER_PREFERENCES'
-    bl_region_type = 'WINDOW'
+    bl_region_type = 'NAVIGATION_BAR'
     bl_options = {'HIDE_HEADER'}
 
     def draw(self, context):
@@ -70,26 +70,11 @@ class USERPREF_PT_tabs(Panel):
 
         userpref = context.user_preferences
 
-        layout.row().prop(userpref, "active_section", expand=True)
+        col = layout.column()
 
-
-class USERPREF_MT_interaction_presets(Menu):
-    bl_label = "Presets"
-    preset_subdir = "interaction"
-    preset_operator = "script.execute_preset"
-    draw = Menu.draw_preset
-
-
-class USERPREF_MT_appconfigs(Menu):
-    bl_label = "AppPresets"
-    preset_subdir = "keyconfig"
-    preset_operator = "wm.appconfig_activate"
-
-    def draw(self, context):
-        self.layout.operator("wm.appconfig_default", text="Blender (default)")
-
-        # now draw the presets
-        Menu.draw_preset(self, context)
+        col.scale_x = 1.3
+        col.scale_y = 1.3
+        col.prop(userpref, "active_section", expand=True)
 
 
 class USERPREF_PT_interface(Panel):
@@ -350,16 +335,16 @@ class USERPREF_PT_edit(Panel):
         col.prop(edit, "use_duplicate_particle", text="Particle")
 
 
-class USERPREF_PT_system(Panel):
+class USERPREF_PT_system_general(Panel):
     bl_space_type = 'USER_PREFERENCES'
-    bl_label = "System"
+    bl_label = "System General"
     bl_region_type = 'WINDOW'
     bl_options = {'HIDE_HEADER'}
 
     @classmethod
     def poll(cls, context):
         userpref = context.user_preferences
-        return (userpref.active_section == 'SYSTEM')
+        return (userpref.active_section == 'SYSTEM_GENERAL')
 
     def draw(self, context):
         import sys
@@ -483,14 +468,15 @@ class USERPREF_PT_system(Panel):
 
         if bpy.app.build_options.international:
             column.prop(system, "use_international_fonts")
-            if system.use_international_fonts:
-                column.prop(system, "language")
-                row = column.row()
-                row.label(text="Translate:", text_ctxt=i18n_contexts.id_windowmanager)
-                row = column.row(align=True)
-                row.prop(system, "use_translate_interface", text="Interface", toggle=True)
-                row.prop(system, "use_translate_tooltips", text="Tooltips", toggle=True)
-                row.prop(system, "use_translate_new_dataname", text="New Data", toggle=True)
+            sub_col = column.column()
+            sub_col.active = system.use_international_fonts
+            sub_col.prop(system, "language")
+            row = sub_col.row()
+            row.label(text="Translate:", text_ctxt=i18n_contexts.id_windowmanager)
+            row = sub_col.row(align=True)
+            row.prop(system, "use_translate_tooltips", text="Tooltips", toggle=True)
+            row.prop(system, "use_translate_interface", text="Interface", toggle=True)
+            row.prop(system, "use_translate_new_dataname", text="New Data", toggle=True)
 
 
 class USERPREF_MT_interface_theme_presets(Menu):
@@ -898,7 +884,7 @@ class USERPREF_PT_file(Panel):
     @classmethod
     def poll(cls, context):
         userpref = context.user_preferences
-        return (userpref.active_section == 'FILES')
+        return (userpref.active_section == 'SYSTEM_FILES')
 
     def draw(self, context):
         layout = self.layout
@@ -1070,32 +1056,11 @@ class USERPREF_PT_input(Panel):
         return (userpref.active_section == 'INPUT')
 
     @staticmethod
-    def draw_input_prefs_keyconfig(context, layout):
-        kc = context.window_manager.keyconfigs.active
-        kc_prefs = kc.preferences
-        if kc_prefs is not None:
-            box = layout.box()
-            box.label(text=kc.name.replace("_", " ").title() + " Keymap")
-            # Defined by user preset, may contain mistakes out of our control.
-            try:
-                kc_prefs.draw(box)
-            except Exception:
-                import traceback
-                traceback.print_exc()
-
-    @staticmethod
     def draw_input_prefs(inputs, layout):
         import sys
 
         # General settings
         sub = layout.column()
-        sub.label(text="Presets:")
-        subrow = sub.row(align=True)
-
-        subrow.menu("USERPREF_MT_interaction_presets", text=bpy.types.USERPREF_MT_interaction_presets.bl_label)
-        subrow.operator("wm.interaction_preset_add", text="", icon='ADD')
-        subrow.operator("wm.interaction_preset_add", text="", icon='REMOVE').remove_active = True
-        sub.separator()
 
         sub.label(text="Mouse:")
         sub.prop(inputs, "use_mouse_emulate_3_button")
@@ -1160,6 +1125,12 @@ class USERPREF_PT_input(Panel):
         sub.prop(walk, "view_height")
         sub.prop(walk, "jump_height")
 
+        sub.separator()
+        sub = layout.column()
+        sub.label(text="Tablet Pressure:")
+        sub.prop(inputs, "pressure_threshold_max")
+        sub.prop(inputs, "pressure_softness")
+
         if inputs.use_ndof:
             layout.separator()
             layout.label(text="NDOF Device:")
@@ -1199,13 +1170,11 @@ class USERPREF_PT_input(Panel):
         # Input settings
         self.draw_input_prefs(inputs, col)
 
-        # When the keyconfig defines it's own preferences.
-        self.draw_input_prefs_keyconfig(context, col)
-
         row.separator()
 
         # Keymap Settings
-        draw_keymaps(context, split)
+        col = split.column()
+        draw_keymaps(context, col)
 
         #print("runtime", time.time() - start)
 
@@ -1245,8 +1214,8 @@ class USERPREF_PT_addons(Panel):
 
     _support_icon_mapping = {
         'OFFICIAL': 'FILE_BLEND',
-        'COMMUNITY': 'POSE_DATA',
-        'TESTING': 'MOD_EXPLODE',
+        'COMMUNITY': 'COMMUNITY',
+        'TESTING': 'EXPERIMENTAL',
     }
 
     @classmethod
@@ -1389,7 +1358,7 @@ class USERPREF_PT_addons(Panel):
 
                 row.operator(
                     "wm.addon_expand",
-                    icon='TRIA_DOWN' if info["show_expanded"] else 'TRIA_RIGHT',
+                    icon='DISCLOSURE_TRI_DOWN' if info["show_expanded"] else 'DISCLOSURE_TRI_RIGHT',
                     emboss=False,
                 ).module = module_name
 
@@ -1607,12 +1576,10 @@ class USERPREF_PT_studiolight_specular(Panel, StudioLightPanelMixin):
 
 classes = (
     USERPREF_HT_header,
-    USERPREF_PT_tabs,
-    USERPREF_MT_interaction_presets,
-    USERPREF_MT_appconfigs,
+    USERPREF_PT_navigation,
     USERPREF_PT_interface,
     USERPREF_PT_edit,
-    USERPREF_PT_system,
+    USERPREF_PT_system_general,
     USERPREF_MT_interface_theme_presets,
     USERPREF_PT_theme,
     USERPREF_PT_file,

@@ -2121,7 +2121,8 @@ void saveTransform(bContext *C, TransInfo *t, wmOperator *op)
 
 		if (t->spacetype == SPACE_VIEW3D) {
 			if ((prop = RNA_struct_find_property(op->ptr, "constraint_orientation")) &&
-			    !RNA_property_is_set(op->ptr, prop))
+			    !RNA_property_is_set(op->ptr, prop) &&
+			    (t->current_orientation != V3D_MANIP_CUSTOM_MATRIX))
 			{
 				t->scene->orientation_type = t->current_orientation;
 				BLI_assert(((t->scene->orientation_index_custom == -1) && (t->custom_orientation == NULL)) ||
@@ -3133,7 +3134,7 @@ static void initBend(TransInfo *t)
 
 	data = MEM_callocN(sizeof(*data), __func__);
 
-	curs = ED_view3d_cursor3d_get(t->scene, t->view)->location;
+	curs = t->scene->cursor.location;
 	copy_v3_v3(data->warp_sta, curs);
 	ED_view3d_win_to_3d(t->sa->spacedata.first, t->ar, curs, mval_fl, data->warp_end);
 

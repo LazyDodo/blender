@@ -5096,6 +5096,7 @@ static void direct_link_pose(FileData *fd, bPose *pose)
 		CLAMP(pchan->rotmode, ROT_MODE_MIN, ROT_MODE_MAX);
 
 		pchan->draw_data = NULL;
+		memset(&pchan->runtime, 0, sizeof(pchan->runtime));
 	}
 	pose->ikdata = NULL;
 	if (pose->ikparam != NULL) {
@@ -6639,8 +6640,6 @@ static void direct_link_gpencil(FileData *fd, bGPdata *gpd)
 
 		gpl->actframe = newdataadr(fd, gpl->actframe);
 
-		gpl->runtime.derived_array = NULL;
-		gpl->runtime.len_derived = 0;
 		gpl->runtime.icon_id = 0;
 
 		for (gpf = gpl->frames.first; gpf; gpf = gpf->next) {
@@ -7434,25 +7433,21 @@ static void lib_link_window_scene_data_restore(wmWindow *win, Scene *scene)
 				}
 
 				if (v3d->localvd) {
-					/*Base *base;*/
+					Base *base;
 
 					v3d->localvd->camera = scene->camera;
 
-					/* localview can become invalid during undo/redo steps, so we exit it when no could be found */
-#if 0				/* XXX  regionlocalview ? */
-					for (base= sc->scene->base.first; base; base= base->next) {
-						if (base->lay & v3d->lay) break;
+					/* Localview can become invalid during undo/redo steps, so we exit it when no could be found. */
+					for (base = screen->scene->base.first; base; base = base->next) {
+						if (base->local_view_bits & v3d->local_view_uuid) {
+							break;
+						}
 					}
-					if (base==NULL) {
-						v3d->lay= v3d->localvd->lay;
-						v3d->layact= v3d->localvd->layact;
+					if (base == NULL) {
 						MEM_freeN(v3d->localvd);
-						v3d->localvd= NULL;
+						v3d->localvd = NULL;
+						v3d->local_view_uuid = 0;
 					}
-#endif
-				}
-				else if (v3d->scenelock) {
-					v3d->lay = scene->lay;
 				}
 			}
 		}
@@ -7473,9 +7468,6 @@ static void lib_link_workspace_layout_restore(struct IDNameLib_Map *id_map, Main
 
 					v3d->camera = restore_pointer_by_name(id_map, (ID *)v3d->camera, USER_REAL);
 					v3d->ob_centre = restore_pointer_by_name(id_map, (ID *)v3d->ob_centre, USER_REAL);
-
-					/* not very nice, but could help */
-					if ((v3d->layact & v3d->lay) == 0) v3d->layact = v3d->lay;
 
 					/* free render engines for now */
 					for (ar = sa->regionbase.first; ar; ar = ar->next) {
@@ -8821,6 +8813,11 @@ static void do_versions_userdef(FileData *fd, BlendFileData *bfd)
 	/* grease pencil multisamples */
 	if (!DNA_struct_elem_find(fd->filesdna, "UserDef", "short", "gpencil_multisamples")) {
 		user->gpencil_multisamples = 4;
+	}
+
+	/* tablet pressure threshold */
+	if (!DNA_struct_elem_find(fd->filesdna, "UserDef", "float", "pressure_threshold_max")) {
+		user->pressure_threshold_max = 1.0f;
 	}
 }
 
