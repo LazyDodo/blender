@@ -23,7 +23,6 @@ from bpy.types import Operator
 from bpy.props import (
     BoolProperty,
     EnumProperty,
-    FloatProperty,
     IntProperty,
     StringProperty,
 )
@@ -892,7 +891,7 @@ class LoadImageAsEmpty:
     def execute(self, context):
         scene = context.scene
         space = context.space_data
-        cursor = (space if space and space.type == 'VIEW_3D' else scene).cursor_location
+        cursor = scene.cursor_location
 
         try:
             image = bpy.data.images.load(self.filepath, check_existing=True)

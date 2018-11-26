@@ -133,6 +133,10 @@ def op_tool(tool, kmi_args):
     return ("wm.tool_set_by_name", kmi_args, {"properties": [("name", tool)]})
 
 
+def op_tool_cycle(tool, kmi_args):
+    return ("wm.tool_set_by_name", kmi_args, {"properties": [("name", tool), ("cycle", True)]})
+
+
 # ------------------------------------------------------------------------------
 # Keymap Templates
 
@@ -210,6 +214,19 @@ def _template_items_proportional_editing(*, connected=False):
 
 
 # Tool System Templates
+
+def _template_items_tool_select(params, operator, cursor_operator):
+    if params.select_mouse == 'LEFTMOUSE':
+        # Immediate select without quick delay.
+        return [(operator, {"type": 'LEFTMOUSE', "value": 'PRESS'}, None)]
+    else:
+        # For right mouse, set the cursor.
+        return [
+            (cursor_operator, {"type": 'LEFTMOUSE', "value": 'PRESS'}, None),
+            ("transform.translate", {"type": 'EVT_TWEAK_L', "value": 'ANY'},
+             {"properties": [("release_confirm", True), ("cursor_transform", True)]}),
+        ]
+
 
 def _template_items_tool_select_actions(operator, *, type, value):
     kmi_args = {"type": type, "value": value}
@@ -767,7 +784,7 @@ def km_uv_editor(params):
         # Quick switch to select tool, since left select can't easily
         # select with any tool active.
         items.extend([
-            op_tool("Select Box", {"type": 'W', "value": 'PRESS'}),
+            op_tool_cycle("Select", {"type": 'W', "value": 'PRESS'}),
         ])
 
     return keymap
@@ -977,18 +994,18 @@ def km_view3d(params):
         ("view3d.view_axis", {"type": 'NDOF_BUTTON_TOP', "value": 'PRESS', "shift": True},
          {"properties": [("type", 'TOP'), ("align_active", True)]}),
         # Selection.
-        *(("view3d.select",
+        *((operator,
            {"type": params.select_mouse, "value": params.select_mouse_value, **{m: True for m in mods}},
            {"properties": [(c, True) for c in props]},
-        ) for props, mods in (
-            ((), ()),
-            (("toggle",), ("shift",)),
-            (("center", "object"), ("ctrl",)),
-            (("enumerate",), ("alt",)),
-            (("extend", "toggle", "center"), ("shift", "ctrl")),
-            (("center", "enumerate"), ("ctrl", "alt")),
-            (("toggle", "enumerate"), ("shift", "alt")),
-            (("toggle", "center", "enumerate"), ("shift", "ctrl", "alt")),
+        ) for operator, props, mods in (
+            ("view3d.select_or_deselect_all" if not params.legacy else "view3d.select", (), ()),
+            ("view3d.select", ("toggle",), ("shift",)),
+            ("view3d.select", ("center", "object"), ("ctrl",)),
+            ("view3d.select", ("enumerate",), ("alt",)),
+            ("view3d.select", ("extend", "toggle", "center"), ("shift", "ctrl")),
+            ("view3d.select", ("center", "enumerate"), ("ctrl", "alt")),
+            ("view3d.select", ("toggle", "enumerate"), ("shift", "alt")),
+            ("view3d.select", ("toggle", "center", "enumerate"), ("shift", "ctrl", "alt")),
         )),
         ("view3d.select_box", {"type": 'B', "value": 'PRESS'}, None),
         ("view3d.select_lasso", {"type": params.action_tweak, "value": 'ANY', "ctrl": True},
@@ -1116,7 +1133,7 @@ def km_view3d(params):
         # Quick switch to select tool, since left select can't easily
         # select with any tool active.
         items.extend([
-            op_tool("Select Box", {"type": 'W', "value": 'PRESS'}),
+            op_tool_cycle("Select", {"type": 'W', "value": 'PRESS'}),
         ])
 
     return keymap
@@ -4903,8 +4920,8 @@ def km_popup_toolbar(params):
         "Toolbar Popup",
         {"space_type": 'EMPTY', "region_type": 'TEMPORARY'},
         {"items": [
+            op_tool("Select", {"type": 'W', "value": 'PRESS'}),
             op_tool("Transform", {"type": 'T', "value": 'PRESS'}),
-            op_tool("Annotate", {"type": 'D', "value": 'PRESS'}),
             op_tool("Measure", {"type": 'M', "value": 'PRESS'}),
         ]},
     )
@@ -4925,6 +4942,14 @@ def km_image_editor_tool_uv_cursor(params):
              {"properties": [("release_confirm", True), ("cursor_transform", True)]}),
         ),
         },
+    )
+
+
+def km_image_editor_tool_uv_select(params):
+    return (
+        "Image Editor Tool: Uv, Select",
+        {"space_type": 'IMAGE_EDITOR', "region_type": 'WINDOW'},
+        {"items": _template_items_tool_select(params, "uv.select", "uv.cursor_set")},
     )
 
 
@@ -5016,6 +5041,14 @@ def km_3d_view_tool_object_cursor(params):
              {"properties": [("release_confirm", True), ("cursor_transform", True)]}),
         ),
         },
+    )
+
+
+def km_3d_view_tool_object_select(params):
+    return (
+        "3D View Tool: Object, Select",
+        {"space_type": 'VIEW_3D', "region_type": 'WINDOW'},
+        {"items": _template_items_tool_select(params, "view3d.select", "view3d.cursor3d")},
     )
 
 
@@ -5688,6 +5721,14 @@ def km_3d_view_tool_gpencil_paint_circle(params):
     )
 
 
+def km_3d_view_tool_gpencil_edit_select(params):
+    return (
+        "3D View Tool: Gpencil Edit, Select",
+        {"space_type": 'VIEW_3D', "region_type": 'WINDOW'},
+        {"items": _template_items_tool_select(params, "gpencil.select", "view3d.cursor3d")},
+    )
+
+
 def km_3d_view_tool_gpencil_edit_select_box(params):
     return (
         "3D View Tool: Gpencil Edit, Select Box",
@@ -5889,6 +5930,7 @@ def generate_keymaps(params=None):
 
         # Tool System.
         km_image_editor_tool_uv_cursor(params),
+        km_image_editor_tool_uv_select(params),
         km_image_editor_tool_uv_select_box(params),
         km_image_editor_tool_uv_select_circle(params),
         km_image_editor_tool_uv_select_lasso(params),
@@ -5897,6 +5939,7 @@ def generate_keymaps(params=None):
         km_image_editor_tool_uv_annotate_polygon(params),
         km_image_editor_tool_uv_annotate_eraser(params),
         km_3d_view_tool_object_cursor(params),
+        km_3d_view_tool_object_select(params),
         km_3d_view_tool_object_select_box(params),
         km_3d_view_tool_object_select_circle(params),
         km_3d_view_tool_object_select_lasso(params),
@@ -5953,6 +5996,7 @@ def generate_keymaps(params=None):
         km_3d_view_tool_gpencil_paint_line(params),
         km_3d_view_tool_gpencil_paint_box(params),
         km_3d_view_tool_gpencil_paint_circle(params),
+        km_3d_view_tool_gpencil_edit_select(params),
         km_3d_view_tool_gpencil_edit_select_box(params),
         km_3d_view_tool_gpencil_edit_select_circle(params),
         km_3d_view_tool_gpencil_edit_select_lasso(params),
