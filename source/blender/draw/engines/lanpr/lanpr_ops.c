@@ -53,6 +53,7 @@ struct Object;
 
 int lanpr_triangle_line_imagespace_intersection_v2(SpinLock *spl, LANPR_RenderTriangle *rt, LANPR_RenderLine *rl, Object *cam, tnsMatrix44d vp, real *CameraDir, double *From, double *To);
 
+int use_smooth_contour_modifier_contour = 1; // debug purpose
 
 /* ====================================== base structures =========================================== */
 
@@ -1707,6 +1708,11 @@ void lanpr_make_render_geometry_buffers_object(Object *o, real *MVMat, real *MVP
 				fe = CustomData_bmesh_get(&bm->edata, e->head.data, CD_FREESTYLE_EDGE);
 				if (fe->flag & FREESTYLE_EDGE_MARK) rl->Flags |= LANPR_EDGE_FLAG_EDGE_MARK;
 			}
+			if (use_smooth_contour_modifier_contour) {
+				if (BM_elem_flag_test(e->v1, BM_ELEM_SELECT) && BM_elem_flag_test(e->v2, BM_ELEM_SELECT))
+					rl->Flags |= LANPR_EDGE_FLAG_CONTOUR;
+			}
+
 			rl->L = &orv[BM_elem_index_get(e->v1)];
 			rl->R = &orv[BM_elem_index_get(e->v2)];
 			LANPR_RenderLineSegment *rls = mem_static_aquire(&rb->RenderDataPool, sizeof(LANPR_RenderLineSegment));
@@ -2618,11 +2624,15 @@ void lanpr_compute_scene_contours(LANPR_RenderBuffer *rb, float threshold) {
 			tMatVectorMinus3d(ViewVector, rl->L->GLocation, cam_location);
 		}
 
-		if (rl->TL) Dot1 = tmat_dot_3d(ViewVector, rl->TL->GN, 0); else Add = 1;
-		if (rl->TR) Dot2 = tmat_dot_3d(ViewVector, rl->TR->GN, 0); else Add = 1;
+		if (use_smooth_contour_modifier_contour) {
+			if (rl->Flags & LANPR_EDGE_FLAG_CONTOUR) Add = 1;
+		}else {
+			if (rl->TL) Dot1 = tmat_dot_3d(ViewVector, rl->TL->GN, 0); else Add = 1;
+			if (rl->TR) Dot2 = tmat_dot_3d(ViewVector, rl->TR->GN, 0); else Add = 1;
+		}
 
 		if (!Add) {
-			if ((Result = Dot1 * Dot2) <= 0) Add = 1;
+			if ((Result = Dot1 * Dot2) <= 0 && (Dot1 + Dot2)) Add = 1;
 			elif(tmat_dot_3d(rl->TL->GN, rl->TR->GN, 0) < threshold) Add = 2;
 			elif(rl->TL && rl->TR && rl->TL->MaterialID != rl->TR->MaterialID) Add = 3;
 		}
