@@ -3614,3 +3614,116 @@ void SCENE_OT_lanpr_delete_line_component(struct wmOperatorType *ot) {
 	RNA_def_int(ot->srna, "index", 0, 0, 10000, "index", "index of this line component", 0, 10000);
 }
 
+#ifdef 0
+
+// how to access LANPR's occlusion info after LANPR software mode calculation
+
+// You can access descrete occlusion data from every edge,
+// but you can also access occlusion using LANPR's chain data.
+// Two examples are given.
+
+// [1.descrete occlusion data for edges]======================================================================================
+//
+// LANPR occlusion related data storage :
+//
+// LANPR_RenderBuffer :: AllRenderLines   ====>  All LANPR_RenderLine nodes. Each node for a singe edge on the mesh.
+//                                               Only features lines are in this list.
+//                                               LANPR_RenderLine stores a list of occlusion info in LANPR_RenderLineSegment.
+//
+// LANPR_RenderBuffer :: Contours (and Crease/MaterialLines/Intersections/EdgeMarks)
+//                                        ====>  ListItemPointers to LANPR_RenderLine nodes.
+//                                               Use these lists to access individual line types for convenience.
+//                                               For how to access this list, refer to this file line 728-730 as an example.
+//
+// LANPR_RenderLine :: Segments           ====>  List of LANPR_RenderLineSegment to represent occlusion info.
+//                                               See below for how occlusion is reoresented in Renderline and RenderLineSegment.
+//
+//  RenderLine Diagram:
+//    +[RenderLine]
+//       [Segments]
+//         [Segment]  at=0      occlusion_level=0
+//         [Segment]  at=0.5    occlusion_level=1
+//         [Segment]  at=0.7    occlusion_level=0
+//
+//  Then you get a line with such occlusion:
+//  [L]|-------------------------|=========|-----------[R]
+//
+//  the beginning to 50% of the line :   Not occluded
+//  50% to 70% of the line :             Occluded 1 time
+//  70% to the end of the line :         Not occluded
+//
+//  cut positions are linear interpolated in image space from line->L->FrameBufferCoord to line->R->FrameBufferCoord (always L to R)
+//                    ~~~~~~~~~~~~~~~~~~~    ~~~~~~~~~~~
+//  to see an example of iterating occlusion data for all lines for drawing, see below or refer to this file line 2930.
+//
+//  [Iterating occlusion data]
+void lanpr_iterate_renderline_and_occlusion(LANPR_RenderBuffer *rb, double* V_OUT, double Occ_OUT) {
+	nListItemPointer *lip;
+	LANPR_RenderLine *rl;
+	LANPR_RenderLineSegment *rls, *irls;
+	double *V = V_Out;
+	double *O = Occ_OUT;
+
+	for (rl = rb->AllRenderLines->first; rl; rl = lip->pNext) {
+		for (rls = rl->Segments.first; rls; rls = rls->Item.pNext) {
+
+			irls = rls->Item.pNext;
+
+			//safety reasons
+			CLAMP(rls->at, 0, 1);
+			if (irls)CLAMP(irls->at, 0, 1);
+
+			//segment begin at some X and Y 
+			//tnsLinearItp() is a linear interpolate function.
+			*V = tnsLinearItp(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], rls->at); V++;
+			*V = tnsLinearItp(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1], rls->at); V++;
+			*O = rls->OcclusionLevel; *O++;
+			
+			//segment end at some X and Y
+			*V = tnsLinearItp(rl->L->FrameBufferCoord[0], rl->R->FrameBufferCoord[0], irls ? irls->at : 1); V++;
+			*V = tnsLinearItp(rl->L->FrameBufferCoord[1], rl->R->FrameBufferCoord[1], irls ? irls->at : 1); V++;
+			*O = rls->OcclusionLevel; *O++;
+
+			// please note that LANPR_RenderVert::FrameBufferCoord is in NDC coorninates
+			// to transform it into screen pixel space use rb->W/2 and rb->H/2
+
+		}
+	}
+}
+
+
+// [2. LANPR's chain data]======================================================================================
+//
+// Chain data storage: (Also see lanpr_all.h line 485 for diagram)
+//
+// LANPR_RenderBuffer :: Chains          ====> For storing LANPR_RenderLineChain nodes.
+//                                             Only available when chaining enabled and calculation is done.
+//
+// LANPR_RenderLineChain :: Chain        ====> LANPR_RenderLineChainItem node list.
+//
+// LANPR_RenderLineChainItem :: pos      ====> pos[0] and pos[1] for x y NDC coordinates, pos[2] reserved, do not use.
+// 
+// LANPR_RenderLineChainItem :: LineType and OcclusionLevel   ====> See lanpr_all.h line 485 for diagram.
+//                                                                  These 2 fields in the last ChainItem of a Chain is not used.
+//
+// to see an example of accessing occlusion data as a whole chain, see below or refer to lanpr_chain.c line 336.
+//
+// [Iteration chains and occlusion data for each chain segments]
+int lanpr_iterate_chains_and_occlusion(LANPR_RenderBuffer *rb) {
+	LANPR_RenderLineChainItem *rlci;
+	LANPR_RenderLineChain *rlc;
+	for (rlc = rb->Chains.first; rlc; rlc = rlc->Item.pNext) {
+		for (rlci = rlc->Chain.first; rlci; rlci = rlci->Item.pNext) {
+			//VL = rlci->pos;
+			//VR = ((LANPR_RenderLineChainItem*)rlci->Item.pNext)->pos;
+			//line_type_of_this_segment = rlci->LineType;          // ====> values are defined in lanpr_all.h line 456.
+			//occlusion_of_this_segment = rlci->OcclusionLevel;
+		}
+	}
+}
+
+
+
+
+#endif
+
