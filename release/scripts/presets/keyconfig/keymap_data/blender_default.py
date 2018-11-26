@@ -784,7 +784,7 @@ def km_uv_editor(params):
         # Quick switch to select tool, since left select can't easily
         # select with any tool active.
         items.extend([
-            op_tool_cycle("Select", {"type": 'W', "value": 'PRESS'}),
+            op_tool_cycle("Select Box", {"type": 'W', "value": 'PRESS'}),
         ])
 
     return keymap
@@ -1133,7 +1133,7 @@ def km_view3d(params):
         # Quick switch to select tool, since left select can't easily
         # select with any tool active.
         items.extend([
-            op_tool_cycle("Select", {"type": 'W', "value": 'PRESS'}),
+            op_tool_cycle("Select Box", {"type": 'W', "value": 'PRESS'}),
         ])
 
     return keymap
@@ -3639,6 +3639,12 @@ def km_weight_paint(params):
         ("wm.context_toggle", {"type": 'S', "value": 'PRESS', "shift": True},
          {"properties": [("data_path", 'tool_settings.weight_paint.brush.use_smooth_stroke')]}),
     ])
+
+    if params.select_mouse == 'LEFTMOUSE':
+        # Bone selection for combined weight paint + pose mode.
+        items.extend([
+            ("view3d.select", {"type": 'LEFTMOUSE', "value": 'PRESS', "ctrl": True}, None),
+        ])
 
     return keymap
 
