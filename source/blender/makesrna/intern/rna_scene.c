@@ -5346,7 +5346,7 @@ static void rna_def_scene_render_data(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "simplify_gpencil_blend", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "simplify_gpencil", SIMPLIFY_GPENCIL_BLEND);
-	RNA_def_property_ui_text(prop, "Blend Layers", "Do not display blend layers");
+	RNA_def_property_ui_text(prop, "Layers Blending", "Do not display blend layers");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	/* persistent data */
