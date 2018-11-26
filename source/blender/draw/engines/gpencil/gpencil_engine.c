@@ -504,7 +504,7 @@ void GPENCIL_cache_init(void *vedata)
 		DRW_shgroup_uniform_texture_ref(blend_shgrp, "blendColor", &e_data.temp_color_tx_fx);
 		DRW_shgroup_uniform_texture_ref(blend_shgrp, "blendDepth", &e_data.temp_depth_tx_fx);
 		DRW_shgroup_uniform_int(blend_shgrp, "mode", &stl->storage->blend_mode, 1);
-		DRW_shgroup_uniform_int(blend_shgrp, "disable_mask", &stl->storage->disable_mask, 1);
+		DRW_shgroup_uniform_int(blend_shgrp, "clamp_layer", &stl->storage->clamp_layer, 1);
 		DRW_shgroup_uniform_float(blend_shgrp, "blend_opacity", &stl->storage->blend_opacity, 1);
 
 		/* create effects passes */
@@ -675,21 +675,21 @@ static void gpencil_draw_pass_range(
 	GPENCIL_FramebufferList *fbl, GPENCIL_StorageList *stl,
 	GPENCIL_PassList *psl, GPENCIL_TextureList *txl,
 	GPUFrameBuffer *fb,
-	DRWShadingGroup *init_shgrp, DRWShadingGroup *end_shgrp, int mode)
+	DRWShadingGroup *init_shgrp, DRWShadingGroup *end_shgrp, bool multi)
 {
 	if (init_shgrp == NULL) {
 		return;
 	}
 
 	/* previews don't use AA */
-	if ((!stl->storage->is_mat_preview) && (mode == eGplBlendMode_Normal)) {
+	if ((!stl->storage->is_mat_preview) && (multi)) {
 		MULTISAMPLE_GP_SYNC_ENABLE(stl->storage->multisamples, fbl);
 	}
 
 	DRW_draw_pass_subset(
 		psl->stroke_pass, init_shgrp, end_shgrp);
 
-	if ((!stl->storage->is_mat_preview) && (mode == eGplBlendMode_Normal)) {
+	if ((!stl->storage->is_mat_preview) && (multi)) {
 		MULTISAMPLE_GP_SYNC_DISABLE(stl->storage->multisamples, fbl, fb, txl);
 	}
 
@@ -777,9 +777,13 @@ void GPENCIL_draw_scene(void *ved)
 				bool use_blend = false;
 				if (cache_ob->tot_layers > 0) {
 					for (int e = 0; e < cache_ob->tot_layers; e++) {
+						bool is_last = e == cache_ob->tot_layers - 1 ? true : false;
 						array_elm = &cache_ob->shgrp_array[e];
 
-						if ((array_elm->mode == eGplBlendMode_Normal) && (!use_blend)) {
+						if (((array_elm->mode == eGplBlendMode_Normal) &&
+							(!use_blend) && (!array_elm->clamp_layer)) ||
+							( e == 0))
+						{
 							if (init_shgrp == NULL) {
 								init_shgrp = array_elm->init_shgrp;
 							}
@@ -790,7 +794,7 @@ void GPENCIL_draw_scene(void *ved)
 							/* draw pending groups */
 							gpencil_draw_pass_range(
 								fbl, stl, psl, txl, fbl->temp_fb_a,
-								init_shgrp, end_shgrp, array_elm->mode);
+								init_shgrp, end_shgrp, is_last);
 
 							/* draw current group in separated texture */
 							init_shgrp = array_elm->init_shgrp;
@@ -800,13 +804,14 @@ void GPENCIL_draw_scene(void *ved)
 							GPU_framebuffer_clear_color_depth(fbl->temp_fb_fx, clearcol, 1.0f);
 							gpencil_draw_pass_range(
 								fbl, stl, psl, txl, fbl->temp_fb_fx,
-								init_shgrp, end_shgrp, array_elm->mode);
+								init_shgrp, end_shgrp,
+								is_last);
 
 							/* Blend A texture and FX texture */
 							GPU_framebuffer_bind(fbl->temp_fb_b);
 							GPU_framebuffer_clear_color_depth(fbl->temp_fb_b, clearcol, 1.0f);
 							stl->storage->blend_mode = array_elm->mode;
-							stl->storage->disable_mask = (int)array_elm->disable_mask;
+							stl->storage->clamp_layer = (int)array_elm->clamp_layer;
 							stl->storage->blend_opacity = array_elm->blend_opacity;
 							DRW_draw_pass(psl->blend_pass);
 
@@ -824,7 +829,10 @@ void GPENCIL_draw_scene(void *ved)
 
 					}
 					/* last group */
-					gpencil_draw_pass_range(fbl, stl, psl, txl, fbl->temp_fb_a, init_shgrp, end_shgrp, array_elm->mode);
+					gpencil_draw_pass_range(
+						fbl, stl, psl, txl, fbl->temp_fb_a,
+						init_shgrp, end_shgrp,
+						true);
 				}
 
 				/* Current buffer drawing */

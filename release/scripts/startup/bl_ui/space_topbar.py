@@ -520,12 +520,11 @@ class TOPBAR_PT_gpencil_layers(Panel):
         if gpl:
             srow = col.row(align=True)
             srow.prop(gpl, "blend_mode", text="Blend")
-            subrow = srow.row(align=True)
-            subrow.enabled = gpl.blend_mode != 'NORMAL'
-            subrow.prop(gpl, "disable_mask", text="", icon='MOD_MASK')
 
             srow = col.row(align=True)
             srow.prop(gpl, "opacity", text="Opacity", slider=True)
+            srow.prop(gpl, "clamp_layer", text="",
+                     icon='MOD_MASK' if gpl.clamp_layer else 'ONIONSKIN_OFF')
 
         col = row.column()
 

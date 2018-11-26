@@ -7,7 +7,7 @@ uniform sampler2D strokeDepth;
 uniform sampler2D blendColor;
 uniform sampler2D blendDepth;
 uniform int mode;
-uniform int disable_mask;
+uniform int clamp_layer;
 uniform float blend_opacity;
 
 #define ON 1
@@ -106,14 +106,19 @@ void main()
 			}
 		}
 		else {
-			FragColor = mix_color;
-			gl_FragDepth = mix_depth;
+			if (clamp_layer == ON) {
+				discard;
+			}
+			else {
+				FragColor = mix_color;
+				gl_FragDepth = mix_depth;
+			}
 		}
 		return;
 	}
 	
 	/* if not using mask, return mix color */
-	if ((stroke_color.a == 0) && (disable_mask == OFF)) {
+	if ((stroke_color.a == 0) && (clamp_layer == OFF)) {
 		FragColor = mix_color;
 		gl_FragDepth = mix_depth;
 		return;
