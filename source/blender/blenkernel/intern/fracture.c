@@ -955,8 +955,15 @@ void BKE_fracture_postprocess_meshisland(FractureModifierData *fmd, Object* ob, 
 				copy_v3_v3(result->rigidbody->ang_vel, mi->rigidbody->ang_vel);
 
 				//validate already here at once... dynamic somehow doesnt get updated else
-				BKE_rigidbody_shard_validate(scene->rigidbody_world, result, ob, fmd, true,
-											 true, size, frame);
+				//BKE_rigidbody_shard_validate(scene->rigidbody_world, result, ob, fmd, true,
+				//							 true, size, frame);
+
+				// try with delayed validation; next frame before next bullet step from rigidbody depsgraph eval thread
+				if (!(result->rigidbody->flag & RBO_FLAG_KINEMATIC))
+				{
+					result->rigidbody->flag |= RBO_FLAG_NEEDS_VALIDATE;
+					result->rigidbody->flag |= RBO_FLAG_NEEDS_RESHAPE;
+				}
 
 				result->constraint_index = result->id;
 
