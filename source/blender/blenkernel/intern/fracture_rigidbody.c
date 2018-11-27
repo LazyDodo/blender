@@ -2177,13 +2177,7 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 
 
 			if (rbsc->physics_constraint && rbw && (rbw->flag & RBW_FLAG_REBUILD_CONSTRAINTS) && !rebuild) {
-				//printf("Rebuilding constraints\n");
-#if 0
-				if (!fmd->is_dynamic_external) {
-					RB_constraint_set_enabled(rbsc->physics_constraint, rbsc->flag & RBC_FLAG_ENABLED);
-					rbsc->flag |= RBC_FLAG_NEEDS_VALIDATE;
-				}
-#endif
+				//printf("Rebuilding constraints\n")
 
 				if (rbsc->type == RBC_TYPE_6DOF_SPRING)
 				{

@@ -329,29 +329,27 @@ static void search_tree_based(FractureModifierData *rmd, Shard *mi, Shard **mesh
 		if ((mi != mi2) && (mi2 != NULL)) {
 			float thresh = rmd->breaking_threshold;
 			int con_type = rmd->constraint_type;
+			int startframe = 1;
 
 			if ((i >= limit) && (limit > 0)) {
 				break;
 			}
 
-			if (rmd->flag & MOD_FRACTURE_USE_GROUP_CONSTRAINTS_ONLY)
-			{
-				int startframe = 1;
-				if (scene->rigidbody_world) {
-					startframe = scene->rigidbody_world->shared->pointcache->startframe;
-				}
-				if (rmd->dynamic_new_constraints == MOD_FRACTURE_MIXED_DYNAMIC_CONSTRAINTS) {
-					//only build between old and new (old = mi startframe == pointcache startframe)
-					if (mi->startframe > startframe && mi2->startframe > startframe) {
-						continue;
-					}
-				}
+			if (scene->rigidbody_world) {
+				startframe = scene->rigidbody_world->shared->pointcache->startframe;
+			}
 
-				if (rmd->dynamic_new_constraints == MOD_FRACTURE_NO_DYNAMIC_CONSTRAINTS)
-				{	//only build between old
-					if (mi->startframe > startframe || mi2->startframe > startframe) {
-						continue;
-					}
+			if (rmd->dynamic_new_constraints == MOD_FRACTURE_MIXED_DYNAMIC_CONSTRAINTS) {
+				//only build between old and new (old = mi startframe == pointcache startframe)
+				if (mi->startframe > startframe && mi2->startframe > startframe) {
+					continue;
+				}
+			}
+
+			if (rmd->dynamic_new_constraints == MOD_FRACTURE_NO_DYNAMIC_CONSTRAINTS)
+			{	//only build between old
+				if (mi->startframe > startframe || mi2->startframe > startframe) {
+					continue;
 				}
 			}
 
@@ -425,7 +423,7 @@ void BKE_fracture_mesh_constraint_remove(FractureModifierData *fmd, RigidBodySha
 
 void BKE_fracture_mesh_constraint_remove_all(FractureModifierData *fmd, Scene *scene)
 {
-	BKE_fracture_constraints_free(fmd, scene);
+	BKE_fracture_constraints_free(fmd, scene->rigidbody_world);
 }
 
 static void remove_participants(RigidBodyShardCon* con, Shard *mi)
@@ -569,7 +567,7 @@ static void do_cluster_count(FractureModifierData *fmd, Object *obj)
 		int which_index = k * (int)(mi_count / seed_count);
 		Shard *which = (Shard *)BLI_findlink(&fmd->shared->shards, which_index);
 		which->cluster_index = k;
-		print_v3("INSERT", which->loc);
+		//print_v3("INSERT", which->loc);
 		BLI_kdtree_insert(tree, k, which->loc);
 		seeds[k] = which;
 	}
@@ -582,7 +580,7 @@ static void do_cluster_count(FractureModifierData *fmd, Object *obj)
 
 			mul_v3_m4v3(loc, mat, go->ob->loc);
 
-			print_v3("INSERT", loc);
+			//print_v3("INSERT", loc);
 			BLI_kdtree_insert(tree, k, loc);
 		}
 	}
@@ -593,9 +591,61 @@ static void do_cluster_count(FractureModifierData *fmd, Object *obj)
 	for (mi = fmd->shared->shards.first; mi; mi = mi->next ) {
 		KDTreeNearest n;
 		int index;
+		Object *obb = NULL;
+		bool in_shape = true;
 
 		index = BLI_kdtree_find_nearest(tree, mi->loc, &n);
-		mi->cluster_index = index < seed_count ? seeds[index]->cluster_index : index;
+		if (index >= seed_count) {
+			//TODO, recursive collection find by index
+			CollectionObject *cob = NULL;
+			cob = BLI_findlink(&fmd->cluster_group->gobject, index - seed_count);
+			if (cob)
+				obb = cob->ob;
+		}
+
+		/* test whether within shape if seed is a mesh object*/
+		if (obb && obb->type == OB_MESH)
+		{
+			/* use geometry of meshes */
+			MVert* mvert = NULL, *mv = NULL;
+			Mesh *dm = obb->runtime.mesh_eval;
+			int totvert, v;
+			in_shape = false;
+			float epsilon = 0.0001f;
+
+			if (!dm) {
+				dm = obb->data;
+			}
+
+			mvert = dm->mvert;
+			totvert = dm->totvert;
+
+			for (v = 0, mv = mvert; v < totvert; v++, mv++)
+			{
+				float loc[3], diff[3], len, diff_mi[3], len_mi;
+				mul_v3_m4v3(loc, obb->obmat, mv->co);
+				sub_v3_v3v3(diff, loc, obb->loc);
+				len = len_v3(diff);
+
+				sub_v3_v3v3(diff_mi, mi->loc, obb->loc);
+				len_mi = len_v3(diff_mi);
+
+				/*is distance between vertex and centroid of object smaller than distance of shard to centroid ?
+				 * and is shard is in "same direction" (some fuzz factor, not totally exact) */
+				/* if yes, it lies inside */
+				/* same direction test/colinear : (u dot v) / (length(u) * length(v)) > 1 - epsilon */
+				if ((len >= len_mi && ((dot_v3v3(diff, diff_mi) / ((len * len_mi)+epsilon) > 0.75))))
+				{
+					in_shape = true;
+					break;
+				}
+			}
+		}
+
+		if (in_shape)
+		{
+			mi->cluster_index = index < seed_count ? seeds[index]->cluster_index : index;
+		}
 	}
 
 	BLI_kdtree_free(tree);
@@ -674,24 +724,15 @@ void BKE_fracture_constraints_refresh(FractureModifierData *fmd, Object *ob, Sce
 	start = PIL_check_seconds_timer();
 
 	if (fmd->flag & MOD_FRACTURE_USE_CONSTRAINTS) {
-		int count = 0;
-
-		/* fire a callback which can then load external constraint data right NOW */
-	   // BLI_callback_exec(G.main, &ob->id, BLI_CB_EVT_FRACTURE_CONSTRAINT_REFRESH);
-
-		/*if we loaded constraints, dont create other ones now */
-		count = BLI_listbase_count(&fmd->shared->constraints);
-
-		if (count == 0 || fmd->dynamic_new_constraints != MOD_FRACTURE_NO_DYNAMIC_CONSTRAINTS) {
-			create_constraints(fmd, ob, scene); /* check for actually creating the constraints inside*/
-		}
+		//if (fmd->dynamic_new_constraints != MOD_FRACTURE_NO_DYNAMIC_CONSTRAINTS) {
+		create_constraints(fmd, ob, scene);
 	}
 
 	printf("Building constraints done, %g\n", PIL_check_seconds_timer() - start);
 	printf("Constraints: %d\n", BLI_listbase_count(&fmd->shared->constraints));
 }
 
-void BKE_fracture_constraints_free(FractureModifierData *fmd, Scene *scene)
+void BKE_fracture_constraints_free(FractureModifierData *fmd, RigidBodyWorld *rbw)
 {
 	Shard *mi = NULL;
 	RigidBodyShardCon *rbsc = NULL;
@@ -717,8 +758,8 @@ void BKE_fracture_constraints_free(FractureModifierData *fmd, Scene *scene)
 	while (fmd->shared->constraints.first) {
 		rbsc = fmd->shared->constraints.first;
 		BLI_remlink(&fmd->shared->constraints, rbsc);
-		if (scene && scene->rigidbody_world)
-			BKE_rigidbody_remove_shard_con(scene->rigidbody_world, rbsc);
+		if (rbw)
+			BKE_rigidbody_remove_shard_con(rbw, rbsc);
 		MEM_freeN(rbsc);
 		rbsc = NULL;
 	}

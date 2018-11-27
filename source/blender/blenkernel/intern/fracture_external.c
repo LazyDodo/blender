@@ -273,7 +273,7 @@ void BKE_fracture_mesh_island_remove_all(FractureModifierData *fmd, Scene* scene
 //	pack_storage_remove_all(fmd, scene);
 
 	//free all constraints first
-	BKE_fracture_constraints_free(fmd, scene);
+	BKE_fracture_constraints_free(fmd, scene->rigidbody_world);
 
 	//free all meshislands
 	while (fmd->shared->shards.first) {

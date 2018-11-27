@@ -218,29 +218,68 @@ static void find_other_face(FractureModifierData *fmd, int i, BMesh* bm, Object*
 		bool in_filter = false;
 
 		/*filter out face pairs, if we have an autohide filter group */
-		if (fmd->autohide_filter_group){
+		if (fmd->autohide_filter_group)
+		{
 			CollectionObject *go;
-			for (go = fmd->autohide_filter_group->gobject.first; go; go = go->next) {
+			for (go = fmd->autohide_filter_group->gobject.first; go; go = go->next)
+			{
 				/*check location and scale (maximum size if nonuniform) for now */
 				/*if not in any filter range, delete... else keep */
 				Object* obj = go->ob;
 				float f1_loc[3], f2_loc[3];
-				float radius = MAX3(obj->size[0], obj->size[1], obj->size[2]);
+				float radius = 0.1f; //autohide_filter_dist
+				//MAX3(obj->size[0], obj->size[1], obj->size[2]);
 
 				/* TODO XXX watch out if go->ob is parented to ob (Transformation error ?) */
 				mul_v3_m4v3(f1_loc, ob->obmat, f_centr);
 				mul_v3_m4v3(f2_loc, ob->obmat, f_centr_other);
 				radius = radius * radius;
 
-				if ((len_squared_v3v3(f1_loc, obj->loc) < radius) &&
-					(len_squared_v3v3(f2_loc, obj->loc) < radius))
+				if (obj->type == OB_MESH)
 				{
-					in_filter = true;
-					break;
+					/* use geometry of meshes */
+					MVert* mvert = NULL, *mv = NULL;
+					Mesh *dm = obj->runtime.mesh_eval;
+					int totvert, v;
+
+					if (!dm) {
+						dm = obj->data;
+					}
+
+					mvert = dm->mvert;
+					totvert = dm->totvert;
+
+					for (v = 0, mv = mvert; v < totvert; v++, mv++)
+					{
+						float loc[3];
+						mul_v3_m4v3(loc, obj->obmat, mv->co);
+
+						if ((len_squared_v3v3(f1_loc, loc) < radius) &&
+							(len_squared_v3v3(f2_loc, loc) < radius))
+						{
+							in_filter = true;
+							break;
+						}
+						else
+						{
+							in_filter = false;
+						}
+					}
+					if (in_filter) {
+						break;
+					}
 				}
-				else
-				{
-					in_filter = false;
+				else {
+					if ((len_squared_v3v3(f1_loc, obj->loc) < radius) &&
+						(len_squared_v3v3(f2_loc, obj->loc) < radius))
+					{
+						in_filter = true;
+						break;
+					}
+					else
+					{
+						in_filter = false;
+					}
 				}
 			}
 		}

@@ -1767,6 +1767,16 @@ static void rigidbody_update_simulation_post_step(RigidBodyWorld *rbw)
 						RB_body_get_angular_velocity(rbo->shared->physics_object, rbo->ang_vel);
 					}
 				}
+
+				/* purge constraints after sim step in case of dynamic, so they can be rebuilt by the modifier running next,
+				 * before the next rigidbody step */
+				if ((rmd->flag & MOD_FRACTURE_USE_DYNAMIC)) {
+					if (rmd->shared->flag & MOD_FRACTURE_REFRESH_DYNAMIC) {
+						/* very important, since old constraints may mess up the simulation after stopping and restarting */
+						BKE_fracture_constraints_free(rmd, rbw);
+						rmd->shared->flag |= MOD_FRACTURE_REFRESH_CONSTRAINTS;
+					}
+				}
 			}
 			modFound = true;
 			break;

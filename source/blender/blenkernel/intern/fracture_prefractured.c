@@ -185,17 +185,26 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 			fmd->shared->flag |= MOD_FRACTURE_REFRESH;
 	}
 
-	if ((fmd->flag & MOD_FRACTURE_USE_DYNAMIC) && !(fmd->shared->flag & MOD_FRACTURE_REFRESH)) {
-		/* very important, since old constraints may mess up the simulation after stopping and restarting */
-		BKE_fracture_constraints_free(fmd, scene);
+#if 0
+	/* this probably needs to be called before rigidbody eval, but modifier is evaled AFTER rigidbody */
+	if ((fmd->flag & MOD_FRACTURE_USE_DYNAMIC)) {
+		if (fmd->shared->flag & MOD_FRACTURE_REFRESH_DYNAMIC) {
+			/* very important, since old constraints may mess up the simulation after stopping and restarting */
+			BKE_fracture_constraints_free(fmd, scene);
+			fmd->shared->flag |= MOD_FRACTURE_REFRESH_CONSTRAINTS;
+		}
 	}
+#endif
 
 	if (fmd->shared->flag & MOD_FRACTURE_REFRESH)
 	{
 		/*reset_shards called from readfile.c; refresh from operator */
 
 		/*free old stuff here */
-		BKE_fracture_constraints_free(fmd, scene);
+		if (!(fmd->flag & MOD_FRACTURE_USE_DYNAMIC))
+		{
+			BKE_fracture_constraints_free(fmd, scene->rigidbody_world);
+		}
 
 		int dynamic = fmd->flag & MOD_FRACTURE_USE_DYNAMIC;
 		fmd->flag &= ~MOD_FRACTURE_USE_DYNAMIC;
@@ -228,8 +237,9 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 
 		/*if dynamic event, push state to fracture sequence*/
 		BKE_fracture_dynamic_do(fmd, ob, scene, depsgraph, bmain);
+
 		fmd->shared->flag &= ~ MOD_FRACTURE_REFRESH_DYNAMIC;
-		fmd->shared->flag |= (MOD_FRACTURE_REFRESH_CONSTRAINTS | MOD_FRACTURE_REFRESH_AUTOHIDE);
+		fmd->shared->flag |= /*(MOD_FRACTURE_REFRESH_CONSTRAINTS | */MOD_FRACTURE_REFRESH_AUTOHIDE;
 	}
 
 	if ((fmd->flag & MOD_FRACTURE_USE_ANIMATED_MESH) && fmd->anim_mesh_ob)
@@ -250,11 +260,12 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 
 	/*if refresh constraints, build constraints */
 	if (fmd->shared->flag & MOD_FRACTURE_REFRESH_CONSTRAINTS) {
-		if (!(fmd->shared->flag & MOD_FRACTURE_REFRESH))
+		if (!(fmd->shared->flag & MOD_FRACTURE_REFRESH) && !(fmd->flag & MOD_FRACTURE_USE_DYNAMIC)) {
 			// do not free twice
-			BKE_fracture_constraints_free(fmd, scene);
+			BKE_fracture_constraints_free(fmd, scene->rigidbody_world);
+		}
 
-		BKE_fracture_external_constraints_setup(fmd, scene, ob);
+		BKE_fracture_external_constraints_setup(fmd, scene, ob, frame);
 	}
 
 	fmd->shared->flag &= ~MOD_FRACTURE_REFRESH;

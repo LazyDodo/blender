@@ -96,7 +96,7 @@ static void parse_cell_verts(cell c, MVert *mvert, int totvert);
 static void parse_cell_polys(cell c, MPoly *mpoly, int totpoly);
 static void parse_cell_loops(cell c, MLoop *mloop, MPoly *mpoly, int totpoly);
 static void parse_cell_neighbors(cell c, int *neighbors, int totpoly);
-static void do_island_index_map(FractureModifierData *fmd, Object *obj);
+static void do_island_index_map(FractureModifierData *fmd, Object *obj, int frame);
 static void fracture_meshisland_custom(FractureModifierData *fmd, Object *obj, Shard* mii, Scene* scene, int frame, Depsgraph *depsgraph);
 static void intersect_mesh_by_mesh(FractureModifierData* fmd, Object* ob, Mesh* meA, Mesh* meB, Mesh***temp_meshs);
 static void meshisland_inner_vertexgroup_do(FractureModifierData *fmd, Object* ob, Shard* mi);
@@ -557,8 +557,11 @@ static void process_cells(FractureModifierData* fmd, Shard* mii, Object* ob, Sce
 		int k = 0;
 		for (k = 0; k < fmd->shared->last_islands_count; k++)
 		{
-			BLI_remlink(&fmd->shared->shards, fmd->shared->last_islands[k]);
-			BKE_fracture_mesh_island_free(fmd->shared->last_islands[k], scene);
+			if (fmd->shared->last_islands[k])
+			{
+				BLI_remlink(&fmd->shared->shards, fmd->shared->last_islands[k]);
+				BKE_fracture_mesh_island_free(fmd->shared->last_islands[k], scene);
+			}
 		}
 
 		MEM_freeN(fmd->shared->last_islands);
@@ -3156,7 +3159,7 @@ void BKE_fracture_split_islands(FractureModifierData *fmd, Object* ob, Mesh *me,
 	printf("Splitting to islands done, %g \n", PIL_check_seconds_timer() - start);
 }
 
-static void do_island_index_map(FractureModifierData *fmd, Object* obj)
+static void do_island_index_map(FractureModifierData *fmd, Object* obj, int frame)
 {
 	Shard *mi;
 
@@ -3177,6 +3180,11 @@ static void do_island_index_map(FractureModifierData *fmd, Object* obj)
 				if (fmdi)
 				{
 					for (mi = fmdi->shared->shards.first; mi; mi = mi->next){
+
+						if (BKE_fracture_meshisland_check_frame(fmdi, mi, frame)) {
+							continue;
+						}
+
 						for (i = 0; i < mi->mesh->totvert; i++)
 						{
 							if (!BLI_ghash_haskey(fmd->shared->vertex_island_map, POINTER_FROM_INT(i + j)))
@@ -3194,6 +3202,11 @@ static void do_island_index_map(FractureModifierData *fmd, Object* obj)
 	else {
 		int i,j = 0;
 		for (mi = fmd->shared->shards.first; mi; mi = mi->next){
+
+			if (BKE_fracture_meshisland_check_frame(fmd, mi, frame)) {
+				continue;
+			}
+
 			for (i = 0; i < mi->mesh->totvert; i++)
 			{
 				if (!BLI_ghash_haskey(fmd->shared->vertex_island_map, POINTER_FROM_INT(i+j)))
@@ -3256,7 +3269,7 @@ BMesh* BKE_fracture_mesh_to_bmesh(Mesh* me)
 	return bm;
 }
 
-void BKE_fracture_external_constraints_setup(FractureModifierData *fmd, Scene *scene, Object *ob)
+void BKE_fracture_external_constraints_setup(FractureModifierData *fmd, Scene *scene, Object *ob, int frame)
 {
 	if (fmd->shared->flag & (MOD_FRACTURE_REFRESH | MOD_FRACTURE_REFRESH_CONSTRAINTS)) {
 
@@ -3280,7 +3293,7 @@ void BKE_fracture_external_constraints_setup(FractureModifierData *fmd, Scene *s
 							pob = obj;
 
 							fmdi->shared->flag |= MOD_FRACTURE_REFRESH_CONSTRAINTS;
-							BKE_fracture_constraints_free(fmdi, scene);
+							BKE_fracture_constraints_free(fmdi, scene->rigidbody_world);
 							break;
 						}
 					}
@@ -3290,7 +3303,7 @@ void BKE_fracture_external_constraints_setup(FractureModifierData *fmd, Scene *s
 			FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 		}
 
-		do_island_index_map(fmd, ob);
+		do_island_index_map(fmd, ob, frame);
 		BKE_fracture_constraints_refresh(fmd, ob, scene);
 
 		if (fmd->pack_group && (fmd->flag & MOD_FRACTURE_USE_GROUP_CONSTRAINTS_ONLY))
@@ -3305,7 +3318,7 @@ void BKE_fracture_external_constraints_setup(FractureModifierData *fmd, Scene *s
 
 		if (pfmd && pob) {
 			double start = PIL_check_seconds_timer();
-			do_island_index_map(pfmd, pob);
+			do_island_index_map(pfmd, pob, frame);
 			BKE_fracture_constraints_refresh(pfmd, pob, scene);
 			pfmd->shared->flag &= ~MOD_FRACTURE_REFRESH_CONSTRAINTS;
 			printf("Rebuilding external constraints done, %g\n", PIL_check_seconds_timer() - start);

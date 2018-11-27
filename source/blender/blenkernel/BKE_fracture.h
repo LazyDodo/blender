@@ -120,7 +120,7 @@ void BKE_fracture_mesh_island_remove(struct FractureModifierData *fmd, struct Sh
 void BKE_fracture_mesh_island_remove_all(struct FractureModifierData *fmd, struct Scene* scene);
 
 void BKE_fracture_mesh_constraint_remove(struct FractureModifierData *fmd, struct RigidBodyShardCon* con, struct Scene *scene);
-void BKE_fracture_constraints_free(struct FractureModifierData *fmd, struct Scene *scene);
+void BKE_fracture_constraints_free(struct FractureModifierData *fmd, struct RigidBodyWorld *rbw);
 
 struct RigidBodyShardCon *BKE_fracture_mesh_constraint_create(struct Scene *scene, struct FractureModifierData *fmd,
                                                      struct Shard *mi1, struct Shard *mi2, short con_type);
@@ -152,7 +152,7 @@ struct Mesh* BKE_fracture_bmesh_to_mesh(struct BMesh* bm);
 
 void BKE_update_velocity_layer(struct FractureModifierData *fmd, struct Mesh *dm);
 bool BKE_rigidbody_remove_modifier(struct RigidBodyWorld* rbw, struct ModifierData *md, struct Object *ob);
-void BKE_fracture_external_constraints_setup(struct FractureModifierData *fmd, struct Scene *scene, struct Object *ob);
+void BKE_fracture_external_constraints_setup(struct FractureModifierData *fmd, struct Scene *scene, struct Object *ob, int frame);
 
 struct Mesh* BKE_fracture_apply(struct FractureModifierData *fmd, struct Object *ob, struct Mesh *me, struct Depsgraph* depsgraph);
 
