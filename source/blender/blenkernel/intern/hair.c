@@ -619,7 +619,7 @@ void BKE_hair_ensure_follicle_space(const Mesh *scalp, HairCurveData *curve_data
 	float (*tang)[3] = tangents;
 	const HairFollicle *follicle = BKE_hair_get_follicles(curve_data);
 	for (int i = 0; i < num_follicles; ++i) {
-		BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, co, nor, tang);
+		BKE_mesh_sample_eval(scalp, &follicle->mesh_sample, *co, *nor, *tang);
 
 		++co;
 		++nor;

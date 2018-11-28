@@ -252,6 +252,15 @@ BLI_INLINE HairFiberVertex* BKE_hair_iter__curve_verts_next(HairIterator *iter)
 	     (ele) = BKE_hair_iter__follicle_curves_next((iter)), \
 	         (curvevar) = (iter)->data.follicle_curves.curve)
 
+#define BKE_HAIR_ITER_FOLLICLE_CURVES_INDEX(ele, curvevar, iter, curve_data, indexvar) \
+	for ((ele) = BKE_hair_iter__follicle_curves_init((iter), (curve_data)), \
+	         (curvevar) = (iter)->data.follicle_curves.curve, \
+	         (indexvar = 0); \
+	     BKE_hair_iter__follicle_curves_valid(iter); \
+	     (ele) = BKE_hair_iter__follicle_curves_next((iter)), \
+	         (curvevar) = (iter)->data.follicle_curves.curve, \
+	         ++(indexvar))
+
 #define BKE_HAIR_ITER_CURVE_VERTS(ele, iter, curve_data, curve) \
 	for ((ele) = BKE_hair_iter__curve_verts_init((iter), (curve_data), (curve)); \
 	     BKE_hair_iter__curve_verts_valid(iter); \

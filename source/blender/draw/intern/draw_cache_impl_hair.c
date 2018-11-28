@@ -174,27 +174,47 @@ static void hair_batch_cache_ensure_count(
 	}
 }
 
+static bool hair_get_local_space(const float (*orco)[3], const float (*normals)[3], const float (*tangents)[3], int index, float r[4][4])
+{
+	if (!orco || !normals || !tangents) {
+		unit_m4(r);
+		return false;
+	}
+
+	copy_v3_v3(r[1], tangents[index]);
+	copy_v3_v3(r[2], normals[index]);
+	cross_v3_v3v3(r[0], r[1], r[2]);
+	copy_v3_v3(r[3], orco[index]);
+	return true;
+}
+
 static void hair_batch_cache_fill_segments_proc_pos(
         const HairCurveData *curve_data,
         GPUVertBufRaw *attr_step)
 {
 	const HairFiberVertex *verts = BKE_hair_get_verts(curve_data);
+	float (*orco)[3] = CustomData_get_layer(&curve_data->fdata, CD_ORCO);
+	float (*normals)[3] = CustomData_get_layer(&curve_data->fdata, CD_NORMAL);
+	float (*tangents)[3] = CustomData_get_layer(&curve_data->fdata, CD_TANGENT);
 	HairIterator iter;
 	HairFollicle *follicle;
 	HairFiberCurve *curve;
-	BKE_HAIR_ITER_FOLLICLE_CURVES(follicle, curve, &iter, curve_data) {
+	int curve_idx;
+	BKE_HAIR_ITER_FOLLICLE_CURVES_INDEX(follicle, curve, &iter, curve_data, curve_idx) {
 		if (curve->numverts < 2) {
 			continue;
 		}
+		float hmat[4][4];
+		hair_get_local_space(orco, normals, tangents, curve_idx, hmat);
 		const HairFiberVertex *vert_start = &verts[curve->vertstart];
 		float total_len = 0.0f;
 		const float *co_prev = NULL;
 		float *seg_data_first;
 		for (int j = 0; j < curve->numverts; j++) {
 			float *seg_data = (float *)GPU_vertbuf_raw_step(attr_step);
-			copy_v3_v3(seg_data, vert_start[j].co);
+			mul_v3_m4v3(seg_data, hmat, vert_start[j].co);
 			if (co_prev) {
-				total_len += len_v3v3(co_prev, vert_start[j].co);
+				total_len += len_v3v3(co_prev, seg_data);
 			}
 			else {
 				seg_data_first = seg_data;
@@ -452,8 +472,8 @@ static void hair_batch_cache_ensure_final_count(
 	HairFiberCurve *curve;
 	BKE_HAIR_ITER_FOLLICLE_CURVES(follicle, curve, &iter, curve_data) {
 		/* +1 for primitive restart */
-		cache->elems_len += ((curve->numverts - 1) << subdiv + 1) * thickness_res;
-		cache->point_len += (curve->numverts - 1) << subdiv + 1;
+		cache->elems_len += (((curve->numverts - 1) << subdiv) + 2) * thickness_res;
+		cache->point_len += ((curve->numverts - 1) << subdiv) + 1;
 	}
 }
 
@@ -492,7 +512,7 @@ static int hair_batch_cache_fill_segments_indices(
 			continue;
 		}
 
-		const int res = ((curve->numverts - 1) << subdiv) * thickness_res;
+		const int res = (((curve->numverts - 1) << subdiv) + 1) * thickness_res;
 		for (int k = 0; k < res; k++) {
 			GPU_indexbuf_add_generic_vert(elb, curr_point++);
 		}
@@ -672,14 +692,20 @@ static int hair_batch_cache_fill_segments(
 {
 	int curr_point = 0;
 	const HairFiberVertex *verts = BKE_hair_get_verts(curve_data);
+	float (*orco)[3] = CustomData_get_layer(&curve_data->fdata, CD_ORCO);
+	float (*normals)[3] = CustomData_get_layer(&curve_data->fdata, CD_NORMAL);
+	float (*tangents)[3] = CustomData_get_layer(&curve_data->fdata, CD_TANGENT);
 	const HairFollicle *follicle;
 	const HairFiberCurve *curve;
 	HairIterator iter;
-	BKE_HAIR_ITER_FOLLICLE_CURVES(follicle, curve, &iter, curve_data) {
+	int curve_idx;
+	BKE_HAIR_ITER_FOLLICLE_CURVES_INDEX(follicle, curve, &iter, curve_data, curve_idx) {
 		if (curve->numverts < 2) {
 			continue;
 		}
 
+		float hmat[4][4];
+		hair_get_local_space(orco, normals, tangents, curve_idx, hmat);
 		for (int k = 0; k < scalp_attr->num_uv_layers; k++) {
 			BKE_mesh_sample_eval_uv(scalp, &follicle->mesh_sample, k, scalp_attr->hair_uv[k]);
 		}
@@ -694,10 +720,13 @@ static int hair_batch_cache_fill_segments(
 			const HairFiberVertex *vert = vert_start + j;
 			const HairFiberVertex *vert_prev = (j > 0 ? vert_start + j - 1 : vert_start + j);
 			const HairFiberVertex *vert_next = (j < curve->numverts-1 ? vert_start + j + 1 : vert_start + j);
+			float co[3];
+			mul_v3_m4v3(co, hmat, vert->co);
 			float tangent[3];
 			sub_v3_v3v3(tangent, vert_next->co, vert_prev->co);
+			mul_mat3_m4_v3(hmat, tangent);
 
-			GPU_vertbuf_attr_set(hair_cache->pos, attr_id->pos, curr_point, vert->co);
+			GPU_vertbuf_attr_set(hair_cache->pos, attr_id->pos, curr_point, co);
 			GPU_vertbuf_attr_set(hair_cache->pos, attr_id->tan, curr_point, tangent);
 			GPU_vertbuf_attr_set(hair_cache->pos, attr_id->ind, curr_point, &j);
 
