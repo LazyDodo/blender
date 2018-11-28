@@ -2464,7 +2464,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 			}
 		}
 
-		/* init Annotation sonion skin */
+		/* init Annotations onion skin */
 		if (!DNA_struct_elem_find(fd->filesdna, "bGPDlayer", "int", "gstep")) {
 			for (bGPdata *gpd = bmain->gpencil.first; gpd; gpd = gpd->id.next) {
 				for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
