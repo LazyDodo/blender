@@ -2468,8 +2468,8 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 		if (!DNA_struct_elem_find(fd->filesdna, "bGPDlayer", "int", "gstep")) {
 			for (bGPdata *gpd = bmain->gpencil.first; gpd; gpd = gpd->id.next) {
 				for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-					ARRAY_SET_ITEMS(gpl->gcolor_prev, 0.145f, 0.420f, 0.137f);
-					ARRAY_SET_ITEMS(gpl->gcolor_next, 0.125f, 0.082f, 0.529f);
+					ARRAY_SET_ITEMS(gpl->gcolor_prev, 0.302f, 0.851f, 0.302f);
+					ARRAY_SET_ITEMS(gpl->gcolor_next, 0.250f, 0.1f, 1.0f);
 				}
 			}
 		}
