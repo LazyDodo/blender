@@ -338,6 +338,10 @@ def km_window(params):
             items.append(
                 ("wm.toolbar", {"type": 'SPACE', "value": 'PRESS', "shift": True}, None),
             )
+        elif params.spacebar_action == 'SEARCH':
+            items.append(
+                ("wm.search_menu", {"type": 'SPACE', "value": 'PRESS'}, None),
+            )
         else:
             assert False
 
@@ -421,7 +425,7 @@ def km_screen(params):
             ("screen.region_flip", {"type": 'F5', "value": 'PRESS'}, None),
             ("screen.redo_last", {"type": 'F6', "value": 'PRESS'}, None),
             ("script.reload", {"type": 'F8', "value": 'PRESS'}, None),
-            ("screen.settings_show", {"type": 'U', "value": 'PRESS', "ctrl": True, "alt": True}, None),
+            ("screen.userpref_show", {"type": 'U', "value": 'PRESS', "ctrl": True, "alt": True}, None),
         ])
 
     if params.apple:
@@ -430,7 +434,7 @@ def km_screen(params):
             ("ed.undo", {"type": 'Z', "value": 'PRESS', "oskey": True}, None),
             ("ed.redo", {"type": 'Z', "value": 'PRESS', "shift": True, "oskey": True}, None),
             ("ed.undo_history", {"type": 'Z', "value": 'PRESS', "alt": True, "oskey": True}, None),
-            ("screen.settings_show", {"type": 'COMMA', "value": 'PRESS', "oskey": True}, None),
+            ("screen.userpref_show", {"type": 'COMMA', "value": 'PRESS', "oskey": True}, None),
         ])
 
     return keymap
@@ -906,6 +910,8 @@ def km_view3d(params):
          {"properties": [("center", False)]}),
         ("view3d.view_all", {"type": 'HOME', "value": 'PRESS', "ctrl": True},
          {"properties": [("use_all_regions", True), ("center", False)]}),
+        ("view3d.view_all", {"type": 'C', "value": 'PRESS', "shift": True},
+         {"properties": [("center", True)]}),
         op_menu_pie("VIEW3D_MT_view_pie", {"type": 'ACCENT_GRAVE', "value": 'PRESS'}),
         ("view3d.navigate", {"type": 'ACCENT_GRAVE', "value": 'PRESS', "shift": True}, None),
         # Numpad views.
@@ -965,6 +971,7 @@ def km_view3d(params):
          {"properties": [("type", 'RIGHT'), ("relative", True)]}),
         ("view3d.view_axis", {"type": 'EVT_TWEAK_M', "value": 'WEST', "alt": True},
          {"properties": [("type", 'LEFT'), ("relative", True)]}),
+        ("view3d.view_center_pick", {"type": 'MIDDLEMOUSE', "value": 'CLICK', "alt": True}, None),
         ("view3d.ndof_orbit_zoom", {"type": 'NDOF_MOTION', "value": 'ANY'}, None),
         ("view3d.ndof_orbit", {"type": 'NDOF_MOTION', "value": 'ANY', "ctrl": True}, None),
         ("view3d.ndof_pan", {"type": 'NDOF_MOTION', "value": 'ANY', "shift": True}, None),
@@ -1077,8 +1084,6 @@ def km_view3d(params):
             ("view3d.zoom_camera_1_to_1", {"type": 'NUMPAD_ENTER', "value": 'PRESS', "shift": True}, None),
             ("view3d.view_center_cursor", {"type": 'HOME', "value": 'PRESS', "alt": True}, None),
             ("view3d.view_center_pick", {"type": 'F', "value": 'PRESS', "alt": True}, None),
-            ("view3d.view_all", {"type": 'C', "value": 'PRESS', "shift": True},
-             {"properties": [("center", True)]}),
             ("view3d.view_pan", {"type": 'WHEELUPMOUSE', "value": 'PRESS', "ctrl": True},
              {"properties": [("type", 'PANRIGHT')]}),
             ("view3d.view_pan", {"type": 'WHEELDOWNMOUSE', "value": 'PRESS', "ctrl": True},
@@ -2685,7 +2690,7 @@ def km_frames(params):
 
     if not params.legacy:
         # New playback
-        if params.spacebar_action == 'TOOL':
+        if params.spacebar_action in {'TOOL', 'SEARCH'}:
             items.append(
                 ("screen.animation_play", {"type": 'SPACE', "value": 'PRESS', "shift": True}, None),
             )
@@ -4938,6 +4943,62 @@ def km_popup_toolbar(params):
 #
 # Named are auto-generated based on the tool name and it's toolbar.
 
+
+def km_generic_tool_annotate(params):
+    return (
+        "Generic Tool: Annotate",
+        {"region_type": 'WINDOW'},
+        {"items": (
+            ("gpencil.annotate", {"type": params.tool_mouse, "value": 'PRESS'},
+             {"properties": [("mode", 'DRAW'), ("wait_for_input", False)]}),
+            ("gpencil.annotate", {"type": params.tool_mouse, "value": 'PRESS', "alt": True},
+             {"properties": [("mode", 'ERASER'), ("wait_for_input", False)]}),
+        ),
+        },
+    )
+
+
+def km_generic_tool_annotate_line(params):
+    return (
+        "Generic Tool: Annotate Line",
+        {"region_type": 'WINDOW'},
+        {"items": (
+            ("gpencil.annotate", {"type": params.tool_tweak, "value": 'ANY'},
+             {"properties": [("mode", 'DRAW_STRAIGHT'), ("wait_for_input", False)]}),
+            ("gpencil.annotate", {"type": params.tool_mouse, "value": 'PRESS', "alt": True},
+             {"properties": [("mode", 'ERASER'), ("wait_for_input", False)]}),
+        ),
+        },
+    )
+
+
+def km_generic_tool_annotate_polygon(params):
+    return (
+        "Generic Tool: Annotate Polygon",
+        {"region_type": 'WINDOW'},
+        {"items": (
+            ("gpencil.annotate", {"type": params.tool_mouse, "value": 'PRESS'},
+             {"properties": [("mode", 'DRAW_POLY'), ("wait_for_input", False)]}),
+            ("gpencil.annotate", {"type": params.tool_mouse, "value": 'PRESS', "alt": True},
+             {"properties": [("mode", 'ERASER'), ("wait_for_input", False)]}),
+        ),
+        },
+    )
+
+
+def km_generic_tool_annotate_eraser(params):
+    return (
+        "Generic Tool: Annotate Eraser",
+        {"region_type": 'WINDOW'},
+        {"items": (
+            ("gpencil.annotate", {"type": params.tool_mouse, "value": 'PRESS'},
+             {"properties": [("mode", 'ERASER'), ("wait_for_input", False)]}),
+            ("gpencil.annotate", {"type": params.tool_mouse, "value": 'PRESS', "alt": True},
+             {"properties": [("mode", 'ERASER'), ("wait_for_input", False)]}),
+        ),
+        },
+    )
+
 def km_image_editor_tool_uv_cursor(params):
     return (
         "Image Editor Tool: Uv, Cursor",
@@ -4989,52 +5050,56 @@ def km_image_editor_tool_uv_select_lasso(params):
     )
 
 
-def km_image_editor_tool_uv_annotate(params):
+def km_node_editor_tool_select(params):
     return (
-        "Image Editor Tool: Uv, Annotate",
-        {"space_type": 'IMAGE_EDITOR', "region_type": 'WINDOW'},
+        "Node Tool: Select",
+        {"space_type": 'NODE_EDITOR', "region_type": 'WINDOW'},
         {"items": (
-            ("gpencil.annotate", {"type": params.tool_mouse, "value": 'PRESS'},
-             {"properties": [("mode", 'DRAW'), ("wait_for_input", False)]}),
+            ("node.select", {"type": params.select_mouse, "value": 'PRESS'},
+             {"properties": [("extend", False)]}),
         ),
         },
     )
 
 
-def km_image_editor_tool_uv_annotate_line(params):
+def km_node_editor_tool_select_box(params):
     return (
-        "Image Editor Tool: Uv, Annotate Line",
-        {"space_type": 'IMAGE_EDITOR', "region_type": 'WINDOW'},
+        "Node Tool: Select Box",
+        {"space_type": 'NODE_EDITOR', "region_type": 'WINDOW'},
         {"items": (
-            ("gpencil.annotate", {"type": params.tool_tweak, "value": 'ANY'},
-             {"properties": [("mode", 'DRAW_STRAIGHT'), ("wait_for_input", False)]}),
+            ("node.select_box", {"type": params.tool_mouse, "value": 'PRESS'},
+              {"properties": [("deselect", False), ("tweak", True)]}),
+            ("node.select_box", {"type": params.tool_mouse, "value": 'PRESS', "ctrl": True},
+              {"properties": [("deselect", True), ("tweak", True)]}),
         ),
         },
     )
 
 
-def km_image_editor_tool_uv_annotate_polygon(params):
+def km_node_editor_tool_select_lasso(params):
     return (
-        "Image Editor Tool: Uv, Annotate Polygon",
-        {"space_type": 'IMAGE_EDITOR', "region_type": 'WINDOW'},
+        "Node Tool: Select Lasso",
+        {"space_type": 'NODE_EDITOR', "region_type": 'WINDOW'},
         {"items": (
-            ("gpencil.annotate", {"type": params.tool_mouse, "value": 'PRESS'},
-             {"properties": [("mode", 'DRAW_POLY'), ("wait_for_input", False)]}),
+            ("node.select_lasso", {"type": params.tool_mouse, "value": 'PRESS'},
+              {"properties": [("deselect", False)]}),
+            ("node.select_lasso", {"type": params.tool_mouse, "value": 'PRESS', "ctrl": True},
+              {"properties": [("deselect", True)]}),
         ),
         },
     )
 
 
-def km_image_editor_tool_uv_annotate_eraser(params):
+def km_node_editor_tool_links_cut(params):
     return (
-        "Image Editor Tool: Uv, Annotate Eraser",
-        {"space_type": 'IMAGE_EDITOR', "region_type": 'WINDOW'},
+        "Node Tool: Links Cut",
+        {"space_type": 'NODE_EDITOR', "region_type": 'WINDOW'},
         {"items": (
-            ("gpencil.annotate", {"type": params.tool_mouse, "value": 'PRESS'},
-             {"properties": [("mode", 'ERASER'), ("wait_for_input", False)]}),
+            ("node.links_cut", {"type": params.tool_mouse, "value": 'PRESS'}, None),
         ),
         },
     )
+
 
 
 def km_3d_view_tool_object_cursor(params):
@@ -5130,62 +5195,6 @@ def km_3d_view_tool_object_scale(params):
         {"items": (
             ("transform.resize", {"type": params.tool_tweak, "value": 'ANY'},
              {"properties": [("release_confirm", True)]}),
-        ),
-        },
-    )
-
-
-def km_3d_view_tool_object_annotate(params):
-    return (
-        "3D View Tool: Object, Annotate",
-        {"space_type": 'VIEW_3D', "region_type": 'WINDOW'},
-        {"items": (
-            ("gpencil.annotate", {"type": params.tool_mouse, "value": 'PRESS'},
-             {"properties": [("mode", 'DRAW'), ("wait_for_input", False)]}),
-            ("gpencil.annotate", {"type": params.tool_mouse, "value": 'PRESS', "alt": True},
-             {"properties": [("mode", 'ERASER'), ("wait_for_input", False)]}),
-        ),
-        },
-    )
-
-
-def km_3d_view_tool_object_annotate_line(params):
-    return (
-        "3D View Tool: Object, Annotate Line",
-        {"space_type": 'VIEW_3D', "region_type": 'WINDOW'},
-        {"items": (
-            ("gpencil.annotate", {"type": params.tool_tweak, "value": 'ANY'},
-             {"properties": [("mode", 'DRAW_STRAIGHT'), ("wait_for_input", False)]}),
-            ("gpencil.annotate", {"type": params.tool_mouse, "value": 'PRESS', "alt": True},
-             {"properties": [("mode", 'ERASER'), ("wait_for_input", False)]}),
-        ),
-        },
-    )
-
-
-def km_3d_view_tool_object_annotate_polygon(params):
-    return (
-        "3D View Tool: Object, Annotate Polygon",
-        {"space_type": 'VIEW_3D', "region_type": 'WINDOW'},
-        {"items": (
-            ("gpencil.annotate", {"type": params.tool_mouse, "value": 'PRESS'},
-             {"properties": [("mode", 'DRAW_POLY'), ("wait_for_input", False)]}),
-            ("gpencil.annotate", {"type": params.tool_mouse, "value": 'PRESS', "alt": True},
-             {"properties": [("mode", 'ERASER'), ("wait_for_input", False)]}),
-        ),
-        },
-    )
-
-
-def km_3d_view_tool_object_annotate_eraser(params):
-    return (
-        "3D View Tool: Object, Annotate Eraser",
-        {"space_type": 'VIEW_3D', "region_type": 'WINDOW'},
-        {"items": (
-            ("gpencil.annotate", {"type": params.tool_mouse, "value": 'PRESS'},
-             {"properties": [("mode", 'ERASER'), ("wait_for_input", False)]}),
-            ("gpencil.annotate", {"type": params.tool_mouse, "value": 'PRESS', "alt": True},
-             {"properties": [("mode", 'ERASER'), ("wait_for_input", False)]}),
         ),
         },
     )
@@ -5935,15 +5944,20 @@ def generate_keymaps(params=None):
         km_popup_toolbar(params),
 
         # Tool System.
+        km_generic_tool_annotate(params),
+        km_generic_tool_annotate_line(params),
+        km_generic_tool_annotate_polygon(params),
+        km_generic_tool_annotate_eraser(params),
+
         km_image_editor_tool_uv_cursor(params),
         km_image_editor_tool_uv_select(params),
         km_image_editor_tool_uv_select_box(params),
         km_image_editor_tool_uv_select_circle(params),
         km_image_editor_tool_uv_select_lasso(params),
-        km_image_editor_tool_uv_annotate(params),
-        km_image_editor_tool_uv_annotate_line(params),
-        km_image_editor_tool_uv_annotate_polygon(params),
-        km_image_editor_tool_uv_annotate_eraser(params),
+        km_node_editor_tool_select(params),
+        km_node_editor_tool_select_box(params),
+        km_node_editor_tool_select_lasso(params),
+        km_node_editor_tool_links_cut(params),
         km_3d_view_tool_object_cursor(params),
         km_3d_view_tool_object_select(params),
         km_3d_view_tool_object_select_box(params),
@@ -5953,10 +5967,6 @@ def generate_keymaps(params=None):
         km_3d_view_tool_object_move(params),
         km_3d_view_tool_object_rotate(params),
         km_3d_view_tool_object_scale(params),
-        km_3d_view_tool_object_annotate(params),
-        km_3d_view_tool_object_annotate_line(params),
-        km_3d_view_tool_object_annotate_polygon(params),
-        km_3d_view_tool_object_annotate_eraser(params),
         km_3d_view_tool_object_measure(params),
         km_3d_view_tool_pose_breakdowner(params),
         km_3d_view_tool_pose_push(params),

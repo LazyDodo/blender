@@ -24,7 +24,7 @@ void workbench_private_data_init(WORKBENCH_PrivateData *wpd)
 		wpd->use_color_view_settings = true;
 	}
 	else if (v3d->shading.type == OB_RENDER &&
-	         BKE_scene_uses_blender_opengl(scene))
+	         BKE_scene_uses_blender_workbench(scene))
 	{
 		wpd->shading = scene->display.shading;
 		wpd->use_color_view_settings = true;
@@ -84,8 +84,8 @@ void workbench_private_data_init(WORKBENCH_PrivateData *wpd)
 	copy_v3_v3(wd->object_outline_color, wpd->shading.object_outline_color);
 	wd->object_outline_color[3] = 1.0f;
 
-	wd->curvature_ridge = 0.5f / max_ff(wpd->shading.curvature_ridge_factor*wpd->shading.curvature_ridge_factor, 1e-4f);
-	wd->curvature_valley = 0.7f / max_ff(wpd->shading.curvature_valley_factor*wpd->shading.curvature_valley_factor, 1e-4f);
+	wd->curvature_ridge = 0.5f / max_ff(SQUARE(wpd->shading.curvature_ridge_factor), 1e-4f);
+	wd->curvature_valley = 0.7f / max_ff(SQUARE(wpd->shading.curvature_valley_factor), 1e-4f);
 
 	wpd->world_ubo = DRW_uniformbuffer_create(sizeof(WORKBENCH_UBO_World), &wpd->world_data);
 
@@ -111,7 +111,12 @@ void workbench_private_data_init(WORKBENCH_PrivateData *wpd)
 		wpd->ssao_params[3] = 0;
 
 		/* distance, factor, factor, attenuation */
-		copy_v4_fl4(wpd->ssao_settings, scene->display.matcap_ssao_distance, wpd->shading.cavity_valley_factor, wpd->shading.cavity_ridge_factor, scene->display.matcap_ssao_attenuation);
+		copy_v4_fl4(
+		        wpd->ssao_settings,
+		        scene->display.matcap_ssao_distance,
+		        wpd->shading.cavity_valley_factor,
+		        wpd->shading.cavity_ridge_factor,
+		        scene->display.matcap_ssao_attenuation);
 
 		/* invert the view matrix */
 		DRW_viewport_matrix_get(wpd->winmat, DRW_MAT_WIN);
@@ -152,36 +157,55 @@ void workbench_private_data_get_light_direction(WORKBENCH_PrivateData *wpd, floa
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
 	WORKBENCH_UBO_World *wd = &wpd->world_data;
-	float view_matrix[4][4];
+	float view_matrix[4][4], view_inv[4][4], rot_matrix[4][4];
 	DRW_viewport_matrix_get(view_matrix, DRW_MAT_VIEW);
+	DRW_viewport_matrix_get(view_inv, DRW_MAT_VIEWINV);
 
 	copy_v3_v3(r_light_direction, scene->display.light_direction);
 	negate_v3(r_light_direction);
 
-	{
-		WORKBENCH_UBO_Light *light = &wd->lights[0];
-		mul_v3_mat3_m4v3(light->light_direction_vs, view_matrix, r_light_direction);
-		light->light_direction_vs[3] = 0.0f;
-		copy_v3_fl(light->specular_color, 1.0f);
-		light->energy = 1.0f;
-		copy_v4_v4(wd->shadow_direction_vs, light->light_direction_vs);
-		wd->num_lights = 1;
+	/* Shadow direction. */
+	mul_v3_mat3_m4v3(wd->shadow_direction_vs, view_matrix, r_light_direction);
+
+	/* TODO enable when we support studiolight presets. */
+	if (STUDIOLIGHT_ORIENTATION_WORLD_ENABLED(wpd) && false) {
+		axis_angle_to_mat4_single(rot_matrix, 'Y', -wpd->shading.studiolight_rot_z);
+		mul_m4_m4m4(rot_matrix, rot_matrix, view_matrix);
+		swap_v3_v3(rot_matrix[2], rot_matrix[1]);
+		negate_v3(rot_matrix[2]);
+	}
+	else {
+		unit_m4(rot_matrix);
 	}
 
-	if (!STUDIOLIGHT_ORIENTATION_WORLD_ENABLED(wpd)) {
-		int light_index = 0;
-		for (int index = 0 ; index < 3; index++) {
-			SolidLight *sl = &U.light[index];
-			if (sl->flag) {
-				WORKBENCH_UBO_Light *light = &wd->lights[light_index++];
-				copy_v4_v4(light->light_direction_vs, sl->vec);
-				negate_v3(light->light_direction_vs);
-				copy_v4_v4(light->specular_color, sl->spec);
-				light->energy = 1.0f;
-			}
+	/* Studio Lights. */
+	for (int i = 0; i < 4; i++) {
+		WORKBENCH_UBO_Light *light = &wd->lights[i];
+		/* TODO use 4 lights in studiolights prefs. */
+		if (i > 2) {
+			copy_v3_fl3(light->light_direction, 1.0f, 0.0f, 0.0f);
+			copy_v3_fl(light->specular_color, 0.0f);
+			copy_v3_fl(light->diffuse_color, 0.0f);
+			continue;
 		}
-		wd->num_lights = light_index;
+
+		SolidLight *sl = &U.light[i];
+		if (sl->flag) {
+			copy_v3_v3(light->light_direction, sl->vec);
+			mul_mat3_m4_v3(rot_matrix, light->light_direction);
+			/* We should predivide the power by PI but that makes the lights really dim. */
+			copy_v3_v3(light->specular_color, sl->spec);
+			copy_v3_v3(light->diffuse_color, sl->col);
+			light->wrapped = sl->smooth;
+		}
+		else {
+			copy_v3_fl3(light->light_direction, 1.0f, 0.0f, 0.0f);
+			copy_v3_fl(light->specular_color, 0.0f);
+			copy_v3_fl(light->diffuse_color, 0.0f);
+		}
 	}
+
+	copy_v4_v4(wd->ambient_color, U.light_ambient);
 
 	DRW_uniformbuffer_update(wpd->world_ubo, wd);
 }

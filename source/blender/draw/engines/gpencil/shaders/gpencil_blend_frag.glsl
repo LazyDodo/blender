@@ -9,6 +9,7 @@ uniform sampler2D blendDepth;
 uniform int mode;
 uniform int clamp_layer;
 uniform float blend_opacity;
+uniform int tonemapping;
 
 #define ON 1
 #define OFF 0
@@ -58,7 +59,8 @@ vec4 get_blend_color(int mode, vec4 src_color, vec4 blend_color)
 		outcolor.a = clamp(src_color.a - (mix_color.a * blend_opacity), 0.0, 1.0);
 	}
 	else if (mode == MODE_MULTIPLY)	{
-		mix_color.rgb = mix_color.rgb * mix_color.a * blend_opacity;
+		/* interpolate between 1 and color using opacity */
+		mix_color.rgb = mix(vec3(1,1,1), mix_color.rgb * mix_color.a, blend_opacity);
 		outcolor = src_color * mix_color;
 		outcolor.a = src_color.a;
 	}
@@ -71,8 +73,30 @@ vec4 get_blend_color(int mode, vec4 src_color, vec4 blend_color)
 		outcolor = mix_color * blend_opacity;;
 		outcolor.a = src_color.a;
 	}
-	
+
 	return outcolor;
+}
+
+float linearrgb_to_srgb(float c)
+{
+	if (c < 0.0031308)
+		return (c < 0.0) ? 0.0 : c * 12.92;
+	else
+		return 1.055 * pow(c, 1.0 / 2.4) - 0.055;
+}
+
+vec4 tone(vec4 stroke_color)
+{
+	if (tonemapping == 1) {
+		vec4 color = vec4(0, 0, 0, stroke_color.a);
+		color.r = linearrgb_to_srgb(stroke_color.r);
+		color.g = linearrgb_to_srgb(stroke_color.g);
+		color.b = linearrgb_to_srgb(stroke_color.b);
+		return color;
+	}
+	else {
+		return stroke_color;
+	}
 }
 
 void main()
@@ -81,7 +105,7 @@ void main()
 	ivec2 uv = ivec2(gl_FragCoord.xy);
 	vec4 stroke_color =  texelFetch(strokeColor, uv, 0).rgba;
 	float stroke_depth = texelFetch(strokeDepth, uv, 0).r;
-	
+
 	vec4 mix_color =  texelFetch(blendColor, uv, 0).rgba;
 	float mix_depth = texelFetch(blendDepth, uv, 0).r;
 
@@ -92,7 +116,7 @@ void main()
 	if (mix_color.a > 0) {
 		mix_color = vec4(vec3(mix_color.rgb / mix_color.a), mix_color.a);
 	}
-	
+
 	/* Normal mode */
 	if (mode == MODE_NORMAL) {
 		if (stroke_color.a > 0) {
@@ -114,17 +138,18 @@ void main()
 				gl_FragDepth = mix_depth;
 			}
 		}
+		FragColor = tone(FragColor);
 		return;
 	}
-	
+
 	/* if not using mask, return mix color */
 	if ((stroke_color.a == 0) && (clamp_layer == OFF)) {
-		FragColor = mix_color;
+		FragColor = tone(mix_color);
 		gl_FragDepth = mix_depth;
 		return;
 	}
 
 	/* apply blend mode */
-	FragColor = get_blend_color(mode, stroke_color, mix_color);
+	FragColor = tone(get_blend_color(mode, stroke_color, mix_color));
 	gl_FragDepth = stroke_depth;
 }

@@ -44,6 +44,7 @@
 
 #include "BKE_brush.h"
 #include "BKE_colortools.h"
+#include "BKE_keyconfig.h"
 #include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
@@ -87,6 +88,9 @@ void BLO_update_defaults_userpref_blend(void)
 	/* Only enable tooltips translation by default, without actually enabling translation itself, for now. */
 	U.transopts = USER_TR_TOOLTIPS;
 	U.memcachelimit = 4096;
+
+	/* Default to left click select. */
+	BKE_keyconfig_pref_set_select_mouse(&U, 0, true);
 }
 
 /**
@@ -273,6 +277,17 @@ void BLO_update_defaults_startup_blend(Main *bmain, const char *app_template)
 
 				/* back to default brush */
 				BKE_paint_brush_set(paint, old_brush);
+			}
+		}
+	}
+
+	for (bScreen *sc = bmain->screen.first; sc; sc = sc->id.next) {
+		for (ScrArea *sa = sc->areabase.first; sa; sa = sa->next) {
+			for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+				if (sl->spacetype == SPACE_VIEW3D) {
+					View3D *v3d = (View3D *)sl;
+					v3d->shading.flag |= V3D_SHADING_SPECULAR_HIGHLIGHT;
+				}
 			}
 		}
 	}

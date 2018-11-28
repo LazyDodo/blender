@@ -113,7 +113,7 @@
 #include "bmesh.h"
 
 const char *RE_engine_id_BLENDER_EEVEE = "BLENDER_EEVEE";
-const char *RE_engine_id_BLENDER_OPENGL = "BLENDER_OPENGL";
+const char *RE_engine_id_BLENDER_WORKBENCH = "BLENDER_WORKBENCH";
 const char *RE_engine_id_CYCLES = "CYCLES";
 
 void free_avicodecdata(AviCodecData *acd)
@@ -549,6 +549,8 @@ void BKE_scene_init(Scene *sce)
 	CurveMapping *mblur_shutter_curve;
 
 	BLI_assert(MEMCMP_STRUCT_OFS_IS_ZERO(sce, id));
+
+	unit_qt(sce->cursor.rotation);
 
 	sce->r.mode = R_OSA;
 	sce->r.cfra = 1;
@@ -1617,9 +1619,9 @@ bool BKE_scene_uses_blender_eevee(const Scene *scene)
 	return STREQ(scene->r.engine, RE_engine_id_BLENDER_EEVEE);
 }
 
-bool BKE_scene_uses_blender_opengl(const Scene *scene)
+bool BKE_scene_uses_blender_workbench(const Scene *scene)
 {
-	return STREQ(scene->r.engine, RE_engine_id_BLENDER_OPENGL);
+	return STREQ(scene->r.engine, RE_engine_id_BLENDER_WORKBENCH);
 }
 
 bool BKE_scene_uses_cycles(const Scene *scene)
