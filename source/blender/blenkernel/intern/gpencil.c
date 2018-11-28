@@ -373,6 +373,9 @@ bGPDlayer *BKE_gpencil_layer_addnew(bGPdata *gpd, const char *name, bool setacti
 		/* set default thickness of new strokes for this layer */
 		gpl->thickness = 3;
 
+		/* Onion colors */
+		ARRAY_SET_ITEMS(gpl->gcolor_prev, 0.145f, 0.420f, 0.137f);
+		ARRAY_SET_ITEMS(gpl->gcolor_next, 0.125f, 0.082f, 0.529f);
 	}
 	else {
 		/* thickness parameter represents "thickness change", not absolute thickness */
