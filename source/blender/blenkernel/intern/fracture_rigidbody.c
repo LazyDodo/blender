@@ -421,7 +421,7 @@ void BKE_rigidbody_calc_shard_mass(Object *ob, Shard *mi)
 	}
 
 	if (mi->rigidbody->type == RBO_TYPE_ACTIVE) {
-		if (mi->rigidbody->mass == 0)
+		if (mi->rigidbody->mass < 0.001)
 			mi->rigidbody->mass = 0.001;  /* set a minimum mass for active objects */
 	}
 
@@ -1559,8 +1559,9 @@ void BKE_rigidbody_shard_validate(RigidBodyWorld *rbw, Shard *mi, Object *ob, Fr
 
 	if (BKE_fracture_meshisland_check_frame(fmd, mi, (int)ctime)) {
 		RigidBodyOb *rbo = mi->rigidbody;
+		bool autoexecute = fmd->flag & MOD_FRACTURE_USE_AUTOEXECUTE;
 
-		if (rbw && rbo && rbo->shared->physics_object && (mi->startframe < (int)ctime))
+		if (rbw && rbo && rbo->shared->physics_object && ((mi->startframe < (int)ctime) && !autoexecute))
 		{
 			int i = 0;
 			for (i = 0; i < mi->participating_constraint_count; i++)
@@ -2118,7 +2119,6 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 					mi->rigidbody->flag &= ~RBO_FLAG_PROPAGATE_TRIGGER;
 				}
 
-
 				if (fmd->flag & MOD_FRACTURE_USE_BREAKING)
 				{
 					bool breaking_percentage_weighted = fmd->flag & MOD_FRACTURE_USE_BREAKING_PERCENTAGE_WEIGHTED;
@@ -2306,7 +2306,7 @@ bool BKE_rigidbody_modifier_sync(ModifierData *md, Object *ob, Scene *scene, flo
 						break;
 				}
 				/* otherwise set rigid body transform to current obmat*/
-				else //if (!(ob->flag & SELECT && G.moving & G_TRANSFORM_OBJ))
+				else
 				{
 					mat4_to_loc_quat(rbo->pos, rbo->orn, ob->obmat);
 					mat4_to_size(size, ob->obmat);
@@ -2359,7 +2359,13 @@ bool BKE_restoreKinematic(RigidBodyWorld *rbw, bool override_bind)
 			FractureModifierData *fmd = (FractureModifierData*)modifiers_findByType(go->ob, eModifierType_Fracture);
 			if (fmd && triggered)
 			{
+				bool dupli = (fmd->flag & MOD_FRACTURE_USE_DUPLI) && fmd->dupli_ob;
 				Shard* mi;
+
+				if (dupli) {
+					continue;
+				}
+
 				for (mi = fmd->shared->shards.first; mi; mi = mi->next)
 				{
 					if (mi->rigidbody)

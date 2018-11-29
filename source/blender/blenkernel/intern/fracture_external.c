@@ -177,7 +177,7 @@ Shard* BKE_fracture_mesh_island_add(Main* bmain, FractureModifierData *fmd, Obje
 	return mi;
 }
 
-void BKE_fracture_mesh_island_free(Shard *mi, Scene* scene)
+void BKE_fracture_mesh_island_free(FractureModifierData *fmd, Shard *mi, Scene* scene)
 {
 	if (mi->mesh) {
 		BKE_fracture_mesh_free(mi->mesh);
@@ -235,6 +235,10 @@ void BKE_fracture_mesh_island_free(Shard *mi, Scene* scene)
 		mi->neighbor_count = 0;
 	}
 
+	if (fmd->shared->dupli_shard_map) {
+		BLI_ghash_remove(fmd->shared->dupli_shard_map, POINTER_FROM_INT(mi->id), NULL, NULL);
+	}
+
 	MEM_freeN(mi);
 	mi = NULL;
 }
@@ -261,7 +265,7 @@ void BKE_fracture_mesh_island_remove(FractureModifierData *fmd, Shard *mi, Scene
 			BKE_rigidbody_remove_shard_con(scene->rigidbody_world, con);
 		}
 
-		BKE_fracture_mesh_island_free(mi, scene);
+		BKE_fracture_mesh_island_free(fmd, mi, scene);
 	}
 }
 
@@ -279,7 +283,7 @@ void BKE_fracture_mesh_island_remove_all(FractureModifierData *fmd, Scene* scene
 	while (fmd->shared->shards.first) {
 		mi = fmd->shared->shards.first;
 		BLI_remlink(&fmd->shared->shards, mi);
-		BKE_fracture_mesh_island_free(mi, scene);
+		BKE_fracture_mesh_island_free(fmd, mi, scene);
 	}
 
 	fmd->shared->shards.first = NULL;

@@ -1460,6 +1460,7 @@ void BKE_rigidbody_update_sim_ob(Scene *scene, RigidBodyWorld *rbw, Object *ob, 
 	float scale[3], centr[3];
 	//Scene *sc = (Scene*)DEG_get_original_id(&scene->id);
 	float ctime = BKE_scene_frame_get(scene);
+	bool dupli = fmd && (fmd->flag & MOD_FRACTURE_USE_DUPLI) && fmd->dupli_ob;
 
 	/* only update if rigid body exists */
 	if (rbo->shared->physics_object == NULL)
@@ -1524,7 +1525,7 @@ void BKE_rigidbody_update_sim_ob(Scene *scene, RigidBodyWorld *rbw, Object *ob, 
 	if ((rbo->flag & RBO_FLAG_KINEMATIC && rbo->force_thresh == 0.0f) || (ob->flag & SELECT && G.moving & G_TRANSFORM_OBJ)) {
 		if (((rbo->type == RBO_TYPE_ACTIVE || mi == NULL) && (rbo->flag & RBO_FLAG_KINEMATIC_REBUILD) == 0))
 		{
-			if (!(fmd && fmd->anim_mesh_ob && (fmd->flag & MOD_FRACTURE_USE_ANIMATED_MESH)))
+			if (!dupli && !(fmd && fmd->anim_mesh_ob && (fmd->flag & MOD_FRACTURE_USE_ANIMATED_MESH)))
 			{
 				//override for externally animated rbs
 				mul_v3_v3(centr, scale);
@@ -1574,7 +1575,7 @@ void BKE_rigidbody_update_sim_ob(Scene *scene, RigidBodyWorld *rbw, Object *ob, 
 				{   //XXXXX TODO, maybe this is wrong here
 					/* do the same here as above, but here we needed the eff_force value to compare against threshold */
 
-					if (!(fmd && fmd->anim_mesh_ob && (fmd->flag & MOD_FRACTURE_USE_ANIMATED_MESH)))
+					if (!dupli && !(fmd && fmd->anim_mesh_ob && (fmd->flag & MOD_FRACTURE_USE_ANIMATED_MESH)))
 					{	//same override as above
 						mul_v3_v3(centr, scale);
 						mul_qt_v3(rot, centr);

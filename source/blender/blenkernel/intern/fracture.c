@@ -33,7 +33,9 @@
 #include <stdlib.h>
 
 #include "MEM_guardedalloc.h"
+#include "BLI_listbase.h" // for BKE_anim.h
 
+#include "BKE_anim.h" //for dupli
 #include "BKE_collection.h"
 #include "BKE_customdata.h"
 #include "BKE_deform.h"
@@ -60,6 +62,7 @@
 #include "BLI_sort.h"
 #include "BLI_task.h"
 #include "BLI_utildefines.h"
+#include "BLI_ghash.h" //for dupli shard map
 
 #include "DNA_scene_types.h"
 #include "DNA_fracture_types.h"
@@ -560,7 +563,7 @@ static void process_cells(FractureModifierData* fmd, Shard* mii, Object* ob, Sce
 			if (fmd->shared->last_islands[k])
 			{
 				BLI_remlink(&fmd->shared->shards, fmd->shared->last_islands[k]);
-				BKE_fracture_mesh_island_free(fmd->shared->last_islands[k], scene);
+				BKE_fracture_mesh_island_free(fmd, fmd->shared->last_islands[k], scene);
 			}
 		}
 
@@ -958,6 +961,7 @@ void BKE_fracture_postprocess_meshisland(FractureModifierData *fmd, Object* ob, 
 				//BKE_rigidbody_shard_validate(scene->rigidbody_world, result, ob, fmd, true,
 				//							 true, size, frame);
 
+
 				// try with delayed validation; next frame before next bullet step from rigidbody depsgraph eval thread
 				if (!(result->rigidbody->flag & RBO_FLAG_KINEMATIC))
 				{
@@ -1009,7 +1013,7 @@ static Shard* fracture_cutter_process(FractureModifierData* fmd, Object *obA, Me
 	//exchange difference against original mesh
 	if (temp_meshs[1]) {
 		BLI_remlink(&fmd->shared->shards, miB);
-		BKE_fracture_mesh_island_free(miB, scene);
+		BKE_fracture_mesh_island_free(fmd, miB, scene);
 		miB = BKE_fracture_mesh_island_create(temp_meshs[1], scene, obB, frame);
 		BLI_addtail(&fmd->shared->shards, miB);
 		temp_meshs[1] = NULL;
@@ -1247,6 +1251,7 @@ void BKE_fracture_clear_cache(FractureModifierData* fmd, Scene *scene)
 	int endframe = 250;
 	int frame = 0;
 	Shard *mi, *next;
+	bool dynamic = false;
 
 	BLI_listbase_clear(&fmd->shared->dynamic_fracture_queue);
 
@@ -1259,7 +1264,7 @@ void BKE_fracture_clear_cache(FractureModifierData* fmd, Scene *scene)
 	}
 
 	mi = fmd->shared->shards.first;
-	bool dynamic = fmd->flag & MOD_FRACTURE_USE_DYNAMIC;
+	dynamic = fmd->flag & MOD_FRACTURE_USE_DYNAMIC;
 
 	while (mi) {
 		/*delete non-initial shards on dynamic refresh, or the non-intial prefracture shards*/
@@ -1267,7 +1272,7 @@ void BKE_fracture_clear_cache(FractureModifierData* fmd, Scene *scene)
 		{
 			next = mi->next;
 			BLI_remlink(&fmd->shared->shards, mi);
-			BKE_fracture_mesh_island_free(mi, scene);
+			BKE_fracture_mesh_island_free(fmd, mi, scene);
 			mi = next;
 		}
 		else {
@@ -1306,11 +1311,21 @@ Mesh* BKE_fracture_assemble_mesh_from_islands(FractureModifierData* fmd, Object*
 	Mesh *mesh = NULL;
 	int vertstart, polystart, loopstart, edgestart, num_verts, num_polys, num_loops, num_edges;
 	vertstart = polystart = loopstart = edgestart = num_verts = num_polys = num_loops = num_edges = 0;
+	bool dupli = (fmd->flag & MOD_FRACTURE_USE_DUPLI) && fmd->dupli_ob && fmd->shared->dupli_shard_map;
+
 
 	for (mi = fmd->shared->shards.first; mi; mi = mi->next)
 	{
+		//printf("MI ID %d\n", mi->id);
 		if (BKE_fracture_meshisland_check_frame(fmd, mi, (int)ctime)) {
 			continue;
+		}
+
+		if (dupli) {
+			if (!BLI_ghash_lookup(fmd->shared->dupli_shard_map, mi->id))
+			{
+				continue;
+			}
 		}
 
 		num_verts += mi->mesh->totvert;
@@ -1341,6 +1356,13 @@ Mesh* BKE_fracture_assemble_mesh_from_islands(FractureModifierData* fmd, Object*
 
 		if (BKE_fracture_meshisland_check_frame(fmd, mi, (int)ctime)) {
 			continue;
+		}
+
+		if (dupli) {
+			if (!BLI_ghash_lookup(fmd->shared->dupli_shard_map, POINTER_FROM_INT(mi->id)))
+			{
+				continue;
+			}
 		}
 
 		memcpy(mesh->mvert + vertstart, mi->mesh->mvert, mi->mesh->totvert * sizeof(MVert));
@@ -1864,7 +1886,7 @@ void BKE_fracture_meshislands_free(FractureModifierData* fmd, Scene* scene)
 	while (fmd->shared->shards.first) {
 		mi = fmd->shared->shards.first;
 		BLI_remlink_safe(&fmd->shared->shards, mi);
-		BKE_fracture_mesh_island_free(mi, scene);
+		BKE_fracture_mesh_island_free(fmd, mi, scene);
 		mi = NULL;
 	}
 
@@ -1928,7 +1950,7 @@ void BKE_fracture_modifier_free(FractureModifierData *fmd, Scene *scene)
 		for (j = 0; j < fmd->shared->last_islands_count; j++)
 		{
 			BLI_remlink(&fmd->shared->shards, fmd->shared->last_islands[j]);
-			BKE_fracture_mesh_island_free(fmd->shared->last_islands[j], scene);
+			BKE_fracture_mesh_island_free(fmd, fmd->shared->last_islands[j], scene);
 		}
 
 		MEM_freeN(fmd->shared->last_islands);
@@ -1940,6 +1962,17 @@ void BKE_fracture_modifier_free(FractureModifierData *fmd, Scene *scene)
 	if (fmd->shared->rng) {
 		BLI_rng_free(fmd->shared->rng);
 		fmd->shared->rng = NULL;
+	}
+
+	if (fmd->shared->mesh_cached) {
+		BKE_fracture_mesh_free(fmd->shared->mesh_cached);
+		fmd->shared->mesh_cached = NULL;
+	}
+
+	if (fmd->shared->dupli_shard_map)
+	{
+		BLI_ghash_free(fmd->shared->dupli_shard_map, NULL, NULL);
+		fmd->shared->dupli_shard_map = NULL;
 	}
 }
 
@@ -2638,9 +2671,14 @@ void BKE_fracture_do(FractureModifierData *fmd, Shard *mi, Object *obj, Depsgrap
 			{
 				if (temp_meshs[i]->totvert > 0)
 				{	/* skip invalid cells, e.g. those which are eliminated by bisect */
+					float size[3] =  {1.0f, 1.0f, 1.0f};
 					Shard *result = BKE_fracture_mesh_island_create(temp_meshs[i], scene, obj, frame);
 					fracture_meshisland_add(fmd, result);
 					result->id = mi->id + j;
+					result->rigidbody->flag |= RBO_FLAG_NEEDS_VALIDATE;
+					result->rigidbody->flag |= RBO_FLAG_NEEDS_RESHAPE;
+					BKE_rigidbody_validate_sim_shard(scene->rigidbody_world, result, obj, fmd, true, true, size);
+
 					j++;
 				}
 				else {
@@ -3163,7 +3201,7 @@ void BKE_fracture_split_islands(FractureModifierData *fmd, Object* ob, Mesh *me,
 	bm_work = BKE_fracture_mesh_to_bmesh(me);
 	start = PIL_check_seconds_timer();
 	mesh_separate_loose(bm_work, fmd, ob, temp_islands, count);
-	printf("Splitting to islands done, %g \n", PIL_check_seconds_timer() - start);
+	printf("Splitting to %d islands done, %g \n", *count, PIL_check_seconds_timer() - start);
 }
 
 static void do_island_index_map(FractureModifierData *fmd, Object* obj, int frame)
@@ -3364,4 +3402,130 @@ void BKE_fracture_mesh_free(Mesh *me)
 	BKE_mesh_free(me);
 	MEM_freeN(me);
 	me = NULL;
+}
+
+void BKE_fracture_duplis_to_shards(FractureModifierData *fmd, Object *ob, Scene *scene, Depsgraph *depsgraph,
+                                   Main *bmain, int frame)
+{
+	ListBase *lb;
+	DupliObject *dob;
+	Shard *mi = NULL, **mi_tmp = NULL;
+	//int count = BLI_listbase_count(&fmd->shared->shards);
+	int j = 0, i = 0;
+	bool autoexecute = fmd->flag & MOD_FRACTURE_USE_AUTOEXECUTE;
+	bool refresh = fmd->shared->flag & MOD_FRACTURE_REFRESH;
+	//int endframe = scene->rigidbody_world ? scene->rigidbody_world->shared->pointcache->endframe : 250;
+
+	if (!fmd->shared->dupli_shard_map) {
+		fmd->shared->dupli_shard_map = BLI_ghash_ptr_new("dupli_shard_map");
+	}
+
+	//avoid endless modifier re-eval loop here by
+	// suppressing fracture eval
+	if (refresh) {
+		fmd->shared->flag &= ~MOD_FRACTURE_REFRESH;
+	}
+
+	if (autoexecute) {
+		fmd->flag &= ~MOD_FRACTURE_USE_AUTOEXECUTE;
+	}
+
+	lb = object_duplilist(depsgraph, scene, fmd->dupli_ob);
+
+	//restore flags
+	if (refresh) {
+		fmd->shared->flag |= MOD_FRACTURE_REFRESH;
+	}
+
+	if (autoexecute) {
+		fmd->flag |= MOD_FRACTURE_USE_AUTOEXECUTE;
+	}
+
+	//mi_tmp = MEM_callocN(sizeof(Shard*), "mi_tmp");
+
+	//adding pass
+	for (dob = lb->first; dob; dob = dob->next)
+	{
+		MVert *mv;
+		Mesh *me_tmp;
+		Mesh *mob = dob->ob->runtime.mesh_eval;
+		mob = mob ? mob : dob->ob->data;
+		me_tmp = BKE_fracture_mesh_copy(mob, dob->ob);
+		i = 0;
+
+		for (mv = me_tmp->mvert; i < me_tmp->totvert; i++)
+		{
+			//take ob->data, transform with dob->mat
+			mul_m4_v3(dob->mat, mv[i].co);
+		}
+
+		mi = BLI_ghash_lookup(fmd->shared->dupli_shard_map, POINTER_FROM_INT(dob->persistent_id[0]+1));
+		if (!mi) {
+			//create new shard
+			mi = BKE_fracture_mesh_island_create(me_tmp, scene, ob, frame);
+			fracture_meshisland_add(fmd, mi);
+			mi->id = dob->persistent_id[0]+1;
+			//mi_tmp = MEM_reallocN(mi_tmp, sizeof(Shard*) * (j+1));
+			//mi_tmp[j] = mi;
+			//j++;
+			BLI_ghash_insert(fmd->shared->dupli_shard_map, POINTER_FROM_INT(dob->persistent_id[0]+1), mi);
+		}
+		else {
+			if (mi->rigidbody->flag & RBO_FLAG_KINEMATIC)
+			{
+				if (dob->particle_system) {
+					ParticleData* pa = dob->particle_system->particles + mi->id-1;
+					if (pa->alive == PARS_ALIVE)
+					{
+						copy_v3_v3(mi->rigidbody->pos, pa->state.co);
+						copy_qt_qt(mi->rigidbody->orn, pa->state.rot);
+						copy_v3_v3(mi->rigidbody->lin_vel, pa->state.vel);
+						copy_v3_v3(mi->rigidbody->ang_vel, pa->state.ave);
+
+						if (!mi->rigidbody->shared->physics_object) {
+							float size[3] = {1, 1, 1};
+							mi->rigidbody->flag |= RBO_FLAG_NEEDS_VALIDATE;
+							mi->rigidbody->flag |= RBO_FLAG_NEEDS_RESHAPE;
+							BKE_rigidbody_validate_sim_shard(scene->rigidbody_world, mi, ob, fmd, false, true, size);
+						}
+
+						if (mi->rigidbody->shared->physics_object) {
+							RB_body_set_loc_rot(mi->rigidbody->shared->physics_object,
+							                    mi->rigidbody->pos, mi->rigidbody->orn);
+
+							RB_body_set_linear_velocity(mi->rigidbody->shared->physics_object,
+							                    mi->rigidbody->lin_vel);
+							RB_body_set_angular_velocity(mi->rigidbody->shared->physics_object,
+							                    mi->rigidbody->ang_vel);
+						}
+					}
+					else {
+						//mi->endframe = frame - 1;
+					}
+				}
+			}
+		}
+	}
+
+#if 0
+	/*decouple from listbase because it will continue growing ... */
+	for (i = 0; i < j; i++)
+	{
+		/* make sure to get rid of initial islands after fracture, so "register" them as "Last islands/shards" */
+		if (fmd->shared->last_islands) {
+			MEM_freeN(fmd->shared->last_islands);
+			fmd->shared->last_islands = NULL;
+			fmd->shared->last_islands_count = 0;
+		}
+
+		fmd->shared->last_islands = MEM_callocN(sizeof(Shard*), "islands initial");
+		fmd->shared->last_islands[0] = mi_tmp[i];
+		fmd->shared->last_islands_count = 1;
+
+		BKE_fracture_do(fmd, mi_tmp[i], ob, depsgraph, bmain, scene, true);
+		mi_tmp[i]->endframe = frame;
+	}
+#endif
+
+	//MEM_freeN(mi_tmp);
 }

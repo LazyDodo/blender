@@ -1637,6 +1637,9 @@ enum {
 
 	/* whether to use animation mesh guiding vert "rotation" (useful only if faces are available etc) */
 	MOD_FRACTURE_USE_ANIMATED_MESH_ROTATION       = (1 << 23),
+
+	/* take duplis as source islands instead of base object geometry */
+	MOD_FRACTURE_USE_DUPLI                        = (1 << 24),
 };
 
 typedef struct FractureModifierData {
@@ -1680,6 +1683,9 @@ typedef struct FractureModifierData {
 
 	/*input object for animated mesh */
 	struct Object *anim_mesh_ob;
+
+	/*input object for dupli source */
+	struct Object *dupli_ob;
 
 	/* values */
 	/* which fracture algorithm to use */

@@ -30,6 +30,7 @@
 
 #include "BLI_listbase.h"
 #include "BLI_math.h"
+#include "BLI_ghash.h"
 
 #include "BKE_fracture.h"
 #include "BKE_pointcache.h"
@@ -80,13 +81,16 @@ Shard *BKE_fracture_mesh_island_create(Mesh* me, Scene *scene, Object *ob, int f
 
 	mi->rigidbody = BKE_rigidbody_create_shard(ob, NULL, mi, scene);
 	mi->rigidbody->type = RBO_TYPE_ACTIVE;
-	mi->rigidbody->flag |= (RBO_FLAG_NEEDS_VALIDATE | RBO_FLAG_NEEDS_RESHAPE);
+	mi->rigidbody->flag = ob->rigidbody_object->flag;
+	mi->rigidbody->flag |= RBO_FLAG_NEEDS_VALIDATE;
+	mi->rigidbody->flag |= RBO_FLAG_NEEDS_RESHAPE;
 	BKE_rigidbody_calc_shard_mass(ob, mi);
 
 	return mi;
 }
 
-static bool handle_initial_shards(FractureModifierData* fmd, Object* ob, Depsgraph *depsgraph, Main* bmain, Scene* scene, int frame)
+bool BKE_fracture_handle_initial_shards(FractureModifierData* fmd, Object* ob, Depsgraph *depsgraph, Main* bmain,
+                                        Scene* scene, int frame)
 {
 	Shard *mi = NULL;
 	Shard** mi_tmp = NULL;
@@ -144,24 +148,27 @@ static void do_initial_prefracture(FractureModifierData* fmd, Object* ob, Depsgr
 	Shard *mi = NULL;
 	Mesh *me_tmp = NULL;
 
-	BKE_fracture_meshislands_free(fmd, scene);
-	me_tmp = BKE_fracture_mesh_copy(me, ob);
+	if (!((fmd->flag & MOD_FRACTURE_USE_DUPLI) && fmd->dupli_ob))
+	{
+		BKE_fracture_meshislands_free(fmd, scene);
+		me_tmp = BKE_fracture_mesh_copy(me, ob);
 
-	mi = BKE_fracture_mesh_island_create(me_tmp, scene, ob, frame);
-	mi->id = 0;
-	BLI_addtail(&fmd->shared->shards, mi);
+		mi = BKE_fracture_mesh_island_create(me_tmp, scene, ob, frame);
+		mi->id = 0;
+		BLI_addtail(&fmd->shared->shards, mi);
 
-	if (fmd->shared->last_islands) {
-		MEM_freeN(fmd->shared->last_islands);
-		fmd->shared->last_islands = NULL;
-		fmd->shared->last_islands_count = 0;
+		if (fmd->shared->last_islands) {
+			MEM_freeN(fmd->shared->last_islands);
+			fmd->shared->last_islands = NULL;
+			fmd->shared->last_islands_count = 0;
+		}
+
+		fmd->shared->last_islands = MEM_callocN(sizeof(Shard*), "island initial");
+		fmd->shared->last_islands[0] = mi;
+		fmd->shared->last_islands_count = 1;
+
+		BKE_fracture_do(fmd, mi, ob, depsgraph, bmain, scene, true);
 	}
-
-	fmd->shared->last_islands = MEM_callocN(sizeof(Shard*), "island initial");
-	fmd->shared->last_islands[0] = mi;
-	fmd->shared->last_islands_count = 1;
-
-	BKE_fracture_do(fmd, mi, ob, depsgraph, bmain, scene, true);
 
 	//if ((fmd->point_source & MOD_FRACTURE_CUSTOM) == 0)
 	//	mi->endframe = frame;
@@ -173,28 +180,36 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 	Scene *scene = DEG_get_input_scene(depsgraph);
 	float ctime = BKE_scene_frame_get(scene);
 	int frame = (int)ctime;
-	RigidBodyWorld* rbw = scene->rigidbody_world;
+	RigidBodyWorld *rbw = scene->rigidbody_world;
 
 	Main* bmain = G.main;
 	Mesh* me_assembled = NULL;
 	Mesh *me_final = NULL;
 	Mesh *me = me_orig;
 
-	if ((fmd->flag & MOD_FRACTURE_USE_AUTOEXECUTE) && !BKE_rigidbody_check_sim_running(rbw, ctime)) {
+	bool dupli = (fmd->flag & MOD_FRACTURE_USE_DUPLI) && fmd->dupli_ob;
+
+	if (fmd->shared->flag & MOD_FRACTURE_REFRESH)
+	{
+		if (dupli)
+		{
+			BKE_fracture_meshislands_free(fmd, scene);
+			if (fmd->shared->dupli_shard_map) {
+				BLI_ghash_free(fmd->shared->dupli_shard_map, NULL, NULL);
+					fmd->shared->dupli_shard_map = NULL;
+			}
+		}
+	}
+
+	if (dupli)
+	{
+		BKE_fracture_duplis_to_shards(fmd, ob, scene, depsgraph, bmain, frame);
+	}
+
+	if ((fmd->flag & MOD_FRACTURE_USE_AUTOEXECUTE) && !BKE_rigidbody_check_sim_running(rbw, ctime)){
 		if (ob->rigidbody_object)
 			fmd->shared->flag |= MOD_FRACTURE_REFRESH;
 	}
-
-#if 0
-	/* this probably needs to be called before rigidbody eval, but modifier is evaled AFTER rigidbody */
-	if ((fmd->flag & MOD_FRACTURE_USE_DYNAMIC)) {
-		if (fmd->shared->flag & MOD_FRACTURE_REFRESH_DYNAMIC) {
-			/* very important, since old constraints may mess up the simulation after stopping and restarting */
-			BKE_fracture_constraints_free(fmd, scene);
-			fmd->shared->flag |= MOD_FRACTURE_REFRESH_CONSTRAINTS;
-		}
-	}
-#endif
 
 	if (fmd->shared->flag & MOD_FRACTURE_REFRESH)
 	{
@@ -215,7 +230,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 			/* keep re-packing, too */
 			BKE_fracture_meshislands_pack(fmd, ob, bmain, scene);
 
-			if (!handle_initial_shards(fmd, ob, depsgraph, bmain, scene, frame))
+			if (!BKE_fracture_handle_initial_shards(fmd, ob, depsgraph, bmain, scene, frame))
 			{
 				do_initial_prefracture(fmd, ob, depsgraph, bmain, scene, frame, me);
 			}
@@ -231,7 +246,8 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 			fmd->flag |= MOD_FRACTURE_USE_DYNAMIC;
 		}
 
-		fmd->shared->flag |= (MOD_FRACTURE_REFRESH_CONSTRAINTS | MOD_FRACTURE_REFRESH_AUTOHIDE);
+		fmd->shared->flag |= MOD_FRACTURE_REFRESH_CONSTRAINTS;
+		fmd->shared->flag |= MOD_FRACTURE_REFRESH_AUTOHIDE;
 	}
 	else if (fmd->shared->flag & MOD_FRACTURE_REFRESH_DYNAMIC) {
 
@@ -239,7 +255,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		BKE_fracture_dynamic_do(fmd, ob, scene, depsgraph, bmain);
 
 		fmd->shared->flag &= ~ MOD_FRACTURE_REFRESH_DYNAMIC;
-		fmd->shared->flag |= /*(MOD_FRACTURE_REFRESH_CONSTRAINTS | */MOD_FRACTURE_REFRESH_AUTOHIDE;
+		fmd->shared->flag |= MOD_FRACTURE_REFRESH_AUTOHIDE;
 	}
 
 	if ((fmd->flag & MOD_FRACTURE_USE_ANIMATED_MESH) && fmd->anim_mesh_ob)
@@ -256,7 +272,12 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		me_assembled = BKE_fracture_mesh_copy(me, ob);
 	}
 
-	fmd->shared->mesh_cached = me_assembled;
+	if (fmd->shared->mesh_cached) {
+		BKE_fracture_mesh_free(fmd->shared->mesh_cached);
+		fmd->shared->mesh_cached = NULL;
+	}
+
+	fmd->shared->mesh_cached = BKE_fracture_mesh_copy(me_assembled, ob);
 
 	/*if refresh constraints, build constraints */
 	if (fmd->shared->flag & MOD_FRACTURE_REFRESH_CONSTRAINTS) {
@@ -304,7 +325,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		}
 	}
 
-	fmd->last_frame = frame;
+	//fmd->last_frame = frame;
 
 	/* return output mesh */
 	return me_final;

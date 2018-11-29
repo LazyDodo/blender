@@ -176,6 +176,9 @@ typedef struct FractureModifierData_Shared {
 	/*used to collect vertexgroups from objects to be packed, temporary data */
 	struct GHash *defgrp_index_map;
 
+	/* keep track of which dupli is which shard in the FM, in order to only add / delete the necessary ones */
+	struct GHash *dupli_shard_map;
+
 	/* bound animation data, stores which shard is bound to which "guiding" vertices */
 	struct AnimBind *anim_bind;
 

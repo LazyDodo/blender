@@ -55,25 +55,6 @@ void BKE_fracture_dynamic_do(FractureModifierData *fmd, Object* ob, Scene* scene
 
 	while(fid){
 
-#if 0
-		int i = 0;
-		if (fid->mi->participating_constraints) {
-			for (i = 0; i < fid->mi->participating_constraint_count; i++)
-			{
-				RigidBodyShardCon *con = fid->mi->participating_constraints[i];
-				if (con) {
-					BKE_fracture_mesh_constraint_remove(fmd, con, scene);
-					//fid->mi->participating_constraints[i] = NULL;
-					//con = NULL;
-				}
-			}
-
-			MEM_freeN(fid->mi->participating_constraints);
-			fid->mi->participating_constraints = NULL;
-			fid->mi->participating_constraint_count = 0;
-		}
-#endif
-
 		if (!fid->mi->fractured) {
 			BKE_fracture_do(fmd, fid->mi, ob, depsgraph, bmain, scene, false);
 			fid->mi->fractured = true;

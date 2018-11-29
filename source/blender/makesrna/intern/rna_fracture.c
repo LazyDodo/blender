@@ -546,10 +546,24 @@ static void rna_FractureModifier_anim_mesh_ob_set(PointerRNA* ptr, PointerRNA va
 	rmd->anim_mesh_ob = value.data;
 }
 
+static void rna_FractureModifier_dupli_ob_set(PointerRNA* ptr, PointerRNA value)
+{
+	FractureModifierData *rmd = (FractureModifierData*)ptr->data;
+	rmd->dupli_ob = value.data;
+	rmd->shared->flag |= MOD_FRACTURE_REFRESH;
+}
+
 
 static void rna_Modifier_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *ptr)
 {
+	FractureModifierData *fmd = (FractureModifierData*)ptr->data;
+	bool dupli = (fmd->flag & MOD_FRACTURE_USE_DUPLI) && fmd->dupli_ob;
+
 	BKE_rigidbody_cache_reset(scene);
+
+	if (dupli) {
+		fmd->shared->flag |= MOD_FRACTURE_REFRESH;
+	}
 
 	DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA | OB_RECALC_OB | OB_RECALC_TIME |
 									DEG_TAG_COPY_ON_WRITE | DEG_TAG_BASE_FLAGS_UPDATE);
@@ -1285,6 +1299,21 @@ void RNA_def_fracture(BlenderRNA *brna)
 	                         "How many sub-shards should be generated from the current shard dynamically");
 	//RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	//RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
+
+	prop = RNA_def_property(srna, "use_dupli", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_DUPLI);
+	RNA_def_property_ui_text(prop, "Use Duplis", "Take Dupli objects as shards");
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
+
+	prop = RNA_def_property(srna, "dupli_input", PROP_POINTER, PROP_NONE);
+	RNA_def_property_ui_text(prop, "Dupli Object", "Input object for duplis to use");
+	RNA_def_property_pointer_sdna(prop, NULL, "dupli_ob");
+	RNA_def_property_pointer_funcs(prop, NULL, "rna_FractureModifier_dupli_ob_set", NULL, NULL);
+	RNA_def_property_flag(prop, PROP_EDITABLE);
+	RNA_def_property_flag(prop, PROP_ID_SELF_CHECK);
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");
 
 	RNA_api_fracture(brna, subrna);
 }

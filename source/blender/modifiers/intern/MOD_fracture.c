@@ -190,6 +190,7 @@ static void foreachIDLink(ModifierData *md, Object *ob,
 	walk(userData, ob, (ID **)&fmd->cutter_group, IDWALK_CB_NOP);
 	walk(userData, ob, (ID **)&fmd->autohide_filter_group, IDWALK_CB_NOP);
 	walk(userData, ob, (ID **)&fmd->anim_mesh_ob, IDWALK_CB_NOP);
+	walk(userData, ob, (ID **)&fmd->dupli_ob, IDWALK_CB_NOP);
 }
 
 static CustomDataMask requiredDataMask(Object *UNUSED(ob), ModifierData *UNUSED(md))
@@ -206,6 +207,11 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 	if (fmd->anim_mesh_ob != NULL) {
 		DEG_add_object_relation(ctx->node, fmd->anim_mesh_ob, DEG_OB_COMP_TRANSFORM, "Fracture Modifier Anim");
 		DEG_add_object_relation(ctx->node, fmd->anim_mesh_ob, DEG_OB_COMP_GEOMETRY, "Fracture Modifier Anim");
+	}
+
+	if (fmd->dupli_ob != NULL) {
+		DEG_add_object_relation(ctx->node, fmd->dupli_ob, DEG_OB_COMP_TRANSFORM, "Fracture Modifier Dupli");
+		DEG_add_object_relation(ctx->node, fmd->dupli_ob, DEG_OB_COMP_GEOMETRY, "Fracture Modifier Dupli");
 	}
 
 	if (fmd->extra_group) {
@@ -261,6 +267,9 @@ static void foreachObjectLink(
 
 	if (fmd->anim_mesh_ob)
 		walk(userData, ob, &fmd->anim_mesh_ob, IDWALK_CB_NOP);
+
+	if (fmd->dupli_ob)
+		walk(userData, ob, &fmd->dupli_ob, IDWALK_CB_NOP);
 
 	if (fmd->extra_group) {
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(fmd->extra_group, obj)

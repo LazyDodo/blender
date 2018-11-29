@@ -142,7 +142,7 @@ struct Mesh* BKE_fracture_assemble_mesh_from_islands(struct FractureModifierData
 
 void BKE_fracture_modifier_free(struct FractureModifierData *fmd, struct Scene *scene);
 
-void BKE_fracture_mesh_island_free(struct Shard *mi, struct Scene* scene);
+void BKE_fracture_mesh_island_free(struct FractureModifierData *fmd, struct Shard *mi, struct Scene* scene);
 
 short BKE_fracture_collect_materials(struct Main* bmain, struct Object* o, struct Object* ob, int matstart, struct GHash** mat_index_map);
 
@@ -179,5 +179,11 @@ void BKE_fracture_copy_customdata(struct CustomData* src, struct CustomData* dst
                               int copyelem, int totelem);
 
 bool BKE_fracture_check_valid_shard(struct FractureModifierData *fmd, struct Shard *mi, struct Scene *scene);
+void BKE_fracture_duplis_to_shards(struct FractureModifierData *fmd, struct Object *ob, struct Scene *scene,
+                                   struct Depsgraph *depsgraph, struct Main *bmain, int frame);
+
+bool BKE_fracture_handle_initial_shards(struct FractureModifierData* fmd, struct Object* ob,
+                                        struct Depsgraph *depsgraph, struct Main* bmain,
+                                        struct Scene* scene, int frame);
 
 #endif /* BKE_FRACTURE_H */

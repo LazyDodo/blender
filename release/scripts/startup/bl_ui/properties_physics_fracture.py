@@ -75,6 +75,8 @@ class PHYSICS_PT_fracture_advanced(PhysicButtonsPanel, Panel):
         layout.use_property_split = True
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=True);
         col = flow.column()
+        col.prop(md, "use_dupli")
+        col.prop(md, "dupli_input")
         col.prop(md, "point_source")
         if 'GRID' in md.point_source:
             col.prop(md, "grid_resolution")
