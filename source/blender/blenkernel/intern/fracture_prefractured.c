@@ -246,6 +246,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 			fmd->flag |= MOD_FRACTURE_USE_DYNAMIC;
 		}
 
+
 		fmd->shared->flag |= MOD_FRACTURE_REFRESH_CONSTRAINTS;
 		fmd->shared->flag |= MOD_FRACTURE_REFRESH_AUTOHIDE;
 	}
@@ -255,7 +256,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		BKE_fracture_dynamic_do(fmd, ob, scene, depsgraph, bmain);
 
 		fmd->shared->flag &= ~ MOD_FRACTURE_REFRESH_DYNAMIC;
-		fmd->shared->flag |= MOD_FRACTURE_REFRESH_AUTOHIDE;
+		//fmd->shared->flag |= MOD_FRACTURE_REFRESH_AUTOHIDE;
 	}
 
 	if ((fmd->flag & MOD_FRACTURE_USE_ANIMATED_MESH) && fmd->anim_mesh_ob)

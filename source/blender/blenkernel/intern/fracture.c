@@ -1226,7 +1226,7 @@ static void do_marking(FractureModifierData *fmd, Mesh *result)
 void BKE_fracture_copy_customdata(CustomData* src, CustomData* dst,CustomDataMask mask, int src_ofs, int dst_ofs,
                               int copyelem, int totelem)
 {
-	//CustomData_copy_data(src, dst, src_ofs, dst_ofs, copyelem);
+
 	CustomDataLayer *layer;
 	int i;
 	for (i = 0; i < src->totlayer; i++)
@@ -1288,7 +1288,7 @@ void BKE_fracture_clear_cache(FractureModifierData* fmd, Scene *scene)
 			mi->rots = MEM_callocN(sizeof (float) * 4 *frame, "mi->rots");
 			mi->vels = MEM_callocN(sizeof (float) * 3 *frame, "mi->vels");
 			mi->aves = MEM_callocN(sizeof (float) * 3 *frame, "mi->aves");
-			mi->fractured = false;
+			//mi->fractured = false;
 
 			if (!mi->rigidbody->shared->physics_object)
 			{
@@ -2677,7 +2677,7 @@ void BKE_fracture_do(FractureModifierData *fmd, Shard *mi, Object *obj, Depsgrap
 					result->id = mi->id + j;
 					result->rigidbody->flag |= RBO_FLAG_NEEDS_VALIDATE;
 					result->rigidbody->flag |= RBO_FLAG_NEEDS_RESHAPE;
-					BKE_rigidbody_validate_sim_shard(scene->rigidbody_world, result, obj, fmd, true, true, size);
+					//BKE_rigidbody_validate_sim_shard(scene->rigidbody_world, result, obj, fmd, true, true, size);
 
 					j++;
 				}

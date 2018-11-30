@@ -2134,8 +2134,9 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 				}
 
 				BKE_rigidbody_shard_validate(rbw, is_empty ? NULL : mi, ob, fmd, do_rebuild,
-											 fmd->flag & MOD_FRACTURE_USE_DYNAMIC, bbsize, frame);
+											 ((fmd->flag & MOD_FRACTURE_USE_DYNAMIC) && mi->fractured), bbsize, frame);
 
+				mi->fractured = false;
 				mi->constraint_index = mi->id;
 
 			}
@@ -2214,12 +2215,12 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 			else if (rbsc->flag & RBC_FLAG_NEEDS_VALIDATE && !(fmd->flag & MOD_FRACTURE_USE_DYNAMIC)) {
 				BKE_rigidbody_validate_sim_shard_constraint(rbw, fmd, ob, rbsc, false);
 			}
-			else if (fmd->flag & MOD_FRACTURE_USE_DYNAMIC) {
+			else if ((fmd->flag & MOD_FRACTURE_USE_DYNAMIC)) {
 				if (rbsc->mi1 && rbsc->mi2) {
 					if (!BKE_fracture_meshisland_check_frame(fmd, rbsc->mi1, frame) &&
 					    !BKE_fracture_meshisland_check_frame(fmd, rbsc->mi2, frame))
 					{
-						rbsc->flag |= RBC_FLAG_NEEDS_VALIDATE;
+						//rbsc->flag |= RBC_FLAG_NEEDS_VALIDATE;
 						BKE_rigidbody_validate_sim_shard_constraint(rbw, fmd, ob, rbsc, false);
 					}
 				}

@@ -400,16 +400,25 @@ Mesh* BKE_fracture_mesh_boolean(Mesh* geometry, Mesh* shard, Object* obj, Boolea
 {
 	Mesh* result = NULL;
 
+#if 0
+	int totvert = MIN2(shard->totvert, geometry->totvert);
+	int totedge = MIN2(shard->totedge, geometry->totedge);
+	int totloop = MIN2(shard->totloop, geometry->totloop);
+	int totpoly = MIN2(shard->totpoly, geometry->totpoly);
+#endif
+
 	if (ctx->use_fractal == false)
 	{
 		uv_unwrap_raw_geometry(shard, ctx->uv_layer, true);
 		do_set_inner_material(shard, ctx->inner_material_index, obj);
 	}
 
-	BKE_fracture_copy_customdata(&geometry->vdata, &shard->vdata, CD_MASK_ISLAND, 0, 0, shard->totvert, shard->totvert);
-	BKE_fracture_copy_customdata(&geometry->edata, &shard->edata, CD_MASK_ISLAND, 0, 0, shard->totedge, shard->totedge);
-	BKE_fracture_copy_customdata(&geometry->ldata, &shard->ldata, CD_MASK_ISLAND, 0, 0, shard->totloop, shard->totloop);
-	BKE_fracture_copy_customdata(&geometry->pdata, &shard->pdata, CD_MASK_ISLAND, 0, 0, shard->totpoly, shard->totpoly);
+#if 0
+	BKE_fracture_copy_customdata(&geometry->vdata, &shard->vdata, CD_MASK_ISLAND, 0, 0, totvert, totvert);
+	BKE_fracture_copy_customdata(&geometry->edata, &shard->edata, CD_MASK_ISLAND, 0, 0, totedge, totedge);
+	BKE_fracture_copy_customdata(&geometry->ldata, &shard->ldata, CD_MASK_ISLAND, 0, 0, totloop, totloop);
+	BKE_fracture_copy_customdata(&geometry->pdata, &shard->pdata, CD_MASK_ISLAND, 0, 0, totpoly, totpoly);
+#endif
 
 	result = BKE_boolean_operation(geometry, obj, shard, obj, ctx->operation, ctx->thresh, NULL);
 	/*0 == intersection, 2 == difference*/
