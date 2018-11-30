@@ -553,17 +553,17 @@ static void rna_FractureModifier_dupli_ob_set(PointerRNA* ptr, PointerRNA value)
 	rmd->shared->flag |= MOD_FRACTURE_REFRESH;
 }
 
+static void rna_FractureModifier_use_dupli_set(PointerRNA* ptr, int value)
+{
+	FractureModifierData *rmd = (FractureModifierData *)ptr->data;
+	FM_FLAG_SET(rmd->flag, value, MOD_FRACTURE_USE_DUPLI);
+	FM_FLAG_SET(rmd->shared->flag, true, MOD_FRACTURE_REFRESH);
+}
+
 
 static void rna_Modifier_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *ptr)
 {
-	FractureModifierData *fmd = (FractureModifierData*)ptr->data;
-	bool dupli = (fmd->flag & MOD_FRACTURE_USE_DUPLI) && fmd->dupli_ob;
-
 	BKE_rigidbody_cache_reset(scene);
-
-	if (dupli) {
-		fmd->shared->flag |= MOD_FRACTURE_REFRESH;
-	}
 
 	DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA | OB_RECALC_OB | OB_RECALC_TIME |
 									DEG_TAG_COPY_ON_WRITE | DEG_TAG_BASE_FLAGS_UPDATE);
@@ -1302,6 +1302,7 @@ void RNA_def_fracture(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "use_dupli", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", MOD_FRACTURE_USE_DUPLI);
+	RNA_def_property_boolean_funcs(prop, NULL, "rna_FractureModifier_use_dupli_set");
 	RNA_def_property_ui_text(prop, "Use Duplis", "Take Dupli objects as shards");
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, noteflag, "rna_Modifier_update");

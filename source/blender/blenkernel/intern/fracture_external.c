@@ -114,7 +114,7 @@ short BKE_fracture_collect_materials(Main* bmain, Object* o, Object* ob, int mat
 	return (*totcolp);
 }
 
-Shard* BKE_fracture_mesh_island_add(Main* bmain, FractureModifierData *fmd, Object* own, Object *target, Scene *scene)
+Shard* BKE_fracture_mesh_island_add(Main* bmain, FractureModifierData *fmd, Object* own, Object *target, Scene *scene, int id)
 {
 	Shard *mi;
 	short totcol = 0, totdef = 0;
@@ -133,9 +133,14 @@ Shard* BKE_fracture_mesh_island_add(Main* bmain, FractureModifierData *fmd, Obje
 
 	mi = fracture_object_to_island(fmd, own, target, scene);
 	mi->endframe = endframe;
+	mi->id = id;
 
-	copy_v3_v3(mi->loc, loc);
+	if (mi->id == -1) {
+		mi->id = BLI_listbase_count(&fmd->shared->shards) - 1;
+	}
+
 	copy_qt_qt(mi->rot, quat);
+	copy_qt_qt(mi->rigidbody->orn, mi->rot);
 
 	//mi->rigidbody = BKE_rigidbody_create_shard(bmain, scene, own, target, mi);
 	BLI_strncpy(mi->name, target->id.name + 2, MAX_ID_NAME - 2);
@@ -336,6 +341,7 @@ static Shard* fracture_object_to_island(FractureModifierData* fmd, Object *own, 
 	}
 
 	BLI_space_transform_apply(&trans, mi->loc);
+	copy_v3_v3(mi->rigidbody->pos, mi->loc);
 
 	return mi;
 }

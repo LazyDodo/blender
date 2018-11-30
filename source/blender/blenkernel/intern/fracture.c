@@ -2677,7 +2677,7 @@ void BKE_fracture_do(FractureModifierData *fmd, Shard *mi, Object *obj, Depsgrap
 					result->id = mi->id + j;
 					result->rigidbody->flag |= RBO_FLAG_NEEDS_VALIDATE;
 					result->rigidbody->flag |= RBO_FLAG_NEEDS_RESHAPE;
-					//BKE_rigidbody_validate_sim_shard(scene->rigidbody_world, result, obj, fmd, true, true, size);
+					BKE_rigidbody_validate_sim_shard(scene->rigidbody_world, result, obj, fmd, true, true, size);
 
 					j++;
 				}
@@ -3373,16 +3373,17 @@ void BKE_fracture_external_constraints_setup(FractureModifierData *fmd, Scene *s
 
 void BKE_fracture_meshislands_pack(FractureModifierData *fmd, Object* obj, Main* bmain, Scene* scene)
 {
+	int i = 0;
 	if (fmd->pack_group)
 	{
 		BKE_fracture_mesh_island_remove_all(fmd, scene);
 
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(fmd->pack_group, ob)
 		{
-			BKE_fracture_mesh_island_add(bmain, fmd, obj, ob, scene);
+			BKE_fracture_mesh_island_add(bmain, fmd, obj, ob, scene, i);
+			i++;
 		}
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
-		fmd->shared->flag |= MOD_FRACTURE_REFRESH;
 	}
 }
 

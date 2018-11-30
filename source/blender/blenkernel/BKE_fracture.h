@@ -114,7 +114,7 @@ void BKE_fracture_constraints_refresh(struct FractureModifierData *fmd, struct O
 
 /* external mode */
 struct Shard* BKE_fracture_mesh_island_add(struct Main* bmain, struct FractureModifierData *fmd, struct Object* own,
-                                                struct Object *target, struct Scene *scene);
+                                                struct Object *target, struct Scene *scene, int id);
 
 void BKE_fracture_mesh_island_remove(struct FractureModifierData *fmd, struct Shard *mi, struct Scene* scene);
 void BKE_fracture_mesh_island_remove_all(struct FractureModifierData *fmd, struct Scene* scene);

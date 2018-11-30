@@ -2470,13 +2470,16 @@ static int fracture_refresh_exec(bContext *C, wmOperator *op)
 	rmd->shared->flag |= MOD_FRACTURE_REFRESH;
 	rmd->last_frame = 0;
 
-	DEG_id_tag_update(&obact->id, OB_RECALC_DATA | DEG_TAG_COPY_ON_WRITE);
-	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&obact->id, OB_RECALC_DATA | OB_RECALC_OB | OB_RECALC_TIME |
+									DEG_TAG_COPY_ON_WRITE | DEG_TAG_BASE_FLAGS_UPDATE);
+	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE | DEG_TAG_BASE_FLAGS_UPDATE);
+
+	//DEG_id_tag_update(&obact->id, OB_RECALC_DATA | DEG_TAG_COPY_ON_WRITE);
+	//DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_relations_tag_update(bmain);
 
 	WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, obact);
 	WM_event_add_notifier(C, NC_OBJECT | ND_POINTCACHE, NULL);
-
-	DEG_relations_tag_update(bmain);
 	WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, NULL);
 	WM_event_add_notifier(C, NC_OBJECT | ND_PARENT, NULL);
 	WM_event_add_notifier(C, NC_SCENE | ND_FRAME, NULL);
@@ -2619,13 +2622,15 @@ void OBJECT_OT_fracture_refresh(wmOperatorType *ot)
 					"Reset all shards in next refracture, instead of keeping similar ones");
 }
 
-static void do_add_group_unchecked(Collection* group, Object *ob)
+static void do_add_group_unchecked(Main *bmain, Collection* group, Object *ob)
 {
 	CollectionObject *go;
 
 	go = MEM_callocN(sizeof(CollectionObject), "groupobject");
 	BLI_addtail(&group->gobject, go);
 	go->ob = ob;
+
+	//BKE_collection_object_add(bmain, group, ob);
 }
 
 static bool do_unchecked_constraint_add(Main *bmain, Scene *scene, Object *ob, RigidBodyShardCon *con, ReportList *reports)
@@ -2646,7 +2651,7 @@ static bool do_unchecked_constraint_add(Main *bmain, Scene *scene, Object *ob, R
 	ob->rigidbody_constraint->flag |= RBC_FLAG_NEEDS_VALIDATE;
 
 	/* add constraint to rigid body constraint group */
-	do_add_group_unchecked(rbw->constraints, ob);
+	do_add_group_unchecked(bmain, rbw->constraints, ob);
 
 	DEG_id_tag_update(&ob->id, OB_RECALC_OB);
 	return true;
@@ -2663,9 +2668,10 @@ static Object* do_convert_meshisland_to_object(Main* bmain, Shard *mi, Scene* sc
 	MVert* mv = NULL;
 	int v = 0;
 
-	char *name = mi->name ? BLI_strdupn(mi->name, MAX_ID_NAME) : BLI_strdupcat(ob->id.name + 2, "_shard");
+	char *name = mi->name[0] != '\0' ? BLI_strdupn(mi->name, MAX_ID_NAME) : BLI_strdupcat(ob->id.name + 2, "_shard");
 
 	ob_new = BKE_object_add(bmain, scene, layer, OB_MESH, name);
+	//BKE_collection_object_remove(bmain, layer->active_collection->collection, ob_new, false);
 
 	{	//TODO, this still necessary ?
 		copy_m4_m4(ob_new->obmat, ob->obmat);
@@ -2686,12 +2692,12 @@ static Object* do_convert_meshisland_to_object(Main* bmain, Shard *mi, Scene* sc
 		ob_new->rigidbody_object->flag |= RBO_FLAG_NEEDS_VALIDATE;
 
 		/* add object to rigid body group */
-		do_add_group_unchecked(rbw->group, ob_new);
+		do_add_group_unchecked(bmain, rbw->group, ob_new);
 
 		DEG_id_tag_update(&ob_new->id, OB_RECALC_ALL);
 	}
 
-	do_add_group_unchecked(g, ob_new);
+	do_add_group_unchecked(bmain, g, ob_new);
 
 	/* throw away all modifiers before fracture, result is stored inside it */
 	while (ob_new->modifiers.first != NULL) {
@@ -2713,7 +2719,7 @@ static Object* do_convert_meshisland_to_object(Main* bmain, Shard *mi, Scene* sc
 
 	assign_matarar(bmain, ob_new, give_matarar(ob), *give_totcolp(ob));
 
-	ob_new->data = BKE_fracture_mesh_copy(mi->mesh, ob);
+	ob_new->data = BKE_mesh_copy(bmain, mi->mesh);//BKE_fracture_mesh_copy(mi->mesh, ob);
 	me = (Mesh*)ob_new->data;
 	me->edit_btmesh = NULL;
 
@@ -2850,7 +2856,7 @@ static void convert_modifier_to_objects(Main* bmain, ReportList *reports, Scene*
 	int i = 0;
 	RigidBodyWorld *rbw = scene->rigidbody_world;
 	const char *name = BLI_strdupcat(ob->id.name, "_conv");
-	Collection *g = BKE_collection_add(bmain, NULL, name);
+	Collection *g = BKE_collection_add(bmain, scene->master_collection, name);
 
 	int count = BLI_listbase_count(&rmd->shared->shards);
 	KDTree* objtree = BLI_kdtree_new(count);
@@ -3094,6 +3100,7 @@ static Object* do_convert_meshIsland(Main* bmain, Depsgraph *depsgraph, Shard *m
 	char *name = BLI_strdupcat(ob->id.name + 2, "_key");
 
 	ob_new = BKE_object_add(bmain, scene, layer, OB_MESH, name);
+	//BKE_collection_object_remove(bmain, layer->active_collection->collection, ob_new, false);
 
 	//this and keyframing quats hopefully solves the sudden rotation / gimbal lock (?) issue
 	ob_new->rotmode = ROT_MODE_QUAT;
@@ -3102,7 +3109,7 @@ static Object* do_convert_meshIsland(Main* bmain, Depsgraph *depsgraph, Shard *m
 
 	assign_matarar(bmain, ob_new, give_matarar(ob), *give_totcolp(ob));
 
-	do_add_group_unchecked(gr, ob_new);
+	do_add_group_unchecked(bmain, gr, ob_new);
 
 	ob_new->data = BKE_fracture_mesh_copy(mi->mesh, ob);
 	me = (Mesh*)ob_new->data;

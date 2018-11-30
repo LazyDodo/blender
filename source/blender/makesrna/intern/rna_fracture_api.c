@@ -57,7 +57,7 @@ static Shard *rna_FractureModifier_mesh_island_new(ID* id, FractureModifierData 
 	if (ob != owner)
 	{
 		Scene *scene = CTX_data_scene(C);
-		Shard* mi = BKE_fracture_mesh_island_add(bmain, fmd, owner, ob, scene);
+		Shard* mi = BKE_fracture_mesh_island_add(bmain, fmd, owner, ob, scene, -1);
 		return mi;
 	}
 
