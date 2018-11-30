@@ -677,7 +677,9 @@ static short layer_collection_sync(
 			lc->runtime_flag = child_runtime_flag;
 		}
 
-		if ((child_layer_restrict & LAYER_COLLECTION_RESTRICT_VIEW) == 0) {
+		if (((child_restrict & COLLECTION_RESTRICT_VIEW) == 0) &&
+		    ((child_layer_restrict & LAYER_COLLECTION_RESTRICT_VIEW) == 0))
+		{
 			lc->runtime_flag |= LAYER_COLLECTION_VISIBLE;
 		}
 
