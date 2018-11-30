@@ -103,12 +103,48 @@ struct	ViewportDebugDraw : public btIDebugDraw
 	int m_debugMode;
 	//void (DRW_debug_line_v3v3(const float v1[3], const float v2[3], const float color[4])
 	draw_line m_lineCallback;
+	int m_bufferSize = 3 * 1024 * 1024;
+	/*hmm bufsize is 4 * 1024 * 1024, but starts crashing above 75% initially */
+	/* so take 3 * 1024 * 1024 as 100 % */
+	int m_bytesUsed; /* immediate buffer size check */
 
 
 	virtual void	drawLine(const btVector3& from,const btVector3& to,const btVector3& color)
 	{
 		if (m_debugMode >0)
 		{
+			float epsilon = 0.1f;
+			btVector3 diff = from - to;
+
+			/* try to keep byte usage limited */
+			float usage = (float)m_bytesUsed / (float)m_bufferSize;
+
+			//printf("Bytes usage ratio: %f \n", usage);
+
+			if ( usage > 0.75) {
+				epsilon = 0.5f;
+			}
+
+			if ( usage > 0.85) {
+				epsilon = 2.5f;
+			}
+
+			if ( usage > 0.95) {
+				//printf("Bytes usage ratio > 95 percent, skipping line! \n");
+				return;
+			}
+
+			if (diff.length2() < epsilon * epsilon)
+			{
+				/* maybe the "epsilon" needs to be larger, hmm
+				 * try to avoid to overflow the immediate mode buffer
+				 * used behind this draw callback by not adding too much
+				 * geometry whose verts are very close to each other.
+				 * Immediate buffer has a limited size */
+				//printf("Skipping line!\n");
+				return;
+			}
+
 			if (m_lineCallback)
 			{
 				float v1[3], v2[3], col[4];
@@ -116,6 +152,7 @@ struct	ViewportDebugDraw : public btIDebugDraw
 				copy_v3_btvec3(v2, to);
 				copy_v3_btvec3(col, color);
 				col[3] = 1.0f; //fully opaque;
+				m_bytesUsed += (sizeof(v1) + sizeof(v2) + sizeof(col));
 				m_lineCallback(v1, v2, col); // this is DRW_debug_line_v3v3
 			}
 #if 0
@@ -157,6 +194,7 @@ struct	ViewportDebugDraw : public btIDebugDraw
 	void setDrawCallback(draw_line line_callback)
 	{
 		m_lineCallback = line_callback;
+		m_bytesUsed = 0;
 	}
 };
 
