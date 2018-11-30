@@ -82,6 +82,9 @@ typedef struct rbContactPoint {
 //something with OB_DRAWNAME, complicated to set up...
 typedef void (*draw_string)(float loc[3], const char *str, const size_t len, float color[3]);
 
+
+typedef void (*draw_line)(const float v1[3], const float v2[3], const float color[4]);
+
 /* ********************************** */
 /* Dynamics World Methods */
 
@@ -112,7 +115,7 @@ void RB_dworld_set_split_impulse(rbDynamicsWorld *world, int split_impulse);
 /* Step the simulation by the desired amount (in seconds) with extra controls on substep sizes and maximum substeps */
 void RB_dworld_step_simulation(rbDynamicsWorld *world, float timeStep, int maxSubSteps, float timeSubStep);
 
-void RB_dworld_debug_draw(rbDynamicsWorld *world, draw_string str_callback);
+void RB_dworld_debug_draw(rbDynamicsWorld *world, draw_string str_callback, draw_line line_callback);
 
 /* Export -------------------------- */
 

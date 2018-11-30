@@ -85,6 +85,8 @@
 #include "DEG_depsgraph_query.h"
 #include "DEG_depsgraph_build.h"
 
+#include "../draw/intern/draw_debug.h"// for DRW_debug_line_v3v3/ bullet physics visualization
+
 /* ************************************** */
 /* Memory Management */
 
@@ -102,6 +104,13 @@ static void RB_shape_delete(void *UNUSED(shape)) {}
 static void RB_constraint_delete(void *UNUSED(con)) {}
 
 #endif
+
+void BKE_rigidbody_physics_visualize(RigidBodyWorld *rbw) {
+	/* visualize physics if wanted */
+	if (rbw && rbw->shared->physics_world && (rbw->flag & RBW_FLAG_VISUALIZE_PHYSICS)) {
+		RB_dworld_debug_draw(rbw->shared->physics_world, NULL, DRW_debug_line_v3v3);
+	}
+}
 
 /* Free rigidbody world */
 void BKE_rigidbody_free_world(Scene *scene)
@@ -2198,11 +2207,6 @@ void BKE_rigidbody_eval_simulation(Depsgraph *depsgraph,
 
 	rbw = scene->rigidbody_world;
 	BKE_rigidbody_do_simulation(depsgraph, scene, ctime);
-
-	/* visualize physics if wanted */
-	if (rbw && rbw->shared->physics_world && (rbw->flag & RBW_FLAG_VISUALIZE_PHYSICS)) {
-		RB_dworld_debug_draw(rbw->shared->physics_world, NULL);
-	}
 }
 
 void BKE_rigidbody_object_sync_transforms(Depsgraph *depsgraph,

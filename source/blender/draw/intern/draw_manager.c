@@ -38,6 +38,7 @@
 #include "BKE_object.h"
 #include "BKE_particle.h"
 #include "BKE_pointcache.h"
+#include "BKE_rigidbody.h"
 #include "BKE_workspace.h"
 
 #include "draw_manager.h"
@@ -1493,6 +1494,8 @@ void DRW_draw_render_loop_ex(
 	}
 
 	DRW_state_reset();
+
+	BKE_rigidbody_physics_visualize(scene->rigidbody_world);
 
 	drw_debug_draw();
 

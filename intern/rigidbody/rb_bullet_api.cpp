@@ -79,6 +79,8 @@ subject to the following restrictions:
 
 #include "../../extern/glew/include/GL/glew.h"
 
+static inline void copy_v3_btvec3(float vec[3], const btVector3 &btvec);
+
 typedef struct rbConstraint
 {
 	btTypedConstraint *con;
@@ -98,38 +100,24 @@ struct	ViewportDebugDraw : public btIDebugDraw
 		DBG_DrawImpulses = 1 << 15,
 	};
 
-//taken from internet, lol
-	struct _LINE {
-		btVector3 from;
-		btVector3 to;
-
-		_LINE(btVector3 f, btVector3 t) {
-			from = f;
-			to = t;
-		}
-	};
-
-	std::vector<_LINE> LINES;
-
-	struct _COLOR {
-		btVector3 col;
-
-		_COLOR(btVector3 c) {
-			col = c;
-		}
-	};
-
-	std::vector<_COLOR> COLORS;
-
-	GLuint vao, vbo[2];
-
-
 	int m_debugMode;
+	//void (DRW_debug_line_v3v3(const float v1[3], const float v2[3], const float color[4])
+	draw_line m_lineCallback;
+
 
 	virtual void	drawLine(const btVector3& from,const btVector3& to,const btVector3& color)
 	{
 		if (m_debugMode >0)
 		{
+			if (m_lineCallback)
+			{
+				float v1[3], v2[3], col[4];
+				copy_v3_btvec3(v1, from);
+				copy_v3_btvec3(v2, to);
+				copy_v3_btvec3(col, color);
+				col[3] = 1.0f; //fully opaque;
+				m_lineCallback(v1, v2, col); // this is DRW_debug_line_v3v3
+			}
 #if 0
 			//draw lines, TODO, crashes on newer OpenGL ? hmmm
 			glBegin(GL_LINES);
@@ -138,8 +126,6 @@ struct	ViewportDebugDraw : public btIDebugDraw
 				glVertex3fv(to);
 			glEnd();
 #endif
-			LINES.push_back(_LINE(from, to));
-			COLORS.push_back(_COLOR(color));
 		}
 	}
 
@@ -168,62 +154,10 @@ struct	ViewportDebugDraw : public btIDebugDraw
 
 	}
 
-	void do_drawing() {
-
-#if 0
-		// Debug drawing
-		///////////////////////////
-		vector<GLfloat> vertices;
-		vector<GLuint> indices;
-		unsigned int indexI = 0;
-
-		for (vector<ViewportDebugDraw::_LINE>::iterator it = LINES.begin(); it != LINES.end(); it++)
-		{
-			ViewportDebugDraw::_LINE l = *it;
-
-			vertices.push_back(l.from.x);
-			vertices.push_back(l.from.y);
-			vertices.push_back(l.from.z);
-
-			vertices.push_back(l.to.x);
-			vertices.push_back(l.to.y);
-			vertices.push_back(l.to.z);
-
-			indices.push_back(indexI);
-			indices.push_back(indexI + 1);
-			indexI += 2;
-		}
-#endif
-		//glDrawElements(GL_LINES, indices.size(), GL_UNSIGNED_INT, (void*)&indices[0]);
-
-
-		glGenVertexArrays(1, &vao);
-		glBindVertexArray(vao);
-
-		glGenBuffers(2, vbo);
-		glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
-		glBufferData(GL_ARRAY_BUFFER, LINES.size() * sizeof(_LINE), &LINES[0], GL_STATIC_DRAW);
-		glVertexAttribPointer((GLuint)0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(0);
-
-		glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
-		glBufferData(GL_ARRAY_BUFFER, COLORS.size() * sizeof(_COLOR), &COLORS[0], GL_STATIC_DRAW);
-		glVertexAttribPointer((GLuint)1, 3, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(1);
-
-		glDrawArrays(GL_LINES, 0, LINES.size() * 2);
-
-		LINES.clear();
-		COLORS.clear();
-
-		glBindVertexArray(0);
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-
-
-		///////////////////////////
+	void setDrawCallback(draw_line line_callback)
+	{
+		m_lineCallback = line_callback;
 	}
-
 };
 
 
@@ -256,7 +190,7 @@ class CallbackDynamicsWorld : public btDiscreteDynamicsWorld
 		void* m_bscene;
 
 		virtual void debugDrawConstraints(rbConstraint *con, draw_string str_callback, float loc[]);
-		virtual void debugDrawWorld(draw_string str_callback);
+		virtual void debugDrawWorld(draw_string str_callback, draw_line line_callback);
 
 };
 
@@ -310,9 +244,12 @@ rbContactPoint* CallbackDynamicsWorld::make_contact_point(btManifoldPoint& point
 	return cp;
 }
 
-void CallbackDynamicsWorld::debugDrawWorld(draw_string str_callback)
+void CallbackDynamicsWorld::debugDrawWorld(draw_string str_callback, draw_line line_callback)
 {
 	BT_PROFILE("debugDrawWorld");
+
+	ViewportDebugDraw *drawer = (ViewportDebugDraw*)getDebugDrawer();
+	drawer->setDrawCallback(line_callback);
 
 	btCollisionWorld::debugDrawWorld();
 
@@ -363,9 +300,6 @@ void CallbackDynamicsWorld::debugDrawWorld(draw_string str_callback)
 			}
 		}
 	}
-
-	ViewportDebugDraw *drawer = (ViewportDebugDraw*)getDebugDrawer();
-	drawer->do_drawing();
 }
 
 static const char* val_to_str(rbConstraint* con, int precision, int *length)
@@ -923,9 +857,9 @@ void RB_dworld_step_simulation(rbDynamicsWorld *world, float timeStep, int maxSu
 	world->dynamicsWorld->stepSimulation(timeStep, maxSubSteps, timeSubStep);
 }
 
-void RB_dworld_debug_draw(rbDynamicsWorld *world, draw_string str_callback)
+void RB_dworld_debug_draw(rbDynamicsWorld *world, draw_string str_callback, draw_line line_callback)
 {
-	world->dynamicsWorld->debugDrawWorld(str_callback);
+	world->dynamicsWorld->debugDrawWorld(str_callback, line_callback);
 }
 
 /* Export -------------------------- */
