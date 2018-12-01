@@ -155,7 +155,8 @@ static void do_initial_prefracture(FractureModifierData* fmd, Object* ob, Depsgr
 
 		mi = BKE_fracture_mesh_island_create(me_tmp, scene, ob, frame);
 		mi->id = 0;
-		BLI_addtail(&fmd->shared->shards, mi);
+		//temporary shard, do not link up !
+		//BLI_addtail(&fmd->shared->shards, mi);
 
 		if (fmd->shared->last_islands) {
 			MEM_freeN(fmd->shared->last_islands);

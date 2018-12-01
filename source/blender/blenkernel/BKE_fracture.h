@@ -170,8 +170,8 @@ void BKE_fracture_clear_cache(struct FractureModifierData* fmd, struct Scene *sc
 void BKE_fracture_meshisland_vertexgroups_do(struct FractureModifierData *fmd, struct Object *ob, struct Shard* mi);
 void BKE_fracture_meshislands_pack(struct FractureModifierData *fmd, struct Object* obj, struct Main* bmain, struct Scene* scene);
 
-void BKE_fracture_postprocess_meshisland(struct FractureModifierData *fmd, struct Object* ob, struct Shard*mi,
-                                         struct Mesh** temp_meshs, int count, struct Scene* scene, int frame);
+void BKE_fracture_postprocess_meshisland(struct FractureModifierData *fmd, struct Object* ob, struct Shard* mi,
+                                         struct Mesh** temp_meshs, int count, struct Scene* scene, int frame, struct Shard **shards);
 
 void BKE_fracture_meshisland_normals_fix(struct FractureModifierData *fmd, struct Shard* mi, struct Mesh* orig_me);
 

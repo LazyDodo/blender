@@ -466,7 +466,7 @@ static void process_cells(FractureModifierData* fmd, Shard* mii, Object* ob, Sce
 		/* parse to raw meshisland*/
 		Shard *mi = parse_cell(c[i]);
 
-		BLI_kdtree_insert(tree, count, mi->loc);
+		BLI_kdtree_insert(tree, i, mi->loc);
 		islands[i] = mi;
 
 		/* check whether it needs to be processed */
@@ -541,11 +541,9 @@ static void process_cells(FractureModifierData* fmd, Shard* mii, Object* ob, Sce
 		}
 	}
 
-	BKE_fracture_postprocess_meshisland(fmd, ob, mii, temp_meshs, count, scene, frame);
+	BKE_fracture_postprocess_meshisland(fmd, ob, mii, temp_meshs, count, scene, frame, islands);
 
 	BLI_kdtree_balance(tree);
-
-	MEM_freeN(temp_meshs);
 
 	/* swap old last islands and tree against new for next run */
 	if (fmd->shared->last_island_tree)
@@ -562,7 +560,7 @@ static void process_cells(FractureModifierData* fmd, Shard* mii, Object* ob, Sce
 		{
 			if (fmd->shared->last_islands[k])
 			{
-				BLI_remlink(&fmd->shared->shards, fmd->shared->last_islands[k]);
+				//BLI_remlink(&fmd->shared->shards, fmd->shared->last_islands[k]);
 				BKE_fracture_mesh_island_free(fmd, fmd->shared->last_islands[k], scene);
 			}
 		}
@@ -570,6 +568,7 @@ static void process_cells(FractureModifierData* fmd, Shard* mii, Object* ob, Sce
 		MEM_freeN(fmd->shared->last_islands);
 	}
 
+	MEM_freeN(temp_meshs);
 	fmd->shared->last_islands = islands;
 	fmd->shared->last_islands_count = count;
 }
@@ -877,8 +876,8 @@ static void intersect_mesh_by_mesh(FractureModifierData* fmd, Object* ob, Mesh* 
 	}
 }
 
-void BKE_fracture_postprocess_meshisland(FractureModifierData *fmd, Object* ob, Shard*mi, Mesh** temp_meshs, int count,
-										 Scene* scene, int frame)
+void BKE_fracture_postprocess_meshisland(FractureModifierData *fmd, Object* ob, Shard* mi, Mesh** temp_meshs, int count,
+										 Scene* scene, int frame, Shard** shards)
 {
 	int count_new = count+1;
 	int j = 1, i = 0;
@@ -887,23 +886,22 @@ void BKE_fracture_postprocess_meshisland(FractureModifierData *fmd, Object* ob, 
 
 	if (fmd->flag & MOD_FRACTURE_USE_SPLIT_TO_ISLANDS)
 	{
-		int diff = 1;
-		for (i = 0; i < count; i++)
+		for (i = 0; i < count+1; i++)
 		{
 			if (temp_meshs[i]) {
+				int oldcount = count_new;
+				double start = PIL_check_seconds_timer();
+
 				BKE_fracture_split_islands(fmd, ob, temp_meshs[i], &temp_meshs, &count_new );
 				BKE_fracture_mesh_free(temp_meshs[i]);
 				temp_meshs[i] = NULL;
-			}
 
-			diff = count_new - (count+1);
-
-			if (diff > 1) {
-				if (temp_meshs[i+diff-1]) {
-					BKE_fracture_split_islands(fmd, ob, temp_meshs[i+diff-1], &temp_meshs, &count_new );
-					BKE_fracture_mesh_free(temp_meshs[i+diff-1]);
-					temp_meshs[i+diff-1] = NULL;
+				if ((i < count) && shards && shards[i]) {
+					//flag as being freed, set null here ! so no other free attempt happens
+					shards[i]->mesh = NULL;
 				}
+
+				printf("Splitting to %d islands done, %g \n", count_new - oldcount, PIL_check_seconds_timer() - start);
 			}
 		}
 	}
@@ -1019,7 +1017,7 @@ static Shard* fracture_cutter_process(FractureModifierData* fmd, Object *obA, Me
 		temp_meshs[1] = NULL;
 	}
 
-	BKE_fracture_postprocess_meshisland(fmd, obB, miB, temp_meshs, 2, scene, frame);
+	BKE_fracture_postprocess_meshisland(fmd, obB, miB, temp_meshs, 2, scene, frame, NULL);
 
 	MEM_freeN(temp_meshs);
 
@@ -3195,13 +3193,10 @@ void BKE_fracture_meshisland_vertexgroups_do(FractureModifierData *fmd, Object* 
 
 void BKE_fracture_split_islands(FractureModifierData *fmd, Object* ob, Mesh *me, Mesh*** temp_islands, int* count)
 {
-	double start;
 	BMesh *bm_work;
 
 	bm_work = BKE_fracture_mesh_to_bmesh(me);
-	start = PIL_check_seconds_timer();
 	mesh_separate_loose(bm_work, fmd, ob, temp_islands, count);
-	printf("Splitting to %d islands done, %g \n", *count, PIL_check_seconds_timer() - start);
 }
 
 static void do_island_index_map(FractureModifierData *fmd, Object* obj, int frame)
@@ -3466,6 +3461,18 @@ void BKE_fracture_duplis_to_shards(FractureModifierData *fmd, Object *ob, Scene 
 			mi = BKE_fracture_mesh_island_create(me_tmp, scene, ob, frame);
 			fracture_meshisland_add(fmd, mi);
 			mi->id = dob->persistent_id[0]+1;
+
+			if (dob->particle_system) {
+				ParticleData* pa = dob->particle_system->particles + mi->id-1;
+				if (pa && pa->alive == PARS_ALIVE)
+				{
+					copy_v3_v3(mi->rigidbody->pos, pa->state.co);
+					copy_qt_qt(mi->rigidbody->orn, pa->state.rot);
+					copy_v3_v3(mi->rigidbody->lin_vel, pa->state.vel);
+					copy_v3_v3(mi->rigidbody->ang_vel, pa->state.ave);
+				}
+			}
+
 			//mi_tmp = MEM_reallocN(mi_tmp, sizeof(Shard*) * (j+1));
 			//mi_tmp[j] = mi;
 			//j++;
@@ -3484,10 +3491,10 @@ void BKE_fracture_duplis_to_shards(FractureModifierData *fmd, Object *ob, Scene 
 						copy_v3_v3(mi->rigidbody->ang_vel, pa->state.ave);
 
 						if (!mi->rigidbody->shared->physics_object) {
-							float size[3] = {1, 1, 1};
+							//float size[3] = {1, 1, 1};
 							mi->rigidbody->flag |= RBO_FLAG_NEEDS_VALIDATE;
 							mi->rigidbody->flag |= RBO_FLAG_NEEDS_RESHAPE;
-							BKE_rigidbody_validate_sim_shard(scene->rigidbody_world, mi, ob, fmd, false, true, size);
+							//BKE_rigidbody_validate_sim_shard(scene->rigidbody_world, mi, ob, fmd, false, true, size);
 						}
 
 						if (mi->rigidbody->shared->physics_object) {
@@ -3499,9 +3506,6 @@ void BKE_fracture_duplis_to_shards(FractureModifierData *fmd, Object *ob, Scene 
 							RB_body_set_angular_velocity(mi->rigidbody->shared->physics_object,
 							                    mi->rigidbody->ang_vel);
 						}
-					}
-					else {
-						//mi->endframe = frame - 1;
 					}
 				}
 			}
