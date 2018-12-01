@@ -109,7 +109,7 @@ static int hair_select_all_exec(bContext *C, wmOperator *op)
 	int action = RNA_enum_get(op->ptr, "action");
 
 	if (action == SEL_TOGGLE) {
-		switch (settings->hair_edit_settings.select_mode) {
+		switch (settings->hair_edit.select_mode) {
 			case HAIR_SELECT_FOLLICLES: {
 				action = hair_has_selected_follicles(edit) ? SEL_DESELECT : SEL_SELECT;
 				break;
@@ -125,7 +125,7 @@ static int hair_select_all_exec(bContext *C, wmOperator *op)
 		}
 	}
 
-	switch (settings->hair_edit_settings.select_mode) {
+	switch (settings->hair_edit.select_mode) {
 		case HAIR_SELECT_FOLLICLES: {
 			HairFollicle *follicle;
 			HairIterator iter;

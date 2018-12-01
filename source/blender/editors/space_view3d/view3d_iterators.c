@@ -404,7 +404,7 @@ void hair_foreachScreenVert(
             const float screen_co[2]),
         void *userData, const eV3DProjTest clip_flag)
 {
-	HairEditSettings *edit_settings = &vc->scene->toolsettings->hair_edit_settings;
+	HairEditSettings *edit_settings = &vc->scene->toolsettings->hair_edit;
 	Object *obedit = vc->obedit;
 	HairSystem *hsys = obedit->data;
 	EditHair *edit = hsys->edithair;

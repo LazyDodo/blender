@@ -215,7 +215,7 @@ static void EDIT_HAIR_cache_populate(void *vedata, Object *ob)
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
 	Object *obedit = draw_ctx->object_edit;
-	HairEditSettings *editsettings = &scene->toolsettings->hair_edit_settings;
+	HairEditSettings *editsettings = &scene->toolsettings->hair_edit;
 
 	UNUSED_VARS(psl);
 

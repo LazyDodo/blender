@@ -2312,9 +2312,9 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	RNA_def_property_pointer_sdna(prop, NULL, "particle");
 	RNA_def_property_ui_text(prop, "Particle Edit", "");
 
-	prop = RNA_def_property(srna, "hair_edit_settings", PROP_POINTER, PROP_NONE);
+	prop = RNA_def_property(srna, "hair_edit", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "HairEditSettings");
-	RNA_def_property_ui_text(prop, "Hair Edit Settings", "");
+	RNA_def_property_ui_text(prop, "Hair Edit", "");
 
 	prop = RNA_def_property(srna, "use_uv_sculpt", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "use_uv_sculpt", 1);

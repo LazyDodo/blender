@@ -273,7 +273,7 @@ static char *rna_ParticleEdit_path(PointerRNA *UNUSED(ptr))
 
 static char *rna_HairEditSettings_path(PointerRNA *UNUSED(ptr))
 {
-	return BLI_strdup("tool_settings.hair_edit_settings");
+	return BLI_strdup("tool_settings.hair_edit");
 }
 
 static void rna_HairEditSettings_update(bContext *C, PointerRNA *UNUSED(ptr))

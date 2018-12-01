@@ -1347,7 +1347,7 @@ typedef struct ToolSettings {
 	struct ParticleEditSettings particle;
 
 	/* Hair Editing */
-	struct HairEditSettings hair_edit_settings;
+	struct HairEditSettings hair_edit;
 
 	/* Transform Proportional Area of Effect */
 	float proportional_size;
