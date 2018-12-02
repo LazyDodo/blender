@@ -186,4 +186,7 @@ bool BKE_fracture_handle_initial_shards(struct FractureModifierData* fmd, struct
                                         struct Depsgraph *depsgraph, struct Main* bmain,
                                         struct Scene* scene, int frame);
 
+void BKE_fracture_meshislands_connect(struct Scene* scene, struct FractureModifierData* fmd,
+                                      struct Shard* mi, struct Shard* mi2, short con_type, float thresh);
+
 #endif /* BKE_FRACTURE_H */

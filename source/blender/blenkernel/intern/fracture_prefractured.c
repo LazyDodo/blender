@@ -228,12 +228,15 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 		/*keep shards at packing and at dynamic refresh */
 		if (fmd->pack_group)
 		{
-			/* keep re-packing, too */
-			BKE_fracture_meshislands_pack(fmd, ob, bmain, scene);
-
-			if (!BKE_fracture_handle_initial_shards(fmd, ob, depsgraph, bmain, scene, frame))
+			if (!(fmd->flag & MOD_FRACTURE_USE_GROUP_CONSTRAINTS_ONLY))
 			{
-				do_initial_prefracture(fmd, ob, depsgraph, bmain, scene, frame, me);
+				/* keep re-packing, too */
+				BKE_fracture_meshislands_pack(fmd, ob, bmain, scene);
+
+				if (!BKE_fracture_handle_initial_shards(fmd, ob, depsgraph, bmain, scene, frame))
+				{
+					do_initial_prefracture(fmd, ob, depsgraph, bmain, scene, frame, me);
+				}
 			}
 		}
 		else {
@@ -267,7 +270,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 	}
 
 	/* assemble mesh from transformed meshislands */
-	if (fmd->shared->shards.first) {
+	if (fmd->shared->shards.first && !(fmd->flag & MOD_FRACTURE_USE_GROUP_CONSTRAINTS_ONLY)) {
 		me_assembled = BKE_fracture_assemble_mesh_from_islands(fmd, ob, ctime);
 	}
 	else {

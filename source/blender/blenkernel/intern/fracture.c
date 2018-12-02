@@ -1320,7 +1320,7 @@ Mesh* BKE_fracture_assemble_mesh_from_islands(FractureModifierData* fmd, Object*
 		}
 
 		if (dupli) {
-			if (!BLI_ghash_lookup(fmd->shared->dupli_shard_map, mi->id))
+			if (!BLI_ghash_lookup(fmd->shared->dupli_shard_map, POINTER_FROM_INT(mi->id)))
 			{
 				continue;
 			}
@@ -1894,7 +1894,8 @@ void BKE_fracture_meshislands_free(FractureModifierData* fmd, Scene* scene)
 
 void BKE_fracture_modifier_free(FractureModifierData *fmd, Scene *scene)
 {
-	BKE_fracture_constraints_free(fmd, scene);
+	if (scene && scene->rigidbody_world)
+		BKE_fracture_constraints_free(fmd, scene->rigidbody_world);
 	BKE_fracture_meshislands_free(fmd, scene);
 
 	if (fmd->shared->material_index_map)
@@ -3325,7 +3326,7 @@ void BKE_fracture_external_constraints_setup(FractureModifierData *fmd, Scene *s
 				FractureModifierData *fmdi = (FractureModifierData*)modifiers_findByType(obj, eModifierType_Fracture);
 				if (fmdi && fmdi->pack_group && (fmdi->flag & MOD_FRACTURE_USE_GROUP_CONSTRAINTS_ONLY))
 				{
-					FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(fmd->pack_group, obb)
+					FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(fmdi->pack_group, obb)
 					{
 						if (obb == ob)
 						{
@@ -3349,8 +3350,11 @@ void BKE_fracture_external_constraints_setup(FractureModifierData *fmd, Scene *s
 		if (fmd->pack_group && (fmd->flag & MOD_FRACTURE_USE_GROUP_CONSTRAINTS_ONLY))
 		{	//disable the carrier object, it would interfere (it should have 1 island only)
 			Shard *mi = fmd->shared->shards.first;
-			mi->rigidbody->flag |= RBO_FLAG_KINEMATIC;
-			mi->rigidbody->flag |= RBO_FLAG_IS_GHOST;
+			if (mi && mi->rigidbody)
+			{
+				mi->rigidbody->flag |= RBO_FLAG_KINEMATIC;
+				mi->rigidbody->flag |= RBO_FLAG_IS_GHOST;
+			}
 
 			ob->rigidbody_object->flag |= RBO_FLAG_KINEMATIC;
 			ob->rigidbody_object->flag |= RBO_FLAG_IS_GHOST;
@@ -3369,7 +3373,7 @@ void BKE_fracture_external_constraints_setup(FractureModifierData *fmd, Scene *s
 void BKE_fracture_meshislands_pack(FractureModifierData *fmd, Object* obj, Main* bmain, Scene* scene)
 {
 	int i = 0;
-	if (fmd->pack_group)
+	if (fmd->pack_group && !(fmd->flag & MOD_FRACTURE_USE_GROUP_CONSTRAINTS_ONLY))
 	{
 		BKE_fracture_mesh_island_remove_all(fmd, scene);
 

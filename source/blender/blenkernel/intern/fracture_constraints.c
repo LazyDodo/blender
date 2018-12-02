@@ -173,7 +173,19 @@ static int prepareConstraintSearch(FractureModifierData *rmd, Shard ***mesh_isla
 		*combined_tree = BLI_kdtree_new(islands);
 		for (i = 0; i < islands; i++) {
 			float obj_centr[3];
-			mul_v3_m4v3(obj_centr, obj->obmat, (*mesh_islands)[i]->loc);
+			if (!(rmd->pack_group && (rmd->flag & MOD_FRACTURE_USE_GROUP_CONSTRAINTS_ONLY)))
+			{
+				mul_v3_m4v3(obj_centr, obj->obmat, (*mesh_islands)[i]->loc);
+			}
+			else {
+				//TODO, take care of recursive collections here !!!!
+				CollectionObject *go = BLI_findlink(&scene->rigidbody_world->group->gobject,
+				                                    (*mesh_islands)[i]->object_index);
+
+				mul_v3_m4v3(obj_centr, go->ob->obmat, (*mesh_islands)[i]->loc);
+				//copy_v3_v3(obj_centr, (*mesh_islands)[i]->loc);
+			}
+
 			BLI_kdtree_insert(*combined_tree, i, obj_centr);
 		}
 
@@ -224,7 +236,6 @@ static int prepareConstraintSearch(FractureModifierData *rmd, Shard ***mesh_isla
 
 		if (totvert > 0)
 		{
-
 			*combined_tree = BLI_kdtree_new(totvert);
 			for (i = 0, mv = mvert; i < totvert; i++, mv++) {
 				float co[3];
@@ -267,7 +278,17 @@ static void create_constraints(FractureModifierData *rmd, Object *ob, Scene *sce
 
 	for (i = 0; i < count; i++) {
 		if (rmd->constraint_target == MOD_FRACTURE_CENTROID) {
-			search_tree_based(rmd, mesh_islands[i], mesh_islands, &coord_tree, NULL, ob, scene);
+			float co[3];
+			if (rmd->pack_group && (rmd->flag & MOD_FRACTURE_USE_GROUP_CONSTRAINTS_ONLY))
+			{
+				CollectionObject *go = BLI_findlink(&scene->rigidbody_world->group->gobject, mesh_islands[i]->object_index);
+				mul_v3_m4v3(co, go->ob->obmat, mesh_islands[i]->loc);
+			}
+			else {
+				copy_v3_v3(co, mesh_islands[i]->loc);
+			}
+
+			search_tree_based(rmd, mesh_islands[i], mesh_islands, &coord_tree, co, ob, scene);
 		}
 		else if (rmd->constraint_target == MOD_FRACTURE_VERTEX) {
 			Shard *mii = NULL;
@@ -298,19 +319,13 @@ static void search_tree_based(FractureModifierData *rmd, Shard *mi, Shard **mesh
 
 	limit = rmd->constraint_limit;
 	dist = rmd->contact_dist;
-	//factor = rmd->mass_threshold_factor;
 
-	if (rmd->constraint_target == MOD_FRACTURE_CENTROID) {
-		mul_v3_m4v3(obj_centr, ob->obmat, mi->loc);
+	if (!(rmd->pack_group && (rmd->flag & MOD_FRACTURE_USE_GROUP_CONSTRAINTS_ONLY)))
+	{
+		mul_v3_m4v3(obj_centr, ob->obmat, co);
 	}
-	else if (rmd->constraint_target == MOD_FRACTURE_VERTEX){
-		if (!(rmd->pack_group && (rmd->flag & MOD_FRACTURE_USE_GROUP_CONSTRAINTS_ONLY)))
-		{
-			mul_v3_m4v3(obj_centr, ob->obmat, co);
-		}
-		else {
-			copy_v3_v3(obj_centr, co);
-		}
+	else {
+		copy_v3_v3(obj_centr, co);
 	}
 
 	r = BLI_kdtree_range_search(*combined_tree, obj_centr, &n3, dist);
@@ -362,7 +377,8 @@ static void search_tree_based(FractureModifierData *rmd, Shard *mi, Shard **mesh
 				}
 			}
 
-			BKE_fracture_constraint_create(scene, rmd, mi, mi2, con_type, thresh);
+			/* does some more checks */
+			BKE_fracture_meshislands_connect(scene, rmd, mi, mi2, con_type, thresh);
 		}
 	}
 
@@ -373,7 +389,7 @@ static void search_tree_based(FractureModifierData *rmd, Shard *mi, Shard **mesh
 }
 
 void BKE_fracture_meshislands_connect(Scene* sc, FractureModifierData *fmd, Shard *mi1, Shard *mi2,
-											 int con_type, float thresh)
+											 short con_type, float thresh)
 {
 	int con_found = false;
 	RigidBodyShardCon *con;
@@ -407,7 +423,7 @@ void BKE_fracture_meshislands_connect(Scene* sc, FractureModifierData *fmd, Shar
 	}
 
 	if (!con_found && ok) {
-		BKE_fracture_meshislands_connect(sc, fmd, mi1, mi2, con_type, thresh);
+		BKE_fracture_constraint_create(sc, fmd, mi1, mi2, con_type, thresh);
 	}
 }
 
@@ -658,6 +674,7 @@ static void do_clusters(FractureModifierData *fmd, Object* obj)
 	do_cluster_count(fmd, obj);
 }
 
+/* used for external python api */
 RigidBodyShardCon *BKE_fracture_mesh_constraint_create(Scene *scene, FractureModifierData *fmd,
 													 Shard *mi1, Shard *mi2, short con_type)
 {
