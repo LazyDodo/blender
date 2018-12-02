@@ -78,6 +78,32 @@ class USERPREF_PT_navigation(Panel):
         col.prop(userpref, "active_section", expand=True)
 
 
+class PreferencePanel(Panel):
+    bl_space_type = 'USER_PREFERENCES'
+    bl_region_type = 'WINDOW'
+
+    def draw_props(self, context, layout):
+        # Deriving classes should implement this.
+        # TODO use abc module for abstract method support?
+        pass
+
+    def draw(self, context):
+        layout = self.layout
+
+        layout.use_property_split = True
+        layout.use_property_decorate = False  # No animation.
+
+        row = layout.row()
+        row.label()
+
+        col = row.column()
+        col.ui_units_x = 50
+
+        self.draw_props(context, col)
+
+        row.label() # Needed so col above is centered.
+
+
 class USERPREF_PT_interface(Panel):
     bl_space_type = 'USER_PREFERENCES'
     bl_label = "Interface"
@@ -206,133 +232,171 @@ class USERPREF_PT_interface(Panel):
         col.prop(view, "show_layout_ui")
 
 
-class USERPREF_PT_edit(Panel):
-    bl_space_type = 'USER_PREFERENCES'
-    bl_label = "Edit"
-    bl_region_type = 'WINDOW'
-    bl_options = {'HIDE_HEADER'}
+class USERPREF_PT_edit_undo(PreferencePanel):
+    bl_label = "Undo"
 
     @classmethod
     def poll(cls, context):
         userpref = context.user_preferences
         return (userpref.active_section == 'EDITING')
 
-    def draw(self, context):
-        layout = self.layout
-
+    def draw_props(self, context, layout):
         userpref = context.user_preferences
         edit = userpref.edit
 
-        split = layout.split()
-        row = split.row()
-        col = row.column()
+        layout.prop(edit, "undo_steps", text="Steps")
+        layout.prop(edit, "undo_memory_limit", text="Memory Limit")
+        layout.prop(edit, "use_global_undo")
 
-        col.label(text="Link Materials To:")
-        col.prop(edit, "material_link", text="")
 
-        col.separator()
-        col.separator()
-        col.separator()
+class USERPREF_PT_edit_objects(PreferencePanel):
+    bl_label = "Objects"
+    bl_options = {'DEFAULT_CLOSED'}
 
-        col.label(text="New Objects:")
-        col.prop(edit, "use_enter_edit_mode")
-        col.label(text="Align To:")
-        col.prop(edit, "object_align", text="")
+    @classmethod
+    def poll(cls, context):
+        userpref = context.user_preferences
+        return (userpref.active_section == 'EDITING')
 
-        col.separator()
-        col.separator()
-        col.separator()
+    def draw_props(self, context, layout):
+        userpref = context.user_preferences
+        edit = userpref.edit
 
-        col.label(text="Undo:")
-        col.prop(edit, "use_global_undo")
-        col.prop(edit, "undo_steps", text="Steps")
-        col.prop(edit, "undo_memory_limit", text="Memory Limit")
+        layout.prop(edit, "material_link", text="Link Materials to")
+        layout.prop(edit, "object_align", text="Align New Objects to")
+        layout.prop(edit, "use_enter_edit_mode", text="Enter Edit Mode for New Objects")
 
-        row = split.row()
-        row.separator()
-        col = row.column()
 
-        col.label(text="Grease Pencil/Annotations:")
-        col.separator()
-        col.prop(edit, "grease_pencil_manhattan_distance", text="Manhattan Distance")
-        col.prop(edit, "grease_pencil_euclidean_distance", text="Euclidean Distance")
-        col.separator()
+class USERPREF_PT_edit_gpencil(PreferencePanel):
+    bl_label = "Grease Pencil & Annotations"
+    bl_options = {'DEFAULT_CLOSED'}
 
-        col.label(text="Annotations:")
-        sub = col.row()
-        sub.prop(edit, "grease_pencil_default_color", text="Default Color")
-        col.prop(edit, "grease_pencil_eraser_radius", text="Eraser Radius")
-        col.separator()
-        col.prop(edit, "use_grease_pencil_simplify_stroke", text="Simplify Stroke")
-        col.separator()
+    @classmethod
+    def poll(cls, context):
+        userpref = context.user_preferences
+        return (userpref.active_section == 'EDITING')
 
-        col.separator()
-        col.separator()
-        col.separator()
-        col.label(text="Playback:")
-        col.prop(edit, "use_negative_frames")
-        col.separator()
-        col.label(text="Node Editor:")
-        col.prop(edit, "node_margin")
-        col.label(text="Animation Editors:")
-        col.prop(edit, "fcurve_unselected_alpha", text="F-Curve Visibility")
+    def draw_props(self, context, layout):
+        userpref = context.user_preferences
+        edit = userpref.edit
 
-        row = split.row()
-        row.separator()
-        col = row.column()
+        layout.prop(edit, "grease_pencil_manhattan_distance", text="Manhattan Distance")
+        layout.prop(edit, "grease_pencil_euclidean_distance", text="Euclidean Distance")
 
-        col.label(text="Keyframing:")
-        col.prop(edit, "use_visual_keying")
-        col.prop(edit, "use_keyframe_insert_needed", text="Only Insert Needed")
+        layout.separator()
 
-        col.separator()
+        layout.label(text="Annotations:")
+        row = layout.row()
+        row.prop(edit, "grease_pencil_default_color", text="Default Color")
+        layout.prop(edit, "grease_pencil_eraser_radius", text="Eraser Radius")
+        layout.separator()
+        layout.prop(edit, "use_grease_pencil_simplify_stroke", text="Simplify Stroke")
 
-        col.prop(edit, "use_auto_keying", text="Auto Keyframing:")
-        col.prop(edit, "use_auto_keying_warning")
 
-        sub = col.column()
+class USERPREF_PT_edit_keyframing(PreferencePanel):
+    bl_label = "Keyframing"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        userpref = context.user_preferences
+        return (userpref.active_section == 'EDITING')
+
+    def draw_props(self, context, layout):
+        userpref = context.user_preferences
+        edit = userpref.edit
+
+        layout.prop(edit, "use_visual_keying")
+        layout.prop(edit, "use_keyframe_insert_needed", text="Only Insert Needed")
+
+        layout.separator()
+
+        layout.prop(edit, "use_auto_keying", text="Auto Keyframing:")
+        layout.prop(edit, "use_auto_keying_warning")
+
+        col = layout.column()
 
         # ~ sub.active = edit.use_keyframe_insert_auto # incorrect, time-line can enable
-        sub.prop(edit, "use_keyframe_insert_available", text="Only Insert Available")
+        col.prop(edit, "use_keyframe_insert_available", text="Only Insert Available")
 
-        col.separator()
+        layout.separator()
 
-        col.label(text="New F-Curve Defaults:")
-        col.prop(edit, "keyframe_new_interpolation_type", text="Interpolation")
-        col.prop(edit, "keyframe_new_handle_type", text="Handles")
-        col.prop(edit, "use_insertkey_xyz_to_rgb", text="XYZ to RGB")
+        layout.label(text="New F-Curve Defaults:")
+        layout.prop(edit, "keyframe_new_interpolation_type", text="Interpolation")
+        layout.prop(edit, "keyframe_new_handle_type", text="Handles")
+        layout.prop(edit, "use_insertkey_xyz_to_rgb", text="XYZ to RGB")
 
-        col.separator()
-        col.separator()
-        col.separator()
 
-        col.label(text="Transform:")
-        col.prop(edit, "use_drag_immediately")
-        col.prop(edit, "use_numeric_input_advanced")
+class USERPREF_PT_edit_transform(PreferencePanel):
+    bl_label = "Transform"
+    bl_options = {'DEFAULT_CLOSED'}
 
-        row = split.row()
-        row.separator()
-        col = row.column()
+    @classmethod
+    def poll(cls, context):
+        userpref = context.user_preferences
+        return (userpref.active_section == 'EDITING')
 
-        col.prop(edit, "sculpt_paint_overlay_color", text="Sculpt Overlay Color")
+    def draw_props(self, context, layout):
+        userpref = context.user_preferences
+        edit = userpref.edit
 
-        col.separator()
-        col.separator()
-        col.separator()
+        layout.prop(edit, "use_drag_immediately")
+        layout.prop(edit, "use_numeric_input_advanced")
 
-        col.label(text="Duplicate Data:")
-        col.prop(edit, "use_duplicate_mesh", text="Mesh")
-        col.prop(edit, "use_duplicate_surface", text="Surface")
-        col.prop(edit, "use_duplicate_curve", text="Curve")
-        col.prop(edit, "use_duplicate_text", text="Text")
-        col.prop(edit, "use_duplicate_metaball", text="Metaball")
-        col.prop(edit, "use_duplicate_armature", text="Armature")
-        col.prop(edit, "use_duplicate_light", text="Light")
-        col.prop(edit, "use_duplicate_material", text="Material")
-        col.prop(edit, "use_duplicate_texture", text="Texture")
-        #col.prop(edit, "use_duplicate_fcurve", text="F-Curve")
+
+class USERPREF_PT_edit_duplicate_data(PreferencePanel):
+    bl_label = "Duplicate Data"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        userpref = context.user_preferences
+        return (userpref.active_section == 'EDITING')
+
+    def draw_props(self, context, layout):
+        userpref = context.user_preferences
+        edit = userpref.edit
+
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=False, even_rows=False, align=True)
+
+        col = flow.column()
         col.prop(edit, "use_duplicate_action", text="Action")
+        col.prop(edit, "use_duplicate_armature", text="Armature")
+        col.prop(edit, "use_duplicate_curve", text="Curve")
+        #col.prop(edit, "use_duplicate_fcurve", text="F-Curve")
+        col.prop(edit, "use_duplicate_light", text="Light")
+        col = flow.column()
+        col.prop(edit, "use_duplicate_material", text="Material")
+        col.prop(edit, "use_duplicate_mesh", text="Mesh")
+        col.prop(edit, "use_duplicate_metaball", text="Metaball")
         col.prop(edit, "use_duplicate_particle", text="Particle")
+        col = flow.column()
+        col.prop(edit, "use_duplicate_surface", text="Surface")
+        col.prop(edit, "use_duplicate_text", text="Text")
+        col.prop(edit, "use_duplicate_texture", text="Texture")
+
+
+class USERPREF_PT_edit_misc(PreferencePanel):
+    bl_label = "Miscellaneous"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        userpref = context.user_preferences
+        return (userpref.active_section == 'EDITING')
+
+    def draw_props(self, context, layout):
+        userpref = context.user_preferences
+        edit = userpref.edit
+
+        layout.prop(edit, "sculpt_paint_overlay_color", text="Sculpt Overlay Color")
+        layout.prop(edit, "node_margin", text="Node Editor Auto-offset Margin")
+
+        layout.separator()
+
+        layout.label(text="Animation:")
+        layout.prop(edit, "use_negative_frames")
+        layout.prop(edit, "fcurve_unselected_alpha", text="F-Curve Visibility")
 
 
 class USERPREF_PT_system_general(Panel):
@@ -1599,7 +1663,15 @@ classes = (
     USERPREF_HT_header,
     USERPREF_PT_navigation,
     USERPREF_PT_interface,
-    USERPREF_PT_edit,
+
+    USERPREF_PT_edit_undo,
+    USERPREF_PT_edit_objects,
+    USERPREF_PT_edit_gpencil,
+    USERPREF_PT_edit_keyframing,
+    USERPREF_PT_edit_transform,
+    USERPREF_PT_edit_duplicate_data,
+    USERPREF_PT_edit_misc,
+
     USERPREF_PT_system_general,
     USERPREF_MT_interface_theme_presets,
     USERPREF_PT_theme,
