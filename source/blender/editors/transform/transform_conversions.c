@@ -169,52 +169,62 @@ static int trans_data_compare_rdist(const void *a, const void *b)
 	else                                return  0;
 }
 
-void sort_trans_data_dist(TransInfo *t)
+static void sort_trans_data_dist_container(const TransInfo *t, TransDataContainer *tc)
 {
-	FOREACH_TRANS_DATA_CONTAINER (t, tc) {
-		TransData *start = tc->data;
-		int i;
+	TransData *start = tc->data;
+	int i;
 
-		for (i = 0; i < tc->data_len && start->flag & TD_SELECTED; i++) {
-			start++;
+	for (i = 0; i < tc->data_len && start->flag & TD_SELECTED; i++) {
+		start++;
+	}
+
+	if (i < tc->data_len) {
+		if (t->flag & T_PROP_CONNECTED) {
+			qsort(start, tc->data_len - i, sizeof(TransData), trans_data_compare_dist);
 		}
-
-		if (i < tc->data_len) {
-			if (t->flag & T_PROP_CONNECTED)
-				qsort(start, tc->data_len - i, sizeof(TransData), trans_data_compare_dist);
-			else
-				qsort(start, tc->data_len - i, sizeof(TransData), trans_data_compare_rdist);
+		else {
+			qsort(start, tc->data_len - i, sizeof(TransData), trans_data_compare_rdist);
 		}
 	}
 }
+void sort_trans_data_dist(TransInfo *t)
+{
+	FOREACH_TRANS_DATA_CONTAINER (t, tc) {
+		sort_trans_data_dist_container(t, tc);
+	}
+}
 
+static void sort_trans_data_container(TransDataContainer *tc)
+{
+	TransData *sel, *unsel;
+	TransData temp;
+	unsel = tc->data;
+	sel = tc->data;
+	sel += tc->data_len - 1;
+	while (sel > unsel) {
+		while (unsel->flag & TD_SELECTED) {
+			unsel++;
+			if (unsel == sel) {
+				return;
+			}
+		}
+		while (!(sel->flag & TD_SELECTED)) {
+			sel--;
+			if (unsel == sel) {
+				return;
+			}
+		}
+		temp = *unsel;
+		*unsel = *sel;
+		*sel = temp;
+		sel--;
+		unsel++;
+	}
+}
 static void sort_trans_data(TransInfo *t)
 {
 	FOREACH_TRANS_DATA_CONTAINER (t, tc) {
-		TransData *sel, *unsel;
-		TransData temp;
-		unsel = tc->data;
-		sel = tc->data;
-		sel += tc->data_len - 1;
-		while (sel > unsel) {
-			while (unsel->flag & TD_SELECTED) {
-				unsel++;
-				if (unsel == sel) {
-					return;
-				}
-			}
-			while (!(sel->flag & TD_SELECTED)) {
-				sel--;
-				if (unsel == sel) {
-					return;
-				}
-			}
-			temp = *unsel;
-			*unsel = *sel;
-			*sel = temp;
-			sel--;
-			unsel++;
-		}
+		sort_trans_data_container(tc);
 	}
 }
 
@@ -383,14 +393,12 @@ static void createTransCursor_view3d(TransInfo *t)
 	TransData *td;
 
 	Scene *scene = t->scene;
-	View3D *v3d = ((t->spacetype == SPACE_VIEW3D) && (t->ar->regiontype == RGN_TYPE_WINDOW)) ? t->view : NULL;
-	View3DCursor *cursor = ED_view3d_cursor3d_get(scene, v3d);
-
-	if ((cursor == &scene->cursor) && ID_IS_LINKED(scene)) {
+	if (ID_IS_LINKED(scene)) {
 		BKE_report(t->reports, RPT_ERROR, "Linked data can't text-space transform");
 		return;
 	}
 
+	View3DCursor *cursor = &scene->cursor;
 	{
 		BLI_assert(t->data_container_len == 1);
 		TransDataContainer *tc = t->data_container;
@@ -8145,7 +8153,7 @@ void flushTransPaintCurve(TransInfo *t)
 
 static void createTransGPencil(bContext *C, TransInfo *t)
 {
-	Depsgraph *depsgraph = CTX_data_depsgraph(C);                                      \
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
 
@@ -8254,6 +8262,9 @@ static void createTransGPencil(bContext *C, TransInfo *t)
 	unit_m3(mtx);
 
 	/* Second Pass: Build transdata array */
+	int totselected = 0;
+	float global_center[3] = { 0.0f, 0.0f, 0.0f };
+
 	for (gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		/* only editable and visible layers are considered */
 		if (gpencil_layer_is_editable(gpl) && (gpl->actframe != NULL)) {
@@ -8368,8 +8379,13 @@ static void createTransGPencil(bContext *C, TransInfo *t)
 
 									td->flag = 0;
 
-									if (pt->flag & GP_SPOINT_SELECT)
+									if (pt->flag & GP_SPOINT_SELECT) {
 										td->flag |= TD_SELECTED;
+
+										/* prepare center */
+										add_v3_v3(global_center, &pt->x);
+										totselected++;
+									}
 
 									/* for other transform modes (e.g. shrink-fatten), need to additional data
 									 * but never for scale or mirror
@@ -8427,6 +8443,13 @@ static void createTransGPencil(bContext *C, TransInfo *t)
 			}
 		}
 	}
+
+	/* set global center */
+	CLAMP_MIN(totselected, 1);
+	mul_v3_fl(global_center, 1.0f / totselected);
+	add_v3_v3(global_center, obact->obmat[3]);
+	copy_v3_v3(t->center_global, global_center);
+	t->flag |= T_OVERRIDE_CENTER;
 }
 
 static int countAndCleanTransDataContainer(TransInfo *t)

@@ -442,8 +442,8 @@ void BKE_particlesettings_free(ParticleSettings *part)
 	if (part->twistcurve)
 		curvemapping_free(part->twistcurve);
 
-	free_partdeflect(part->pd);
-	free_partdeflect(part->pd2);
+	BKE_partdeflect_free(part->pd);
+	BKE_partdeflect_free(part->pd2);
 
 	MEM_SAFE_FREE(part->effector_weights);
 
@@ -3212,7 +3212,7 @@ static void default_particle_settings(ParticleSettings *part)
 	part->draw_col = PART_DRAW_COL_MAT;
 
 	if (!part->effector_weights)
-		part->effector_weights = BKE_add_effector_weights(NULL);
+		part->effector_weights = BKE_effector_add_weights(NULL);
 
 	part->omat = 1;
 	part->use_modifier_stack = false;
@@ -3246,6 +3246,8 @@ void BKE_particlesettings_clump_curve_init(ParticleSettings *part)
 	cumap->cm[0].curve[1].x = 1.0f;
 	cumap->cm[0].curve[1].y = 1.0f;
 
+	curvemapping_initialize(cumap);
+
 	part->clumpcurve = cumap;
 }
 
@@ -3258,6 +3260,8 @@ void BKE_particlesettings_rough_curve_init(ParticleSettings *part)
 	cumap->cm[0].curve[1].x = 1.0f;
 	cumap->cm[0].curve[1].y = 1.0f;
 
+	curvemapping_initialize(cumap);
+
 	part->roughcurve = cumap;
 }
 
@@ -3269,6 +3273,8 @@ void BKE_particlesettings_twist_curve_init(ParticleSettings *part)
 	cumap->cm[0].curve[0].y = 1.0f;
 	cumap->cm[0].curve[1].x = 1.0f;
 	cumap->cm[0].curve[1].y = 1.0f;
+
+	curvemapping_initialize(cumap);
 
 	part->twistcurve = cumap;
 }

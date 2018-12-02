@@ -456,7 +456,7 @@ static Base **do_pose_tag_select_op_prepare(ViewContext *vc, uint *r_bases_len)
 {
 	Base **bases = NULL;
 	BLI_array_declare(bases);
-	FOREACH_BASE_IN_MODE_BEGIN (vc->view_layer, vc->v3d, OB_MODE_POSE, base_iter) {
+	FOREACH_BASE_IN_MODE_BEGIN (vc->view_layer, vc->v3d, OB_ARMATURE, OB_MODE_POSE, base_iter) {
 		Object *ob_iter = base_iter->object;
 		bArmature *arm = ob_iter->data;
 		for (bPoseChannel *pchan = ob_iter->pose->chanbase.first; pchan; pchan = pchan->next) {
@@ -925,7 +925,7 @@ static void do_lasso_select_paintface(ViewContext *vc, const int mcords[][2], sh
 		return;
 
 	if (SEL_OP_USE_PRE_DESELECT(sel_op)) {
-		paintface_deselect_all_visible(ob, SEL_DESELECT, false);  /* flush selection at the end */
+		paintface_deselect_all_visible(vc->C, ob, SEL_DESELECT, false);  /* flush selection at the end */
 	}
 
 	bm_vertoffs = me->totpoly + 1; /* max index array */
@@ -937,8 +937,7 @@ static void do_lasso_select_paintface(ViewContext *vc, const int mcords[][2], sh
 
 	EDBM_backbuf_free();
 
-	paintface_flush_flags(ob, SELECT);
-	paintface_tag_select_update(vc->C, ob);
+	paintface_flush_flags(vc->C, ob, SELECT);
 }
 
 #if 0
@@ -1001,7 +1000,7 @@ static void view3d_lasso_select(
 	}
 	else { /* Edit Mode */
 
-		FOREACH_OBJECT_IN_MODE_BEGIN (vc->view_layer, vc->v3d, ob->mode, ob_iter) {
+		FOREACH_OBJECT_IN_MODE_BEGIN (vc->view_layer, vc->v3d, ob->type, ob->mode, ob_iter) {
 			ED_view3d_viewcontext_init_object(vc, ob_iter);
 
 			switch (vc->obedit->type) {
@@ -1647,7 +1646,8 @@ static bool ed_object_select_pick(
 		// TIMEIT_START(select_time);
 
 		/* if objects have posemode set, the bones are in the same selection buffer */
-		const eV3DSelectObjectFilter select_filter = ED_view3d_select_filter_from_mode(scene, vc.obact);
+		const eV3DSelectObjectFilter select_filter = (
+		        (object == false) ? ED_view3d_select_filter_from_mode(scene, vc.obact) : VIEW3D_SELECT_FILTER_NOP);
 		hits = mixed_bones_object_selectbuffer(
 		        &vc, buffer, mval,
 		        true, enumerate, select_filter,
@@ -2531,7 +2531,7 @@ static int view3d_box_select_exec(bContext *C, wmOperator *op)
 
 	if (vc.obedit) {
 
-		FOREACH_OBJECT_IN_MODE_BEGIN (vc.view_layer, vc.v3d, vc.obedit->mode, ob_iter) {
+		FOREACH_OBJECT_IN_MODE_BEGIN (vc.view_layer, vc.v3d, vc.obedit->type, vc.obedit->mode, ob_iter) {
 			ED_view3d_viewcontext_init_object(&vc, ob_iter);
 
 			switch (vc.obedit->type) {
@@ -2904,8 +2904,7 @@ static void paint_facesel_circle_select(ViewContext *vc, const bool select, cons
 	if (bbsel) {
 		edbm_backbuf_check_and_select_tfaces(me, select ? SEL_OP_ADD : SEL_OP_SUB);
 		EDBM_backbuf_free();
-		paintface_flush_flags(ob, SELECT);
-		paintface_tag_select_update(vc->C, ob);
+		paintface_flush_flags(vc->C, ob, SELECT);
 	}
 }
 
@@ -3264,7 +3263,7 @@ static int view3d_circle_select_exec(bContext *C, wmOperator *op)
 	{
 		view3d_operator_needs_opengl(C);
 
-		FOREACH_OBJECT_IN_MODE_BEGIN (vc.view_layer, vc.v3d, obact->mode, ob_iter) {
+		FOREACH_OBJECT_IN_MODE_BEGIN (vc.view_layer, vc.v3d, obact->type, obact->mode, ob_iter) {
 			ED_view3d_viewcontext_init_object(&vc, ob_iter);
 
 			obact = vc.obact;

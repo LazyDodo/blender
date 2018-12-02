@@ -1197,7 +1197,7 @@ static int forcefield_toggle_exec(bContext *C, wmOperator *UNUSED(op))
 	Object *ob = CTX_data_active_object(C);
 
 	if (ob->pd == NULL)
-		ob->pd = object_add_collision_fields(PFIELD_FORCE);
+		ob->pd = BKE_partdeflect_new(PFIELD_FORCE);
 	else if (ob->pd->forcefield == 0)
 		ob->pd->forcefield = PFIELD_FORCE;
 	else
@@ -1834,6 +1834,12 @@ static bool move_to_collection_poll(bContext *C)
 		return ED_outliner_collections_editor_poll(C);
 	}
 	else {
+		View3D *v3d = CTX_wm_view3d(C);
+
+		if (v3d && v3d->localvd) {
+			return false;
+		}
+
 		return ED_operator_object_active_editable(C);
 	}
 }

@@ -30,6 +30,7 @@ set(INC
 	../../../intern/guardedalloc
 	../../../intern/atomic
 	../../../intern/eigen
+	../../../intern/numaapi/include
 	../../../extern/wcwidth
 )
 
@@ -55,6 +56,7 @@ set(SRC
 	intern/BLI_memarena.c
 	intern/BLI_memiter.c
 	intern/BLI_mempool.c
+	intern/BLI_timer.c
 	intern/DLRB_tree.c
 	intern/array_store.c
 	intern/array_store_utils.c
@@ -214,6 +216,7 @@ set(SRC
 	BLI_task.h
 	BLI_threads.h
 	BLI_timecode.h
+	BLI_timer.h
 	BLI_utildefines.h
 	BLI_utildefines_iter.h
 	BLI_utildefines_stack.h

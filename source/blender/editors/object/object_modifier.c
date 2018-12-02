@@ -112,7 +112,7 @@ static void object_force_modifier_update_for_bind(Depsgraph *depsgraph, Scene *s
 		BKE_displist_make_mball(depsgraph, scene, ob);
 	}
 	else if (ELEM(ob->type, OB_CURVE, OB_SURF, OB_FONT)) {
-		BKE_displist_make_curveTypes(depsgraph, scene, ob, 0);
+		BKE_displist_make_curveTypes(depsgraph, scene, ob, false, false);
 	}
 }
 
@@ -172,7 +172,7 @@ ModifierData *ED_object_modifier_add(ReportList *reports, Main *bmain, Scene *sc
 		}
 		else if (type == eModifierType_Collision) {
 			if (!ob->pd)
-				ob->pd = object_add_collision_fields(0);
+				ob->pd = BKE_partdeflect_new(0);
 
 			ob->pd->deflect = 1;
 		}
@@ -1741,7 +1741,10 @@ static Object *modifier_skin_armature_create(Depsgraph *depsgraph, Main *bmain, 
 	int *emap_mem;
 	int v;
 
-	me_eval_deform = mesh_get_eval_deform(depsgraph, scene, skin_ob, CD_MASK_BAREMESH);
+	Scene *scene_eval = DEG_get_evaluated_scene(depsgraph);
+	Object *ob_eval = DEG_get_evaluated_object(depsgraph, skin_ob);
+
+	me_eval_deform = mesh_get_eval_deform(depsgraph, scene_eval, ob_eval, CD_MASK_BAREMESH);
 	mvert = me_eval_deform->mvert;
 
 	/* add vertex weights to original mesh */

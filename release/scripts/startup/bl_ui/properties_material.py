@@ -73,7 +73,7 @@ class MATERIAL_PT_preview(MaterialButtonsPanel, Panel):
 
 
 class MATERIAL_PT_custom_props(MaterialButtonsPanel, PropertyPanel, Panel):
-    COMPAT_ENGINES = {'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_EEVEE', 'BLENDER_WORKBENCH'}
     _context_path = "material"
     _property_type = bpy.types.Material
 
@@ -82,7 +82,7 @@ class EEVEE_MATERIAL_PT_context_material(MaterialButtonsPanel, Panel):
     bl_label = ""
     bl_context = "material"
     bl_options = {'HIDE_HEADER'}
-    COMPAT_ENGINES = {'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_EEVEE', 'BLENDER_WORKBENCH'}
 
     @classmethod
     def poll(cls, context):
@@ -253,8 +253,8 @@ class MATERIAL_PT_viewport(MaterialButtonsPanel, Panel):
         layout.use_property_split = True
 
         col = layout.column()
-        col.prop(mat, "diffuse_color")
-        col.prop(mat, "specular_color")
+        col.prop(mat, "diffuse_color", text="Color")
+        col.prop(mat, "metallic")
         col.prop(mat, "roughness")
 
 

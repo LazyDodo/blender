@@ -766,7 +766,6 @@ class AnnotationDataPanel:
             layout.prop(tool_settings, "annotation_thickness", text="Thickness")
 
         if gpl:
-            # layout.prop(gpl, "opacity", text="Opacity", slider=True)
             # Full-Row - Frame Locking (and Delete Frame)
             row = layout.row(align=True)
             row.active = not gpl.lock
@@ -778,6 +777,54 @@ class AnnotationDataPanel:
                 lock_label = iface_("Lock Frame")
             row.prop(gpl, "lock_frame", text=lock_label, icon='UNLOCKED')
             row.operator("gpencil.active_frame_delete", text="", icon='X')
+
+
+class AnnotationOnionSkin:
+    bl_label = "Onion Skin"
+    bl_region_type = 'UI'
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        # Show this panel as long as someone that might own this exists
+        # AND the owner isn't an object (e.g. GP Object)
+        if context.gpencil_data_owner is None:
+            return False
+        elif type(context.gpencil_data_owner) is bpy.types.Object:
+            return False
+        else:
+            gpl = context.active_gpencil_layer
+            if gpl is None:
+                return False
+
+            return True
+
+    @staticmethod
+    def draw_header(self, context):
+        gpl = context.active_gpencil_layer
+        self.layout.prop(gpl, "use_annotation_onion_skinning", text="")
+
+    @staticmethod
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_decorate = False
+
+        gpl = context.active_gpencil_layer
+        col = layout.column()
+        split = col.split(factor=0.5)
+        split.active = gpl.use_annotation_onion_skinning
+
+        # - Before Frames
+        sub = split.column(align=True)
+        row = sub.row(align=True)
+        row.prop(gpl, "annotation_onion_before_color", text="")
+        sub.prop(gpl, "annotation_onion_before_range", text="Before")
+
+        # - After Frames
+        sub = split.column(align=True)
+        row = sub.row(align=True)
+        row.prop(gpl, "annotation_onion_after_color", text="")
+        sub.prop(gpl, "annotation_onion_after_range", text="After")
 
 
 class GreasePencilOnionPanel:
@@ -855,6 +902,66 @@ class GreasePencilToolsPanel:
         gpencil_stroke_placement_settings(context, layout)
 
 
+class GreasePencilMaterialsPanel:
+    # Mix-in, use for properties editor and top-bar.
+
+    @classmethod
+    def poll(cls, context):
+        ob = context.object
+        return ob and ob.type == 'GPENCIL'
+
+    @staticmethod
+    def draw(self, context):
+        layout = self.layout
+        show_full_ui = (self.bl_space_type == 'PROPERTIES')
+
+        gpd = context.gpencil_data
+
+        ob = context.object
+
+        is_sortable = len(ob.material_slots) > 1
+        rows = 7
+
+        row = layout.row()
+
+        row.template_list("GPENCIL_UL_matslots", "", ob, "material_slots", ob, "active_material_index", rows=rows)
+
+        col = row.column(align=True)
+        if show_full_ui:
+            col.operator("object.material_slot_add", icon='ADD', text="")
+            col.operator("object.material_slot_remove", icon='REMOVE', text="")
+
+        col.menu("GPENCIL_MT_color_specials", icon='DOWNARROW_HLT', text="")
+
+        if is_sortable:
+            col.separator()
+
+            col.operator("object.material_slot_move", icon='TRIA_UP', text="").direction = 'UP'
+            col.operator("object.material_slot_move", icon='TRIA_DOWN', text="").direction = 'DOWN'
+
+            col.separator()
+
+            sub = col.column(align=True)
+            sub.operator("gpencil.color_isolate", icon='LOCKED', text="").affect_visibility = False
+            sub.operator("gpencil.color_isolate", icon='RESTRICT_VIEW_ON', text="").affect_visibility = True
+
+        if show_full_ui:
+            row = layout.row()
+
+            row.template_ID(ob, "active_material", new="material.new", live_icon=True)
+
+            slot = context.material_slot
+            if slot:
+                icon_link = 'MESH_DATA' if slot.link == 'DATA' else 'OBJECT_DATA'
+                row.prop(slot, "link", icon=icon_link, icon_only=True)
+
+            if gpd.use_stroke_edit_mode:
+                row = layout.row(align=True)
+                row.operator("gpencil.stroke_change_color", text="Assign")
+                row.operator("gpencil.color_select", text="Select").deselect = False
+                row.operator("gpencil.color_select", text="Deselect").deselect = True
+
+
 class GPENCIL_UL_layer(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname, index):
         # assert(isinstance(item, bpy.types.GPencilLayer)
@@ -873,6 +980,10 @@ class GPENCIL_UL_layer(UIList):
             row.prop(gpl, "info", text="", emboss=False)
 
             row = layout.row(align=True)
+            row.prop(gpl, "clamp_layer", text="",
+                        icon='MOD_MASK' if gpl.clamp_layer else 'ONIONSKIN_OFF',
+                        emboss=False)
+
             row.prop(gpl, "lock", text="", emboss=False)
             row.prop(gpl, "hide", text="", emboss=False)
             subrow = row.row(align=True)

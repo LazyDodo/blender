@@ -163,13 +163,8 @@ static EnumPropertyItem lightprobe_type_items[] = {
 
 void ED_object_location_from_view(bContext *C, float loc[3])
 {
-	View3D *v3d = CTX_wm_view3d(C);
-	Scene *scene = CTX_data_scene(C);
-	const float *cursor;
-
-	cursor = ED_view3d_cursor3d_get(scene, v3d)->location;
-
-	copy_v3_v3(loc, cursor);
+	const Scene *scene = CTX_data_scene(C);
+	copy_v3_v3(loc, scene->cursor.location);
 }
 
 void ED_object_rotation_from_quat(float rot[3], const float viewquat[4], const char align_axis)
@@ -592,7 +587,7 @@ static int effector_add_exec(bContext *C, wmOperator *op)
 			ob->empty_drawtype = OB_SINGLE_ARROW;
 	}
 
-	ob->pd = object_add_collision_fields(type);
+	ob->pd = BKE_partdeflect_new(type);
 
 	DEG_relations_tag_update(CTX_data_main(C));
 
@@ -1728,9 +1723,12 @@ static void convert_ensure_curve_cache(Depsgraph *depsgraph, Scene *scene, Objec
 	if (ob->runtime.curve_cache == NULL) {
 		/* Force creation. This is normally not needed but on operator
 		 * redo we might end up with an object which isn't evaluated yet.
+		 * Also happens in case we are working on a copy of the object (all its caches have been nuked then).
 		 */
 		if (ELEM(ob->type, OB_SURF, OB_CURVE, OB_FONT)) {
-			BKE_displist_make_curveTypes(depsgraph, scene, ob, false);
+			/* We need 'for render' ON here, to enable computing bevel dipslist if needed.
+			 * Also makes sense anyway, we would not want e.g. to loose hidden parts etc. */
+			BKE_displist_make_curveTypes(depsgraph, scene, ob, true, false);
 		}
 		else if (ob->type == OB_MBALL) {
 			BKE_displist_make_mball(depsgraph, scene, ob);
@@ -2193,6 +2191,7 @@ static Base *object_add_duplicate_internal(Main *bmain, Scene *scene, ViewLayer 
 			BKE_collection_object_add(bmain, layer_collection->collection, obn);
 		}
 		basen = BKE_view_layer_base_find(view_layer, obn);
+		basen->local_view_bits = base->local_view_bits;
 
 		/* 1) duplis should end up in same collection as the original
 		 * 2) Rigid Body sim participants MUST always be part of a collection...

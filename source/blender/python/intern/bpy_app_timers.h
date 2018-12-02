@@ -18,15 +18,13 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
-/** \file ED_keymap_templates.h
- *  \ingroup editors
+/** \file blender/python/intern/bpy_app_timers.h
+ *  \ingroup pythonintern
  */
 
-#ifndef __ED_KEYMAP_TEMPLATES_H__
-#define __ED_KEYMAP_TEMPLATES_H__
+#ifndef __BPY_APP_TIMERS_H__
+#define __BPY_APP_TIMERS_H__
 
-struct wmKeyMap;
+PyObject *BPY_app_timers_module(void);
 
-void ED_keymap_template_select_all(struct wmKeyMap *keymap, const char *idname);
-
-#endif /*  __ED_KEYMAP_TEMPLATES_H__ */
+#endif /* __BPY_APP_TIMERS_H__ */

@@ -531,47 +531,6 @@ static void rna_SpaceView3D_lock_camera_and_layers_set(PointerRNA *ptr, bool val
 	}
 }
 
-
-static View3DCursor *rna_View3D_Cursor_get_from_scene_or_localview(PointerRNA *ptr)
-{
-	View3D *v3d = (View3D *)(ptr->data);
-	bScreen *screen = ptr->id.data;
-	Scene *scene = ED_screen_scene_find(screen, G_MAIN->wm.first);
-	return ED_view3d_cursor3d_get(scene, v3d);
-}
-
-static void rna_View3D_Cursor_location_get(PointerRNA *ptr, float *values)
-{
-	const View3DCursor *cursor = rna_View3D_Cursor_get_from_scene_or_localview(ptr);
-	copy_v3_v3(values, cursor->location);
-}
-
-static void rna_View3D_Cursor_location_set(PointerRNA *ptr, const float *values)
-{
-	View3DCursor *cursor = rna_View3D_Cursor_get_from_scene_or_localview(ptr);
-	copy_v3_v3(cursor->location, values);
-}
-
-static void rna_View3D_Cursor_rotation_get(PointerRNA *ptr, float *values)
-{
-	const View3DCursor *cursor = rna_View3D_Cursor_get_from_scene_or_localview(ptr);
-	copy_qt_qt(values, cursor->rotation);
-}
-
-static void rna_View3D_Cursor_rotation_set(PointerRNA *ptr, const float *values)
-{
-	View3DCursor *cursor = rna_View3D_Cursor_get_from_scene_or_localview(ptr);
-	copy_qt_qt(cursor->rotation, values);
-}
-
-static void rna_View3D_Cursor_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *ptr)
-{
-	View3D *v3d = ptr->data;
-	if (v3d->localvd == NULL) {
-		DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
-	}
-}
-
 static float rna_View3DOverlay_GridScaleUnit_get(PointerRNA *ptr)
 {
 	View3D *v3d = (View3D *)(ptr->data);
@@ -732,7 +691,7 @@ static int rna_3DViewShading_type_get(PointerRNA *ptr)
 	if (BKE_scene_uses_blender_eevee(scene)) {
 		return shading->type;
 	}
-	else if (BKE_scene_uses_blender_opengl(scene)) {
+	else if (BKE_scene_uses_blender_workbench(scene)) {
 		return (shading->type == OB_MATERIAL) ? OB_RENDER : shading->type;
 	}
 	else {
@@ -771,7 +730,7 @@ static const EnumPropertyItem *rna_3DViewShading_type_itemf(
 		RNA_enum_items_add_value(&item, &totitem, rna_enum_shading_type_items, OB_MATERIAL);
 		RNA_enum_items_add_value(&item, &totitem, rna_enum_shading_type_items, OB_RENDER);
 	}
-	else if (BKE_scene_uses_blender_opengl(scene)) {
+	else if (BKE_scene_uses_blender_workbench(scene)) {
 		RNA_enum_items_add_value(&item, &totitem, rna_enum_shading_type_items, OB_RENDER);
 	}
 	else {
@@ -795,8 +754,11 @@ static PointerRNA rna_View3DShading_selected_studio_light_get(PointerRNA *ptr)
 	if (shading->type == OB_SOLID && shading->light == V3D_LIGHTING_MATCAP) {
 		sl = BKE_studiolight_find(shading->matcap, STUDIOLIGHT_FLAG_ALL);
 	}
-	else {
+	else if (shading->type == OB_SOLID && shading->light == V3D_LIGHTING_STUDIO) {
 		sl = BKE_studiolight_find(shading->studio_light, STUDIOLIGHT_FLAG_ALL);
+	}
+	else {
+		sl = BKE_studiolight_find(shading->lookdev_light, STUDIOLIGHT_FLAG_ALL);
 	}
 	return rna_pointer_inherit_refine(ptr, &RNA_StudioLight, sl);
 }
@@ -846,13 +808,14 @@ static int rna_View3DShading_studio_light_get(PointerRNA *ptr)
 	View3DShading *shading = (View3DShading *)ptr->data;
 	char *dna_storage = shading->studio_light;
 
-	int flag = STUDIOLIGHT_ORIENTATIONS_SOLID;
+	int flag = STUDIOLIGHT_TYPE_STUDIO;
 	if (shading->type == OB_SOLID && shading->light == V3D_LIGHTING_MATCAP) {
-		flag = STUDIOLIGHT_ORIENTATION_VIEWNORMAL;
+		flag = STUDIOLIGHT_TYPE_MATCAP;
 		dna_storage = shading->matcap;
 	}
 	else if (shading->type == OB_MATERIAL) {
-		flag = STUDIOLIGHT_ORIENTATIONS_MATERIAL_MODE;
+		flag = STUDIOLIGHT_TYPE_WORLD;
+		dna_storage = shading->lookdev_light;
 	}
 	StudioLight *sl = BKE_studiolight_find(dna_storage, flag);
 	if (sl) {
@@ -869,13 +832,14 @@ static void rna_View3DShading_studio_light_set(PointerRNA *ptr, int value)
 	View3DShading *shading = (View3DShading *)ptr->data;
 	char *dna_storage = shading->studio_light;
 
-	int flag = STUDIOLIGHT_ORIENTATIONS_SOLID;
+	int flag = STUDIOLIGHT_TYPE_STUDIO;
 	if (shading->type == OB_SOLID && shading->light == V3D_LIGHTING_MATCAP) {
-		flag = STUDIOLIGHT_ORIENTATION_VIEWNORMAL;
+		flag = STUDIOLIGHT_TYPE_MATCAP;
 		dna_storage = shading->matcap;
 	}
 	else if (shading->type == OB_MATERIAL) {
-		flag = STUDIOLIGHT_ORIENTATIONS_MATERIAL_MODE;
+		flag = STUDIOLIGHT_TYPE_WORLD;
+		dna_storage = shading->lookdev_light;
 	}
 	StudioLight *sl = BKE_studiolight_findindex(value, flag);
 	if (sl) {
@@ -892,7 +856,7 @@ static const EnumPropertyItem *rna_View3DShading_studio_light_itemf(
 	int totitem = 0;
 
 	if (shading->type == OB_SOLID && shading->light == V3D_LIGHTING_MATCAP) {
-		const int flags = (STUDIOLIGHT_EXTERNAL_FILE | STUDIOLIGHT_ORIENTATION_VIEWNORMAL);
+		const int flags = (STUDIOLIGHT_EXTERNAL_FILE | STUDIOLIGHT_TYPE_MATCAP);
 
 		LISTBASE_FOREACH(StudioLight *, sl, BKE_studiolight_listbase()) {
 			int icon_id = (shading->flag & V3D_SHADING_MATCAP_FLIP_X) ? sl->icon_id_matcap_flipped: sl->icon_id_matcap;
@@ -917,12 +881,11 @@ static const EnumPropertyItem *rna_View3DShading_studio_light_itemf(
 				switch (shading->type) {
 					case OB_SOLID:
 					case OB_TEXTURE:
-						show_studiolight = (
-						        (sl->flag & (STUDIOLIGHT_ORIENTATION_WORLD | STUDIOLIGHT_ORIENTATION_CAMERA)) != 0);
+						show_studiolight = ((sl->flag & STUDIOLIGHT_TYPE_STUDIO) != 0);
 						break;
 
 					case OB_MATERIAL:
-						show_studiolight = ((sl->flag & STUDIOLIGHT_ORIENTATION_WORLD) != 0);
+						show_studiolight = ((sl->flag & STUDIOLIGHT_TYPE_WORLD) != 0);
 						icon_id = sl->icon_id_radiance;
 						break;
 				}
@@ -2437,6 +2400,13 @@ static void rna_def_space_view3d_shading(BlenderRNA *brna)
 	};
 	static const float default_background_color[] = {0.05f, 0.05f, 0.05f};
 
+	static const EnumPropertyItem cavity_type_items[] = {
+		{V3D_SHADING_CAVITY_SSAO,      "WORLD",  0, "World",  "Cavity shading computed in world space, useful for larger-scale occlusion"},
+		{V3D_SHADING_CAVITY_CURVATURE, "SCREEN", 0, "Screen", "Curvature-based shading, useful for making fine details more visible"},
+		{V3D_SHADING_CAVITY_BOTH,      "BOTH",   0, "Both",   "Use both effects simultaneously"},
+		{0, NULL, 0, NULL, NULL}
+	};
+
 
 	/* Note these settings are used for both 3D viewport and the OpenGL render
 	 * engine in the scene, so can't assume to always be part of a screen. */
@@ -2471,16 +2441,43 @@ static void rna_def_space_view3d_shading(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Studiolight", "Studio lighting setup");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
+	prop = RNA_def_property(srna, "use_world_space_lighting", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", V3D_SHADING_WORLD_ORIENTATION);
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_ui_text(prop, "World Space Lighting", "Make the lighting fixed and not follow the camera");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+
 	prop = RNA_def_property(srna, "show_cavity", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", V3D_SHADING_CAVITY);
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_ui_text(prop, "Cavity", "Show Cavity");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
+	prop = RNA_def_property(srna, "cavity_type", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, cavity_type_items);
+	RNA_def_property_ui_text(prop, "Cavity Type", "Way to draw the cavity shading");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+
+	prop = RNA_def_property(srna, "curvature_ridge_factor", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_float_sdna(prop, NULL, "curvature_ridge_factor");
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_ui_text(prop, "Curvature Ridge", "Factor for the curvature ridges");
+	RNA_def_property_range(prop, 0.0f, 2.0f);
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+
+	prop = RNA_def_property(srna, "curvature_valley_factor", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_float_sdna(prop, NULL, "curvature_valley_factor");
+	RNA_def_property_float_default(prop, 1.0f);
+	RNA_def_property_ui_text(prop, "Curvature Valley", "Factor for the curvature valleys");
+	RNA_def_property_range(prop, 0.0f, 2.0f);
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+
 	prop = RNA_def_property(srna, "cavity_ridge_factor", PROP_FLOAT, PROP_FACTOR);
 	RNA_def_property_float_sdna(prop, NULL, "cavity_ridge_factor");
 	RNA_def_property_float_default(prop, 1.0f);
-	RNA_def_property_ui_text(prop, "Ridge", "Factor for the ridges");
+	RNA_def_property_ui_text(prop, "Cavity Ridge", "Factor for the cavity ridges");
 	RNA_def_property_range(prop, 0.0f, 250.0f);
 	RNA_def_property_ui_range(prop, 0.00f, 2.5f, 1, 3);
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
@@ -2489,7 +2486,7 @@ static void rna_def_space_view3d_shading(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "cavity_valley_factor", PROP_FLOAT, PROP_FACTOR);
 	RNA_def_property_float_sdna(prop, NULL, "cavity_valley_factor");
 	RNA_def_property_float_default(prop, 1.0);
-	RNA_def_property_ui_text(prop, "Valley", "Factor for the valleys");
+	RNA_def_property_ui_text(prop, "Cavity Valley", "Factor for the cavity valleys");
 	RNA_def_property_range(prop, 0.0f, 250.0f);
 	RNA_def_property_ui_range(prop, 0.00f, 2.5f, 1, 3);
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
@@ -3107,21 +3104,6 @@ static void rna_def_space_view3d(BlenderRNA *brna)
 	RNA_def_property_pointer_sdna(prop, NULL, "localvd");
 	RNA_def_property_ui_text(prop, "Local View",
 	                         "Display an isolated sub-set of objects, apart from the scene visibility");
-
-	prop = RNA_def_property(srna, "cursor_location", PROP_FLOAT, PROP_XYZ_LENGTH);
-	RNA_def_property_array(prop, 3);
-	RNA_def_property_float_funcs(prop, "rna_View3D_Cursor_location_get", "rna_View3D_Cursor_location_set", NULL);
-	RNA_def_property_ui_text(prop, "3D Cursor Location",
-	                         "3D cursor location for this view (dependent on local view setting)");
-	RNA_def_property_ui_range(prop, -10000.0, 10000.0, 1, RNA_TRANSLATION_PREC_DEFAULT);
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_View3D_Cursor_update");
-
-	prop = RNA_def_property(srna, "cursor_rotation", PROP_FLOAT, PROP_QUATERNION);
-	RNA_def_property_array(prop, 4);
-	RNA_def_property_float_funcs(prop, "rna_View3D_Cursor_rotation_get", "rna_View3D_Cursor_rotation_set", NULL);
-	RNA_def_property_ui_text(prop, "3D Cursor Rotation",
-	                         "Rotation in quaternions (keep normalized)");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, "rna_View3D_Cursor_update");
 
 	prop = RNA_def_property(srna, "lens", PROP_FLOAT, PROP_UNIT_CAMERA);
 	RNA_def_property_float_sdna(prop, NULL, "lens");
@@ -4358,7 +4340,7 @@ static void rna_def_fileselect_params(BlenderRNA *brna)
 		{FILTER_ID_CF, "CACHEFILE", ICON_FILE, "Cache Files", "Show/hide Cache File data-blocks"},
 		{FILTER_ID_CU, "CURVE", ICON_CURVE_DATA, "Curves", "Show/hide Curve data-blocks"},
 		{FILTER_ID_GD, "GREASE_PENCIL", ICON_GREASEPENCIL, "Grease Pencil", "Show/hide Grease pencil data-blocks"},
-		{FILTER_ID_GR, "GROUP", ICON_GROUP, "Groups", "Show/hide Group data-blocks"},
+		{FILTER_ID_GR, "GROUP", ICON_GROUP, "Collections", "Show/hide Collection data-blocks"},
 		{FILTER_ID_IM, "IMAGE", ICON_IMAGE_DATA, "Images", "Show/hide Image data-blocks"},
 		{FILTER_ID_LA, "LIGHT", ICON_LIGHT_DATA, "Lights", "Show/hide Light data-blocks"},
 		{FILTER_ID_LS, "LINESTYLE", ICON_LINE_DATA,
@@ -4393,7 +4375,7 @@ static void rna_def_fileselect_params(BlenderRNA *brna)
 	    {FILTER_ID_AC,
 	     "ANIMATION", ICON_ANIM_DATA, "Animations", "Show/hide animation data"},
 		{FILTER_ID_OB | FILTER_ID_GR,
-	     "OBJECT", ICON_GROUP, "Objects & Groups", "Show/hide objects and groups"},
+	     "OBJECT", ICON_GROUP, "Objects & Collections", "Show/hide objects and groups"},
 		{FILTER_ID_AR | FILTER_ID_CU | FILTER_ID_LT | FILTER_ID_MB | FILTER_ID_ME,
 	     "GEOMETRY", ICON_MESH_DATA, "Geometry", "Show/hide meshes, curves, lattice, armatures and metaballs data"},
 		{FILTER_ID_LS | FILTER_ID_MA | FILTER_ID_NT | FILTER_ID_TE,

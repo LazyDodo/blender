@@ -49,6 +49,7 @@
 #include "BKE_context.h"
 #include "BKE_global.h"
 #include "BKE_gpencil.h"
+#include "BKE_layer.h"
 #include "BKE_main.h"
 #include "BKE_report.h"
 #include "BKE_screen.h"
@@ -232,8 +233,7 @@ static bool gpencil_project_check(tGPsdata *p)
 /* get the reference point for stroke-point conversions */
 static void gp_get_3d_reference(tGPsdata *p, float vec[3])
 {
-	View3D *v3d = p->sa->spacedata.first;
-	const float *fp = ED_view3d_cursor3d_get(p->scene, v3d)->location;
+	const float *fp = p->scene->cursor.location;
 
 	/* use 3D-cursor */
 	copy_v3_v3(vec, fp);
@@ -1185,6 +1185,8 @@ static void gp_paint_initstroke(tGPsdata *p, eGPencil_PaintModes paintmode, Deps
 	/* get active layer (or add a new one if non-existent) */
 	p->gpl = BKE_gpencil_layer_getactive(p->gpd);
 	if (p->gpl == NULL) {
+		/* tag for annotations */
+		p->gpd->flag |= GP_DATA_ANNOTATIONS;
 		p->gpl = BKE_gpencil_layer_addnew(p->gpd, DATA_("Note"), true);
 
 		if (p->custom_color[3])
@@ -1757,7 +1759,7 @@ static void gpencil_draw_apply_event(wmOperator *op, const wmEvent *event, Depsg
 	}
 
 	/* check if alt key is pressed and limit to straight lines */
-	if (p->straight[0] != 0) {
+	if ((p->paintmode != GP_PAINTMODE_ERASER) && (p->straight[0] != 0)) {
 		if (p->straight[0] == 1) {
 			/* horizontal */
 			p->mval[1] = p->straight[1]; /* replace y */
@@ -1868,15 +1870,24 @@ static int gpencil_draw_invoke(bContext *C, wmOperator *op, const wmEvent *event
 {
 	Object *ob = CTX_data_active_object(C);
 	ScrArea *sa = CTX_wm_area(C);
+	Scene *scene = CTX_data_scene(C);
 	tGPsdata *p = NULL;
 
-	/* GPXX Need a better solution */
+	/* if try to do annotations with a gp object selected, first
+	 * unselect the object to avoid conflicts.
+	 * The solution is not perfect but we can keep running the annotations while
+	 * found a better solution.
+	 */
 	if (sa && sa->spacetype == SPACE_VIEW3D) {
 		if ((ob != NULL) && (ob->type == OB_GPENCIL)) {
-			BKE_report(op->reports, RPT_ERROR, "Cannot draw annotation with a Grease Pencil object active");
-			return OPERATOR_CANCELLED;
+			ViewLayer *view_layer = CTX_data_view_layer(C);
+			BKE_view_layer_base_deselect_all(view_layer);
+			view_layer->basact = NULL;
+			DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+			WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 		}
 	}
+
 	if (G.debug & G_DEBUG)
 		printf("GPencil - Starting Drawing\n");
 

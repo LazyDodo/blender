@@ -263,7 +263,6 @@ Mesh *bc_get_mesh_copy(
 	bool triangulate)
 {
 	CustomDataMask mask = CD_MASK_MESH;
-	Mesh *mesh = (Mesh *)ob->data;
 	Mesh *tmpmesh = NULL;
 	if (apply_modifiers) {
 #if 0  /* Not supported by new system currently... */
@@ -281,12 +280,13 @@ Mesh *bc_get_mesh_copy(
 		}
 #else
 		Depsgraph *depsgraph = blender_context.get_depsgraph();
-		Scene *scene = blender_context.get_scene();
-		tmpmesh = mesh_get_eval_final(depsgraph, scene, ob, mask);
+		Scene *scene_eval = blender_context.get_evaluated_scene();
+		Object *ob_eval = blender_context.get_evaluated_object(ob);
+		tmpmesh = mesh_get_eval_final(depsgraph, scene_eval, ob_eval, mask);
 #endif
 	}
 	else {
-		tmpmesh = mesh;
+		tmpmesh = (Mesh *)ob->data;
 	}
 
 	BKE_id_copy_ex(NULL, &tmpmesh->id, (ID **)&tmpmesh,
@@ -443,7 +443,7 @@ bool bc_is_root_bone(Bone *aBone, bool deform_bones_only)
 int bc_get_active_UVLayer(Object *ob)
 {
 	Mesh *me = (Mesh *)ob->data;
-	return CustomData_get_active_layer_index(&me->fdata, CD_MTFACE);
+	return CustomData_get_active_layer_index(&me->ldata, CD_MLOOPUV);
 }
 
 std::string bc_url_encode(std::string data)
@@ -1135,11 +1135,27 @@ void bc_sanitize_mat(float mat[4][4], int precision)
 		}
 }
 
+void bc_sanitize_v3(float v[3], int precision)
+{
+	for (int i = 0; i < 3; i++) {
+		double val = (double)v[i];
+		val = double_round(val, precision);
+		v[i] = (float)val;
+	}
+}
+
 void bc_sanitize_mat(double mat[4][4], int precision)
 {
 	for (int i = 0; i < 4; i++)
 		for (int j = 0; j < 4; j++)
 			mat[i][j] = double_round(mat[i][j], precision);
+}
+
+void bc_sanitize_v3(double v[3], int precision)
+{
+	for (int i = 0; i < 3; i++) {
+		v[i] = double_round(v[i], precision);
+	}
 }
 
 void bc_copy_m4_farray(float r[4][4], float *a)
@@ -1186,9 +1202,9 @@ void bc_copy_m4d_v44(double (&r)[4][4], std::vector<std::vector<double>> &a)
  */
 std::string bc_get_active_uvlayer_name(Mesh *me)
 {
-	int num_layers = CustomData_number_of_layers(&me->fdata, CD_MTFACE);
+	int num_layers = CustomData_number_of_layers(&me->ldata, CD_MLOOPUV);
 	if (num_layers) {
-		char *layer_name = bc_CustomData_get_active_layer_name(&me->fdata, CD_MTFACE);
+		char *layer_name = bc_CustomData_get_active_layer_name(&me->ldata, CD_MLOOPUV);
 		if (layer_name) {
 			return std::string(layer_name);
 		}
@@ -1211,9 +1227,9 @@ std::string bc_get_active_uvlayer_name(Object *ob)
  */
 std::string bc_get_uvlayer_name(Mesh *me, int layer)
 {
-	int num_layers = CustomData_number_of_layers(&me->fdata, CD_MTFACE);
+	int num_layers = CustomData_number_of_layers(&me->ldata, CD_MLOOPUV);
 	if (num_layers && layer < num_layers) {
-		char *layer_name = bc_CustomData_get_layer_name(&me->fdata, CD_MTFACE, layer);
+		char *layer_name = bc_CustomData_get_layer_name(&me->ldata, CD_MLOOPUV, layer);
 		if (layer_name) {
 			return std::string(layer_name);
 		}

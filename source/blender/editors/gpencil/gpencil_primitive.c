@@ -210,13 +210,13 @@ static void gpencil_primitive_status_indicators(bContext *C, tGPDprimitive *tgpi
 	char msg_str[UI_MAX_DRAW_STR];
 
 	if (tgpi->type == GP_STROKE_BOX) {
-		BLI_strncpy(msg_str, IFACE_("Rectangle: ESC/RMB to cancel, LMB set origin, Enter/LMB to confirm, Shift to square"), UI_MAX_DRAW_STR);
+		BLI_strncpy(msg_str, IFACE_("Rectangle: ESC/RMB to cancel, LMB set origin, Enter/LMB to confirm, Shift to square, Alt to center"), UI_MAX_DRAW_STR);
 	}
 	else if (tgpi->type == GP_STROKE_LINE) {
-		BLI_strncpy(msg_str, IFACE_("Line: ESC/RMB to cancel, LMB set origin, Enter/LMB to confirm"), UI_MAX_DRAW_STR);
+		BLI_strncpy(msg_str, IFACE_("Line: ESC/RMB to cancel, LMB set origin, Enter/LMB to confirm, Alt to center"), UI_MAX_DRAW_STR);
 	}
 	else {
-		BLI_strncpy(msg_str, IFACE_("Circle: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL to adjust edge number, Shift to square"), UI_MAX_DRAW_STR);
+		BLI_strncpy(msg_str, IFACE_("Circle: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL to adjust edge number, Shift to square, Alt to center"), UI_MAX_DRAW_STR);
 	}
 
 	if (tgpi->type == GP_STROKE_CIRCLE) {
@@ -348,7 +348,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 
 
 		/* convert screen-coordinates to 3D coordinates */
-		gp_stroke_convertcoords_tpoint(tgpi->scene, tgpi->ar, tgpi->v3d, tgpi->ob, tgpi->gpl, p2d, NULL, &pt->x);
+		gp_stroke_convertcoords_tpoint(tgpi->scene, tgpi->ar, tgpi->ob, tgpi->gpl, p2d, NULL, &pt->x);
 
 		pt->pressure = 1.0f;
 		pt->strength = tgpi->brush->gpencil_settings->draw_strength;
@@ -365,7 +365,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	if (tgpi->lock_axis > GP_LOCKAXIS_VIEW) {
 		bGPDspoint *tpt = gps->points;
 		float origin[3];
-		ED_gp_get_drawing_reference(tgpi->v3d, tgpi->scene, tgpi->ob, tgpi->gpl,
+		ED_gp_get_drawing_reference(tgpi->scene, tgpi->ob, tgpi->gpl,
 			ts->gpencil_v3d_align, origin);
 
 		for (int i = 0; i < gps->totpoints; i++, tpt++) {
@@ -408,6 +408,9 @@ static void gpencil_primitive_update(bContext *C, wmOperator *op, tGPDprimitive 
 
 static void gpencil_primitive_interaction_begin(tGPDprimitive *tgpi, const wmEvent *event)
 {
+	tgpi->origin[0] = event->mval[0];
+	tgpi->origin[1] = event->mval[1];
+
 	tgpi->top[0] = event->mval[0];
 	tgpi->top[1] = event->mval[1];
 
@@ -590,6 +593,24 @@ static void gpencil_primitive_interaction_end(bContext *C, wmOperator *op, wmWin
 	gpencil_primitive_exit(C, op);
 }
 
+/* Helper to square a primitive */
+static void gpencil_primitive_to_square(tGPDprimitive *tgpi, const int x, const int y) {
+	int w = abs(x);
+	int h = abs(y);
+	if ((x > 0 && y > 0) || (x < 0 && y < 0)) {
+		if (w > h)
+			tgpi->bottom[1] = tgpi->origin[1] + x;
+		else
+			tgpi->bottom[0] = tgpi->origin[0] + y;
+	}
+	else {
+		if (w > h)
+			tgpi->bottom[1] = tgpi->origin[1] - x;
+		else
+			tgpi->bottom[0] = tgpi->origin[0] - y;
+	}
+}
+
 /* Modal handler: Events handling during interactive part */
 static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *event)
 {
@@ -671,13 +692,36 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 				/* update position of mouse */
 				tgpi->bottom[0] = event->mval[0];
 				tgpi->bottom[1] = event->mval[1];
+				tgpi->top[0] = tgpi->origin[0];
+				tgpi->top[1] = tgpi->origin[1];
 				if (tgpi->flag == IDLE) {
-					tgpi->top[0] = event->mval[0];
-					tgpi->top[1] = event->mval[1];
+					tgpi->origin[0] = event->mval[0];
+					tgpi->origin[1] = event->mval[1];
 				}
 				/* Keep square if shift key */
 				if (event->shift) {
-					tgpi->bottom[1] = tgpi->top[1] - (tgpi->bottom[0] - tgpi->top[0]);
+					int x = tgpi->bottom[0] - tgpi->origin[0];
+					int y = tgpi->bottom[1] - tgpi->origin[1];
+					if (tgpi->type == GP_STROKE_LINE) {
+						float angle = fabsf(atan2f((float)y, (float)x));
+						if (angle < 0.4f || angle > (M_PI - 0.4f)) {
+							tgpi->bottom[1] = tgpi->origin[1];
+						}
+						else if (angle > (M_PI_2 - 0.4f) && angle < (M_PI_2 + 0.4f)) {
+							tgpi->bottom[0] = tgpi->origin[0];
+						}
+						else {
+							gpencil_primitive_to_square(tgpi, x, y);
+						}
+					}
+					else {
+						gpencil_primitive_to_square(tgpi, x, y);
+					}
+				}
+				/* Center primitive if alt key */
+				if (event->alt) {
+					tgpi->top[0] = tgpi->origin[0] - (tgpi->bottom[0] - tgpi->origin[0]);
+					tgpi->top[1] = tgpi->origin[1] - (tgpi->bottom[1] - tgpi->origin[1]);
 				}
 				/* update screen */
 				gpencil_primitive_update(C, op, tgpi);

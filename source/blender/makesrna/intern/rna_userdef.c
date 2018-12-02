@@ -87,10 +87,10 @@ static const EnumPropertyItem rna_enum_language_default_items[] = {
 };
 #endif
 
-static const EnumPropertyItem rna_enum_studio_light_orientation_items[] = {
-	{STUDIOLIGHT_ORIENTATION_CAMERA,     "CAMERA", 0, "Camera", ""},
-	{STUDIOLIGHT_ORIENTATION_WORLD,      "WORLD",  0, "World",  ""},
-	{STUDIOLIGHT_ORIENTATION_VIEWNORMAL, "MATCAP", 0, "MatCap", ""},
+static const EnumPropertyItem rna_enum_studio_light_type_items[] = {
+	{STUDIOLIGHT_TYPE_STUDIO,     "STUDIO", 0, "Studio", ""},
+	{STUDIOLIGHT_TYPE_WORLD,      "WORLD",  0, "World",  ""},
+	{STUDIOLIGHT_TYPE_MATCAP,     "MATCAP", 0, "MatCap", ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -329,7 +329,11 @@ static void rna_UserDef_viewport_lights_update(Main *bmain, Scene *scene, Pointe
 {
 	/* if all lights are off gpu_draw resets them all, [#27627]
 	 * so disallow them all to be disabled */
-	if (U.light[0].flag == 0 && U.light[1].flag == 0 && U.light[2].flag == 0) {
+	if (U.light_param[0].flag == 0 &&
+	    U.light_param[1].flag == 0 &&
+	    U.light_param[2].flag == 0 &&
+	    U.light_param[3].flag == 0)
+	{
 		SolidLight *light = ptr->data;
 		light->flag |= 1;
 	}
@@ -628,9 +632,15 @@ static void rna_StudioLights_remove(UserDef *UNUSED(userdef), StudioLight *studi
 	BKE_studiolight_remove(studio_light);
 }
 
-static StudioLight *rna_StudioLights_new(UserDef *UNUSED(userdef), const char *path, int orientation)
+static StudioLight *rna_StudioLights_load(UserDef *UNUSED(userdef), const char *path, int type)
 {
-	return BKE_studiolight_new(path, orientation);
+	return BKE_studiolight_load(path, type);
+}
+
+/* TODO: Make it accept arguments. */
+static StudioLight *rna_StudioLights_new(UserDef *userdef, const char *name)
+{
+	return BKE_studiolight_create(name, userdef->light_param, userdef->light_ambient);
 }
 
 /* StudioLight.name */
@@ -715,9 +725,9 @@ static bool rna_UserDef_studiolight_is_user_defined_get(PointerRNA *ptr)
 	return (sl->flag & STUDIOLIGHT_USER_DEFINED) != 0;
 }
 
-/* StudioLight.orientation */
+/* StudioLight.type */
 
-static int rna_UserDef_studiolight_orientation_get(PointerRNA *ptr)
+static int rna_UserDef_studiolight_type_get(PointerRNA *ptr)
 {
 	StudioLight *sl = (StudioLight *)ptr->data;
 	return sl->flag & STUDIOLIGHT_FLAG_ORIENTATIONS;
@@ -731,6 +741,28 @@ static void rna_UserDef_studiolight_spherical_harmonics_coefficients_get(Pointer
 		copy_v3_v3(value, sl->spherical_harmonics_coefs[i]);
 		value += 3;
 	}
+}
+
+/* StudioLight.solid_lights */
+
+static void rna_UserDef_studiolight_solid_lights_begin(CollectionPropertyIterator *iter, PointerRNA *ptr)
+{
+	StudioLight *sl = (StudioLight *)ptr->data;
+	rna_iterator_array_begin(iter, sl->light, sizeof(*sl->light), ARRAY_SIZE(sl->light), 0, NULL);
+}
+
+static int rna_UserDef_studiolight_solid_lights_length(PointerRNA *ptr)
+{
+	StudioLight *sl = (StudioLight *)ptr->data;
+	return ARRAY_SIZE(sl->light);
+}
+
+/* StudioLight.light_ambient */
+
+static void rna_UserDef_studiolight_light_ambient_get(PointerRNA *ptr, float *values)
+{
+	StudioLight *sl = (StudioLight *)ptr->data;
+	copy_v3_v3(values, sl->light_ambient);
 }
 
 #else
@@ -3315,11 +3347,18 @@ static void rna_def_userdef_studiolights(BlenderRNA *brna)
 	RNA_def_struct_sdna(srna, "UserDef");
 	RNA_def_struct_ui_text(srna, "Studio Lights", "Collection of studio lights");
 
-	func = RNA_def_function(srna, "new", "rna_StudioLights_new");
-	RNA_def_function_ui_description(func, "Create a new studiolight");
+	func = RNA_def_function(srna, "load", "rna_StudioLights_load");
+	RNA_def_function_ui_description(func, "Load studiolight from file");
 	parm = RNA_def_string(func, "path", NULL, 0, "File Path", "File path where the studio light file can be found");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-	parm = RNA_def_enum(func, "orientation", rna_enum_studio_light_orientation_items, STUDIOLIGHT_ORIENTATION_WORLD, "Orientation", "The orientation for the new studio light");
+	parm = RNA_def_enum(func, "type", rna_enum_studio_light_type_items, STUDIOLIGHT_TYPE_WORLD, "Type", "The type for the new studio light");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
+	parm = RNA_def_pointer(func, "studio_light", "StudioLight", "", "Newly created StudioLight");
+	RNA_def_function_return(func, parm);
+
+	func = RNA_def_function(srna, "new", "rna_StudioLights_new");
+	RNA_def_function_ui_description(func, "Create studiolight from default lighting");
+	parm = RNA_def_string(func, "path", NULL, 0, "Path", "Path to the file that will contain the lighing info (without extension)");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	parm = RNA_def_pointer(func, "studio_light", "StudioLight", "", "Newly created StudioLight");
 	RNA_def_function_return(func, parm);
@@ -3353,11 +3392,11 @@ static void rna_def_userdef_studiolight(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "User Defined", "");
 
-	prop = RNA_def_property(srna, "orientation", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_items(prop, rna_enum_studio_light_orientation_items);
-	RNA_def_property_enum_funcs(prop, "rna_UserDef_studiolight_orientation_get", NULL, NULL);
+	prop = RNA_def_property(srna, "type", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, rna_enum_studio_light_type_items);
+	RNA_def_property_enum_funcs(prop, "rna_UserDef_studiolight_type_get", NULL, NULL);
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
-	RNA_def_property_ui_text(prop, "Orientation", "");
+	RNA_def_property_ui_text(prop, "Type", "");
 
 	prop = RNA_def_property(srna, "name", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_funcs(prop, "rna_UserDef_studiolight_name_get", "rna_UserDef_studiolight_name_length", NULL);
@@ -3368,6 +3407,21 @@ static void rna_def_userdef_studiolight(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "path", PROP_STRING, PROP_DIRPATH);
 	RNA_def_property_string_funcs(prop, "rna_UserDef_studiolight_path_get", "rna_UserDef_studiolight_path_length", NULL);
 	RNA_def_property_ui_text(prop, "Path", "");
+	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+
+	prop = RNA_def_property(srna, "solid_lights", PROP_COLLECTION, PROP_NONE);
+	RNA_def_property_collection_sdna(prop, NULL, "light_param", "");
+	RNA_def_property_struct_type(prop, "UserSolidLight");
+	RNA_def_property_collection_funcs(prop, "rna_UserDef_studiolight_solid_lights_begin", "rna_iterator_array_next",
+	                                        "rna_iterator_array_end", "rna_iterator_array_get",
+	                                        "rna_UserDef_studiolight_solid_lights_length", NULL, NULL, NULL);
+	RNA_def_property_ui_text(prop, "Solid Lights", "Lights user to display objects in solid draw mode");
+	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+
+	prop = RNA_def_property(srna, "light_ambient", PROP_FLOAT, PROP_COLOR);
+	RNA_def_property_array(prop, 3);
+	RNA_def_property_float_funcs(prop, "rna_UserDef_studiolight_light_ambient_get", NULL, NULL);
+	RNA_def_property_ui_text(prop, "Ambient Color", "Color of the ambient light that uniformly lit the scene");
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 
 	prop = RNA_def_property(srna, "path_irr_cache", PROP_STRING, PROP_DIRPATH);
@@ -3466,29 +3520,46 @@ static void rna_def_userdef_solidlight(BlenderRNA *brna)
 {
 	StructRNA *srna;
 	PropertyRNA *prop;
-	static float default_dir[3] = {0.f, 1.f, 0.f};
+	static float default_dir[3] = {0.f, 0.f, 1.f};
+	static float default_col[3] = {0.8f, 0.8f, 0.8f};
 
 	srna = RNA_def_struct(brna, "UserSolidLight", NULL);
 	RNA_def_struct_sdna(srna, "SolidLight");
 	RNA_def_struct_clear_flag(srna, STRUCT_UNDO);
-	RNA_def_struct_ui_text(srna, "Solid Light", "Light used for OpenGL lighting in solid draw mode");
+	RNA_def_struct_ui_text(srna, "Solid Light", "Light used for Studio lighting in solid draw mode");
 
 	prop = RNA_def_property(srna, "use", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", 1);
-	RNA_def_property_ui_text(prop, "Enabled", "Enable this OpenGL light in solid draw mode");
+	RNA_def_property_boolean_default(prop, true);
+	RNA_def_property_ui_text(prop, "Enabled", "Enable this light in solid draw mode");
+	RNA_def_property_update(prop, 0, "rna_UserDef_viewport_lights_update");
+
+	prop = RNA_def_property(srna, "smooth", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_float_sdna(prop, NULL, "smooth");
+	RNA_def_property_float_default(prop, 0.5f);
+	RNA_def_property_range(prop, 0.0f, 1.0f);
+	RNA_def_property_ui_text(prop, "Smooth", "Smooth the lighting from this light");
 	RNA_def_property_update(prop, 0, "rna_UserDef_viewport_lights_update");
 
 	prop = RNA_def_property(srna, "direction", PROP_FLOAT, PROP_DIRECTION);
 	RNA_def_property_float_sdna(prop, NULL, "vec");
 	RNA_def_property_array(prop, 3);
 	RNA_def_property_float_array_default(prop, default_dir);
-	RNA_def_property_ui_text(prop, "Direction", "Direction that the OpenGL light is shining");
+	RNA_def_property_ui_text(prop, "Direction", "Direction that the light is shining");
 	RNA_def_property_update(prop, 0, "rna_UserDef_viewport_lights_update");
 
 	prop = RNA_def_property(srna, "specular_color", PROP_FLOAT, PROP_COLOR);
 	RNA_def_property_float_sdna(prop, NULL, "spec");
 	RNA_def_property_array(prop, 3);
+	RNA_def_property_float_array_default(prop, default_col);
 	RNA_def_property_ui_text(prop, "Specular Color", "Color of the light's specular highlight");
+	RNA_def_property_update(prop, 0, "rna_UserDef_viewport_lights_update");
+
+	prop = RNA_def_property(srna, "diffuse_color", PROP_FLOAT, PROP_COLOR);
+	RNA_def_property_float_sdna(prop, NULL, "col");
+	RNA_def_property_array(prop, 3);
+	RNA_def_property_float_array_default(prop, default_col);
+	RNA_def_property_ui_text(prop, "Diffuse Color", "Color of the light's diffuse highlight");
 	RNA_def_property_update(prop, 0, "rna_UserDef_viewport_lights_update");
 }
 
@@ -3638,11 +3709,6 @@ static void rna_def_userdef_view(BlenderRNA *brna)
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "app_flag", USER_APP_LOCK_UI_LAYOUT);
 	RNA_def_property_ui_text(prop, "Show Layout Widgets", "Show screen layout editing UI");
 	RNA_def_property_update(prop, 0, "rna_userdef_update_ui");
-
-	prop = RNA_def_property(srna, "show_view3d_cursor", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_negative_sdna(prop, NULL, "app_flag", USER_APP_VIEW3D_HIDE_CURSOR);
-	RNA_def_property_ui_text(prop, "Show 3D View Cursor", "");
-	RNA_def_property_update(prop, 0, "rna_userdef_update");
 
 	/* menus */
 	prop = RNA_def_property(srna, "use_mouse_over_open", PROP_BOOLEAN, PROP_NONE);
@@ -4279,9 +4345,21 @@ static void rna_def_userdef_system(BlenderRNA *brna)
 	/* System & OpenGL */
 
 	prop = RNA_def_property(srna, "solid_lights", PROP_COLLECTION, PROP_NONE);
-	RNA_def_property_collection_sdna(prop, NULL, "light", "");
+	RNA_def_property_collection_sdna(prop, NULL, "light_param", "");
 	RNA_def_property_struct_type(prop, "UserSolidLight");
 	RNA_def_property_ui_text(prop, "Solid Lights", "Lights user to display objects in solid draw mode");
+
+	prop = RNA_def_property(srna, "light_ambient", PROP_FLOAT, PROP_COLOR);
+	RNA_def_property_float_sdna(prop, NULL, "light_ambient");
+	RNA_def_property_array(prop, 3);
+	RNA_def_property_ui_text(prop, "Ambient Color", "Color of the ambient light that uniformly lit the scene");
+	RNA_def_property_update(prop, 0, "rna_UserDef_viewport_lights_update");
+
+	prop = RNA_def_property(srna, "edit_studio_light", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "edit_studio_light", 1);
+	RNA_def_property_ui_text(prop, "Edit Studio Light",
+	                               "View the result of the studio light editor in the viewport");
+	RNA_def_property_update(prop, 0, "rna_UserDef_viewport_lights_update");
 
 	prop = RNA_def_property(srna, "use_weight_color_range", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", USER_CUSTOM_RANGE);

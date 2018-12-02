@@ -263,7 +263,10 @@ void gpu_extensions_init(void)
 		GG.driver = GPU_DRIVER_OFFICIAL;
 
 #if defined(__APPLE__)
-		if (strstr(renderer, "AMD Radeon Pro") || strstr(renderer, "AMD Radeon R9")) {
+		if (strstr(renderer, "AMD Radeon Pro") ||
+		    strstr(renderer, "AMD Radeon R9") ||
+		    strstr(renderer, "AMD Radeon RX"))
+		{
 			GG.depth_blitting_workaround = true;
 		}
 #endif
@@ -279,6 +282,10 @@ void gpu_extensions_init(void)
 	{
 		GG.device = GPU_DEVICE_INTEL;
 		GG.driver = GPU_DRIVER_OFFICIAL;
+
+		if (strstr(renderer, "UHD Graphics")) {
+			GG.device |= GPU_DEVICE_INTEL_UHD;
+		}
 	}
 	else if ((strstr(renderer, "Mesa DRI R")) ||
 	         (strstr(renderer, "Radeon") && strstr(vendor, "X.Org")) ||

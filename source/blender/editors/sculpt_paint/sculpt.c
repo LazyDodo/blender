@@ -3954,8 +3954,9 @@ static void do_tiled(Sculpt *sd, Object *ob, Brush *brush, UnifiedPaintSettings 
 	SculptSession *ss = ob->sculpt;
 	StrokeCache *cache = ss->cache;
 	const float radius = cache->radius;
-	const float *bbMin = ob->bb->vec[0];
-	const float *bbMax = ob->bb->vec[6];
+	BoundBox *bb = BKE_object_boundbox_get(ob);
+	const float *bbMin = bb->vec[0];
+	const float *bbMax = bb->vec[6];
 	const float *step = sd->paint.tile_offset;
 	int dim;
 
@@ -5858,7 +5859,7 @@ static void SCULPT_OT_sculptmode_toggle(wmOperatorType *ot)
 	ot->exec = sculpt_mode_toggle_exec;
 	ot->poll = ED_operator_object_active_editable_mesh;
 
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_USE_EVAL_DATA;
 }
 
 static bool sculpt_and_constant_or_manual_detail_poll(bContext *C)
