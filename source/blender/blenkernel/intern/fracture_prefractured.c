@@ -192,7 +192,7 @@ Mesh* BKE_fracture_apply(FractureModifierData *fmd, Object *ob, Mesh *me_orig, D
 
 	if (fmd->shared->flag & MOD_FRACTURE_REFRESH)
 	{
-		if (dupli)
+		if (fmd->flag & MOD_FRACTURE_USE_DUPLI)
 		{
 			BKE_fracture_meshislands_free(fmd, scene);
 			if (fmd->shared->dupli_shard_map) {

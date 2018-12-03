@@ -3516,6 +3516,9 @@ void BKE_fracture_duplis_to_shards(FractureModifierData *fmd, Object *ob, Scene 
 		}
 	}
 
+	free_object_duplilist(lb);
+	lb = NULL;
+
 #if 0
 	/*decouple from listbase because it will continue growing ... */
 	for (i = 0; i < j; i++)

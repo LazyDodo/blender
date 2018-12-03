@@ -1654,7 +1654,6 @@ void DepsgraphRelationBuilder::build_rigidbody(Scene *scene)
 				/* Needed to get correct base values. */
 				add_relation(trans_op, sim_key, "Base Ob Transform -> Rigidbody Sim Eval");
 			}
-#if 0
 			else
 			{
 				OperationKey uber_geom_key(&object->id,
@@ -1662,7 +1661,6 @@ void DepsgraphRelationBuilder::build_rigidbody(Scene *scene)
 				                      DEG_OPCODE_GEOMETRY_UBEREVAL);
 				add_relation(rbo_key, uber_geom_key, "RBO Sync -> Uber Geom (Fracture)");
 			}
-#endif
 		}
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 	}
