@@ -1408,7 +1408,7 @@ static bool check_constraints(FractureModifierData *fmd, Shard *mi, RigidBodyWor
 	return false;
 }
 
-static void check_fracture_meshisland(FractureModifierData *fmd, Shard *mi, Object* ob1, Object* ob2,
+static void check_fracture_meshisland(FractureModifierData *fmd, Shard *mi, Shard *s, Object* ob1, Object* ob2,
                                       RigidBodyWorld *rbw, float contact_pos[3], float force)
 {
 	bool canbreak = false;
@@ -1423,7 +1423,9 @@ static void check_fracture_meshisland(FractureModifierData *fmd, Shard *mi, Obje
 	if (canbreak && check_constraints(fmd, mi, rbw))
 	{
 		float size[3] =  {1.0f, 1.0f, 1.0f};
+		float own_size[3];
 
+#if 0
 		if (ob1 == ob2 || (ob2 && ob2->rigidbody_object && ob1->rigidbody_object->type == RBO_TYPE_PASSIVE)) {
 			//todo calculate shard...
 			size[0] = size[1] = size[2] = -1.0f;
@@ -1431,6 +1433,26 @@ static void check_fracture_meshisland(FractureModifierData *fmd, Shard *mi, Obje
 		else if (ob2) {
 			BKE_object_dimensions_get(ob2, size);
 		}
+#endif
+
+
+		sub_v3_v3v3(own_size, mi->max, mi->min);
+
+		if (s) {
+			sub_v3_v3v3(size, s->max, s->min);
+		}
+		else if (ob2) {
+			BKE_object_dimensions_get(ob2, size);
+		}
+
+		if (size[0] > own_size[0])
+			size[0] = own_size[0];
+
+		if (size[1] > own_size[1])
+			size[1] = own_size[1];
+
+		if (size[2] > own_size[2])
+			size[2] = own_size[2];
 
 		copy_v3_v3(mi->impact_loc, contact_pos);
 		copy_v3_v3(mi->impact_size, size);
@@ -1478,15 +1500,17 @@ static void check_fracture(rbContactPoint* cp, Scene *scene)
 	if (fmd1 && (fmd1->flag & MOD_FRACTURE_USE_DYNAMIC))
 	{
 		mi1 = (Shard*)cp->contact_islandA;
-		check_fracture_meshisland(fmd1, mi1, ob1, ob2, rbw, cp->contact_pos_world_onA, force);
+		mi2 = (Shard*)cp->contact_islandB;
+		check_fracture_meshisland(fmd1, mi1, mi2, ob1, ob2, rbw, cp->contact_pos_world_onA, force);
 	}
 
 	fmd2 = (FractureModifierData*)modifiers_findByType(ob2, eModifierType_Fracture);
 	if (fmd2 && (fmd2->flag & MOD_FRACTURE_USE_DYNAMIC))
 	{
 		mi2 = (Shard*)cp->contact_islandB;
-		check_fracture_meshisland(fmd2, mi2, ob2, ob1, rbw, cp->contact_pos_world_onB, force);
-	}
+		mi1 = (Shard*)cp->contact_islandA;
+		check_fracture_meshisland(fmd2, mi2, mi1, ob2, ob1, rbw, cp->contact_pos_world_onB, force);
+	}		
 
 	//free contact point ?
 	cp = NULL;
