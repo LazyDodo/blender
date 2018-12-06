@@ -92,6 +92,27 @@
   /* ************************************************ */
   /* Core/Shared Utilities */
 
+/* clear the session buffers (call this before AND after a paint operation) */
+static void gp_session_validatebuffer(tGPDprimitive *p)
+{
+	bGPdata *gpd = p->gpd;
+
+	/* clear memory of buffer (or allocate it if starting a new session) */
+	if (gpd->runtime.sbuffer) {
+		memset(gpd->runtime.sbuffer, 0, sizeof(tGPspoint) * GP_STROKE_BUFFER_MAX);
+	}
+	else {
+		gpd->runtime.sbuffer = MEM_callocN(sizeof(tGPspoint) * GP_STROKE_BUFFER_MAX, "gp_session_strokebuffer");
+	}
+
+	/* reset indices */
+	gpd->runtime.sbuffer_size = 0;
+
+	/* reset flags */
+	gpd->runtime.sbuffer_sflag = 0;
+	gpd->runtime.sbuffer_sflag |= GP_STROKE_3DSPACE;
+}
+
   /* Poll callback for primitive operators */
 static bool gpencil_primitive_add_poll(bContext *C)
 {
@@ -478,6 +499,17 @@ static void gpencil_primitive_exit(bContext *C, wmOperator *op)
 		MEM_freeN(tgpi->gpf);
 		MEM_freeN(tgpi);
 	}
+
+	/* free stroke buffer */
+	if ((gpd != NULL) && (gpd->runtime.sbuffer)) {
+		MEM_freeN(gpd->runtime.sbuffer);
+		gpd->runtime.sbuffer = NULL;
+
+		/* clear flags */
+		gpd->runtime.sbuffer_size = 0;
+		gpd->runtime.sbuffer_sflag = 0;
+	}
+
 	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
 
@@ -514,6 +546,9 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 
 	/* set GP datablock */
 	tgpi->gpd = gpd;
+
+	/* prepare buffer data */
+	gp_session_validatebuffer(tgpi);
 
 	/* getcolor info */
 	tgpi->mat = BKE_gpencil_material_ensure(bmain, tgpi->ob);
