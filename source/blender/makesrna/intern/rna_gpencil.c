@@ -20,9 +20,9 @@
  * ***** END GPL LICENSE BLOCK *****
  */
 
-/** \file blender/makesrna/intern/rna_gpencil.c
- *  \ingroup RNA
- */
+ /** \file blender/makesrna/intern/rna_gpencil.c
+  *  \ingroup RNA
+  */
 
 #include <stdlib.h>
 
@@ -49,7 +49,7 @@
 
 #include "WM_types.h"
 
-/* parent type */
+  /* parent type */
 static const EnumPropertyItem parent_type_items[] = {
 	{PAROBJECT, "OBJECT", 0, "Object", "The layer is parented to an object"},
 	{PARSKEL, "ARMATURE", 0, "Armature", ""},
@@ -285,8 +285,8 @@ static void rna_GPencilLayer_parent_bone_set(PointerRNA *ptr, const char *value)
 
 /* parent types enum */
 static const EnumPropertyItem *rna_Object_parent_type_itemf(
-        bContext *UNUSED(C), PointerRNA *ptr,
-        PropertyRNA *UNUSED(prop), bool *r_free)
+	bContext *UNUSED(C), PointerRNA *ptr,
+	PropertyRNA *UNUSED(prop), bool *r_free)
 {
 	bGPDlayer *gpl = (bGPDlayer *)ptr->data;
 	EnumPropertyItem *item = NULL;
@@ -376,7 +376,7 @@ static int rna_GPencil_active_layer_index_get(PointerRNA *ptr)
 
 static void rna_GPencil_active_layer_index_set(PointerRNA *ptr, int value)
 {
-	bGPdata *gpd   = (bGPdata *)ptr->id.data;
+	bGPdata *gpd = (bGPdata *)ptr->id.data;
 	bGPDlayer *gpl = BLI_findlink(&gpd->layers, value);
 
 	BKE_gpencil_layer_setactive(gpd, gpl);
@@ -398,11 +398,11 @@ static void rna_GPencil_active_layer_index_range(PointerRNA *ptr, int *min, int 
 }
 
 static const EnumPropertyItem *rna_GPencil_active_layer_itemf(
-        bContext *C, PointerRNA *ptr, PropertyRNA *UNUSED(prop), bool *r_free)
+	bContext *C, PointerRNA *ptr, PropertyRNA *UNUSED(prop), bool *r_free)
 {
 	bGPdata *gpd = (bGPdata *)ptr->id.data;
 	bGPDlayer *gpl;
-	EnumPropertyItem *item = NULL, item_tmp = {0};
+	EnumPropertyItem *item = NULL, item_tmp = { 0 };
 	int totitem = 0;
 	int i = 0;
 
@@ -505,11 +505,11 @@ static void rna_GPencil_stroke_point_add(bGPDstroke *stroke, int count, float pr
 	if (count > 0) {
 		/* create space at the end of the array for extra points */
 		stroke->points = MEM_recallocN_id(stroke->points,
-		                                  sizeof(bGPDspoint) * (stroke->totpoints + count),
-		                                  "gp_stroke_points");
+			sizeof(bGPDspoint) * (stroke->totpoints + count),
+			"gp_stroke_points");
 		stroke->dvert = MEM_recallocN_id(stroke->dvert,
-		                                  sizeof(MDeformVert) * (stroke->totpoints + count),
-		                                  "gp_stroke_weight");
+			sizeof(MDeformVert) * (stroke->totpoints + count),
+			"gp_stroke_weight");
 
 		/* init the pressure and strength values so that old scripts won't need to
 		 * be modified to give these initial values...
@@ -1050,7 +1050,7 @@ static void rna_def_gpencil_frames_api(BlenderRNA *brna, PropertyRNA *cprop)
 	RNA_def_function_ui_description(func, "Add a new grease pencil frame");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
 	parm = RNA_def_int(func, "frame_number", 1, MINAFRAME, MAXFRAME, "Frame Number",
-	                   "The frame on which this sketch appears", MINAFRAME, MAXFRAME);
+		"The frame on which this sketch appears", MINAFRAME, MAXFRAME);
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	parm = RNA_def_pointer(func, "frame", "GPencilFrame", "", "The newly created frame");
 	RNA_def_function_return(func, parm);
@@ -1154,40 +1154,9 @@ static void rna_def_gpencil_layer(BlenderRNA *brna)
 
 
 	/* Onion-Skinning */
-	prop = RNA_def_property(srna, "use_annotation_onion_skinning", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "use_onion_skinning", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "onion_flag", GP_LAYER_ONIONSKIN);
-	RNA_def_property_ui_text(prop, "Onion Skinning",
-		"Display annotation onion skins before and after the current frame");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
-
-	prop = RNA_def_property(srna, "annotation_onion_before_range", PROP_INT, PROP_NONE);
-	RNA_def_property_int_sdna(prop, NULL, "gstep");
-	RNA_def_property_range(prop, -1, 120);
-	RNA_def_property_ui_text(prop, "Frames Before",
-		"Maximum number of frames to show before current frame");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
-
-	prop = RNA_def_property(srna, "annotation_onion_after_range", PROP_INT, PROP_NONE);
-	RNA_def_property_int_sdna(prop, NULL, "gstep_next");
-	RNA_def_property_range(prop, -1, 120);
-	RNA_def_property_ui_text(prop, "Frames After",
-		"Maximum number of frames to show after current frame");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
-
-	prop = RNA_def_property(srna, "annotation_onion_before_color", PROP_FLOAT, PROP_COLOR_GAMMA);
-	RNA_def_property_float_sdna(prop, NULL, "gcolor_prev");
-	RNA_def_property_array(prop, 3);
-	RNA_def_property_range(prop, 0.0f, 1.0f);
-	RNA_def_property_float_array_default(prop, default_onion_color_b);
-	RNA_def_property_ui_text(prop, "Before Color", "Base color for ghosts before the active frame");
-	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
-
-	prop = RNA_def_property(srna, "annotation_onion_after_color", PROP_FLOAT, PROP_COLOR_GAMMA);
-	RNA_def_property_float_sdna(prop, NULL, "gcolor_next");
-	RNA_def_property_array(prop, 3);
-	RNA_def_property_range(prop, 0.0f, 1.0f);
-	RNA_def_property_float_array_default(prop, default_onion_color_a);
-	RNA_def_property_ui_text(prop, "After Color", "Base color for ghosts after the active frame");
+	RNA_def_property_ui_text(prop, "Onion Skinning", "Display onion skins before and after the current frame");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	prop = RNA_def_property(srna, "use_annotation_onion_skinning", PROP_BOOLEAN, PROP_NONE);
@@ -1388,20 +1357,20 @@ static void rna_def_gpencil_layers_api(BlenderRNA *brna, PropertyRNA *cprop)
 
 	prop = RNA_def_property(srna, "active_index", PROP_INT, PROP_UNSIGNED);
 	RNA_def_property_int_funcs(
-	        prop,
-	        "rna_GPencil_active_layer_index_get",
-	        "rna_GPencil_active_layer_index_set",
-	        "rna_GPencil_active_layer_index_range");
+		prop,
+		"rna_GPencil_active_layer_index_get",
+		"rna_GPencil_active_layer_index_set",
+		"rna_GPencil_active_layer_index_range");
 	RNA_def_property_ui_text(prop, "Active Layer Index", "Index of active grease pencil layer");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA | NA_SELECTED, NULL);
 
 	/* Active Layer - As an enum (for selecting active layer for annotations) */
 	prop = RNA_def_property(srna, "active_note", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_funcs(
-	        prop,
-	        "rna_GPencil_active_layer_index_get",
-	        "rna_GPencil_active_layer_index_set",
-	        "rna_GPencil_active_layer_itemf");
+		prop,
+		"rna_GPencil_active_layer_index_get",
+		"rna_GPencil_active_layer_index_set",
+		"rna_GPencil_active_layer_itemf");
 	RNA_def_property_enum_items(prop, DummyRNA_DEFAULT_items); /* purely dynamic, as it maps to user-data */
 	RNA_def_property_ui_text(prop, "Active Note", "Note/Layer to add annotation strokes to");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
@@ -1420,7 +1389,7 @@ static void rna_def_gpencil_grid(BlenderRNA *brna)
 
 	RNA_def_struct_path_func(srna, "rna_GreasePencilGrid_path");
 	RNA_def_struct_ui_text(srna, "Grid and Canvas Settings",
-	                       "Settings for grid and canvas in 3D viewport");
+		"Settings for grid and canvas in 3D viewport");
 
 	prop = RNA_def_property(srna, "scale", PROP_FLOAT, PROP_XYZ);
 	RNA_def_property_float_sdna(prop, NULL, "scale");
@@ -1524,7 +1493,7 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "show_stroke_direction", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_DATA_SHOW_DIRECTION);
 	RNA_def_property_ui_text(prop, "Show Direction", "Show stroke drawing direction with a bigger green dot (start) "
-	                         "and smaller red dot (end) points");
+		"and smaller red dot (end) points");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	prop = RNA_def_property(srna, "show_constant_thickness", PROP_BOOLEAN, PROP_NONE);
