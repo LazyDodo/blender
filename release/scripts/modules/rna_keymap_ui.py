@@ -372,15 +372,25 @@ def draw_keymaps(context, layout):
     subcol = subsplit.column()
 
     col = subcol.column()
-    row = col.row(align=True)
+
 
     # row.prop_search(wm.keyconfigs, "active", wm, "keyconfigs", text="Key Config")
     text = bpy.path.display_name(kc_active.name)
     if not text:
         text = "Blender (default)"
-    row.menu("USERPREF_MT_keyconfigs", text=text)
-    row.operator("wm.keyconfig_preset_add", text="", icon='ADD')
-    row.operator("wm.keyconfig_preset_add", text="", icon='REMOVE').remove_active = True
+
+    row = col.row()
+
+    row.operator("wm.keyconfig_import", text="Import", icon='IMPORT')
+    row.operator("wm.keyconfig_export", text="Export",  icon='EXPORT')
+
+    row.separator()
+
+    rowsub = row.row(align=True)
+
+    rowsub.menu("USERPREF_MT_keyconfigs", text=text)
+    rowsub.operator("wm.keyconfig_preset_add", text="", icon='ADD')
+    rowsub.operator("wm.keyconfig_preset_add", text="", icon='REMOVE').remove_active = True
 
     # layout.context_pointer_set("keyconfig", wm.keyconfigs.active)
     # row.operator("wm.keyconfig_remove", text="", icon='X')
@@ -420,7 +430,7 @@ def draw_keymaps(context, layout):
                 inputs,
                 "show_ui_keyconfig",
                 text="",
-                icon='TRIA_DOWN' if show_ui_keyconfig else 'TRIA_RIGHT',
+                icon='DISCLOSURE_TRI_DOWN' if show_ui_keyconfig else 'DISCLOSURE_TRI_RIGHT',
                 emboss=False,
             )
             row.label(text="Preferences")
