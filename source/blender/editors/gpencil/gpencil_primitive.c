@@ -403,9 +403,24 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	}
 
 	/* convert screen-coordinates to 3D coordinates */
+	gp_session_validatebuffer(tgpi);
+	
+
 	for (int i = 0; i < gps->totpoints; i++) {
 		bGPDspoint *pt = &gps->points[i];
 		tPGPspoint *p2d = &points2D[i];
+
+		/* Copy points to buffer */
+		tGPspoint *tpt = ((tGPspoint *)(gpd->runtime.sbuffer) + gpd->runtime.sbuffer_size);
+		tpt->x = p2d->x;
+		tpt->y = p2d->y;
+		tpt->pressure = p2d->pressure;
+		tpt->strength = p2d->strength;
+		tpt->time = p2d->time;
+		tpt->uv_fac = p2d->uv_fac;
+		tpt->uv_rot = p2d->uv_rot;
+
+		gpd->runtime.sbuffer_size++;
 
 		/* convert screen-coordinates to 3D coordinates */
 		gp_stroke_convertcoords_tpoint_primitive(tgpi->scene, tgpi->ar, tgpi->ob, tgpi->gpl, p2d, &pt->x);
