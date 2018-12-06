@@ -89,6 +89,7 @@
 
 #include "RNA_access.h"
 #include "RNA_define.h"
+#include "RNA_enum_types.h"
 
 #include "UI_interface.h"
 #include "UI_resources.h"
@@ -1899,19 +1900,33 @@ static int area_split_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 		if (CTX_wm_area(C) != sad->sa1 || sad->sa1 != sad->sa2)
 			return OPERATOR_PASS_THROUGH;
 
-		/* prepare operator state vars */
-		if (sad->gesture_dir == 'n' || sad->gesture_dir == 's') {
+		/* The factor will be close to 1.0f when near the top-left and the bottom-right corners. */
+		const float factor_v = ((float)(event->y - sad->sa1->v1->vec.y)) / (float)sad->sa1->winy;
+		const float factor_h = ((float)(event->x - sad->sa1->v1->vec.x)) / (float)sad->sa1->winx;
+		const bool is_left = factor_v < 0.5f;
+		const bool is_bottom = factor_h < 0.5f;
+		const bool is_right = !is_left;
+		const bool is_top = !is_bottom;
+		float factor;
+
+		/* Prepare operator state vars. */
+		if (ELEM(sad->gesture_dir, 'n', 's')) {
 			dir = 'h';
-			RNA_property_float_set(
-			        op->ptr, prop_factor,
-			        ((float)(event->x - sad->sa1->v1->vec.x)) / (float)sad->sa1->winx);
+			factor = factor_h;
 		}
 		else {
 			dir = 'v';
-			RNA_property_float_set(
-			        op->ptr, prop_factor,
-			        ((float)(event->y - sad->sa1->v1->vec.y)) / (float)sad->sa1->winy);
+			factor = factor_v;
 		}
+
+		if ((is_top && is_left) ||
+		    (is_bottom && is_right))
+		{
+			factor = 1.0f - factor;
+		}
+
+		RNA_property_float_set(op->ptr, prop_factor, factor);
+
 		RNA_property_enum_set(op->ptr, prop_dir, dir);
 
 		/* general init, also non-UI case, adds customdata, sets area and defaults */
@@ -4640,6 +4655,69 @@ static void SCREEN_OT_region_blend(wmOperatorType *ot)
 
 /** \} */
 
+
+/* -------------------------------------------------------------------- */
+/** \name Space Type Set or Cycle Operator
+ * \{ */
+
+static int space_type_set_or_cycle_exec(bContext *C, wmOperator *op)
+{
+	const int space_type = RNA_enum_get(op->ptr, "space_type");
+
+	PointerRNA ptr;
+	ScrArea *sa = CTX_wm_area(C);
+	RNA_pointer_create((ID *)CTX_wm_screen(C), &RNA_Area, sa, &ptr);
+	PropertyRNA *prop_type = RNA_struct_find_property(&ptr, "type");
+	PropertyRNA *prop_ui_type = RNA_struct_find_property(&ptr, "ui_type");
+
+	if (sa->spacetype != space_type) {
+		/* Set the type. */
+		RNA_property_enum_set(&ptr, prop_type, space_type);
+		RNA_property_update(C, &ptr, prop_type);
+	}
+	else {
+		/* Types match, cycle the subtype. */
+		const int space_type_ui = RNA_property_enum_get(&ptr, prop_ui_type);
+		const EnumPropertyItem *item;
+		int item_len;
+		bool free;
+		RNA_property_enum_items(C, &ptr, prop_ui_type, &item, &item_len, &free);
+		int index = RNA_enum_from_value(item, space_type_ui);
+		for (int i = 1; i < item_len; i++) {
+			const EnumPropertyItem *item_test = &item[(index + i) % item_len];
+			if ((item_test->value >> 16) == space_type) {
+				RNA_property_enum_set(&ptr, prop_ui_type, item_test->value);
+				RNA_property_update(C, &ptr, prop_ui_type);
+				break;
+			}
+		}
+		if (free) {
+			MEM_freeN((void *)item);
+		}
+	}
+
+	return OPERATOR_FINISHED;
+}
+
+static void SCREEN_OT_space_type_set_or_cycle(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Cycle Space Type Set";
+	ot->description = "Set the space type or cycle subtype";
+	ot->idname = "SCREEN_OT_space_type_set_or_cycle";
+
+	/* api callbacks */
+	ot->exec = space_type_set_or_cycle_exec;
+	ot->poll = ED_operator_areaactive;
+
+	ot->flag = 0;
+
+	RNA_def_enum(ot->srna, "space_type", rna_enum_space_type_items, SPACE_EMPTY, "Type", "");
+}
+
+/** \} */
+
+
 /* -------------------------------------------------------------------- */
 /** \name Space Context Cycle Operator
  * \{ */
@@ -4821,6 +4899,7 @@ void ED_operatortypes_screen(void)
 	WM_operatortype_append(SCREEN_OT_userpref_show);
 	WM_operatortype_append(SCREEN_OT_drivers_editor_show);
 	WM_operatortype_append(SCREEN_OT_region_blend);
+	WM_operatortype_append(SCREEN_OT_space_type_set_or_cycle);
 	WM_operatortype_append(SCREEN_OT_space_context_cycle);
 	WM_operatortype_append(SCREEN_OT_workspace_cycle);
 

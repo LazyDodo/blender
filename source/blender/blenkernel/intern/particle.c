@@ -442,8 +442,8 @@ void BKE_particlesettings_free(ParticleSettings *part)
 	if (part->twistcurve)
 		curvemapping_free(part->twistcurve);
 
-	free_partdeflect(part->pd);
-	free_partdeflect(part->pd2);
+	BKE_partdeflect_free(part->pd);
+	BKE_partdeflect_free(part->pd2);
 
 	MEM_SAFE_FREE(part->effector_weights);
 
@@ -3212,7 +3212,7 @@ static void default_particle_settings(ParticleSettings *part)
 	part->draw_col = PART_DRAW_COL_MAT;
 
 	if (!part->effector_weights)
-		part->effector_weights = BKE_add_effector_weights(NULL);
+		part->effector_weights = BKE_effector_add_weights(NULL);
 
 	part->omat = 1;
 	part->use_modifier_stack = false;
@@ -4213,9 +4213,7 @@ void psys_make_billboard(ParticleBillboardData *bb, float xvec[3], float yvec[3]
 	/* can happen with bad pointcache or physics calculation
 	 * since this becomes geometry, nan's and inf's crash raytrace code.
 	 * better not allow this. */
-	if ((!isfinite(bb->vec[0])) || (!isfinite(bb->vec[1])) || (!isfinite(bb->vec[2])) ||
-	    (!isfinite(bb->vel[0])) || (!isfinite(bb->vel[1])) || (!isfinite(bb->vel[2])) )
-	{
+	if (!is_finite_v3(bb->vec) || !is_finite_v3(bb->vec)) {
 		zero_v3(bb->vec);
 		zero_v3(bb->vel);
 

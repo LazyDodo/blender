@@ -994,8 +994,9 @@ static void transform_event_xyz_constraint(TransInfo *t, short key_type, char cm
 		else if (!edit_2d) {
 			if (cmode != axis) {
 				/* First press, constraint to an axis. */
-				t->orientation.index = 1;
-				const short orientation = t->orientation.types[t->orientation.index];
+				t->orientation.index = 0;
+				const short *orientation_ptr = t->orientation.types[t->orientation.index];
+				const short  orientation = orientation_ptr ? *orientation_ptr : V3D_MANIP_GLOBAL;
 				if (is_plane == false) {
 					setUserConstraint(t, orientation, constraint_axis, msg2);
 				}
@@ -1011,7 +1012,8 @@ static void transform_event_xyz_constraint(TransInfo *t, short key_type, char cm
 					stopConstraint(t);
 				}
 				else {
-					const short orientation = t->orientation.types[t->orientation.index];
+					const short *orientation_ptr = t->orientation.types[t->orientation.index];
+					const short  orientation = orientation_ptr ? *orientation_ptr : V3D_MANIP_GLOBAL;
 					if (is_plane == false) {
 						setUserConstraint(t, orientation, constraint_axis, msg2);
 					}
@@ -1371,7 +1373,16 @@ int transformEvent(TransInfo *t, const wmEvent *event)
 							stopConstraint(t);
 						}
 						else {
-							initSelectConstraint(t, t->spacemtx);
+							if (event->shift) {
+								initSelectConstraint(t, t->spacemtx);
+							}
+							else {
+								/* bit hackish... but it prevents mmb select to print the orientation from menu */
+								float mati[3][3];
+								strcpy(t->spacename, "global");
+								unit_m3(mati);
+								initSelectConstraint(t, mati);
+							}
 							postSelectConstraint(t);
 						}
 					}
@@ -1749,7 +1760,7 @@ static bool helpline_poll(bContext *C)
 	return 0;
 }
 
-static void drawHelpline(bContext *C, int x, int y, void *customdata)
+static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 {
 	TransInfo *t = (TransInfo *)customdata;
 
@@ -1765,32 +1776,7 @@ static void drawHelpline(bContext *C, int x, int y, void *customdata)
 		    (float)t->mval[1],
 		};
 
-		/* grease pencil only can edit one object at time because GP has
-		 * multiframe edition that replaces multiobject edition.
-		 * If multiobject edition is added, maybe this code will need
-		 * an update
-		 */
-		if ((t->flag & T_POINTS) && (t->options & CTX_GPENCIL_STROKES) &&
-		    (t->around != V3D_AROUND_ACTIVE))
-		{
-			Object *ob = CTX_data_active_object(C);
-			if ((ob) && (ob->type == OB_GPENCIL)) {
-				FOREACH_TRANS_DATA_CONTAINER(t, tc) {
-					float vecrot[3];
-					copy_v3_v3(vecrot, t->center_global);
-					mul_m4_v3(ob->obmat, vecrot);
-					projectFloatViewEx(t, vecrot, cent, V3D_PROJ_TEST_CLIP_ZERO);
-				}
-			}
-			else {
-				/* normally, never must be used */
-				projectFloatViewEx(t, t->center_global, cent, V3D_PROJ_TEST_CLIP_ZERO);
-			}
-		}
-		else {
-			projectFloatViewEx(t, t->center_global, cent, V3D_PROJ_TEST_CLIP_ZERO);
-		}
-
+		projectFloatViewEx(t, t->center_global, cent, V3D_PROJ_TEST_CLIP_ZERO);
 		/* Offset the values for the area region. */
 		const float offset[2] = {
 		    t->ar->winrct.xmin,

@@ -33,9 +33,12 @@ static bool drw_texture_format_supports_framebuffer(GPUTextureFormat format)
 	switch (format) {
 		/* Only add formats that are COMPATIBLE with FB.
 		 * Generally they are multiple of 16bit. */
+		case GPU_R8:
+		case GPU_R8UI:
 		case GPU_R16F:
 		case GPU_R16I:
 		case GPU_R16UI:
+		case GPU_R16:
 		case GPU_R32F:
 		case GPU_R32UI:
 		case GPU_RG8:

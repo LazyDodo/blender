@@ -182,9 +182,9 @@ void BLO_update_defaults_startup_blend(Main *bmain, const char *app_template)
 				CurveMapping *gp_falloff_curve = ts->gp_sculpt.cur_falloff;
 				curvemapping_initialize(gp_falloff_curve);
 				curvemap_reset(gp_falloff_curve->cm,
-					&gp_falloff_curve->clipr,
-					CURVE_PRESET_GAUSS,
-					CURVEMAP_SLOPE_POSITIVE);
+				               &gp_falloff_curve->clipr,
+				               CURVE_PRESET_GAUSS,
+				               CURVEMAP_SLOPE_POSITIVE);
 			}
 		}
 	}
@@ -243,14 +243,24 @@ void BLO_update_defaults_startup_blend(Main *bmain, const char *app_template)
 			BKE_view_layer_rename(bmain, scene, scene->view_layers.first, "View Layer");
 		}
 
+		/* Rename lamp objects. */
+		for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+			if (STREQ(ob->id.name, "OBLamp")) {
+				STRNCPY(ob->id.name, "OBLight");
+			}
+		}
+		for (Lamp *lamp = bmain->lamp.first; lamp; lamp = lamp->id.next) {
+			if (STREQ(lamp->id.name, "LALamp")) {
+				STRNCPY(lamp->id.name, "LALight");
+			}
+		}
+
 		for (Mesh *mesh = bmain->mesh.first; mesh; mesh = mesh->id.next) {
 			/* Match default for new meshes. */
 			mesh->smoothresh = DEG2RADF(30);
 		}
-	}
 
-	/* Grease Pencil New Eraser Brush */
-	if (builtin_template) {
+		/* Grease Pencil New Eraser Brush */
 		Brush *br;
 		/* Rename old Hard Eraser */
 		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Eraser Hard");
@@ -290,5 +300,9 @@ void BLO_update_defaults_startup_blend(Main *bmain, const char *app_template)
 				}
 			}
 		}
+	}
+
+	for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+		copy_v3_v3(scene->display.light_direction, (float[3]){M_SQRT1_3, M_SQRT1_3, M_SQRT1_3});
 	}
 }

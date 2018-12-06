@@ -1067,6 +1067,15 @@ class _defs_gpencil_paint:
             keymap=(),
         )
 
+    @ToolDef.from_fn
+    def arc():
+        return dict(
+            text="Arc",
+            icon="ops.gpencil.primitive_arc",
+            cursor='CROSSHAIR',
+            widget=None,
+            keymap=(),
+        )
 
 class _defs_gpencil_edit:
     @ToolDef.from_fn
@@ -1420,6 +1429,15 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
         ),
     )
 
+    _tools_default = (
+        *_tools_select,
+        _defs_view3d_generic.cursor,
+        None,
+        *_tools_transform,
+        None,
+        *_tools_annotate,
+    )
+
     _tools = {
         None: [
             # Don't use this! because of paint modes.
@@ -1427,20 +1445,10 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             # End group.
         ],
         'OBJECT': [
-            *_tools_select,
-            _defs_view3d_generic.cursor,
-            None,
-            *_tools_transform,
-            None,
-            *_tools_annotate,
+            *_tools_default,
         ],
         'POSE': [
-            *_tools_select,
-            _defs_view3d_generic.cursor,
-            None,
-            *_tools_transform,
-            None,
-            *_tools_annotate,
+            *_tools_default,
             None,
             (
                 _defs_pose.breakdown,
@@ -1449,12 +1457,8 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             ),
         ],
         'EDIT_ARMATURE': [
-            *_tools_select,
-            _defs_view3d_generic.cursor,
+            *_tools_default,
             None,
-            *_tools_transform,
-            None,
-            *_tools_annotate,
             _defs_edit_armature.roll,
             (
                 _defs_edit_armature.bone_size,
@@ -1467,12 +1471,7 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             ),
         ],
         'EDIT_MESH': [
-            *_tools_select,
-            _defs_view3d_generic.cursor,
-            None,
-            *_tools_transform,
-            None,
-            *_tools_annotate,
+            *_tools_default,
             None,
             _defs_edit_mesh.cube_add,
             None,
@@ -1519,12 +1518,7 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             ),
         ],
         'EDIT_CURVE': [
-            *_tools_select,
-            _defs_view3d_generic.cursor,
-            None,
-            *_tools_transform,
-            None,
-            *_tools_annotate,
+            *_tools_default,
             None,
             _defs_edit_curve.tilt,
             _defs_edit_curve.draw,
@@ -1533,23 +1527,14 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
                 _defs_edit_curve.extrude_cursor,
             ),
         ],
+        'EDIT_SURFACE': [
+            *_tools_default,
+        ],
         'EDIT_METABALL': [
-            *_tools_select,
-            _defs_view3d_generic.cursor,
-            None,
-            *_tools_transform,
-            None,
-            *_tools_annotate,
-            None,
+            *_tools_default,
         ],
         'EDIT_LATTICE': [
-            *_tools_select,
-            _defs_view3d_generic.cursor,
-            None,
-            *_tools_transform,
-            None,
-            *_tools_annotate,
-            None,
+            *_tools_default,
         ],
         'PARTICLE': [
             _defs_view3d_generic.cursor,
@@ -1597,6 +1582,7 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             _defs_gpencil_paint.line,
             _defs_gpencil_paint.box,
             _defs_gpencil_paint.circle,
+            _defs_gpencil_paint.arc,
         ],
         'GPENCIL_EDIT': [
             *_tools_gpencil_select,

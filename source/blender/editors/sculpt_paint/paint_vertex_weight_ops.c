@@ -60,6 +60,7 @@
 #include "BKE_colortools.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -691,13 +692,15 @@ static int paint_weight_gradient_modal(bContext *C, wmOperator *op, const wmEven
 
 	if (ret & OPERATOR_CANCELLED) {
 		Object *ob = CTX_data_active_object(C);
-		Mesh *me = ob->data;
-		if (vert_cache->wpp.wpaint_prev) {
-			BKE_defvert_array_free_elems(me->dvert, me->totvert);
-			BKE_defvert_array_copy(me->dvert, vert_cache->wpp.wpaint_prev, me->totvert);
-			wpaint_prev_destroy(&vert_cache->wpp);
+		if (vert_cache != NULL) {
+			Mesh *me = ob->data;
+			if (vert_cache->wpp.wpaint_prev) {
+				BKE_defvert_array_free_elems(me->dvert, me->totvert);
+				BKE_defvert_array_copy(me->dvert, vert_cache->wpp.wpaint_prev, me->totvert);
+				wpaint_prev_destroy(&vert_cache->wpp);
+			}
+			MEM_freeN(vert_cache);
 		}
-		MEM_freeN(vert_cache);
 
 		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
 		WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, ob);
@@ -786,7 +789,10 @@ static int paint_weight_gradient_exec(bContext *C, wmOperator *op)
 
 	ED_view3d_init_mats_rv3d(ob, ar->regiondata);
 
-	Mesh *me_eval = mesh_get_eval_final(depsgraph, scene, ob, scene->customdata_mask | CD_MASK_ORIGINDEX);
+	Scene *scene_eval = DEG_get_evaluated_scene(depsgraph);
+	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
+
+	Mesh *me_eval = mesh_get_eval_final(depsgraph, scene_eval, ob_eval, scene->customdata_mask | CD_MASK_ORIGINDEX);
 	if (data.is_init) {
 		data.vert_visit = BLI_BITMAP_NEW(me->totvert, __func__);
 

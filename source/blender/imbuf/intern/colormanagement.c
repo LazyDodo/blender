@@ -1133,8 +1133,7 @@ void IMB_colormanagement_check_file_config(Main *bmain)
 			if (seq->strip) {
 				colormanage_check_colorspace_settings(&seq->strip->colorspace_settings, "sequencer strip");
 			}
-		}
-		SEQ_END
+		} SEQ_END;
 	}
 
 	/* ** check input color space settings ** */
@@ -2364,6 +2363,12 @@ const char *IMB_colormanagement_display_get_none_name(void)
 	return colormanage_display_get_default_name();
 }
 
+const char *IMB_colormanagement_display_get_default_view_transform_name(
+        struct ColorManagedDisplay *display)
+{
+	return colormanage_view_get_default_name(display);
+}
+
 /*********************** View functions *************************/
 
 const char *colormanage_view_get_default_name(const ColorManagedDisplay *display)
@@ -2571,7 +2576,7 @@ const char *IMB_colormanagement_colorspace_get_indexed_name(int index)
 	return "";
 }
 
-void IMB_colormanagment_colorspace_from_ibuf_ftype(ColorManagedColorspaceSettings *colorspace_settings, ImBuf *ibuf)
+void IMB_colormanagement_colorspace_from_ibuf_ftype(ColorManagedColorspaceSettings *colorspace_settings, ImBuf *ibuf)
 {
 	/* Don't modify non-color data space, it does not change with file type. */
 	ColorSpace *colorspace = colormanage_colorspace_get_named(colorspace_settings->name);

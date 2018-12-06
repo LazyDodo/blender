@@ -2088,6 +2088,11 @@ static void rna_unit_system_update(Main *UNUSED(bmain), Scene *scene, PointerRNA
 	}
 }
 
+static char *rna_UnitSettings_path(PointerRNA *UNUSED(ptr))
+{
+	return BLI_sprintfN("unit_settings");
+}
+
 #else
 
 /* Grease Pencil Interpolation tool settings */
@@ -3015,6 +3020,8 @@ static void rna_def_unit_settings(BlenderRNA *brna)
 
 	srna = RNA_def_struct(brna, "UnitSettings", NULL);
 	RNA_def_struct_ui_text(srna, "Unit Settings", "");
+	RNA_def_struct_nested(brna, srna, "Scene");
+	RNA_def_struct_path_func(srna, "rna_UnitSettings_path");
 
 	/* Units */
 	prop = RNA_def_property(srna, "system", PROP_ENUM, PROP_NONE);
@@ -5591,11 +5598,18 @@ static void rna_def_scene_display(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_SCENE | NA_EDITED, "rna_Scene_set_update");
 
 	prop = RNA_def_property(srna, "shadow_shift", PROP_FLOAT, PROP_ANGLE);
-	RNA_def_property_float_sdna(prop, NULL, "shadow_shift");
 	RNA_def_property_float_default(prop, 0.1);
 	RNA_def_property_ui_text(prop, "Shadow Shift", "Shadow termination angle");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_ui_range(prop, 0.00f, 1.0f, 1, 2);
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_update(prop, NC_SCENE | NA_EDITED, "rna_Scene_set_update");
+
+	prop = RNA_def_property(srna, "shadow_focus", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_float_default(prop, 0.0);
+	RNA_def_property_ui_text(prop, "Shadow Focus", "Shadow factor hardness");
+	RNA_def_property_range(prop, 0.0f, 1.0f);
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 1, 2);
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, NC_SCENE | NA_EDITED, "rna_Scene_set_update");
 

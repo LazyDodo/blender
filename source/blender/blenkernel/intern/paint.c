@@ -664,11 +664,13 @@ bool BKE_paint_ensure(const ToolSettings *ts, struct Paint **r_paint)
 		return true;
 	}
 
-	if (ELEM(*r_paint, &ts->vpaint->paint, &ts->wpaint->paint)) {
+	if (((VPaint **)r_paint == &ts->vpaint) ||
+	    ((VPaint **)r_paint == &ts->wpaint))
+	{
 		VPaint *data = MEM_callocN(sizeof(*data), __func__);
 		paint = &data->paint;
 	}
-	else if (*r_paint == &ts->sculpt->paint) {
+	else if ((Sculpt **)r_paint == &ts->sculpt) {
 		Sculpt *data = MEM_callocN(sizeof(*data), __func__);
 		paint = &data->paint;
 
@@ -678,11 +680,11 @@ bool BKE_paint_ensure(const ToolSettings *ts, struct Paint **r_paint)
 		/* Make sure at least dyntopo subdivision is enabled */
 		data->flags |= SCULPT_DYNTOPO_SUBDIVIDE | SCULPT_DYNTOPO_COLLAPSE;
 	}
-	else if (*r_paint == &ts->gp_paint->paint) {
+	else if ((GpPaint **)r_paint == &ts->gp_paint) {
 		GpPaint *data = MEM_callocN(sizeof(*data), __func__);
 		paint = &data->paint;
 	}
-	else if (*r_paint == &ts->uvsculpt->paint) {
+	else if ((UvSculpt **)r_paint == &ts->uvsculpt) {
 		UvSculpt *data = MEM_callocN(sizeof(*data), __func__);
 		paint = &data->paint;
 	}
@@ -1406,7 +1408,7 @@ PBVH *BKE_sculpt_object_pbvh_ensure(Depsgraph *depsgraph, Object *ob)
 		}
 		else if (ob->type == OB_MESH) {
 			Mesh *me_eval_deform = mesh_get_eval_deform(
-			        depsgraph, DEG_get_evaluated_scene(depsgraph), ob, CD_MASK_BAREMESH);
+			        depsgraph, DEG_get_evaluated_scene(depsgraph), object_eval, CD_MASK_BAREMESH);
 			pbvh = build_pbvh_from_regular_mesh(ob, me_eval_deform);
 		}
 	}
