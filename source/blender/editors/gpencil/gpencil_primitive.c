@@ -111,6 +111,9 @@ static void gp_session_validatebuffer(tGPDprimitive *p)
 	/* reset flags */
 	gpd->runtime.sbuffer_sflag = 0;
 	gpd->runtime.sbuffer_sflag |= GP_STROKE_3DSPACE;
+	if (p->cyclic) {
+		gpd->runtime.sbuffer_sflag |= GP_STROKE_CYCLIC;
+	}
 }
 
 static void gp_init_colors(tGPDprimitive *p)
@@ -432,12 +435,15 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	tPGPspoint *points2D = MEM_callocN(sizeof(tPGPspoint) * tgpi->tot_edges, "gp primitive points2D");
 	switch (tgpi->type) {
 		case GP_STROKE_BOX:
+			tgpi->cyclic = true;
 			gp_primitive_rectangle(tgpi, points2D);
 			break;
 		case GP_STROKE_LINE:
+			tgpi->cyclic = false;
 			gp_primitive_line(tgpi, points2D);
 			break;
 		case GP_STROKE_CIRCLE:
+			tgpi->cyclic = true;
 			gp_primitive_circle(tgpi, points2D);
 			break;
 		case GP_STROKE_ARC:
@@ -611,9 +617,6 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 
 	/* set GP datablock */
 	tgpi->gpd = gpd;
-
-	/* prepare buffer data */
-	gp_session_validatebuffer(tgpi);
 
 	/* getcolor info */
 	tgpi->mat = BKE_gpencil_material_ensure(bmain, tgpi->ob);
