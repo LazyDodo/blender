@@ -88,9 +88,7 @@
 
 #define IDLE 0
 #define IN_PROGRESS 1
-#define IN_CURVE_EDIT_A 2
-#define IN_CURVE_EDIT_B 3
-#define IN_CURVE_EDIT_BEZIER 4
+#define IN_CURVE_EDIT_BEZIER 2
 
 #define CURVE_CP_NONE 0
 #define CURVE_CP_T 1
@@ -301,7 +299,7 @@ static void gpencil_primitive_status_indicators(bContext *C, tGPDprimitive *tgpi
 		BLI_strncpy(msg_str, IFACE_("Arc: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center, F to flip, C to Close"), UI_MAX_DRAW_STR);
 	}
 	else if (tgpi->type == GP_STROKE_BEZIER) {
-		BLI_strncpy(msg_str, IFACE_("Bezier: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center, F to flip, C to Close"), UI_MAX_DRAW_STR);
+		BLI_strncpy(msg_str, IFACE_("Bezier: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center, C to Close"), UI_MAX_DRAW_STR);
 	}
 	else {
 		BLI_strncpy(msg_str, IFACE_("Circle: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center"), UI_MAX_DRAW_STR);
@@ -902,7 +900,6 @@ static void gpencil_primitive_bezier_event_handling(bContext *C, wmOperator *op,
 		}
 		break;
 	}
-
 }
 
 /* Modal handler: Events handling during interactive part */
@@ -924,12 +921,6 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 				/* TODO: Ignore if not in main region yet */
 				tgpi->flag = IN_PROGRESS;
 				gpencil_primitive_interaction_begin(tgpi, event);
-			}
-			
-			else if (0 && (event->val == KM_RELEASE) && (tgpi->flag == IN_CURVE_EDIT_BEZIER)) {
-				/* second control point */
-				tgpi->flag = IN_CURVE_EDIT_B;
-				copy_v2_v2_int(tgpi->mvalo, event->mval);
 			}
 			else if ((event->val == KM_RELEASE) && (tgpi->flag == IN_PROGRESS) && (tgpi->type != GP_STROKE_BEZIER)) {
 				/* stop drawing primitive */
@@ -1015,7 +1006,6 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 		}
 		case MOUSEMOVE: /* calculate new position */
 		{
-
 			if (tgpi->flag == IN_CURVE_EDIT_BEZIER) {
 				break;
 			}
@@ -1035,7 +1025,7 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 				if (event->shift) {
 					int x = tgpi->bottom[0] - tgpi->origin[0];
 					int y = tgpi->bottom[1] - tgpi->origin[1];
-					if (tgpi->type == GP_STROKE_LINE) {
+					if (tgpi->type == GP_STROKE_LINE || tgpi->curve) {
 						float angle = fabsf(atan2f((float)y, (float)x));
 						if (angle < 0.4f || angle > (M_PI - 0.4f)) {
 							tgpi->bottom[1] = tgpi->origin[1];
@@ -1063,7 +1053,7 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 		}
 		default:
 		{
-			if ((event->val == KM_PRESS) && handleNumInput(C, &tgpi->num, event)) {
+			if (tgpi->flag != IN_CURVE_EDIT_BEZIER && (event->val == KM_PRESS) && handleNumInput(C, &tgpi->num, event)) {
 				float value;
 
 				/* Grab data from numeric input, and store this new value (the user see an int) */
