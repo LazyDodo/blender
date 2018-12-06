@@ -1173,7 +1173,7 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 	/* Check if may need to draw the active stroke cache, only if this layer is the active layer
 	 * that is being edited. (Stroke buffer is currently stored in gp-data)
 	 */
-	if (ED_gpencil_session_active() && (gpd->runtime.sbuffer_size > 0)) {
+	if (gpd->runtime.sbuffer_size > 0) {
 		if ((gpd->runtime.sbuffer_sflag & GP_STROKE_ERASER) == 0) {
 			/* It should also be noted that sbuffer contains temporary point types
 			 * i.e. tGPspoints NOT bGPDspoints

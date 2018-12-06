@@ -113,6 +113,55 @@ static void gp_session_validatebuffer(tGPDprimitive *p)
 	gpd->runtime.sbuffer_sflag |= GP_STROKE_3DSPACE;
 }
 
+static void gp_init_colors(tGPDprimitive *p)
+{
+	bGPdata *gpd = p->gpd;
+	Brush *brush = p->brush;
+
+	Material *ma = NULL;
+	MaterialGPencilStyle *gp_style = NULL;
+
+	/* use brush material */
+	ma = BKE_gpencil_get_material_from_brush(brush);
+
+	/* if no brush defaults, get material and color info
+	 * NOTE: Ensures that everything we need will exist...
+	 */
+	if ((ma == NULL) || (ma->gp_style == NULL)) {
+		BKE_gpencil_material_ensure(p->bmain, p->ob);
+
+		/* assign always the first material to the brush */
+		p->mat = give_current_material(p->ob, 1);
+		brush->gpencil_settings->material = p->mat;
+	}
+	else {
+		p->mat = ma;
+	}
+
+	/* check if the material is already on object material slots and add it if missing */
+	if (BKE_gpencil_get_material_index(p->ob, p->mat) == 0) {
+		BKE_object_material_slot_add(p->bmain, p->ob);
+		assign_material(p->bmain, p->ob, ma, p->ob->totcol, BKE_MAT_ASSIGN_USERPREF);
+	}
+
+	/* assign color information to temp data */
+	gp_style = p->mat->gp_style;
+	if (gp_style) {
+
+		/* set colors */
+		copy_v4_v4(gpd->runtime.scolor, gp_style->stroke_rgba);
+		copy_v4_v4(gpd->runtime.sfill, gp_style->fill_rgba);
+		/* add some alpha to make easy the filling without hide strokes */
+		if (gpd->runtime.sfill[3] > 0.8f) {
+			gpd->runtime.sfill[3] = 0.8f;
+		}
+
+		gpd->runtime.mode = (short)gp_style->mode;
+		gpd->runtime.bstroke_style = gp_style->stroke_style;
+		gpd->runtime.bfill_style = gp_style->fill_style;
+	}
+}
+
   /* Poll callback for primitive operators */
 static bool gpencil_primitive_add_poll(bContext *C)
 {
@@ -404,7 +453,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 
 	/* convert screen-coordinates to 3D coordinates */
 	gp_session_validatebuffer(tgpi);
-	
+	gp_init_colors(tgpi);
 
 	for (int i = 0; i < gps->totpoints; i++) {
 		bGPDspoint *pt = &gps->points[i];
@@ -414,8 +463,8 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		tGPspoint *tpt = ((tGPspoint *)(gpd->runtime.sbuffer) + gpd->runtime.sbuffer_size);
 		tpt->x = p2d->x;
 		tpt->y = p2d->y;
-		tpt->pressure = p2d->pressure;
-		tpt->strength = p2d->strength;
+		tpt->pressure = 1.0f;
+		tpt->strength = 1.0f;
 		tpt->time = p2d->time;
 		tpt->uv_fac = p2d->uv_fac;
 		tpt->uv_rot = p2d->uv_rot;
@@ -547,6 +596,7 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 	op->customdata = tgpi;
 
 	/* set current scene and window info */
+	tgpi->bmain = CTX_data_main(C);
 	tgpi->scene = scene;
 	tgpi->ob = CTX_data_active_object(C);
 	tgpi->sa = CTX_wm_area(C);
