@@ -88,6 +88,15 @@
 
 #define IDLE 0
 #define IN_PROGRESS 1
+#define IN_CURVE_EDIT_A 2
+#define IN_CURVE_EDIT_B 3
+#define IN_CURVE_EDIT_BEZIER 4
+
+#define CURVE_CP_NONE 0
+#define CURVE_CP_T 1
+#define CURVE_CP_1 2
+#define CURVE_CP_2 3
+#define CURVE_CP_B 4
 
   /* ************************************************ */
   /* Core/Shared Utilities */
@@ -291,6 +300,9 @@ static void gpencil_primitive_status_indicators(bContext *C, tGPDprimitive *tgpi
 	else if (tgpi->type == GP_STROKE_ARC) {
 		BLI_strncpy(msg_str, IFACE_("Arc: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center, F to flip, C to Close"), UI_MAX_DRAW_STR);
 	}
+	else if (tgpi->type == GP_STROKE_BEZIER) {
+		BLI_strncpy(msg_str, IFACE_("Bezier: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center, F to flip, C to Close"), UI_MAX_DRAW_STR);
+	}
 	else {
 		BLI_strncpy(msg_str, IFACE_("Circle: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center"), UI_MAX_DRAW_STR);
 	}
@@ -393,6 +405,29 @@ static void gp_primitive_arc(tGPDprimitive *tgpi, tPGPspoint *points2D)
 	}
 }
 
+/* create a bezier */
+static void gp_primitive_bezier(tGPDprimitive *tgpi, tPGPspoint *points2D)
+{
+	const int totpoints = tgpi->tot_edges;
+	const float step = 1.0f / (float)(totpoints - 1);
+	float cp1[2];
+	float cp2[2];
+	float cp3[2];
+	float cp4[2];
+	float a = 0.0f;
+
+	copy_v2fl_v2i(cp1, tgpi->top);
+	copy_v2fl_v2i(cp2, tgpi->bezcp1);
+	copy_v2fl_v2i(cp3, tgpi->bezcp2);
+	copy_v2fl_v2i(cp4, tgpi->bottom);
+
+	for (int i = 0; i < totpoints; i++) {
+		tPGPspoint *p2d = &points2D[i];
+		interp_v2_v2v2v2v2_cubic(&p2d->x, cp1, cp2, cp3, cp4, a);
+		a += step;
+	}
+}
+
 /* create a circle */
 static void gp_primitive_circle(tGPDprimitive *tgpi, tPGPspoint *points2D)
 {
@@ -448,14 +483,19 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 			break;
 		case GP_STROKE_ARC:
 			gp_primitive_arc(tgpi, points2D);
-			if (tgpi->cyclic)
-				gps->flag |= GP_STROKE_CYCLIC;
-			else
-				gps->flag &= ~GP_STROKE_CYCLIC;
 			break;
+		case GP_STROKE_BEZIER:
+			gp_primitive_bezier(tgpi, points2D);
 		default:
 			break;
 	}
+
+	if (ELEM(tgpi->type, GP_STROKE_ARC, GP_STROKE_BEZIER)) {
+		if (tgpi->cyclic)
+			gps->flag |= GP_STROKE_CYCLIC;
+		else
+			gps->flag &= ~GP_STROKE_CYCLIC;
+	}	
 
 	/* convert screen-coordinates to 3D coordinates */
 	gp_session_validatebuffer(tgpi);
@@ -538,14 +578,11 @@ static void gpencil_primitive_update(bContext *C, wmOperator *op, tGPDprimitive 
 
 static void gpencil_primitive_interaction_begin(tGPDprimitive *tgpi, const wmEvent *event)
 {
-	tgpi->origin[0] = event->mval[0];
-	tgpi->origin[1] = event->mval[1];
-
-	tgpi->top[0] = event->mval[0];
-	tgpi->top[1] = event->mval[1];
-
-	tgpi->bottom[0] = event->mval[0];
-	tgpi->bottom[1] = event->mval[1];
+	copy_v2_v2_int(tgpi->origin, event->mval);
+	copy_v2_v2_int(tgpi->top, event->mval);
+	copy_v2_v2_int(tgpi->bottom, event->mval);
+	copy_v2_v2_int(tgpi->bezcp1, event->mval);
+	copy_v2_v2_int(tgpi->bezcp2, event->mval);
 }
 
 /* Exit and free memory */
@@ -624,11 +661,16 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 	/* set parameters */
 	tgpi->type = RNA_enum_get(op->ptr, "type");
 
+	if(ELEM(tgpi->type, GP_STROKE_ARC, GP_STROKE_BEZIER))
+		tgpi->curve = true;
+	else
+		tgpi->curve = false;
+
 	/* set default edge count */
 	if (tgpi->type == GP_STROKE_CIRCLE) {
 		RNA_int_set(op->ptr, "edges", 64);
 	}
-	else if (tgpi->type == GP_STROKE_ARC) {
+	else if (tgpi->curve) {
 		RNA_int_set(op->ptr, "edges", 32);
 	}
 	else if (tgpi->type == GP_STROKE_BOX) {
@@ -735,7 +777,18 @@ static void gpencil_primitive_interaction_end(bContext *C, wmOperator *op, wmWin
 	DEG_id_tag_update(&tgpi->gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 
 	/* clean up temp data */
-	gpencil_primitive_exit(C, op);
+	
+}
+
+/* Helper to set bezier cp */
+static void gpencil_primitive_set_midpoint(tGPDprimitive *tgpi)
+{
+	float midpoint[2], start[2], end[2];
+	copy_v2fl_v2i(start, tgpi->top);
+	copy_v2fl_v2i(end, tgpi->bottom);
+	mid_v2_v2v2(midpoint, start, end);
+	round_v2i_v2fl(tgpi->bezcp1, midpoint);
+	copy_v2_v2_int(tgpi->bezcp2, tgpi->bezcp1);
 }
 
 /* Helper to square a primitive */
@@ -757,12 +810,112 @@ static void gpencil_primitive_to_square(tGPDprimitive *tgpi, const int x, const 
 	}
 }
 
+#define MOVE_NONE 0
+#define MOVE_ENDS 1
+#define MOVE_CP 2
+
+/* bezier event handling */
+static void gpencil_primitive_bezier_event_handling(bContext *C, wmOperator *op, wmWindow *win, const wmEvent *event, tGPDprimitive *tgpi) {
+	/* calculate nearest point then set cursor */
+	int move = MOVE_NONE;
+	float a = len_v2v2_int(event->mval, tgpi->top);
+	float b = len_v2v2_int(event->mval, tgpi->bottom);
+
+	if (event->shift) {
+		if (a < 10 || b < 10) {
+			move = MOVE_ENDS;
+			WM_cursor_modal_set(win, BC_RING_CURSOR);
+		}
+		else {
+			move = MOVE_CP;
+			WM_cursor_modal_set(win, BC_HANDCURSOR);
+		}
+	}
+	else {
+		WM_cursor_modal_set(win, BC_CROSSCURSOR);
+	}
+
+	switch (event->type) {
+	/* calculate new position */
+	case MOUSEMOVE:
+		if ((event->shift) && (event->val == KM_PRESS) && tgpi->sel_cp != CURVE_CP_NONE) {
+			if (tgpi->sel_cp == CURVE_CP_T) {
+				copy_v2_v2_int(tgpi->top, event->mval);
+			}
+			else if (tgpi->sel_cp == CURVE_CP_B) {
+				copy_v2_v2_int(tgpi->bottom, event->mval);
+			}
+			else if (tgpi->sel_cp == CURVE_CP_1) {
+				int dx = (event->mval[0] - tgpi->mvalo[0]);
+				int dy = (event->mval[1] - tgpi->mvalo[1]);
+				tgpi->bezcp1[0] += dx;
+				tgpi->bezcp1[1] += dy;
+				if (event->ctrl)
+					copy_v2_v2_int(tgpi->bezcp2, tgpi->bezcp1);
+			}
+			else if (tgpi->sel_cp == CURVE_CP_2) {
+				int dx = (event->mval[0] - tgpi->mvalo[0]);
+				int dy = (event->mval[1] - tgpi->mvalo[1]);
+				tgpi->bezcp2[0] += dx;
+				tgpi->bezcp2[1] += dy;
+				if (event->ctrl)
+					copy_v2_v2_int(tgpi->bezcp1, tgpi->bezcp2);
+			}
+			copy_v2_v2_int(tgpi->mvalo, event->mval);
+
+			/* update screen */
+			gpencil_primitive_update(C, op, tgpi);
+		}
+		break;
+	case LEFTMOUSE:
+		if ((event->val == KM_PRESS)) {
+			copy_v2_v2_int(tgpi->mvalo, event->mval);
+			/* find nearest cp based on stroke end points */
+			if (move == MOVE_ENDS)
+				tgpi->sel_cp = (a < b) ? CURVE_CP_T : CURVE_CP_B;
+			else if (move == MOVE_CP)
+				tgpi->sel_cp = (a < b) ? CURVE_CP_1 : CURVE_CP_2;
+			else
+				tgpi->sel_cp = CURVE_CP_NONE;
+			break;
+		}
+		else if ((event->val == KM_RELEASE) && (tgpi->flag == IN_PROGRESS)) {
+			/* set control points and enter edit mode */
+			tgpi->flag = IN_CURVE_EDIT_BEZIER;
+			gpencil_primitive_set_midpoint(tgpi);
+			copy_v2_v2_int(tgpi->mvalo, event->mval);
+		}
+		else {
+			tgpi->sel_cp = CURVE_CP_NONE;
+		}
+		break;
+	case AKEY:
+		if (tgpi->flag == IN_CURVE_EDIT_BEZIER) {
+			tgpi->flag = IN_PROGRESS;
+			gpencil_primitive_interaction_end(C, op, win, tgpi);
+			/* currently, stroke is not rendered until end, was working in main branch */
+			gp_primitive_set_initdata(C, tgpi);
+			copy_v2_v2_int(tgpi->top, tgpi->bottom);
+			copy_v2_v2_int(tgpi->origin, tgpi->top);
+			gpencil_primitive_set_midpoint(tgpi);
+			copy_v2_v2_int(tgpi->mvalo, event->mval);
+		}
+		break;
+	}
+
+}
+
 /* Modal handler: Events handling during interactive part */
 static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *event)
 {
 	tGPDprimitive *tgpi = op->customdata;
 	wmWindow *win = CTX_wm_window(C);
 	const bool has_numinput = hasNumInput(&tgpi->num);
+
+	/* bezier event handling */
+	if (tgpi->type == GP_STROKE_BEZIER) {
+		gpencil_primitive_bezier_event_handling(C, op, win, event, tgpi);
+	}
 
 	switch (event->type) {
 		case LEFTMOUSE:
@@ -772,10 +925,17 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 				tgpi->flag = IN_PROGRESS;
 				gpencil_primitive_interaction_begin(tgpi, event);
 			}
-			else if ((event->val == KM_RELEASE) && (tgpi->flag == IN_PROGRESS)) {
+			
+			else if (0 && (event->val == KM_RELEASE) && (tgpi->flag == IN_CURVE_EDIT_BEZIER)) {
+				/* second control point */
+				tgpi->flag = IN_CURVE_EDIT_B;
+				copy_v2_v2_int(tgpi->mvalo, event->mval);
+			}
+			else if ((event->val == KM_RELEASE) && (tgpi->flag == IN_PROGRESS) && (tgpi->type != GP_STROKE_BEZIER)) {
 				/* stop drawing primitive */
 				tgpi->flag = IDLE;
 				gpencil_primitive_interaction_end(C, op, win, tgpi);
+				gpencil_primitive_exit(C, op);
 				/* done! */
 				return OPERATOR_FINISHED;
 			}
@@ -785,10 +945,12 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 				}
 			}
 			break;
-		case RETKEY:  /* confirm */
+		case SPACEKEY:  /* confirm */
+		case RETKEY:
 		{
 			tgpi->flag = IDLE;
 			gpencil_primitive_interaction_end(C, op, win, tgpi);
+			gpencil_primitive_exit(C, op);
 			/* done! */
 			return OPERATOR_FINISHED;
 		}
@@ -853,6 +1015,11 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 		}
 		case MOUSEMOVE: /* calculate new position */
 		{
+
+			if (tgpi->flag == IN_CURVE_EDIT_BEZIER) {
+				break;
+			}
+
 			/* only handle mousemove if not doing numinput */
 			if (has_numinput == false) {
 				/* update position of mouse */
@@ -937,6 +1104,7 @@ void GPENCIL_OT_primitive(wmOperatorType *ot)
 		{GP_STROKE_LINE, "LINE", 0, "Line", ""},
 		{GP_STROKE_CIRCLE, "CIRCLE", 0, "Circle", ""},
 		{GP_STROKE_ARC, "ARC", 0, "Arc", ""},
+		{GP_STROKE_BEZIER, "BEZIER", 0, "Bezier", ""},
 		{0, NULL, 0, NULL, NULL}
 	};
 

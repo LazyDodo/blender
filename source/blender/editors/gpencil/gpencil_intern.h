@@ -155,13 +155,18 @@ typedef struct tGPDprimitive {
 	struct bGPDlayer *gpl;            /* layer */
 	struct bGPDframe *gpf;            /* frame */
 	int type;                         /* type of primitive */
-	short cyclic;                       /* cyclic option */
-	short flip;                         /* flip option */
+	bool curve;                         /* type of primitive is a curve */
+	short cyclic;                     /* cyclic option */
+	short flip;                       /* flip option */
 	int tot_edges;                    /* number of polygon edges */
 	int top[2];                       /* first box corner */
 	int bottom[2];                    /* last box corner */
 	int origin[2];                    /* initial box corner */
+	int bezcp1[2];                     /* first bezier control point */
+	int bezcp2[2];                     /* second bezier control point */
 	int flag;                         /* flag to determine operations in progress */
+	int sel_cp;                         /* flag to determine control point is selected */
+	int mvalo[2];                     /* previous recorded mouse-position */
 
 	int lock_axis;                    /* lock to viewport axis */
 
@@ -380,7 +385,8 @@ enum {
 	GP_STROKE_BOX = -1,
 	GP_STROKE_LINE = 1,
 	GP_STROKE_CIRCLE = 2,
-	GP_STROKE_ARC = 3
+	GP_STROKE_ARC = 3,
+	GP_STROKE_BEZIER = 4
 };
 
 
