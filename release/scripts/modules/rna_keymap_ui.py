@@ -424,10 +424,10 @@ def draw_keymaps(context, layout):
             row = box.row(align=True)
 
             userpref = context.user_preferences
-            inputs = userpref.inputs
-            show_ui_keyconfig = inputs.show_ui_keyconfig
+            keymappref = userpref.keymap
+            show_ui_keyconfig = keymappref.show_ui_keyconfig
             row.prop(
-                inputs,
+                keymappref,
                 "show_ui_keyconfig",
                 text="",
                 icon='DISCLOSURE_TRI_DOWN' if show_ui_keyconfig else 'DISCLOSURE_TRI_RIGHT',

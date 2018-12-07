@@ -293,6 +293,11 @@ static PointerRNA rna_UserDef_input_get(PointerRNA *ptr)
 	return rna_pointer_inherit_refine(ptr, &RNA_UserPreferencesInput, ptr->data);
 }
 
+static PointerRNA rna_UserDef_keymap_get(PointerRNA *ptr)
+{
+	return rna_pointer_inherit_refine(ptr, &RNA_UserPreferencesKeymap, ptr->data);
+}
+
 static PointerRNA rna_UserDef_filepaths_get(PointerRNA *ptr)
 {
 	return rna_pointer_inherit_refine(ptr, &RNA_UserPreferencesFilePaths, ptr->data);
@@ -4606,10 +4611,6 @@ static void rna_def_userdef_input(BlenderRNA *brna)
 	RNA_def_struct_clear_flag(srna, STRUCT_UNDO);
 	RNA_def_struct_ui_text(srna, "Input", "Settings for input devices");
 
-	prop = RNA_def_property(srna, "show_ui_keyconfig", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_negative_sdna(prop, NULL, "userpref_flag", USER_SECTION_INPUT_HIDE_UI_KEYCONFIG);
-	RNA_def_property_ui_text(prop, "Show UI Key-Config", "");
-
 	prop = RNA_def_property(srna, "view_zoom_method", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "viewzoom");
 	RNA_def_property_enum_items(prop, view_zoom_styles);
@@ -4796,6 +4797,21 @@ static void rna_def_userdef_input(BlenderRNA *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "uiflag2", USER_TRACKPAD_NATURAL);
 	RNA_def_property_ui_text(prop, "Trackpad Natural",
 	                         "If your system uses 'natural' scrolling, this option keeps consistent trackpad usage throughout the UI");
+}
+
+static void rna_def_userdef_keymap(BlenderRNA *brna)
+{
+	PropertyRNA *prop;
+
+	StructRNA *srna = RNA_def_struct(brna, "UserPreferencesKeymap", NULL);
+	RNA_def_struct_sdna(srna, "UserDef");
+	RNA_def_struct_nested(brna, srna, "UserPreferences");
+	RNA_def_struct_clear_flag(srna, STRUCT_UNDO);
+	RNA_def_struct_ui_text(srna, "Keymap", "Shortcut setup for keyboards and other input devices");
+
+	prop = RNA_def_property(srna, "show_ui_keyconfig", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_negative_sdna(prop, NULL, "userpref_flag", USER_SECTION_INPUT_HIDE_UI_KEYCONFIG);
+	RNA_def_property_ui_text(prop, "Show UI Key-Config", "");
 
 	prop = RNA_def_property(srna, "active_keyconfig", PROP_STRING, PROP_DIRPATH);
 	RNA_def_property_string_sdna(prop, NULL, "keyconfigstr");
@@ -5003,13 +5019,15 @@ void RNA_def_userdef(BlenderRNA *brna)
 	PropertyRNA *prop;
 
 	static const EnumPropertyItem user_pref_sections[] = {
-		{0, "", ICON_USER, "User Preferences", ""},
+		{0, "", ICON_USER, "User", ""},
 		{USER_SECTION_INTERFACE, "INTERFACE", 0, "Interface", ""},
-		{USER_SECTION_EDIT, "EDITING", 0, "Editing", ""},
-		{USER_SECTION_INPUT, "INPUT", 0, "Input", ""},
-		{USER_SECTION_ADDONS, "ADDONS", 0, "Add-ons", ""},
 		{USER_SECTION_THEME, "THEMES", 0, "Themes", ""},
 		{USER_SECTION_LIGHT, "LIGHTS", 0, "Lights", ""},
+		{USER_SECTION_EDIT, "EDITING", 0, "Editing", ""},
+		{USER_SECTION_INPUT, "INPUT", 0, "Input", ""},
+		{USER_SECTION_KEYMAP, "KEYMAP", 0, "Keymap", ""},
+		{USER_SECTION_ADDONS, "ADDONS", 0, "Add-ons", ""},
+
 #ifdef WITH_USERDEF_WORKSPACES
 		{0, "", ICON_WORKSPACE, "Workspaces", ""},
 		{USER_SECTION_WORKSPACE_CONFIG, "WORKSPACE_CONFIG", 0, "Configuration File", ""},
@@ -5088,6 +5106,12 @@ void RNA_def_userdef(BlenderRNA *brna)
 	RNA_def_property_pointer_funcs(prop, "rna_UserDef_input_get", NULL, NULL, NULL);
 	RNA_def_property_ui_text(prop, "Inputs", "Settings for input devices");
 
+	prop = RNA_def_property(srna, "keymap", PROP_POINTER, PROP_NONE);
+	RNA_def_property_flag(prop, PROP_NEVER_NULL);
+	RNA_def_property_struct_type(prop, "UserPreferencesKeymap");
+	RNA_def_property_pointer_funcs(prop, "rna_UserDef_keymap_get", NULL, NULL, NULL);
+	RNA_def_property_ui_text(prop, "Keymap", "Shortcut setup for keyboards and other input devices");
+
 	prop = RNA_def_property(srna, "filepaths", PROP_POINTER, PROP_NONE);
 	RNA_def_property_flag(prop, PROP_NEVER_NULL);
 	RNA_def_property_struct_type(prop, "UserPreferencesFilePaths");
@@ -5119,6 +5143,7 @@ void RNA_def_userdef(BlenderRNA *brna)
 	rna_def_userdef_view(brna);
 	rna_def_userdef_edit(brna);
 	rna_def_userdef_input(brna);
+	rna_def_userdef_keymap(brna);
 	rna_def_userdef_filepaths(brna);
 	rna_def_userdef_system(brna);
 	rna_def_userdef_addon(brna);

@@ -1424,12 +1424,12 @@ class USERPREF_PT_keymap(Panel):
         #start = time.time()
 
         userpref = context.user_preferences
-        inputs = userpref.inputs
+        keymappref = userpref.keymap
 
         col = layout.column()
 
         # Input settings
-        self.draw_input_prefs(inputs, col)
+        self.draw_input_prefs(keymappref, col)
 
         # Keymap Settings
         draw_keymaps(context, col)
