@@ -348,17 +348,19 @@ static void gp_primitive_rectangle(tGPDprimitive *tgpi, tPGPspoint *points2D)
 {
 	BLI_assert(tgpi->tot_edges == 4);
 
-	points2D[0].x = (float)tgpi->top[0];
-	points2D[0].y = (float)tgpi->top[1];
+	int i = tgpi->tot_stored_edges;
 
-	points2D[1].x = (float)tgpi->bottom[0];
-	points2D[1].y = (float)tgpi->top[1];
+	points2D[i].x = (float)tgpi->top[0];
+	points2D[i].y = (float)tgpi->top[1];
 
-	points2D[2].x = (float)tgpi->bottom[0];
-	points2D[2].y = (float)tgpi->bottom[1];
+	points2D[i + 1].x = (float)tgpi->bottom[0];
+	points2D[i + 1].y = (float)tgpi->top[1];
 
-	points2D[3].x = (float)tgpi->top[0];
-	points2D[3].y = (float)tgpi->bottom[1];
+	points2D[i + 2].x = (float)tgpi->bottom[0];
+	points2D[i + 2].y = (float)tgpi->bottom[1];
+
+	points2D[i + 3].x = (float)tgpi->top[0];
+	points2D[i + 3].y = (float)tgpi->bottom[1];
 }
 
 /* create a line */
@@ -366,18 +368,20 @@ static void gp_primitive_line(tGPDprimitive *tgpi, tPGPspoint *points2D)
 {
 	BLI_assert(tgpi->tot_edges == 2);
 
-	points2D[0].x = (float)tgpi->top[0];
-	points2D[0].y = (float)tgpi->top[1];
+	int i = tgpi->tot_stored_edges;
 
-	points2D[1].x = (float)tgpi->bottom[0];
-	points2D[1].y = (float)tgpi->bottom[1];
+	points2D[i].x = (float)tgpi->top[0];
+	points2D[i].y = (float)tgpi->top[1];
+
+	points2D[i + 1].x = (float)tgpi->bottom[0];
+	points2D[i + 1].y = (float)tgpi->bottom[1];
 }
 
 /* create an arc */
 static void gp_primitive_arc(tGPDprimitive *tgpi, tPGPspoint *points2D)
 {
-	const int totpoints = tgpi->tot_edges;
-	const float step = M_PI_2 / (float)(totpoints - 1);
+	const int totpoints = (tgpi->tot_edges + tgpi->tot_stored_edges);
+	const float step = M_PI_2 / (float)(tgpi->tot_edges - 1);
 	float length[2];
 	int start[2];
 	int end[2];
@@ -396,7 +400,7 @@ static void gp_primitive_arc(tGPDprimitive *tgpi, tPGPspoint *points2D)
 	length[0] = end[0] - start[0];
 	length[1] = end[1] - start[1];
 
-	for (int i = 0; i < totpoints; i++) {
+	for (int i = tgpi->tot_stored_edges; i < totpoints; i++) {
 		tPGPspoint *p2d = &points2D[i];
 		p2d->x = (start[0] + sinf(a) * length[0]);
 		p2d->y = (end[1] - cosf(a) * length[1]);
@@ -407,8 +411,8 @@ static void gp_primitive_arc(tGPDprimitive *tgpi, tPGPspoint *points2D)
 /* create a bezier */
 static void gp_primitive_bezier(tGPDprimitive *tgpi, tPGPspoint *points2D)
 {
-	const int totpoints = tgpi->tot_edges;
-	const float step = 1.0f / (float)(totpoints - 1);
+	const int totpoints = (tgpi->tot_edges + tgpi->tot_stored_edges);
+	const float step = 1.0f / (float)(tgpi->tot_edges - 1);
 	float cp1[2];
 	float cp2[2];
 	float cp3[2];
@@ -420,7 +424,7 @@ static void gp_primitive_bezier(tGPDprimitive *tgpi, tPGPspoint *points2D)
 	copy_v2fl_v2i(cp3, tgpi->bezcp2);
 	copy_v2fl_v2i(cp4, tgpi->bottom);
 
-	for (int i = 0; i < totpoints; i++) {
+	for (int i = tgpi->tot_stored_edges; i < totpoints; i++) {
 		tPGPspoint *p2d = &points2D[i];
 		interp_v2_v2v2v2v2_cubic(&p2d->x, cp1, cp2, cp3, cp4, a);
 		a += step;
@@ -430,8 +434,8 @@ static void gp_primitive_bezier(tGPDprimitive *tgpi, tPGPspoint *points2D)
 /* create a circle */
 static void gp_primitive_circle(tGPDprimitive *tgpi, tPGPspoint *points2D)
 {
-	const int totpoints = tgpi->tot_edges;
-	const float step = (2.0f * M_PI) / (float)(totpoints);
+	const int totpoints = (tgpi->tot_edges + tgpi->tot_stored_edges);
+	const float step = (2.0f * M_PI) / (float)(tgpi->tot_edges);
 	float center[2];
 	float radius[2];
 	float a = 0.0f;
@@ -442,7 +446,7 @@ static void gp_primitive_circle(tGPDprimitive *tgpi, tPGPspoint *points2D)
 	radius[0] = fabsf(((tgpi->bottom[0] - tgpi->top[0]) / 2.0f));
 	radius[1] = fabsf(((tgpi->bottom[1] - tgpi->top[1]) / 2.0f));
 
-	for (int i = 0; i < totpoints; i++) {
+	for (int i = tgpi->tot_stored_edges; i < totpoints; i++) {
 		tPGPspoint *p2d = &points2D[i];
 		p2d->x = (center[0] + cosf(a) * radius[0]);
 		p2d->y = (center[1] + sinf(a) * radius[1]);
@@ -460,14 +464,15 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 
 	/* realloc points to new size */
 	/* TODO: only do this if the size has changed? */
-	gps->points = MEM_reallocN(gps->points, sizeof(bGPDspoint) * tgpi->tot_edges);
+	gps->points = MEM_reallocN(gps->points, sizeof(bGPDspoint) * (tgpi->tot_edges + tgpi->tot_stored_edges));
 	if (gps->dvert != NULL) {
-		gps->dvert = MEM_reallocN(gps->dvert, sizeof(MDeformVert) * tgpi->tot_edges);
+		gps->dvert = MEM_reallocN(gps->dvert, sizeof(MDeformVert) * (tgpi->tot_edges + tgpi->tot_stored_edges));
 	}
-	gps->totpoints = tgpi->tot_edges;
+	gps->totpoints = (tgpi->tot_edges + tgpi->tot_stored_edges);
 
 	/* compute screen-space coordinates for points */
-	tPGPspoint *points2D = MEM_callocN(sizeof(tPGPspoint) * tgpi->tot_edges, "gp primitive points2D");
+	tgpi->points = MEM_reallocN(tgpi->points, sizeof(tPGPspoint) * (tgpi->tot_edges + tgpi->tot_stored_edges));
+	tPGPspoint *points2D = tgpi->points;
 	switch (tgpi->type) {
 		case GP_STROKE_BOX:
 			tgpi->cyclic = true;
@@ -503,13 +508,13 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	if (gset->flag & GP_SCULPT_SETT_FLAG_PRIMITIVE_CURVE) {
 		curvemapping_initialize(ts->gp_sculpt.cur_primitive);
 	}
-
+	
 	for (int i = 0; i < gps->totpoints; i++) {
 		bGPDspoint *pt = &gps->points[i];
 		tPGPspoint *p2d = &points2D[i];
 
 		/* Copy points to buffer */
-		tGPspoint *tpt = ((tGPspoint *)(gpd->runtime.sbuffer) + gpd->runtime.sbuffer_size);
+		tPGPspoint *tpt = ((tPGPspoint *)(gpd->runtime.sbuffer) + gpd->runtime.sbuffer_size);
 		tpt->x = p2d->x;
 		tpt->y = p2d->y;
 
@@ -571,12 +576,15 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	/* force fill recalc */
 	gps->flag |= GP_STROKE_RECALC_CACHES;
 
-	/* free temp data */
-	MEM_SAFE_FREE(points2D);
-
 	DEG_id_tag_update(&gpd->id, DEG_TAG_COPY_ON_WRITE);
 	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
+}
+
+/* add new segment to curve */
+static void gpencil_primitive_add_segment(tGPDprimitive *tgpi)
+{
+	tgpi->tot_stored_edges += tgpi->tot_edges;
 }
 
 /* Update screen and stroke */
@@ -655,6 +663,8 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 	tGPDprimitive *tgpi = MEM_callocN(sizeof(tGPDprimitive), "GPencil Primitive Data");
 	op->customdata = tgpi;
 
+	tgpi->points = MEM_callocN(sizeof(tPGPspoint), "gp primitive points2D");
+
 	/* set current scene and window info */
 	tgpi->bmain = CTX_data_main(C);
 	tgpi->scene = scene;
@@ -697,6 +707,7 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 		RNA_int_set(op->ptr, "edges", 2);
 	}
 
+	tgpi->tot_stored_edges = 0;
 	tgpi->tot_edges = RNA_int_get(op->ptr, "edges");
 	tgpi->flag = IDLE;
 
@@ -794,7 +805,7 @@ static void gpencil_primitive_interaction_end(bContext *C, wmOperator *op, wmWin
 	DEG_id_tag_update(&tgpi->gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
 
 	/* clean up temp data */
-	
+	gpencil_primitive_exit(C, op);
 }
 
 /* Helper to set bezier cp */
@@ -906,13 +917,12 @@ static void gpencil_primitive_bezier_event_handling(bContext *C, wmOperator *op,
 	case AKEY:
 		if (tgpi->flag == IN_CURVE_EDIT_BEZIER) {
 			tgpi->flag = IN_PROGRESS;
-			gpencil_primitive_interaction_end(C, op, win, tgpi);
-			/* currently, stroke is not rendered until end, was working in main branch */
-			gp_primitive_set_initdata(C, tgpi);
+			gpencil_primitive_add_segment(tgpi);
 			copy_v2_v2_int(tgpi->top, tgpi->bottom);
 			copy_v2_v2_int(tgpi->origin, tgpi->top);
 			gpencil_primitive_set_midpoint(tgpi);
 			copy_v2_v2_int(tgpi->mvalo, event->mval);
+			gpencil_primitive_update(C, op, tgpi);
 		}
 		break;
 	}
@@ -942,7 +952,6 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 				/* stop drawing primitive */
 				tgpi->flag = IDLE;
 				gpencil_primitive_interaction_end(C, op, win, tgpi);
-				gpencil_primitive_exit(C, op);
 				/* done! */
 				return OPERATOR_FINISHED;
 			}
@@ -957,7 +966,6 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 		{
 			tgpi->flag = IDLE;
 			gpencil_primitive_interaction_end(C, op, win, tgpi);
-			gpencil_primitive_exit(C, op);
 			/* done! */
 			return OPERATOR_FINISHED;
 		}
