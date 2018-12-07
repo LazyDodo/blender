@@ -248,6 +248,7 @@ static void gp_primitive_set_initdata(bContext *C, tGPDprimitive *tgpi)
 
 	/* enable recalculation flag by default */
 	gps->flag |= GP_STROKE_RECALC_CACHES;
+	gps->flag &= ~GP_STROKE_SELECT;
 	/* the polygon must be closed, so enabled cyclic */
 	if (tgpi->type != GP_STROKE_LINE && tgpi->type != GP_STROKE_ARC) {
 		gps->flag |= GP_STROKE_CYCLIC;
@@ -545,6 +546,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		pt->pressure = pressure;
 		pt->strength = tgpi->brush->gpencil_settings->draw_strength;
 		pt->time = 0.0f;
+		pt->flag = 0;
 
 		if (gps->dvert != NULL) {
 			MDeformVert *dvert = &gps->dvert[i];
