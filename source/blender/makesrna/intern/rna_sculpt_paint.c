@@ -1250,12 +1250,27 @@ static void rna_def_gpencil_sculpt(BlenderRNA *brna)
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
 
+	prop = RNA_def_property(srna, "use_thickness_curve", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_SCULPT_SETT_FLAG_PRIMITIVE_CURVE);
+	RNA_def_property_ui_text(prop, "Use Curve", "Use curvbe to define primitive stroke thickness");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
+
 	/* custom falloff curve */
 	prop = RNA_def_property(srna, "multiframe_falloff_curve", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "cur_falloff");
 	RNA_def_property_struct_type(prop, "CurveMapping");
 	RNA_def_property_ui_text(prop, "Curve",
 		"Custom curve to control falloff of brush effect by Grease Pencil frames");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
+
+	/* custom primitive curve */
+	prop = RNA_def_property(srna, "thickness_primitive_curve", PROP_POINTER, PROP_NONE);
+	RNA_def_property_pointer_sdna(prop, NULL, "cur_primitive");
+	RNA_def_property_struct_type(prop, "CurveMapping");
+	RNA_def_property_ui_text(prop, "Curve",
+		"Custom curve to control primitive thickness");
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
 
