@@ -500,6 +500,9 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	/* convert screen-coordinates to 3D coordinates */
 	gp_session_validatebuffer(tgpi);
 	gp_init_colors(tgpi);
+	if (gset->flag & GP_SCULPT_SETT_FLAG_PRIMITIVE_CURVE) {
+		curvemapping_initialize(ts->gp_sculpt.cur_primitive);
+	}
 
 	for (int i = 0; i < gps->totpoints; i++) {
 		bGPDspoint *pt = &gps->points[i];
