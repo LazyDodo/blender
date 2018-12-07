@@ -515,12 +515,14 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 
 		/* calc pressure */
 		float pressure = 1.0;
-		if ((gset->flag & GP_SCULPT_SETT_FLAG_PRIMITIVE_CURVE) && (gps->totpoints > 1)) {
-			/* normalize value to evaluate curve */
-			float value = (float)i / (gps->totpoints - 1);
-			float curvef = curvemapping_evaluateF(gset->cur_primitive, 0, value);
-			pressure = 1.0f * curvef;
-			CLAMP_MIN(pressure, 0.1f);
+		if (ELEM(tgpi->type, GP_STROKE_LINE, GP_STROKE_ARC, GP_STROKE_BEZIER)) {
+			if ((gset->flag & GP_SCULPT_SETT_FLAG_PRIMITIVE_CURVE) && (gps->totpoints > 1)) {
+				/* normalize value to evaluate curve */
+				float value = (float)i / (gps->totpoints - 1);
+				float curvef = curvemapping_evaluateF(gset->cur_primitive, 0, value);
+				pressure = 1.0f * curvef;
+				CLAMP_MIN(pressure, 0.1f);
+			}
 		}
 
 		tpt->pressure = pressure;
