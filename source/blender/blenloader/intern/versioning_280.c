@@ -2500,7 +2500,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 					curvemapping_initialize(gset->cur_primitive);
 					curvemap_reset(gset->cur_primitive->cm,
 						&gset->cur_primitive->clipr,
-						CURVE_PRESET_GAUSS,
+						CURVE_PRESET_BELL,
 						CURVEMAP_SLOPE_POSITIVE);
 				}
 			}

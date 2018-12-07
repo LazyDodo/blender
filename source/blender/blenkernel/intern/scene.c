@@ -708,7 +708,7 @@ void BKE_scene_init(Scene *sce)
 	curvemapping_initialize(gp_primitive_curve);
 	curvemap_reset(gp_primitive_curve->cm,
 		&gp_primitive_curve->clipr,
-		CURVE_PRESET_GAUSS,
+		CURVE_PRESET_BELL,
 		CURVEMAP_SLOPE_POSITIVE);
 
 	sce->physics_settings.gravity[0] = 0.0f;

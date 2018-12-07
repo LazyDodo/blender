@@ -192,7 +192,7 @@ void BLO_update_defaults_startup_blend(Main *bmain, const char *app_template)
 				curvemapping_initialize(gp_primitive_curve);
 				curvemap_reset(gp_primitive_curve->cm,
 					&gp_primitive_curve->clipr,
-					CURVE_PRESET_GAUSS,
+					CURVE_PRESET_BELL,
 					CURVEMAP_SLOPE_POSITIVE);
 			}
 		}
