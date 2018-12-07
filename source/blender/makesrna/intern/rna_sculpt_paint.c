@@ -69,11 +69,11 @@ const EnumPropertyItem rna_enum_gpencil_sculpt_brush_items[] = {
 	{GP_SCULPT_TYPE_SMOOTH, "SMOOTH", ICON_GPBRUSH_SMOOTH, "Smooth", "Smooth stroke points"},
 	{GP_SCULPT_TYPE_THICKNESS, "THICKNESS", ICON_GPBRUSH_THICKNESS, "Thickness", "Adjust thickness of strokes"},
 	{GP_SCULPT_TYPE_STRENGTH, "STRENGTH", ICON_GPBRUSH_STRENGTH, "Strength", "Adjust color strength of strokes" },
+	{GP_SCULPT_TYPE_RANDOMIZE, "RANDOMIZE", ICON_GPBRUSH_RANDOMIZE, "Randomize", "Introduce jitter/randomness into strokes"},
 	{GP_SCULPT_TYPE_GRAB, "GRAB", ICON_GPBRUSH_GRAB, "Grab", "Translate the set of points initially within the brush circle" },
 	{GP_SCULPT_TYPE_PUSH, "PUSH", ICON_GPBRUSH_PUSH, "Push", "Move points out of the way, as if combing them"},
 	{GP_SCULPT_TYPE_TWIST, "TWIST", ICON_GPBRUSH_TWIST, "Twist", "Rotate points around the midpoint of the brush"},
 	{GP_SCULPT_TYPE_PINCH, "PINCH", ICON_GPBRUSH_PINCH, "Pinch", "Pull points towards the midpoint of the brush"},
-	{GP_SCULPT_TYPE_RANDOMIZE, "RANDOMIZE", ICON_GPBRUSH_RANDOMIZE, "Randomize", "Introduce jitter/randomness into strokes"},
 	{GP_SCULPT_TYPE_CLONE, "CLONE", ICON_GPBRUSH_CLONE, "Clone", "Paste copies of the strokes stored on the clipboard"},
 	{ 0, NULL, 0, NULL, NULL }
 };
