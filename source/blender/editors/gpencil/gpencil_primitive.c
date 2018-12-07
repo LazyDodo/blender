@@ -838,7 +838,7 @@ static void gpencil_primitive_bezier_event_handling(bContext *C, wmOperator *op,
 	float a = len_v2v2_int(event->mval, tgpi->top);
 	float b = len_v2v2_int(event->mval, tgpi->bottom);
 
-	if (event->shift) {
+	if (tgpi->flag == IN_CURVE_EDIT_BEZIER) {
 		if (a < 10 || b < 10) {
 			move = MOVE_ENDS;
 			WM_cursor_modal_set(win, BC_RING_CURSOR);
@@ -848,14 +848,11 @@ static void gpencil_primitive_bezier_event_handling(bContext *C, wmOperator *op,
 			WM_cursor_modal_set(win, BC_HANDCURSOR);
 		}
 	}
-	else {
-		WM_cursor_modal_set(win, BC_CROSSCURSOR);
-	}
 
 	switch (event->type) {
 	/* calculate new position */
 	case MOUSEMOVE:
-		if ((event->shift) && (event->val == KM_PRESS) && tgpi->sel_cp != CURVE_CP_NONE) {
+		if ((event->val == KM_PRESS) && tgpi->sel_cp != CURVE_CP_NONE) {
 			if (tgpi->sel_cp == CURVE_CP_T) {
 				copy_v2_v2_int(tgpi->top, event->mval);
 			}
