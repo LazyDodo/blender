@@ -628,15 +628,16 @@ static void gpencil_primitive_exit(bContext *C, wmOperator *op)
 		/* clear status message area */
 		ED_workspace_status_text(C, NULL);
 
+		MEM_SAFE_FREE(tgpi->points);
 		/* finally, free memory used by temp data */
 		BKE_gpencil_free_strokes(tgpi->gpf);
-		MEM_freeN(tgpi->gpf);
+		MEM_SAFE_FREE(tgpi->gpf);
 		MEM_freeN(tgpi);
 	}
 
 	/* free stroke buffer */
 	if ((gpd != NULL) && (gpd->runtime.sbuffer)) {
-		MEM_freeN(gpd->runtime.sbuffer);
+		MEM_SAFE_FREE(gpd->runtime.sbuffer);
 		gpd->runtime.sbuffer = NULL;
 
 		/* clear flags */
