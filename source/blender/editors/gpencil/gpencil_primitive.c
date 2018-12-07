@@ -54,6 +54,7 @@
 #include "DNA_view3d_types.h"
 
 #include "BKE_brush.h"
+#include "BKE_colortools.h"
 #include "BKE_context.h"
 #include "BKE_deform.h"
 #include "BKE_global.h"
@@ -455,6 +456,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	ToolSettings *ts = tgpi->scene->toolsettings;
 	bGPdata *gpd = tgpi->gpd;
 	bGPDstroke *gps = tgpi->gpf->strokes.first;
+	GP_Sculpt_Settings *gset = &ts->gp_sculpt;
 
 	/* realloc points to new size */
 	/* TODO: only do this if the size has changed? */
@@ -507,7 +509,18 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		tGPspoint *tpt = ((tGPspoint *)(gpd->runtime.sbuffer) + gpd->runtime.sbuffer_size);
 		tpt->x = p2d->x;
 		tpt->y = p2d->y;
-		tpt->pressure = 1.0f;
+
+		/* calc pressure */
+		float pressure = 1.0;
+		if ((gset->flag & GP_SCULPT_SETT_FLAG_PRIMITIVE_CURVE) && (gps->totpoints > 1)) {
+			/* normalize value to evaluate curve */
+			float value = (float)i / (gps->totpoints - 1);
+			float curvef = curvemapping_evaluateF(gset->cur_primitive, 0, value);
+			pressure = 1.0f * curvef;
+			CLAMP_MIN(pressure, 0.1f);
+		}
+
+		tpt->pressure = pressure;
 		tpt->strength = tgpi->brush->gpencil_settings->draw_strength;
 		
 		tpt->time = p2d->time;
@@ -519,7 +532,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		/* convert screen-coordinates to 3D coordinates */
 		gp_stroke_convertcoords_tpoint_primitive(tgpi->scene, tgpi->ar, tgpi->ob, tgpi->gpl, p2d, &pt->x);
 
-		pt->pressure = 1.0f;
+		pt->pressure = pressure;
 		pt->strength = tgpi->brush->gpencil_settings->draw_strength;
 		pt->time = 0.0f;
 
