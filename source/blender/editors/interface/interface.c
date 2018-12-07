@@ -1198,7 +1198,7 @@ static bool ui_but_event_property_operator_string(
 		}
 
 		/* we have a datapath! */
-		if (data_path || prop_enum_value_id) {
+		if (data_path || (prop_enum_value_ok && prop_enum_value_id)) {
 			/* create a property to host the "datapath" property we're sending to the operators */
 			IDProperty *prop_path;
 
@@ -3749,8 +3749,16 @@ static uiBut *ui_def_but_rna(
 		ui_def_but_icon(but, icon, UI_HAS_ICON);
 	}
 
-	if ((type == UI_BTYPE_MENU) && (but->dt == UI_EMBOSS_PULLDOWN)) {
-		ui_but_submenu_enable(block, but);
+	if (type == UI_BTYPE_MENU) {
+		if (but->dt == UI_EMBOSS_PULLDOWN) {
+			ui_but_submenu_enable(block, but);
+		}
+	}
+	else if (type == UI_BTYPE_SEARCH_MENU) {
+		if (proptype == PROP_POINTER) {
+			/* Search buttons normally don't get undo, see: T54580. */
+			but->flag |= UI_BUT_UNDO;
+		}
 	}
 
 	const char *info;

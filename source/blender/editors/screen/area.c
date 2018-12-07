@@ -778,20 +778,20 @@ static void area_azone_initialize(wmWindow *win, const bScreen *screen, ScrArea 
 	     sa->totrct.xmin + (AZONESPOT - 1),
 	     sa->totrct.ymin + (AZONESPOT - 1)},
 	    /* Bottom-right. */
-	    {sa->totrct.xmax,
+	    {sa->totrct.xmax - (AZONESPOT - 1),
 	     sa->totrct.ymin,
-	     sa->totrct.xmax - (AZONESPOT - 1),
+	     sa->totrct.xmax,
 	     sa->totrct.ymin + (AZONESPOT - 1)},
 	    /* Top-left. */
 	    {sa->totrct.xmin,
-	     sa->totrct.ymax,
+	     sa->totrct.ymax - (AZONESPOT - 1),
 	     sa->totrct.xmin + (AZONESPOT - 1),
-	     sa->totrct.ymax - (AZONESPOT - 1)},
+	     sa->totrct.ymax},
 	    /* Top-right. */
-	    {sa->totrct.xmax,
-	     sa->totrct.ymax,
-	     sa->totrct.xmax - (AZONESPOT - 1),
-	     sa->totrct.ymax - (AZONESPOT - 1)}};
+	    {sa->totrct.xmax - (AZONESPOT - 1),
+	     sa->totrct.ymax - (AZONESPOT - 1),
+	     sa->totrct.xmax,
+	     sa->totrct.ymax}};
 
 	for (int i = 0; i < 4; i++) {
 		/* can't click on bottom corners on OS X, already used for resizing */
@@ -1354,7 +1354,7 @@ static void region_rect_recursive(ScrArea *sa, ARegion *ar, rcti *remainder, rct
 	if (ar->winy > 1) ar->sizey = (ar->winy + 0.5f) /  UI_DPI_FAC;
 
 	/* exception for multiple overlapping regions on same spot */
-	if (ar->overlap & (alignment != RGN_ALIGN_FLOAT)) {
+	if (ar->overlap && (alignment != RGN_ALIGN_FLOAT)) {
 		region_overlap_fix(sa, ar);
 	}
 

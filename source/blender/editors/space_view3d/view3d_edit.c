@@ -2734,6 +2734,11 @@ static int view3d_all_exec(bContext *C, wmOperator *op)
 			BKE_object_minmax(base_eval->object, min, max, false);
 		}
 	}
+
+	if (center) {
+		DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+	}
+
 	if (!changed) {
 		ED_region_tag_redraw(ar);
 		/* TODO - should this be cancel?
@@ -2751,10 +2756,6 @@ static int view3d_all_exec(bContext *C, wmOperator *op)
 	}
 	else {
 		view3d_from_minmax(C, v3d, ar, min, max, true, smooth_viewtx);
-	}
-
-	if (center) {
-		DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
 	}
 
 	return OPERATOR_FINISHED;
@@ -2853,13 +2854,13 @@ static int viewselected_exec(bContext *C, wmOperator *op)
 	}
 	else if (obedit) {
 		/* only selected */
-		FOREACH_OBJECT_IN_MODE_BEGIN (view_layer_eval, v3d, obedit->mode, ob_eval_iter) {
+		FOREACH_OBJECT_IN_MODE_BEGIN (view_layer_eval, v3d, obedit->type, obedit->mode, ob_eval_iter) {
 			ok |= ED_view3d_minmax_verts(ob_eval_iter, min, max);
 		}
 		FOREACH_OBJECT_IN_MODE_END;
 	}
 	else if (ob_eval && (ob_eval->mode & OB_MODE_POSE)) {
-		FOREACH_OBJECT_IN_MODE_BEGIN (view_layer_eval, v3d, ob_eval->mode, ob_eval_iter) {
+		FOREACH_OBJECT_IN_MODE_BEGIN (view_layer_eval, v3d, ob_eval->type, ob_eval->mode, ob_eval_iter) {
 			ok |= BKE_pose_minmax(ob_eval_iter, min, max, true, true);
 		}
 		FOREACH_OBJECT_IN_MODE_END;

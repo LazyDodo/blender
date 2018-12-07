@@ -84,7 +84,7 @@
 #include "gpencil_intern.h"
 
 #define MIN_EDGES 2
-#define MAX_EDGES 100
+#define MAX_EDGES 128
 
 #define IDLE 0
 #define IN_PROGRESS 1
@@ -168,7 +168,7 @@ static void gp_primitive_set_initdata(bContext *C, tGPDprimitive *tgpi)
 	/* enable recalculation flag by default */
 	gps->flag |= GP_STROKE_RECALC_CACHES;
 	/* the polygon must be closed, so enabled cyclic */
-	if (tgpi->type != GP_STROKE_LINE) {
+	if (tgpi->type != GP_STROKE_LINE && tgpi->type != GP_STROKE_ARC) {
 		gps->flag |= GP_STROKE_CYCLIC;
 	}
 	else {
@@ -215,11 +215,14 @@ static void gpencil_primitive_status_indicators(bContext *C, tGPDprimitive *tgpi
 	else if (tgpi->type == GP_STROKE_LINE) {
 		BLI_strncpy(msg_str, IFACE_("Line: ESC/RMB to cancel, LMB set origin, Enter/LMB to confirm, Alt to center"), UI_MAX_DRAW_STR);
 	}
+	else if (tgpi->type == GP_STROKE_ARC) {
+		BLI_strncpy(msg_str, IFACE_("Arc: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center, F to flip, C to Close"), UI_MAX_DRAW_STR);
+	}
 	else {
-		BLI_strncpy(msg_str, IFACE_("Circle: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL to adjust edge number, Shift to square, Alt to center"), UI_MAX_DRAW_STR);
+		BLI_strncpy(msg_str, IFACE_("Circle: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center"), UI_MAX_DRAW_STR);
 	}
 
-	if (tgpi->type == GP_STROKE_CIRCLE) {
+	if (tgpi->type == GP_STROKE_CIRCLE || tgpi->type == GP_STROKE_ARC) {
 		if (hasNumInput(&tgpi->num)) {
 			char str_offs[NUM_STR_REP_LEN];
 
@@ -257,37 +260,68 @@ static void gpencil_primitive_status_indicators(bContext *C, tGPDprimitive *tgpi
 /* ----------------------- */
 
 /* create a rectangle */
-static void gp_primitive_rectangle(tGPDprimitive *tgpi, tGPspoint *points2D)
+static void gp_primitive_rectangle(tGPDprimitive *tgpi, tPGPspoint *points2D)
 {
 	BLI_assert(tgpi->tot_edges == 4);
 
-	points2D[0].x = tgpi->top[0];
-	points2D[0].y = tgpi->top[1];
+	points2D[0].x = (float)tgpi->top[0];
+	points2D[0].y = (float)tgpi->top[1];
 
-	points2D[1].x = tgpi->bottom[0];
-	points2D[1].y = tgpi->top[1];
+	points2D[1].x = (float)tgpi->bottom[0];
+	points2D[1].y = (float)tgpi->top[1];
 
-	points2D[2].x = tgpi->bottom[0];
-	points2D[2].y = tgpi->bottom[1];
+	points2D[2].x = (float)tgpi->bottom[0];
+	points2D[2].y = (float)tgpi->bottom[1];
 
-	points2D[3].x = tgpi->top[0];
-	points2D[3].y = tgpi->bottom[1];
+	points2D[3].x = (float)tgpi->top[0];
+	points2D[3].y = (float)tgpi->bottom[1];
 }
 
 /* create a line */
-static void gp_primitive_line(tGPDprimitive *tgpi, tGPspoint *points2D)
+static void gp_primitive_line(tGPDprimitive *tgpi, tPGPspoint *points2D)
 {
 	BLI_assert(tgpi->tot_edges == 2);
 
-	points2D[0].x = tgpi->top[0];
-	points2D[0].y = tgpi->top[1];
+	points2D[0].x = (float)tgpi->top[0];
+	points2D[0].y = (float)tgpi->top[1];
 
-	points2D[1].x = tgpi->bottom[0];
-	points2D[1].y = tgpi->bottom[1];
+	points2D[1].x = (float)tgpi->bottom[0];
+	points2D[1].y = (float)tgpi->bottom[1];
+}
+
+/* create an arc */
+static void gp_primitive_arc(tGPDprimitive *tgpi, tPGPspoint *points2D)
+{
+	const int totpoints = tgpi->tot_edges;
+	const float step = M_PI_2 / (float)(totpoints - 1);
+	float length[2];
+	int start[2];
+	int end[2];
+	float a = 0.0f;
+
+	start[0] = tgpi->top[0];
+	start[1] = tgpi->top[1];
+	end[0] = tgpi->bottom[0];
+	end[1] = tgpi->bottom[1];
+
+	if (tgpi->flip) {
+		SWAP(int, end[0], start[0]);
+		SWAP(int, end[1], start[1]);
+	}
+
+	length[0] = end[0] - start[0];
+	length[1] = end[1] - start[1];
+
+	for (int i = 0; i < totpoints; i++) {
+		tPGPspoint *p2d = &points2D[i];
+		p2d->x = (start[0] + sinf(a) * length[0]);
+		p2d->y = (end[1] - cosf(a) * length[1]);
+		a += step;
+	}
 }
 
 /* create a circle */
-static void gp_primitive_circle(tGPDprimitive *tgpi, tGPspoint *points2D)
+static void gp_primitive_circle(tGPDprimitive *tgpi, tPGPspoint *points2D)
 {
 	const int totpoints = tgpi->tot_edges;
 	const float step = (2.0f * M_PI) / (float)(totpoints);
@@ -302,10 +336,9 @@ static void gp_primitive_circle(tGPDprimitive *tgpi, tGPspoint *points2D)
 	radius[1] = fabsf(((tgpi->bottom[1] - tgpi->top[1]) / 2.0f));
 
 	for (int i = 0; i < totpoints; i++) {
-		tGPspoint *p2d = &points2D[i];
-
-		p2d->x = (int)(center[0] + cosf(a) * radius[0]);
-		p2d->y = (int)(center[1] + sinf(a) * radius[1]);
+		tPGPspoint *p2d = &points2D[i];
+		p2d->x = (center[0] + cosf(a) * radius[0]);
+		p2d->y = (center[1] + sinf(a) * radius[1]);
 		a += step;
 	}
 }
@@ -326,7 +359,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	gps->totpoints = tgpi->tot_edges;
 
 	/* compute screen-space coordinates for points */
-	tGPspoint *points2D = MEM_callocN(sizeof(tGPspoint) * tgpi->tot_edges, "gp primitive points2D");
+	tPGPspoint *points2D = MEM_callocN(sizeof(tPGPspoint) * tgpi->tot_edges, "gp primitive points2D");
 	switch (tgpi->type) {
 		case GP_STROKE_BOX:
 			gp_primitive_rectangle(tgpi, points2D);
@@ -337,6 +370,13 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		case GP_STROKE_CIRCLE:
 			gp_primitive_circle(tgpi, points2D);
 			break;
+		case GP_STROKE_ARC:
+			gp_primitive_arc(tgpi, points2D);
+			if (tgpi->cyclic)
+				gps->flag |= GP_STROKE_CYCLIC;
+			else
+				gps->flag &= ~GP_STROKE_CYCLIC;
+			break;
 		default:
 			break;
 	}
@@ -344,11 +384,10 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	/* convert screen-coordinates to 3D coordinates */
 	for (int i = 0; i < gps->totpoints; i++) {
 		bGPDspoint *pt = &gps->points[i];
-		tGPspoint *p2d = &points2D[i];
-
+		tPGPspoint *p2d = &points2D[i];
 
 		/* convert screen-coordinates to 3D coordinates */
-		gp_stroke_convertcoords_tpoint(tgpi->scene, tgpi->ar, tgpi->ob, tgpi->gpl, p2d, NULL, &pt->x);
+		gp_stroke_convertcoords_tpoint_primitive(tgpi->scene, tgpi->ar, tgpi->ob, tgpi->gpl, p2d, &pt->x);
 
 		pt->pressure = 1.0f;
 		pt->strength = tgpi->brush->gpencil_settings->draw_strength;
@@ -482,8 +521,11 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 	/* set parameters */
 	tgpi->type = RNA_enum_get(op->ptr, "type");
 
-	/* if circle set default to 32 */
+	/* set default edge count */
 	if (tgpi->type == GP_STROKE_CIRCLE) {
+		RNA_int_set(op->ptr, "edges", 64);
+	}
+	else if (tgpi->type == GP_STROKE_ARC) {
 		RNA_int_set(op->ptr, "edges", 32);
 	}
 	else if (tgpi->type == GP_STROKE_BOX) {
@@ -593,6 +635,25 @@ static void gpencil_primitive_interaction_end(bContext *C, wmOperator *op, wmWin
 	gpencil_primitive_exit(C, op);
 }
 
+/* Helper to square a primitive */
+static void gpencil_primitive_to_square(tGPDprimitive *tgpi, const int x, const int y)
+{
+	int w = abs(x);
+	int h = abs(y);
+	if ((x > 0 && y > 0) || (x < 0 && y < 0)) {
+		if (w > h)
+			tgpi->bottom[1] = tgpi->origin[1] + x;
+		else
+			tgpi->bottom[0] = tgpi->origin[0] + y;
+	}
+	else {
+		if (w > h)
+			tgpi->bottom[1] = tgpi->origin[1] - x;
+		else
+			tgpi->bottom[0] = tgpi->origin[0] - y;
+	}
+}
+
 /* Modal handler: Events handling during interactive part */
 static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *event)
 {
@@ -628,7 +689,6 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 			/* done! */
 			return OPERATOR_FINISHED;
 		}
-
 		case ESCKEY:    /* cancel */
 		case RIGHTMOUSE:
 		{
@@ -642,10 +702,30 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 			/* canceled! */
 			return OPERATOR_CANCELLED;
 		}
+		case CKEY:
+		{
+			if ((event->val == KM_RELEASE) && tgpi->type == GP_STROKE_ARC) {
+				tgpi->cyclic ^= 1;
 
+				/* update screen */
+				gpencil_primitive_update(C, op, tgpi);
+			}
+			break;
+		}
+		case FKEY:
+		{
+			if ((event->val == KM_RELEASE) && tgpi->type == GP_STROKE_ARC) {
+				tgpi->flip ^= 1;
+
+				/* update screen */
+				gpencil_primitive_update(C, op, tgpi);
+			}
+			break;
+		}
+		case PADPLUSKEY:
 		case WHEELUPMOUSE:
 		{
-			if (tgpi->type == GP_STROKE_CIRCLE) {
+			if ((event->val != KM_RELEASE) && (tgpi->type == GP_STROKE_CIRCLE || tgpi->type == GP_STROKE_ARC)) {
 				tgpi->tot_edges = tgpi->tot_edges + 1;
 				CLAMP(tgpi->tot_edges, MIN_EDGES, MAX_EDGES);
 				RNA_int_set(op->ptr, "edges", tgpi->tot_edges);
@@ -655,9 +735,10 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 			}
 			break;
 		}
+		case PADMINUS:
 		case WHEELDOWNMOUSE:
 		{
-			if (tgpi->type == GP_STROKE_CIRCLE) {
+			if ((event->val != KM_RELEASE) && (tgpi->type == GP_STROKE_CIRCLE || tgpi->type == GP_STROKE_ARC)) {
 				tgpi->tot_edges = tgpi->tot_edges - 1;
 				CLAMP(tgpi->tot_edges, MIN_EDGES, MAX_EDGES);
 				RNA_int_set(op->ptr, "edges", tgpi->tot_edges);
@@ -684,19 +765,20 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 				if (event->shift) {
 					int x = tgpi->bottom[0] - tgpi->origin[0];
 					int y = tgpi->bottom[1] - tgpi->origin[1];
-					int w = abs(x);
-					int h = abs(y);
-					if ((x > 0 && y > 0) || (x < 0 && y < 0)) {
-						if (w > h)
-							tgpi->bottom[1] = tgpi->origin[1] + x;
-						else
-							tgpi->bottom[0] = tgpi->origin[0] + y;
+					if (tgpi->type == GP_STROKE_LINE) {
+						float angle = fabsf(atan2f((float)y, (float)x));
+						if (angle < 0.4f || angle > (M_PI - 0.4f)) {
+							tgpi->bottom[1] = tgpi->origin[1];
+						}
+						else if (angle > (M_PI_2 - 0.4f) && angle < (M_PI_2 + 0.4f)) {
+							tgpi->bottom[0] = tgpi->origin[0];
+						}
+						else {
+							gpencil_primitive_to_square(tgpi, x, y);
+						}
 					}
 					else {
-						if (w > h)
-							tgpi->bottom[1] = tgpi->origin[1] - x;
-						else
-							tgpi->bottom[0] = tgpi->origin[0] - y;
+						gpencil_primitive_to_square(tgpi, x, y);
 					}
 				}
 				/* Center primitive if alt key */
@@ -751,6 +833,7 @@ void GPENCIL_OT_primitive(wmOperatorType *ot)
 		{GP_STROKE_BOX, "BOX", 0, "Box", ""},
 		{GP_STROKE_LINE, "LINE", 0, "Line", ""},
 		{GP_STROKE_CIRCLE, "CIRCLE", 0, "Circle", ""},
+		{GP_STROKE_ARC, "ARC", 0, "Arc", ""},
 		{0, NULL, 0, NULL, NULL}
 	};
 

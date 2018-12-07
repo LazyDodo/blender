@@ -263,7 +263,7 @@ typedef enum eScenePassType {
 	SCE_PASS_SUBSURFACE_DIRECT        = (1 << 28),
 	SCE_PASS_SUBSURFACE_INDIRECT      = (1 << 29),
 	SCE_PASS_SUBSURFACE_COLOR         = (1 << 30),
-	SCE_PASS_ROUGHNESS                = (1 << 31),
+	SCE_PASS_ROUGHNESS                = (1u << 31u),
 } eScenePassType;
 
 #define RE_PASSNAME_COMBINED "Combined"
@@ -1441,13 +1441,12 @@ typedef struct DisplaySafeAreas {
 /* Scene Display - used for store scene specific display settings for the 3d view */
 typedef struct SceneDisplay {
 	float light_direction[3];      /* light direction for shadows/highlight */
-	float shadow_shift;
+	float shadow_shift, shadow_focus;
 
 	/* Settings for Cavity Shader */
 	float matcap_ssao_distance;
 	float matcap_ssao_attenuation;
 	int matcap_ssao_samples;
-	int pad;
 
 	/* OpenGL render engine settings. */
 	View3DShading shading;

@@ -167,13 +167,41 @@ const EnumPropertyItem rna_enum_space_action_mode_items[] = {
 #undef SACT_ITEM_MASK
 #undef SACT_ITEM_CACHEFILE
 
-const EnumPropertyItem rna_enum_space_image_mode_items[] = {
-	{SI_MODE_VIEW, "VIEW", ICON_FILE_IMAGE, "View", "View the image"},
-	{SI_MODE_UV, "UV", ICON_GROUP_UVS, "UV Edit", "UV edit in mesh editmode"},
-	{SI_MODE_PAINT, "PAINT", ICON_TPAINT_HLT, "Paint", "2D image painting mode"},
-	{SI_MODE_MASK, "MASK", ICON_MOD_MASK, "Mask", "Mask editing"},
+
+#define SI_ITEM_VIEW(name, icon) \
+	{SI_MODE_VIEW, "VIEW", icon, name, "View the image"}
+#define SI_ITEM_UV \
+	{SI_MODE_UV, "UV", ICON_GROUP_UVS, "UV Editor", "UV edit in mesh editmode"}
+#define SI_ITEM_PAINT \
+	{SI_MODE_PAINT, "PAINT", ICON_TPAINT_HLT, "Paint", "2D image painting mode"}
+#define SI_ITEM_MASK \
+	{SI_MODE_MASK, "MASK", ICON_MOD_MASK, "Mask", "Mask editing"}
+
+static const EnumPropertyItem rna_enum_space_image_mode_all_items[] = {
+	SI_ITEM_VIEW("View", ICON_FILE_IMAGE),
+	SI_ITEM_UV,
+	SI_ITEM_PAINT,
+	SI_ITEM_MASK,
 	{0, NULL, 0, NULL, NULL}
 };
+
+static const EnumPropertyItem rna_enum_space_image_mode_ui_items[] = {
+	SI_ITEM_VIEW("View", ICON_FILE_IMAGE),
+	SI_ITEM_PAINT,
+	SI_ITEM_MASK,
+	{0, NULL, 0, NULL, NULL}
+};
+
+const EnumPropertyItem rna_enum_space_image_mode_items[] = {
+	SI_ITEM_VIEW("Image Editor", ICON_IMAGE),
+	SI_ITEM_UV,
+	{0, NULL, 0, NULL, NULL}
+};
+
+#undef SI_ITEM_VIEW
+#undef SI_ITEM_UV
+#undef SI_ITEM_PAINT
+#undef SI_ITEM_MASK
 
 #define V3D_S3D_CAMERA_LEFT        {STEREO_LEFT_ID, "LEFT", ICON_RESTRICT_RENDER_OFF, "Left", ""},
 #define V3D_S3D_CAMERA_RIGHT       {STEREO_RIGHT_ID, "RIGHT", ICON_RESTRICT_RENDER_OFF, "Right", ""},
@@ -685,10 +713,10 @@ static int rna_3DViewShading_type_get(PointerRNA *ptr)
 {
 	/* Available shading types depend on render engine. */
 	Scene *scene = rna_3DViewShading_scene(ptr);
-	RenderEngineType *type = RE_engines_find(scene->r.engine);
+	RenderEngineType *type = (scene) ? RE_engines_find(scene->r.engine) : NULL;
 	View3DShading *shading = (View3DShading *)ptr->data;
 
-	if (BKE_scene_uses_blender_eevee(scene)) {
+	if (scene == NULL || BKE_scene_uses_blender_eevee(scene)) {
 		return shading->type;
 	}
 	else if (BKE_scene_uses_blender_workbench(scene)) {
@@ -718,7 +746,7 @@ static const EnumPropertyItem *rna_3DViewShading_type_itemf(
         PropertyRNA *UNUSED(prop), bool *r_free)
 {
 	Scene *scene = rna_3DViewShading_scene(ptr);
-	RenderEngineType *type = RE_engines_find(scene->r.engine);
+	RenderEngineType *type = (scene) ? RE_engines_find(scene->r.engine) : NULL;
 
 	EnumPropertyItem *item = NULL;
 	int totitem = 0;
@@ -726,7 +754,7 @@ static const EnumPropertyItem *rna_3DViewShading_type_itemf(
 	RNA_enum_items_add_value(&item, &totitem, rna_enum_shading_type_items, OB_WIRE);
 	RNA_enum_items_add_value(&item, &totitem, rna_enum_shading_type_items, OB_SOLID);
 
-	if (BKE_scene_uses_blender_eevee(scene)) {
+	if (scene == NULL || BKE_scene_uses_blender_eevee(scene)) {
 		RNA_enum_items_add_value(&item, &totitem, rna_enum_shading_type_items, OB_MATERIAL);
 		RNA_enum_items_add_value(&item, &totitem, rna_enum_shading_type_items, OB_RENDER);
 	}
@@ -2721,7 +2749,7 @@ static void rna_def_space_view3d_overlay(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "show_bones", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "overlay.flag", V3D_OVERLAY_HIDE_BONES);
-	RNA_def_property_ui_text(prop, "Show Bones", "Display bones");
+	RNA_def_property_ui_text(prop, "Show Bones", "Display bones (disable to show motion paths only)");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	prop = RNA_def_property(srna, "show_face_orientation", PROP_BOOLEAN, PROP_NONE);
@@ -3539,10 +3567,16 @@ static void rna_def_space_image(BlenderRNA *brna)
 	RNA_def_property_pointer_funcs(prop, "rna_SpaceImageEditor_uvedit_get", NULL, NULL, NULL);
 	RNA_def_property_ui_text(prop, "UV Editor", "UV editor settings");
 
-	/* mode */
+	/* mode (hidden in the UI, see 'ui_mode') */
 	prop = RNA_def_property(srna, "mode", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "mode");
-	RNA_def_property_enum_items(prop, rna_enum_space_image_mode_items);
+	RNA_def_property_enum_items(prop, rna_enum_space_image_mode_all_items);
+	RNA_def_property_ui_text(prop, "Mode", "Editing context being displayed");
+	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_IMAGE, "rna_SpaceImageEditor_mode_update");
+
+	prop = RNA_def_property(srna, "ui_mode", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "mode");
+	RNA_def_property_enum_items(prop, rna_enum_space_image_mode_ui_items);
 	RNA_def_property_ui_text(prop, "Mode", "Editing context being displayed");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_IMAGE, "rna_SpaceImageEditor_mode_update");
 

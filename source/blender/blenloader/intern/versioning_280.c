@@ -1008,7 +1008,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 		 * Also, metallic node is now unified into the principled node. */
 		eNTreeDoVersionErrors error = NTREE_DOVERSION_NO_ERROR;
 
-		FOREACH_NODETREE(bmain, ntree, id) {
+		FOREACH_NODETREE_BEGIN(bmain, ntree, id) {
 			if (ntree->type == NTREE_SHADER) {
 				for (bNode *node = ntree->nodes.first; node; node = node->next) {
 					if (node->type == 194 /* SH_NODE_EEVEE_METALLIC */ &&
@@ -1040,7 +1040,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 					}
 				}
 			}
-		} FOREACH_NODETREE_END
+		} FOREACH_NODETREE_END;
 
 		if (error & NTREE_DOVERSION_NEED_OUTPUT) {
 			BKE_report(fd->reports, RPT_ERROR, "Eevee material conversion problem. Error in console");
@@ -2478,6 +2478,16 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 						}
 					}
 				}
+			}
+		}
+
+		/* Change Solid mode shadow orientation. */
+		if (!DNA_struct_elem_find(fd->filesdna, "SceneDisplay", "float", "shadow_focus")) {
+			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+				float *dir = scene->display.light_direction;
+				SWAP(float, dir[2], dir[1]);
+				dir[2] = -dir[2];
+				dir[0] = -dir[0];
 			}
 		}
 	}

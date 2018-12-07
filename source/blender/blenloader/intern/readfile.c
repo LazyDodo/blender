@@ -3135,16 +3135,16 @@ static void lib_verify_nodetree(Main *main, int UNUSED(open))
 #endif
 
 	/* set node->typeinfo pointers */
-	FOREACH_NODETREE (main, ntree, id) {
+	FOREACH_NODETREE_BEGIN (main, ntree, id) {
 		ntreeSetTypes(NULL, ntree);
-	} FOREACH_NODETREE_END
+	} FOREACH_NODETREE_END;
 
 	/* verify static socket templates */
-	FOREACH_NODETREE (main, ntree, id) {
+	FOREACH_NODETREE_BEGIN (main, ntree, id) {
 		bNode *node;
 		for (node = ntree->nodes.first; node; node = node->next)
 			node_verify_socket_templates(ntree, node);
-	} FOREACH_NODETREE_END
+	} FOREACH_NODETREE_END;
 
 	{
 		bool has_old_groups = false;
@@ -3160,7 +3160,7 @@ static void lib_verify_nodetree(Main *main, int UNUSED(open))
 		}
 
 		if (has_old_groups) {
-			FOREACH_NODETREE (main, ntree, id) {
+			FOREACH_NODETREE_BEGIN (main, ntree, id) {
 				/* updates external links for all group nodes in a tree */
 				bNode *node;
 				for (node = ntree->nodes.first; node; node = node->next) {
@@ -3170,7 +3170,7 @@ static void lib_verify_nodetree(Main *main, int UNUSED(open))
 							lib_node_do_versions_group_indices(node);
 					}
 				}
-			} FOREACH_NODETREE_END
+			} FOREACH_NODETREE_END;
 		}
 
 		for (bNodeTree *ntree = main->nodetree.first; ntree; ntree = ntree->id.next) {
@@ -3191,7 +3191,7 @@ static void lib_verify_nodetree(Main *main, int UNUSED(open))
 		 * so have to clean up all of them ...
 		 */
 
-		FOREACH_NODETREE(main, ntree, id) {
+		FOREACH_NODETREE_BEGIN(main, ntree, id) {
 			if (ntree->flag & NTREE_DO_VERSIONS_CUSTOMNODES_GROUP) {
 				bNode *input_node = NULL, *output_node = NULL;
 				int num_inputs = 0, num_outputs = 0;
@@ -3277,7 +3277,7 @@ static void lib_verify_nodetree(Main *main, int UNUSED(open))
 				ntree->flag &= ~(NTREE_DO_VERSIONS_CUSTOMNODES_GROUP | NTREE_DO_VERSIONS_CUSTOMNODES_GROUP_CREATE_INTERFACE);
 			}
 		}
-		FOREACH_NODETREE_END
+		FOREACH_NODETREE_END;
 	}
 
 	/* verify all group user nodes */
@@ -3287,10 +3287,10 @@ static void lib_verify_nodetree(Main *main, int UNUSED(open))
 
 	/* make update calls where necessary */
 	{
-		FOREACH_NODETREE(main, ntree, id) {
+		FOREACH_NODETREE_BEGIN(main, ntree, id) {
 			/* make an update call for the tree */
 			ntreeUpdateTree(main, ntree);
-		} FOREACH_NODETREE_END
+		} FOREACH_NODETREE_END;
 	}
 }
 
@@ -4332,7 +4332,7 @@ static void lib_link_particlesettings(FileData *fd, Main *main)
 				part->effector_weights->group = newlibadr(fd, part->id.lib, part->effector_weights->group);
 			}
 			else {
-				part->effector_weights = BKE_add_effector_weights(part->eff_group);
+				part->effector_weights = BKE_effector_add_weights(part->eff_group);
 			}
 
 			if (part->dupliweights.first && part->dup_group) {
@@ -4411,7 +4411,7 @@ static void direct_link_particlesettings(FileData *fd, ParticleSettings *part)
 
 	part->effector_weights = newdataadr(fd, part->effector_weights);
 	if (!part->effector_weights)
-		part->effector_weights = BKE_add_effector_weights(part->eff_group);
+		part->effector_weights = BKE_effector_add_weights(part->eff_group);
 
 	link_list(fd, &part->dupliweights);
 
@@ -5155,7 +5155,7 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 				clmd->sim_parms->effector_weights = newdataadr(fd, clmd->sim_parms->effector_weights);
 
 				if (!clmd->sim_parms->effector_weights) {
-					clmd->sim_parms->effector_weights = BKE_add_effector_weights(NULL);
+					clmd->sim_parms->effector_weights = BKE_effector_add_weights(NULL);
 				}
 			}
 
@@ -5197,7 +5197,7 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 
 				smd->domain->effector_weights = newdataadr(fd, smd->domain->effector_weights);
 				if (!smd->domain->effector_weights)
-					smd->domain->effector_weights = BKE_add_effector_weights(NULL);
+					smd->domain->effector_weights = BKE_effector_add_weights(NULL);
 
 				direct_link_pointcache_list(fd, &(smd->domain->ptcaches[0]), &(smd->domain->point_cache[0]), 1);
 
@@ -5264,7 +5264,7 @@ static void direct_link_modifiers(FileData *fd, ListBase *lb)
 						direct_link_pointcache_list(fd, &(surface->ptcaches), &(surface->pointcache), 1);
 
 						if (!(surface->effector_weights = newdataadr(fd, surface->effector_weights)))
-							surface->effector_weights = BKE_add_effector_weights(NULL);
+							surface->effector_weights = BKE_effector_add_weights(NULL);
 					}
 				}
 			}
@@ -5625,7 +5625,7 @@ static void direct_link_object(FileData *fd, Object *ob)
 
 		sb->effector_weights = newdataadr(fd, sb->effector_weights);
 		if (!sb->effector_weights)
-			sb->effector_weights = BKE_add_effector_weights(NULL);
+			sb->effector_weights = BKE_effector_add_weights(NULL);
 
 		sb->shared = newdataadr(fd, sb->shared);
 		if (sb->shared == NULL) {
@@ -5692,7 +5692,6 @@ static void direct_link_object(FileData *fd, Object *ob)
 		BKE_object_empty_draw_type_set(ob, ob->empty_drawtype);
 	}
 
-	ob->customdata_mask = 0;
 	ob->bb = NULL;
 	ob->derivedDeform = NULL;
 	ob->derivedFinal = NULL;
@@ -6119,8 +6118,7 @@ static void lib_link_scene(FileData *fd, Main *main)
 				BLI_listbase_clear(&seq->anims);
 
 				lib_link_sequence_modifiers(fd, sce, &seq->modifiers);
-			}
-			SEQ_END
+			} SEQ_END;
 
 			for (TimeMarker *marker = sce->markers.first; marker; marker = marker->next) {
 				if (marker->camera) {
@@ -6406,8 +6404,7 @@ static void direct_link_scene(FileData *fd, Scene *sce)
 			}
 
 			direct_link_sequence_modifiers(fd, &seq->modifiers);
-		}
-		SEQ_END
+		} SEQ_END;
 
 		/* link metastack, slight abuse of structs here, have to restore pointer to internal part in struct */
 		{
@@ -6518,7 +6515,7 @@ static void direct_link_scene(FileData *fd, Scene *sce)
 		/* set effector weights */
 		rbw->effector_weights = newdataadr(fd, rbw->effector_weights);
 		if (!rbw->effector_weights)
-			rbw->effector_weights = BKE_add_effector_weights(NULL);
+			rbw->effector_weights = BKE_effector_add_weights(NULL);
 	}
 
 	sce->preview = direct_link_preview_image(fd, sce->preview);
@@ -6552,9 +6549,9 @@ static void direct_link_scene(FileData *fd, Scene *sce)
 		else sce->eevee.light_cache = NULL;
 	}
 	else {
-		/* else read the cache from file. */
+		/* else try to read the cache from file. */
+		sce->eevee.light_cache = newdataadr(fd, sce->eevee.light_cache);
 		if (sce->eevee.light_cache) {
-			sce->eevee.light_cache = newdataadr(fd, sce->eevee.light_cache);
 			direct_link_lightcache(fd, sce->eevee.light_cache);
 		}
 	}
@@ -9999,8 +9996,7 @@ static void expand_scene(FileData *fd, Main *mainvar, Scene *sce)
 			if (seq->clip) expand_doit(fd, mainvar, seq->clip);
 			if (seq->mask) expand_doit(fd, mainvar, seq->mask);
 			if (seq->sound) expand_doit(fd, mainvar, seq->sound);
-		}
-		SEQ_END
+		} SEQ_END;
 	}
 
 	if (sce->rigidbody_world) {
@@ -10980,34 +10976,6 @@ static void read_libraries(FileData *basefd, ListBase *mainlist)
 
 	BLI_ghash_free(loaded_ids, NULL, NULL);
 	loaded_ids = NULL;
-
-	/* test if there are unread libblocks */
-	/* XXX This code block is kept for 2.77, until we are sure it never gets reached anymore. Can be removed later. */
-	for (mainptr = mainl->next; mainptr; mainptr = mainptr->next) {
-		a = set_listbasepointers(mainptr, lbarray);
-		while (a--) {
-			ID *id, *idn = NULL;
-
-			for (id = lbarray[a]->first; id; id = idn) {
-				idn = id->next;
-				if (id->tag & LIB_TAG_READ) {
-					BLI_assert(0);
-					BLI_remlink(lbarray[a], id);
-					blo_reportf_wrap(
-					        basefd->reports, RPT_ERROR,
-					        TIP_("LIB: %s: '%s' unread lib block missing from '%s', parent '%s' - "
-					             "Please file a bug report if you see this message"),
-					        BKE_idcode_to_name(GS(id->name)),
-					        id->name + 2,
-					        mainptr->curlib->filepath,
-					        library_parent_filepath(mainptr->curlib));
-					change_idid_adr(mainlist, basefd, id, NULL);
-
-					MEM_freeN(id);
-				}
-			}
-		}
-	}
 
 	/* do versions, link, and free */
 	Main *main_newid = BKE_main_new();
