@@ -1252,7 +1252,7 @@ static void rna_def_gpencil_sculpt(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "use_thickness_curve", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_SCULPT_SETT_FLAG_PRIMITIVE_CURVE);
-	RNA_def_property_ui_text(prop, "Use Curve", "Use curvbe to define primitive stroke thickness");
+	RNA_def_property_ui_text(prop, "Use Curve", "Use curve to define primitive stroke thickness");
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
 
