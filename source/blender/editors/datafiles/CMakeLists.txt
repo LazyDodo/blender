@@ -661,6 +661,9 @@ set_property(GLOBAL PROPERTY ICON_GEOM_NAMES
 	brush.sculpt.smooth
 	brush.sculpt.snake_hook
 	brush.sculpt.thumb
+	brush.uv_sculpt.grab
+	brush.uv_sculpt.pinch
+	brush.uv_sculpt.relax
 	none
 	ops.armature.bone.roll
 	ops.armature.extrude_cursor
@@ -681,6 +684,7 @@ set_property(GLOBAL PROPERTY ICON_GEOM_NAMES
 	ops.gpencil.edit_mirror
 	ops.gpencil.edit_shear
 	ops.gpencil.edit_to_sphere
+	ops.gpencil.primitive_arc
 	ops.gpencil.primitive_box
 	ops.gpencil.primitive_circle
 	ops.gpencil.primitive_line

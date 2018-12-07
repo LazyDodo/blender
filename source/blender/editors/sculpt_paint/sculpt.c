@@ -3954,8 +3954,9 @@ static void do_tiled(Sculpt *sd, Object *ob, Brush *brush, UnifiedPaintSettings 
 	SculptSession *ss = ob->sculpt;
 	StrokeCache *cache = ss->cache;
 	const float radius = cache->radius;
-	const float *bbMin = ob->bb->vec[0];
-	const float *bbMax = ob->bb->vec[6];
+	BoundBox *bb = BKE_object_boundbox_get(ob);
+	const float *bbMin = bb->vec[0];
+	const float *bbMax = bb->vec[6];
 	const float *step = sd->paint.tile_offset;
 	int dim;
 
@@ -5752,7 +5753,8 @@ void ED_object_sculptmode_enter(struct bContext *C, ReportList *reports)
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
-	Object *ob = CTX_data_active_object(C);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	Object *ob = OBACT(view_layer);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	ED_object_sculptmode_enter_ex(bmain, depsgraph, scene, ob, reports);
 }
@@ -5809,7 +5811,8 @@ void ED_object_sculptmode_exit(bContext *C)
 {
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Scene *scene = CTX_data_scene(C);
-	Object *ob = CTX_data_active_object(C);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	Object *ob = OBACT(view_layer);
 	ED_object_sculptmode_exit_ex(depsgraph, scene, ob);
 }
 
@@ -5820,7 +5823,8 @@ static int sculpt_mode_toggle_exec(bContext *C, wmOperator *op)
 	Depsgraph *depsgraph = CTX_data_depsgraph_on_load(C);
 	Scene *scene = CTX_data_scene(C);
 	ToolSettings *ts = scene->toolsettings;
-	Object *ob = CTX_data_active_object(C);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	Object *ob = OBACT(view_layer);
 	const int mode_flag = OB_MODE_SCULPT;
 	const bool is_mode_set = (ob->mode & mode_flag) != 0;
 
@@ -5858,7 +5862,7 @@ static void SCULPT_OT_sculptmode_toggle(wmOperatorType *ot)
 	ot->exec = sculpt_mode_toggle_exec;
 	ot->poll = ED_operator_object_active_editable_mesh;
 
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_USE_EVAL_DATA;
 }
 
 static bool sculpt_and_constant_or_manual_detail_poll(bContext *C)

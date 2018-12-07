@@ -77,13 +77,13 @@ struct GPUBatch **DRW_curve_batch_cache_get_surface_shaded(
         struct GPUMaterial **gpumat_array, uint gpumat_array_len);
 void DRW_curve_batch_cache_get_wireframes_face_texbuf(
         struct Curve *cu, struct CurveCache *ob_curve_cache,
-        struct GPUTexture **verts_data, struct GPUTexture **face_indices, int *tri_count);
+        struct GPUTexture **verts_data, struct GPUTexture **face_indices, int *tri_count, bool reduce_len);
 
 /* Metaball */
 struct GPUBatch *DRW_metaball_batch_cache_get_triangles_with_normals(struct Object *ob);
 struct GPUBatch **DRW_metaball_batch_cache_get_surface_shaded(struct Object *ob, struct MetaBall *mb, struct GPUMaterial **gpumat_array, uint gpumat_array_len);
 void DRW_metaball_batch_cache_get_wireframes_face_texbuf(
-        struct Object *ob, struct GPUTexture **verts_data, struct GPUTexture **face_indices, int *tri_count);
+        struct Object *ob, struct GPUTexture **verts_data, struct GPUTexture **face_indices, int *tri_count, bool reduce_len);
 
 /* Curve (Font) */
 struct GPUBatch *DRW_curve_batch_cache_get_overlay_cursor(struct Curve *cu);
@@ -128,16 +128,16 @@ bool DRW_mesh_weight_state_compare(const struct DRW_MeshWeightState *a, const st
 
 /* Mesh */
 struct GPUBatch **DRW_mesh_batch_cache_get_surface_shaded(
-        struct Mesh *me, struct GPUMaterial **gpumat_array, uint gpumat_array_len,
+        struct Mesh *me, struct GPUMaterial **gpumat_array, uint gpumat_array_len, bool use_hide,
         char **auto_layer_names, int **auto_layer_is_srgb, int *auto_layer_count);
-struct GPUBatch **DRW_mesh_batch_cache_get_surface_texpaint(struct Mesh *me);
+struct GPUBatch **DRW_mesh_batch_cache_get_surface_texpaint(struct Mesh *me, bool use_hide);
 struct GPUBatch *DRW_mesh_batch_cache_get_surface_texpaint_single(struct Mesh *me);
-struct GPUBatch *DRW_mesh_batch_cache_get_weight_overlay_edges(struct Mesh *me, bool use_wire, bool use_sel);
+struct GPUBatch *DRW_mesh_batch_cache_get_weight_overlay_edges(struct Mesh *me, bool use_wire, bool use_sel, bool use_hide);
 struct GPUBatch *DRW_mesh_batch_cache_get_weight_overlay_faces(struct Mesh *me);
 struct GPUBatch *DRW_mesh_batch_cache_get_weight_overlay_verts(struct Mesh *me);
 struct GPUBatch *DRW_mesh_batch_cache_get_all_edges(struct Mesh *me);
 struct GPUBatch *DRW_mesh_batch_cache_get_all_triangles(struct Mesh *me);
-struct GPUBatch *DRW_mesh_batch_cache_get_triangles_with_normals(struct Mesh *me);
+struct GPUBatch *DRW_mesh_batch_cache_get_triangles_with_normals(struct Mesh *me, bool use_hide);
 struct GPUBatch *DRW_mesh_batch_cache_get_triangles_with_normals_and_weights(struct Mesh *me, const struct DRW_MeshWeightState *wstate);
 struct GPUBatch *DRW_mesh_batch_cache_get_triangles_with_normals_and_vert_colors(struct Mesh *me);
 struct GPUBatch *DRW_mesh_batch_cache_get_triangles_with_select_id(struct Mesh *me, bool use_hide, uint select_id_offset);
@@ -162,7 +162,7 @@ struct GPUBatch *DRW_mesh_batch_cache_get_edges_with_select_id(struct Mesh *me, 
 struct GPUBatch *DRW_mesh_batch_cache_get_verts_with_select_id(struct Mesh *me, uint select_id_offset);
 /* Object mode Wireframe overlays */
 void DRW_mesh_batch_cache_get_wireframes_face_texbuf(
-        struct Mesh *me, struct GPUTexture **verts_data, struct GPUTexture **face_indices, int *tri_count);
+        struct Mesh *me, struct GPUTexture **verts_data, struct GPUTexture **face_indices, int *tri_count, bool reduce_len);
 
 void DRW_mesh_cache_sculpt_coords_ensure(struct Mesh *me);
 
@@ -212,7 +212,7 @@ struct GPUBatch *DRW_particles_batch_cache_get_hair(
 struct GPUBatch *DRW_particles_batch_cache_get_dots(
         struct Object *object, struct ParticleSystem *psys);
 struct GPUBatch *DRW_particles_batch_cache_get_edit_strands(
-        struct Object *object, struct ParticleSystem *psys, struct PTCacheEdit *edit);
+        struct Object *object, struct ParticleSystem *psys, struct PTCacheEdit *edit, bool use_weight);
 struct GPUBatch *DRW_particles_batch_cache_get_edit_inner_points(
         struct Object *object, struct ParticleSystem *psys, struct PTCacheEdit *edit);
 struct GPUBatch *DRW_particles_batch_cache_get_edit_tip_points(

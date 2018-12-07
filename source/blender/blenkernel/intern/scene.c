@@ -113,7 +113,7 @@
 #include "bmesh.h"
 
 const char *RE_engine_id_BLENDER_EEVEE = "BLENDER_EEVEE";
-const char *RE_engine_id_BLENDER_OPENGL = "BLENDER_OPENGL";
+const char *RE_engine_id_BLENDER_WORKBENCH = "BLENDER_WORKBENCH";
 const char *RE_engine_id_CYCLES = "CYCLES";
 
 void free_avicodecdata(AviCodecData *acd)
@@ -550,6 +550,8 @@ void BKE_scene_init(Scene *sce)
 
 	BLI_assert(MEMCMP_STRUCT_OFS_IS_ZERO(sce, id));
 
+	unit_qt(sce->cursor.rotation);
+
 	sce->r.mode = R_OSA;
 	sce->r.cfra = 1;
 	sce->r.sfra = 1;
@@ -761,7 +763,8 @@ void BKE_scene_init(Scene *sce)
 	colorspace_name = IMB_colormanagement_role_colorspace_name_get(COLOR_ROLE_DEFAULT_SEQUENCER);
 
 	BKE_color_managed_display_settings_init(&sce->display_settings);
-	BKE_color_managed_view_settings_init(&sce->view_settings);
+	BKE_color_managed_view_settings_init_render(&sce->view_settings,
+	                                            &sce->display_settings);
 	BLI_strncpy(sce->sequencer_colorspace_settings.name, colorspace_name,
 	            sizeof(sce->sequencer_colorspace_settings.name));
 
@@ -856,8 +859,9 @@ void BKE_scene_init(Scene *sce)
 	BKE_view_layer_add(sce, "View Layer");
 
 	/* SceneDisplay */
-	copy_v3_v3(sce->display.light_direction, (float[3]){-M_SQRT1_3, -M_SQRT1_3, M_SQRT1_3});
-	sce->display.shadow_shift = 0.1;
+	copy_v3_v3(sce->display.light_direction, (float[3]){M_SQRT1_3, M_SQRT1_3, M_SQRT1_3});
+	sce->display.shadow_shift = 0.1f;
+	sce->display.shadow_focus = 0.0f;
 
 	sce->display.matcap_ssao_distance = 0.2f;
 	sce->display.matcap_ssao_attenuation = 1.0f;
@@ -1640,9 +1644,9 @@ bool BKE_scene_uses_blender_eevee(const Scene *scene)
 	return STREQ(scene->r.engine, RE_engine_id_BLENDER_EEVEE);
 }
 
-bool BKE_scene_uses_blender_opengl(const Scene *scene)
+bool BKE_scene_uses_blender_workbench(const Scene *scene)
 {
-	return STREQ(scene->r.engine, RE_engine_id_BLENDER_OPENGL);
+	return STREQ(scene->r.engine, RE_engine_id_BLENDER_WORKBENCH);
 }
 
 bool BKE_scene_uses_cycles(const Scene *scene)

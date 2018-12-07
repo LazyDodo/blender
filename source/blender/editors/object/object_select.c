@@ -126,15 +126,11 @@ void ED_object_base_select(Base *base, eObjectSelect_Mode mode)
  */
 void ED_object_base_activate(bContext *C, Base *base)
 {
+	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	view_layer->basact = base;
 
-	if (base) {
-		WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, view_layer);
-	}
-	else {
-		WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, NULL);
-	}
+	WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 	DEG_id_tag_update(&CTX_data_scene(C)->id, DEG_TAG_SELECT_UPDATE);
 }
 
@@ -456,7 +452,7 @@ static const EnumPropertyItem prop_select_linked_types[] = {
 	//{OBJECT_SELECT_LINKED_IPO, "IPO", 0, "Object IPO", ""}, // XXX deprecated animation system stuff...
 	{OBJECT_SELECT_LINKED_OBDATA, "OBDATA", 0, "Object Data", ""},
 	{OBJECT_SELECT_LINKED_MATERIAL, "MATERIAL", 0, "Material", ""},
-	{OBJECT_SELECT_LINKED_DUPGROUP, "DUPGROUP", 0, "Dupligroup", ""},
+	{OBJECT_SELECT_LINKED_DUPGROUP, "DUPGROUP", 0, "Instanced Collection", ""},
 	{OBJECT_SELECT_LINKED_PARTICLE, "PARTICLE", 0, "Particle System", ""},
 	{OBJECT_SELECT_LINKED_LIBRARY, "LIBRARY", 0, "Library", ""},
 	{OBJECT_SELECT_LINKED_LIBRARY_OBDATA, "LIBRARY_OBDATA", 0, "Library (Object Data)", ""},

@@ -44,7 +44,7 @@ Base **BKE_view_layer_array_from_bases_in_mode_params(
         const struct ObjectsInModeParams *params)
 {
 	if (params->no_dup_data) {
-		FOREACH_BASE_IN_MODE_BEGIN(view_layer, v3d, params->object_mode, base_iter) {
+		FOREACH_BASE_IN_MODE_BEGIN(view_layer, v3d, -1, params->object_mode, base_iter) {
 			ID *id = base_iter->object->data;
 			if (id) {
 				id->tag |= LIB_TAG_DOIT;
@@ -55,7 +55,7 @@ Base **BKE_view_layer_array_from_bases_in_mode_params(
 	Base **base_array = NULL;
 	BLI_array_declare(base_array);
 
-	FOREACH_BASE_IN_MODE_BEGIN(view_layer, v3d, params->object_mode, base_iter) {
+	FOREACH_BASE_IN_MODE_BEGIN(view_layer, v3d, -1, params->object_mode, base_iter) {
 		if (params->filter_fn) {
 			if (!params->filter_fn(base_iter->object, params->filter_userdata)) {
 				continue;
@@ -75,8 +75,10 @@ Base **BKE_view_layer_array_from_bases_in_mode_params(
 		BLI_array_append(base_array, base_iter);
 	} FOREACH_BASE_IN_MODE_END;
 
-	if (base_array != NULL) {
-		base_array = MEM_reallocN(base_array, sizeof(*base_array) * BLI_array_len(base_array));
+	base_array = MEM_reallocN(base_array, sizeof(*base_array) * BLI_array_len(base_array));
+	/* We always need a valid allocation (prevent crash on free). */
+	if (base_array == NULL) {
+		base_array = MEM_mallocN(0, __func__);
 	}
 	*r_len = BLI_array_len(base_array);
 	return base_array;

@@ -46,9 +46,9 @@ struct WorkSpace;
 /* wm_toolsystem.c  */
 
 #define WM_TOOLSYSTEM_SPACE_MASK ( \
-	(1 << SPACE_VIEW3D) | \
-	(1 << SPACE_IMAGE) \
-)
+	(1 << SPACE_IMAGE) | \
+	(1 << SPACE_NODE) | \
+	(1 << SPACE_VIEW3D) )
 
 /* Values that define a categoey of active tool. */
 typedef struct bToolKey { int space_type; int mode; } bToolKey;
@@ -86,11 +86,11 @@ int WM_toolsystem_mode_from_spacetype(
         struct ViewLayer *view_layer, struct ScrArea *sa, int space_type);
 bool WM_toolsystem_key_from_context(
         struct ViewLayer *view_layer, struct ScrArea *sa, bToolKey *tkey);
-void WM_toolsystem_update_from_context(
-        struct bContext *C,
-        struct WorkSpace *workspace, struct Scene *scene, struct ScrArea *sa);
 
 void WM_toolsystem_update_from_context_view3d(struct bContext *C);
+void WM_toolsystem_update_from_context(
+        struct bContext *C, struct WorkSpace *workspace, struct ViewLayer *view_layer,
+        struct ScrArea *sa);
 
 bool WM_toolsystem_active_tool_is_brush(const struct bContext *C);
 

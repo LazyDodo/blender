@@ -95,6 +95,7 @@
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
+#include "DEG_depsgraph_query.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -587,7 +588,7 @@ static int effector_add_exec(bContext *C, wmOperator *op)
 			ob->empty_drawtype = OB_SINGLE_ARROW;
 	}
 
-	ob->pd = object_add_collision_fields(type);
+	ob->pd = BKE_partdeflect_new(type);
 
 	DEG_relations_tag_update(CTX_data_main(C));
 
@@ -1520,7 +1521,8 @@ static void make_object_duplilist_real(bContext *C, Scene *scene, Base *base,
 		return;
 	}
 
-	lb_duplis = object_duplilist(depsgraph, scene, base->object);
+	Object *object_eval = DEG_get_evaluated_object(depsgraph, base->object);
+	lb_duplis = object_duplilist(depsgraph, scene, object_eval);
 
 	dupli_gh = BLI_ghash_ptr_new(__func__);
 	if (use_hierarchy) {
@@ -1533,7 +1535,7 @@ static void make_object_duplilist_real(bContext *C, Scene *scene, Base *base,
 	}
 
 	for (dob = lb_duplis->first; dob; dob = dob->next) {
-		Object *ob_src = dob->ob;
+		Object *ob_src = DEG_get_original_object(dob->ob);
 		Object *ob_dst = ID_NEW_SET(dob->ob, BKE_object_copy(bmain, ob_src));
 		Base *base_dst;
 
@@ -1579,7 +1581,7 @@ static void make_object_duplilist_real(bContext *C, Scene *scene, Base *base,
 	}
 
 	for (dob = lb_duplis->first; dob; dob = dob->next) {
-		Object *ob_src = dob->ob;
+		Object *ob_src = DEG_get_original_object(dob->ob);
 		Object *ob_dst = BLI_ghash_lookup(dupli_gh, dob);
 
 		/* Remap new object to itself, and clear again newid pointer of orig object. */
@@ -1663,6 +1665,7 @@ static void make_object_duplilist_real(bContext *C, Scene *scene, Base *base,
 	BKE_main_id_clear_newpoins(bmain);
 
 	base->object->transflag &= ~OB_DUPLI;
+	DEG_id_tag_update(&base->object->id, DEG_TAG_COPY_ON_WRITE);
 }
 
 static int object_duplicates_make_real_exec(bContext *C, wmOperator *op)
@@ -1704,7 +1707,7 @@ void OBJECT_OT_duplicates_make_real(wmOperatorType *ot)
 	ot->poll = ED_operator_objectmode;
 
 	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_USE_EVAL_DATA;
 
 	RNA_def_boolean(ot->srna, "use_base_parent", 0, "Parent", "Parent newly created objects to the original duplicator");
 	RNA_def_boolean(ot->srna, "use_hierarchy", 0, "Keep Hierarchy", "Maintain parent child relationships");
@@ -1723,9 +1726,12 @@ static void convert_ensure_curve_cache(Depsgraph *depsgraph, Scene *scene, Objec
 	if (ob->runtime.curve_cache == NULL) {
 		/* Force creation. This is normally not needed but on operator
 		 * redo we might end up with an object which isn't evaluated yet.
+		 * Also happens in case we are working on a copy of the object (all its caches have been nuked then).
 		 */
 		if (ELEM(ob->type, OB_SURF, OB_CURVE, OB_FONT)) {
-			BKE_displist_make_curveTypes(depsgraph, scene, ob, false);
+			/* We need 'for render' ON here, to enable computing bevel dipslist if needed.
+			 * Also makes sense anyway, we would not want e.g. to loose hidden parts etc. */
+			BKE_displist_make_curveTypes(depsgraph, scene, ob, true, false);
 		}
 		else if (ob->type == OB_MBALL) {
 			BKE_displist_make_mball(depsgraph, scene, ob);
@@ -1917,10 +1923,10 @@ static int convert_exec(bContext *C, wmOperator *op)
 			/* note: get the mesh from the original, not from the copy in some
 			 * cases this doesn't give correct results (when MDEF is used for eg)
 			 */
-			Mesh *me_eval = mesh_get_eval_final(depsgraph, scene, newob, CD_MASK_MESH);
-			if (newob->runtime.mesh_eval == me_eval) {
-				newob->runtime.mesh_eval = NULL;
-			}
+			Scene *scene_eval = (Scene *)DEG_get_evaluated_id(depsgraph, &scene->id);
+			Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
+			Mesh *me_eval = mesh_get_eval_final(depsgraph, scene_eval, ob_eval, CD_MASK_MESH);
+			me_eval = BKE_mesh_copy_for_eval(me_eval, false);
 			BKE_mesh_nomain_to_mesh(me_eval, newob->data, newob, CD_MASK_MESH, true);
 			BKE_object_free_modifiers(newob, 0);   /* after derivedmesh calls! */
 		}
@@ -2188,6 +2194,7 @@ static Base *object_add_duplicate_internal(Main *bmain, Scene *scene, ViewLayer 
 			BKE_collection_object_add(bmain, layer_collection->collection, obn);
 		}
 		basen = BKE_view_layer_base_find(view_layer, obn);
+		basen->local_view_bits = base->local_view_bits;
 
 		/* 1) duplis should end up in same collection as the original
 		 * 2) Rigid Body sim participants MUST always be part of a collection...
