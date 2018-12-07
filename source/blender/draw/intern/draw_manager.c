@@ -33,6 +33,7 @@
 
 #include "BLF_api.h"
 
+#include "BKE_colortools.h"
 #include "BKE_global.h"
 #include "BKE_mesh.h"
 #include "BKE_object.h"
@@ -192,7 +193,7 @@ bool DRW_object_is_flat_normal(const Object *ob)
 bool DRW_object_use_hide_faces(const struct Object *ob)
 {
 	if (ob->type == OB_MESH) {
-		const Mesh *me = DEG_get_original_object((Object*)ob)->data;
+		const Mesh *me = DEG_get_original_object((Object *)ob)->data;
 
 		switch (ob->mode) {
 			case OB_MODE_TEXTURE_PAINT:
@@ -269,10 +270,19 @@ void DRW_transform_to_display(GPUTexture *tex, bool use_view_settings)
 	if (!(DST.options.is_image_render && !DST.options.is_scene_render)) {
 		Scene *scene = DST.draw_ctx.scene;
 		ColorManagedDisplaySettings *display_settings = &scene->display_settings;
-		ColorManagedViewSettings *view_settings = (use_view_settings) ? &scene->view_settings : NULL;
-
+		ColorManagedViewSettings *active_view_settings;
+		ColorManagedViewSettings default_view_settings;
+		if (use_view_settings) {
+			active_view_settings = &scene->view_settings;
+		}
+		else {
+			BKE_color_managed_view_settings_init_render(
+			        &default_view_settings,
+			        display_settings);
+			active_view_settings = &default_view_settings;
+		}
 		use_ocio = IMB_colormanagement_setup_glsl_draw_from_space(
-		        view_settings, display_settings, NULL, dither, false);
+		        active_view_settings, display_settings, NULL, dither, false);
 	}
 
 	if (!use_ocio) {
@@ -1516,6 +1526,11 @@ void DRW_draw_render_loop_ex(
 
 	drw_engines_draw_scene();
 
+#ifdef __APPLE__
+	/* Fix 3D view being "laggy" on macos. (See T56996) */
+	GPU_flush();
+#endif
+
 	/* annotations - temporary drawing buffer (3d space) */
 	/* XXX: Or should we use a proper draw/overlay engine for this case? */
 	if (do_annotations) {
@@ -2414,6 +2429,16 @@ bool DRW_state_is_opengl_render(void)
 	return DST.options.is_image_render && !DST.options.is_scene_render;
 }
 
+bool DRW_state_is_playback(void)
+{
+	if (DST.draw_ctx.evil_C != NULL) {
+		struct wmWindowManager *wm = CTX_wm_manager(DST.draw_ctx.evil_C);
+		return ED_screen_animation_playing(wm) != NULL;
+	}
+	return false;
+}
+
+
 /**
  * Should text draw in this mode?
  */
@@ -2653,7 +2678,7 @@ void DRW_opengl_context_disable_ex(bool restore)
 #ifdef __APPLE__
 		/* Need to flush before disabling draw context, otherwise it does not
 		 * always finish drawing and viewport can be empty or partially drawn */
-		glFlush();
+		GPU_flush();
 #endif
 
 		if (BLI_thread_is_main() && restore) {
@@ -2690,7 +2715,7 @@ void DRW_opengl_render_context_enable(void *re_gl_context)
 
 void DRW_opengl_render_context_disable(void *re_gl_context)
 {
-	glFlush();
+	GPU_flush();
 	WM_opengl_context_release(re_gl_context);
 	/* TODO get rid of the blocking. */
 	BLI_ticket_mutex_unlock(DST.gl_context_mutex);

@@ -1412,10 +1412,6 @@ class VIEW3D_MT_curve_add(Menu):
         layout.operator("curve.primitive_nurbs_circle_add", text="Nurbs Circle", icon='CURVE_NCIRCLE')
         layout.operator("curve.primitive_nurbs_path_add", text="Path", icon='CURVE_PATH')
 
-        layout.separator()
-
-        layout.operator("curve.draw", icon='LINE_DATA')
-
 
 class VIEW3D_MT_surface_add(Menu):
     bl_idname = "VIEW3D_MT_surface_add"
@@ -1751,8 +1747,8 @@ class VIEW3D_MT_object_specials(Menu):
 
         if obj.type == 'MESH':
 
-            layout.operator("object.shade_smooth", text="Smooth Shading")
-            layout.operator("object.shade_flat", text="Flat Shading")
+            layout.operator("object.shade_smooth", text="Shade Smooth")
+            layout.operator("object.shade_flat", text="Shade Flat")
 
             layout.separator()
 
@@ -2758,6 +2754,7 @@ class VIEW3D_MT_edit_mesh(Menu):
         layout.menu("VIEW3D_MT_edit_mesh_extrude")
         layout.operator("mesh.split")
         layout.operator("mesh.bisect")
+        layout.operator("mesh.knife_project")
 
         if with_bullet:
             layout.operator("mesh.convex_hull")
@@ -3892,16 +3889,28 @@ class VIEW3D_MT_shading_ex_pie(Menu):
         pie.prop_enum(view.shading, "type", value='WIREFRAME')
         pie.prop_enum(view.shading, "type", value='SOLID')
 
-        xray_active = (
-            (context.mode in {'POSE', 'EDIT_MESH'}) or
-            (view.shading.type in {'SOLID', 'WIREFRAME'})
-        )
-        if xray_active:
-            sub = pie
+        # Note this duplicates 'view3d.toggle_xray' logic, so we can see the active item: T58661.
+        if (
+                (context.mode == 'POSE') or
+                ((context.mode == 'WEIGHT_PAINT') and (context.active_object.find_armature()))
+        ):
+            pie.prop(view.overlay, "show_xray_bone", icon='XRAY')
         else:
-            sub = pie.row()
-            sub.active = False
-        sub.operator("view3d.toggle_xray", text="Toggle X-Ray", icon='XRAY')
+            xray_active = (
+                (context.mode == 'EDIT_MESH') or
+                (view.shading.type in {'SOLID', 'WIREFRAME'})
+            )
+            if xray_active:
+                sub = pie
+            else:
+                sub = pie.row()
+                sub.active = False
+            sub.prop(
+                view.shading,
+                "show_xray_wireframe" if (view.shading.type == 'WIREFRAME') else "show_xray",
+                text="Toggle X-Ray",
+                icon='XRAY',
+            )
 
         pie.prop(view.overlay, "show_overlays", text="Toggle Overlays", icon='OVERLAY')
 

@@ -1362,6 +1362,16 @@ void *BKE_libblock_copy_nolib(const ID *id, const bool do_action)
 	return idn;
 }
 
+void *BKE_libblock_copy_for_localize(const ID *id)
+{
+	ID *idn;
+	BKE_libblock_copy_ex(NULL, id, &idn, (LIB_ID_CREATE_NO_MAIN |
+	                                      LIB_ID_CREATE_NO_USER_REFCOUNT |
+	                                      LIB_ID_COPY_ACTIONS |
+	                                      LIB_ID_COPY_NO_ANIMDATA));
+	return idn;
+}
+
 void BKE_library_free(Library *lib)
 {
 	if (lib->packedfile)
@@ -2124,7 +2134,7 @@ void BKE_libblock_rename(Main *bmain, ID *id, const char *name)
 }
 
 /**
- * Generate full name of the data-block (without ID code, but with library is any)
+ * Generate full name of the data-block (without ID code, but with library if any).
  *
  * \note Result is unique to a given ID type in a given Main database.
  *
@@ -2147,7 +2157,7 @@ void BKE_id_full_name_get(char name[MAX_ID_FULL_NAME], const ID *id)
 }
 
 /**
- * Generate full name of the data-block (without ID code, but with library is any), with a 3-character prefix prepended
+ * Generate full name of the data-block (without ID code, but with library if any), with a 3-character prefix prepended
  * indicating whether it comes from a library, is overriding, has a fake or no user, etc.
  *
  * \note Result is unique to a given ID type in a given Main database.

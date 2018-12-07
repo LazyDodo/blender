@@ -142,14 +142,6 @@ void BKE_object_eval_transform_final(Depsgraph *depsgraph, Object *ob)
 	/* Set negative scale flag in object. */
 	if (is_negative_m4(ob->obmat)) ob->transflag |= OB_NEG_SCALE;
 	else ob->transflag &= ~OB_NEG_SCALE;
-
-	if (DEG_is_active(depsgraph)) {
-		Object *ob_orig = DEG_get_original_object(ob);
-		copy_m4_m4(ob_orig->obmat, ob->obmat);
-		copy_m4_m4(ob_orig->constinv, ob->constinv);
-		ob_orig->transflag = ob->transflag;
-		ob_orig->flag = ob->flag;
-	}
 }
 
 void BKE_object_handle_data_update(
@@ -271,6 +263,8 @@ void BKE_object_handle_data_update(
 	BKE_object_eval_boundbox(depsgraph, ob);
 }
 
+/* TODO(sergey): Ensure that bounding box is already calculated, and move this
+ * into BKE_object_synchronize_to_original(). */
 void BKE_object_eval_boundbox(Depsgraph *depsgraph, Object *object)
 {
 	if (!DEG_is_active(depsgraph)) {
@@ -283,6 +277,33 @@ void BKE_object_eval_boundbox(Depsgraph *depsgraph, Object *object)
 			ob_orig->bb = MEM_mallocN(sizeof(*ob_orig->bb), __func__);
 		}
 		*ob_orig->bb = *bb;
+	}
+}
+
+void BKE_object_synchronize_to_original(Depsgraph *depsgraph, Object *object)
+{
+	if (!DEG_is_active(depsgraph)) {
+		return;
+	}
+	Object *object_orig = DEG_get_original_object(object);
+	/* Base flags. */
+	object_orig->base_flag = object->base_flag;
+	/* Transformation flags. */
+	copy_m4_m4(object_orig->obmat, object->obmat);
+	copy_m4_m4(object_orig->constinv, object->constinv);
+	object_orig->transflag = object->transflag;
+	object_orig->flag = object->flag;
+
+	/* Copy back error messages from modifiers. */
+	for (ModifierData *md = object->modifiers.first, *md_orig = object_orig->modifiers.first;
+	     md != NULL && md_orig != NULL;
+	     md = md->next, md_orig = md_orig->next)
+	{
+		BLI_assert(md->type == md_orig->type && STREQ(md->name, md_orig->name));
+		MEM_SAFE_FREE(md_orig->error);
+		if (md->error != NULL) {
+			md_orig->error = BLI_strdup(md->error);
+		}
 	}
 }
 
@@ -429,12 +450,6 @@ void BKE_object_eval_flush_base_flags(Depsgraph *depsgraph,
 		object->base_flag &= ~(BASE_SELECTED | BASE_SELECTABLE);
 	}
 	object->base_local_view_bits = base->local_view_bits;
-
-	/* Copy to original object datablock if needed. */
-	if (DEG_is_active(depsgraph)) {
-		Object *object_orig = DEG_get_original_object(object);
-		object_orig->base_flag = object->base_flag;
-	}
 
 	if (object->mode == OB_MODE_PARTICLE_EDIT) {
 		for (ParticleSystem *psys = object->particlesystem.first;

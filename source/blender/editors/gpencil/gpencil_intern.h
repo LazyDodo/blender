@@ -154,6 +154,8 @@ typedef struct tGPDprimitive {
 	struct bGPDlayer *gpl;            /* layer */
 	struct bGPDframe *gpf;            /* frame */
 	int type;                         /* type of primitive */
+	short cyclic;                       /* cyclic option */
+	short flip;                         /* flip option */
 	int tot_edges;                    /* number of polygon edges */
 	int top[2];                       /* first box corner */
 	int bottom[2];                    /* last box corner */
@@ -225,6 +227,13 @@ void gp_stroke_convertcoords_tpoint(
         struct Object *ob,
         bGPDlayer *gpl, const struct tGPspoint *point2D,
         float *depth, float out[3]);
+
+/* helper to convert 2d to 3d for primitive. See: D4030 */
+void gp_stroke_convertcoords_tpoint_primitive(
+        struct Scene *scene, struct ARegion *ar,
+        struct Object *ob,
+        bGPDlayer *gpl, const struct tPGPspoint *point2D,
+        float out[3]);
 
 /* Poll Callbacks ------------------------------------ */
 /* gpencil_utils.c */
@@ -369,7 +378,8 @@ enum {
 enum {
 	GP_STROKE_BOX = -1,
 	GP_STROKE_LINE = 1,
-	GP_STROKE_CIRCLE = 2
+	GP_STROKE_CIRCLE = 2,
+	GP_STROKE_ARC = 3
 };
 
 
