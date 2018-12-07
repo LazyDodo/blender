@@ -345,7 +345,7 @@ static void gpencil_primitive_status_indicators(bContext *C, tGPDprimitive *tgpi
 /* ----------------------- */
 
 /* create a rectangle */
-static void gp_primitive_rectangle(tGPDprimitive *tgpi, tPGPspoint *points2D)
+static void gp_primitive_rectangle(tGPDprimitive *tgpi, tGPspoint *points2D)
 {
 	BLI_assert(tgpi->tot_edges == 4);
 
@@ -365,7 +365,7 @@ static void gp_primitive_rectangle(tGPDprimitive *tgpi, tPGPspoint *points2D)
 }
 
 /* create a line */
-static void gp_primitive_line(tGPDprimitive *tgpi, tPGPspoint *points2D)
+static void gp_primitive_line(tGPDprimitive *tgpi, tGPspoint *points2D)
 {
 	BLI_assert(tgpi->tot_edges == 2);
 
@@ -379,7 +379,7 @@ static void gp_primitive_line(tGPDprimitive *tgpi, tPGPspoint *points2D)
 }
 
 /* create an arc */
-static void gp_primitive_arc(tGPDprimitive *tgpi, tPGPspoint *points2D)
+static void gp_primitive_arc(tGPDprimitive *tgpi, tGPspoint *points2D)
 {
 	const int totpoints = (tgpi->tot_edges + tgpi->tot_stored_edges);
 	const float step = M_PI_2 / (float)(tgpi->tot_edges - 1);
@@ -402,7 +402,7 @@ static void gp_primitive_arc(tGPDprimitive *tgpi, tPGPspoint *points2D)
 	length[1] = end[1] - start[1];
 
 	for (int i = tgpi->tot_stored_edges; i < totpoints; i++) {
-		tPGPspoint *p2d = &points2D[i];
+		tGPspoint *p2d = &points2D[i];
 		p2d->x = (start[0] + sinf(a) * length[0]);
 		p2d->y = (end[1] - cosf(a) * length[1]);
 		a += step;
@@ -410,7 +410,7 @@ static void gp_primitive_arc(tGPDprimitive *tgpi, tPGPspoint *points2D)
 }
 
 /* create a bezier */
-static void gp_primitive_bezier(tGPDprimitive *tgpi, tPGPspoint *points2D)
+static void gp_primitive_bezier(tGPDprimitive *tgpi, tGPspoint *points2D)
 {
 	const int totpoints = (tgpi->tot_edges + tgpi->tot_stored_edges);
 	const float step = 1.0f / (float)(tgpi->tot_edges - 1);
@@ -426,14 +426,14 @@ static void gp_primitive_bezier(tGPDprimitive *tgpi, tPGPspoint *points2D)
 	copy_v2fl_v2i(cp4, tgpi->bottom);
 
 	for (int i = tgpi->tot_stored_edges; i < totpoints; i++) {
-		tPGPspoint *p2d = &points2D[i];
+		tGPspoint *p2d = &points2D[i];
 		interp_v2_v2v2v2v2_cubic(&p2d->x, cp1, cp2, cp3, cp4, a);
 		a += step;
 	}
 }
 
 /* create a circle */
-static void gp_primitive_circle(tGPDprimitive *tgpi, tPGPspoint *points2D)
+static void gp_primitive_circle(tGPDprimitive *tgpi, tGPspoint *points2D)
 {
 	const int totpoints = (tgpi->tot_edges + tgpi->tot_stored_edges);
 	const float step = (2.0f * M_PI) / (float)(tgpi->tot_edges);
@@ -448,7 +448,7 @@ static void gp_primitive_circle(tGPDprimitive *tgpi, tPGPspoint *points2D)
 	radius[1] = fabsf(((tgpi->bottom[1] - tgpi->top[1]) / 2.0f));
 
 	for (int i = tgpi->tot_stored_edges; i < totpoints; i++) {
-		tPGPspoint *p2d = &points2D[i];
+		tGPspoint *p2d = &points2D[i];
 		p2d->x = (center[0] + cosf(a) * radius[0]);
 		p2d->y = (center[1] + sinf(a) * radius[1]);
 		a += step;
@@ -472,8 +472,8 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	gps->totpoints = (tgpi->tot_edges + tgpi->tot_stored_edges);
 
 	/* compute screen-space coordinates for points */
-	tgpi->points = MEM_reallocN(tgpi->points, sizeof(tPGPspoint) * (tgpi->tot_edges + tgpi->tot_stored_edges));
-	tPGPspoint *points2D = tgpi->points;
+	tgpi->points = MEM_reallocN(tgpi->points, sizeof(tGPspoint) * (tgpi->tot_edges + tgpi->tot_stored_edges));
+	tGPspoint *points2D = tgpi->points;
 	switch (tgpi->type) {
 		case GP_STROKE_BOX:
 			tgpi->cyclic = true;
@@ -512,10 +512,10 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	
 	for (int i = 0; i < gps->totpoints; i++) {
 		bGPDspoint *pt = &gps->points[i];
-		tPGPspoint *p2d = &points2D[i];
+		tGPspoint *p2d = &points2D[i];
 
 		/* Copy points to buffer */
-		tPGPspoint *tpt = ((tPGPspoint *)(gpd->runtime.sbuffer) + gpd->runtime.sbuffer_size);
+		tGPspoint *tpt = ((tGPspoint *)(gpd->runtime.sbuffer) + gpd->runtime.sbuffer_size);
 		tpt->x = p2d->x;
 		tpt->y = p2d->y;
 
@@ -541,7 +541,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		gpd->runtime.sbuffer_size++;
 
 		/* convert screen-coordinates to 3D coordinates */
-		gp_stroke_convertcoords_tpoint_primitive(tgpi->scene, tgpi->ar, tgpi->ob, tgpi->gpl, p2d, &pt->x);
+		gp_stroke_convertcoords_tpoint(tgpi->scene, tgpi->ar, tgpi->ob, tgpi->gpl, p2d, NULL, &pt->x);
 
 		pt->pressure = pressure;
 		pt->strength = tgpi->brush->gpencil_settings->draw_strength;
@@ -578,8 +578,8 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	/* force fill recalc */
 	gps->flag |= GP_STROKE_RECALC_CACHES;
 
-	DEG_id_tag_update(&gpd->id, DEG_TAG_COPY_ON_WRITE);
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_COPY_ON_WRITE);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
 }
 
@@ -644,7 +644,7 @@ static void gpencil_primitive_exit(bContext *C, wmOperator *op)
 		gpd->runtime.sbuffer_sflag = 0;
 	}
 
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
 
 	/* clear pointer */
@@ -665,7 +665,7 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 	tGPDprimitive *tgpi = MEM_callocN(sizeof(tGPDprimitive), "GPencil Primitive Data");
 	op->customdata = tgpi;
 
-	tgpi->points = MEM_callocN(sizeof(tPGPspoint), "gp primitive points2D");
+	tgpi->points = MEM_callocN(sizeof(tGPspoint), "gp primitive points2D");
 
 	/* set current scene and window info */
 	tgpi->bmain = CTX_data_main(C);
@@ -751,7 +751,7 @@ static int gpencil_primitive_invoke(bContext *C, wmOperator *op, const wmEvent *
 
 	/* update sindicator in header */
 	gpencil_primitive_status_indicators(C, tgpi);
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
 
 	/* add a modal handler for this operator */
@@ -803,8 +803,8 @@ static void gpencil_primitive_interaction_end(bContext *C, wmOperator *op, wmWin
 		}
 	}
 
-	DEG_id_tag_update(&tgpi->gpd->id, DEG_TAG_COPY_ON_WRITE);
-	DEG_id_tag_update(&tgpi->gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&tgpi->gpd->id, ID_RECALC_COPY_ON_WRITE);
+	DEG_id_tag_update(&tgpi->gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 
 	/* clean up temp data */
 	gpencil_primitive_exit(C, op);
