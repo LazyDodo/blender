@@ -853,7 +853,7 @@ static void gpencil_primitive_bezier_event_handling(bContext *C, wmOperator *op,
 	float b = len_v2v2_int(event->mval, tgpi->bottom);
 
 	if (tgpi->flag == IN_CURVE_EDIT_BEZIER) {
-		if (a < 10 || b < 10) {
+		if ((a < 10 && tgpi->tot_stored_edges == 0) || b < 10) {
 			move = MOVE_ENDS;
 			WM_cursor_modal_set(win, BC_RING_CURSOR);
 		}
@@ -864,10 +864,9 @@ static void gpencil_primitive_bezier_event_handling(bContext *C, wmOperator *op,
 	}
 
 	switch (event->type) {
-	/* calculate new position */
 	case MOUSEMOVE:
 		if ((event->val == KM_PRESS) && tgpi->sel_cp != CURVE_CP_NONE) {
-			if (tgpi->sel_cp == CURVE_CP_T) {
+			if (tgpi->sel_cp == CURVE_CP_T && tgpi->tot_stored_edges == 0) {
 				copy_v2_v2_int(tgpi->top, event->mval);
 			}
 			else if (tgpi->sel_cp == CURVE_CP_B) {
@@ -894,6 +893,10 @@ static void gpencil_primitive_bezier_event_handling(bContext *C, wmOperator *op,
 			/* update screen */
 			gpencil_primitive_update(C, op, tgpi);
 		}
+		else if ((event->val == KM_PRESS)) {
+			gpencil_primitive_set_midpoint(tgpi);
+			gpencil_primitive_update(C, op, tgpi);
+		}
 		break;
 	case LEFTMOUSE:
 		if ((event->val == KM_PRESS)) {
@@ -912,6 +915,7 @@ static void gpencil_primitive_bezier_event_handling(bContext *C, wmOperator *op,
 			tgpi->flag = IN_CURVE_EDIT_BEZIER;
 			gpencil_primitive_set_midpoint(tgpi);
 			copy_v2_v2_int(tgpi->mvalo, event->mval);
+			gpencil_primitive_update(C, op, tgpi);
 		}
 		else {
 			tgpi->sel_cp = CURVE_CP_NONE;
@@ -925,7 +929,6 @@ static void gpencil_primitive_bezier_event_handling(bContext *C, wmOperator *op,
 			copy_v2_v2_int(tgpi->origin, tgpi->top);
 			gpencil_primitive_set_midpoint(tgpi);
 			copy_v2_v2_int(tgpi->mvalo, event->mval);
-			gpencil_primitive_update(C, op, tgpi);
 		}
 		break;
 	}
@@ -972,8 +975,15 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 			/* done! */
 			return OPERATOR_FINISHED;
 		}
-		case ESCKEY:    /* cancel */
 		case RIGHTMOUSE:
+		if (tgpi->flag == IN_CURVE_EDIT_BEZIER) {
+			tgpi->flag = IDLE;
+			gpencil_primitive_update(C, op, tgpi);
+			gpencil_primitive_interaction_end(C, op, win, tgpi);
+			/* done! */
+			return OPERATOR_FINISHED;
+		}
+		case ESCKEY:
 		{
 			/* return to normal cursor and header status */
 			ED_workspace_status_text(C, NULL);
