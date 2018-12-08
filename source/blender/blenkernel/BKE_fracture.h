@@ -171,12 +171,13 @@ void BKE_fracture_meshisland_vertexgroups_do(struct FractureModifierData *fmd, s
 void BKE_fracture_meshislands_pack(struct FractureModifierData *fmd, struct Object* obj, struct Main* bmain, struct Scene* scene);
 
 void BKE_fracture_postprocess_meshisland(struct FractureModifierData *fmd, struct Object* ob, struct Shard* mi,
-                                         struct Mesh** temp_meshs, int count, struct Scene* scene, int frame, struct Shard **shards);
+                                         struct Mesh ***temp_meshs, int count, struct Scene* scene, int frame,
+                                         struct Shard **shards);
 
 void BKE_fracture_meshisland_normals_fix(struct FractureModifierData *fmd, struct Shard* mi, struct Mesh* orig_me);
 
-void BKE_fracture_copy_customdata(struct CustomData* src, struct CustomData* dst, CustomDataMask mask, int src_ofs, int dst_ofs,
-                              int copyelem, int totelem);
+void BKE_fracture_copy_customdata(struct CustomData* src, struct CustomData* dst, CustomDataMask mask, int src_ofs,
+                                  int dst_ofs, int copyelem, int totelem);
 
 bool BKE_fracture_check_valid_shard(struct FractureModifierData *fmd, struct Shard *mi, struct Scene *scene);
 void BKE_fracture_duplis_to_shards(struct FractureModifierData *fmd, struct Object *ob, struct Scene *scene,

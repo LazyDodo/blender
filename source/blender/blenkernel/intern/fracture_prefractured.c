@@ -80,7 +80,7 @@ Shard *BKE_fracture_mesh_island_create(Mesh* me, Scene *scene, Object *ob, int f
 	}
 
 	mi->rigidbody = BKE_rigidbody_create_shard(ob, NULL, mi, scene);
-	mi->rigidbody->type = RBO_TYPE_ACTIVE;
+	mi->rigidbody->type = ob->rigidbody_object->type; //RBO_TYPE_ACTIVE;
 	mi->rigidbody->flag = ob->rigidbody_object->flag;
 	mi->rigidbody->flag |= RBO_FLAG_NEEDS_VALIDATE;
 	mi->rigidbody->flag |= RBO_FLAG_NEEDS_RESHAPE;

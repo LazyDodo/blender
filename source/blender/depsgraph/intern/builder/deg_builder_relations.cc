@@ -1649,12 +1649,10 @@ void DepsgraphRelationBuilder::build_rigidbody(Scene *scene)
 				add_relation(rbo_key, uber_key, "RBO Sync -> Uber (Temp)");
 			}
 
-			if (!fmd) {
+			/* Needed to get correct base values. */
+			add_relation(trans_op, sim_key, "Base Ob Transform -> Rigidbody Sim Eval");
 
-				/* Needed to get correct base values. */
-				add_relation(trans_op, sim_key, "Base Ob Transform -> Rigidbody Sim Eval");
-			}
-			else
+			if (fmd)
 			{
 				OperationKey uber_geom_key(&object->id,
 				                      DEG_NODE_TYPE_GEOMETRY,

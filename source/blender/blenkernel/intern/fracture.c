@@ -214,8 +214,9 @@ bool BKE_fracture_mesh_center_centroid_area(Mesh *shard, float cent[3])
 
 static void init_random(FractureModifierData *fmd) {
 	/* Random generator, only init once. */
-	uint rng_seed = (uint)(PIL_check_seconds_timer_i() & UINT_MAX);
-	rng_seed ^= POINTER_AS_UINT(fmd);
+	//uint rng_seed = (uint)(PIL_check_seconds_timer_i() & UINT_MAX);
+	//rng_seed ^= POINTER_AS_UINT(fmd);
+	uint rng_seed = (unsigned int)fmd->point_seed;
 	fmd->shared->rng = BLI_rng_new(rng_seed);
 }
 
@@ -541,7 +542,7 @@ static void process_cells(FractureModifierData* fmd, Shard* mii, Object* ob, Sce
 		}
 	}
 
-	BKE_fracture_postprocess_meshisland(fmd, ob, mii, temp_meshs, count, scene, frame, islands);
+	BKE_fracture_postprocess_meshisland(fmd, ob, mii, &temp_meshs, count, scene, frame, islands);
 
 	BLI_kdtree_balance(tree);
 
@@ -876,25 +877,34 @@ static void intersect_mesh_by_mesh(FractureModifierData* fmd, Object* ob, Mesh* 
 	}
 }
 
-void BKE_fracture_postprocess_meshisland(FractureModifierData *fmd, Object* ob, Shard* mi, Mesh** temp_meshs, int count,
+void BKE_fracture_postprocess_meshisland(FractureModifierData *fmd, Object* ob, Shard* mi, Mesh*** temp_meshs, int count,
 										 Scene* scene, int frame, Shard** shards)
 {
 	int count_new = count+1;
-	int j = 1, i = 0;
+	int j = 1, i = 0, k = 0;
 	float size[3];
+	bool* deletemap = MEM_callocN(sizeof(bool) * count_new, "deletemap");
 	mat4_to_size(size, ob->obmat);
 
 	if (fmd->flag & MOD_FRACTURE_USE_SPLIT_TO_ISLANDS)
 	{
 		for (i = 0; i < count+1; i++)
 		{
-			if (temp_meshs[i]) {
+			if ((*temp_meshs)[i] && !deletemap[i]) {
 				int oldcount = count_new;
 				double start = PIL_check_seconds_timer();
 
-				BKE_fracture_split_islands(fmd, ob, temp_meshs[i], &temp_meshs, &count_new );
-				BKE_fracture_mesh_free(temp_meshs[i]);
-				temp_meshs[i] = NULL;
+				BKE_fracture_split_islands(fmd, ob, (*temp_meshs)[i], temp_meshs, &count_new );
+				//BKE_fracture_mesh_free((*temp_meshs)[i]);
+				//(*temp_meshs)[i] = NULL;
+				deletemap[i] = true;
+
+				//expand deletemap, too since the tempmesh array grows and deletemap[i] might point "somewhere" then
+				//giving garbage values
+				deletemap = MEM_reallocN(deletemap, sizeof(bool) * count_new);
+				for (k = oldcount; k < count_new; k++) {
+					deletemap[k] = false;
+				}
 
 				if ((i < count) && shards && shards[i]) {
 					//flag as being freed, set null here ! so no other free attempt happens
@@ -908,12 +918,12 @@ void BKE_fracture_postprocess_meshisland(FractureModifierData *fmd, Object* ob, 
 
 	for (i = 0; i < count_new; i++)
 	{
-		if (temp_meshs[i])
+		if ((*temp_meshs)[i] && !deletemap[i])
 		{
-			if (temp_meshs[i]->totvert > 0)
+			if (((*temp_meshs)[i]->totvert > 0))
 			{	/* skip invalid cells, e.g. those which are eliminated by bisect */
 				float loc[3], rot[4], qrot[4], centr[3];
-				Shard *result = BKE_fracture_mesh_island_create(temp_meshs[i], scene, ob, frame);
+				Shard *result = BKE_fracture_mesh_island_create((*temp_meshs)[i], scene, ob, frame);
 
 				fracture_meshisland_add(fmd, result);
 				result->id = mi->id + j;
@@ -957,8 +967,7 @@ void BKE_fracture_postprocess_meshisland(FractureModifierData *fmd, Object* ob, 
 
 				//validate already here at once... dynamic somehow doesnt get updated else
 				//BKE_rigidbody_shard_validate(scene->rigidbody_world, result, ob, fmd, true,
-				//							 true, size, frame);
-
+				//								 true, size, frame);
 
 				// try with delayed validation; next frame before next bullet step from rigidbody depsgraph eval thread
 				if (!(result->rigidbody->flag & RBO_FLAG_KINEMATIC))
@@ -976,10 +985,17 @@ void BKE_fracture_postprocess_meshisland(FractureModifierData *fmd, Object* ob, 
 				j++;
 			}
 			else {
-				BKE_fracture_mesh_free(temp_meshs[i]);
+				BKE_fracture_mesh_free((*temp_meshs)[i]);
+				(*temp_meshs)[i] = NULL;
 			}
 		}
+		else if ((*temp_meshs)[i]) {
+			BKE_fracture_mesh_free((*temp_meshs)[i]);
+			(*temp_meshs)[i] = NULL;
+		}
 	}
+
+	MEM_freeN(deletemap);
 }
 
 static Shard* fracture_cutter_process(FractureModifierData* fmd, Object *obA, Mesh* meA, Object* obB,
@@ -1017,7 +1033,7 @@ static Shard* fracture_cutter_process(FractureModifierData* fmd, Object *obA, Me
 		temp_meshs[1] = NULL;
 	}
 
-	BKE_fracture_postprocess_meshisland(fmd, obB, miB, temp_meshs, 2, scene, frame, NULL);
+	BKE_fracture_postprocess_meshisland(fmd, obB, miB, &temp_meshs, 2, scene, frame, NULL);
 
 	MEM_freeN(temp_meshs);
 
@@ -1250,6 +1266,15 @@ void BKE_fracture_clear_cache(FractureModifierData* fmd, Scene *scene)
 	int frame = 0;
 	Shard *mi, *next;
 	bool dynamic = false;
+
+	if (fmd->flag & MOD_FRACTURE_USE_DUPLI)
+	{
+		BKE_fracture_meshislands_free(fmd, scene);
+		if (fmd->shared->dupli_shard_map) {
+			BLI_ghash_free(fmd->shared->dupli_shard_map, NULL, NULL);
+				fmd->shared->dupli_shard_map = NULL;
+		}
+	}
 
 	BLI_listbase_clear(&fmd->shared->dynamic_fracture_queue);
 
@@ -3356,8 +3381,11 @@ void BKE_fracture_external_constraints_setup(FractureModifierData *fmd, Scene *s
 				mi->rigidbody->flag |= RBO_FLAG_IS_GHOST;
 			}
 
-			ob->rigidbody_object->flag |= RBO_FLAG_KINEMATIC;
-			ob->rigidbody_object->flag |= RBO_FLAG_IS_GHOST;
+			if (ob->rigidbody_object)
+			{
+				ob->rigidbody_object->flag |= RBO_FLAG_KINEMATIC;
+				ob->rigidbody_object->flag |= RBO_FLAG_IS_GHOST;
+			}
 		}
 
 		if (pfmd && pob) {

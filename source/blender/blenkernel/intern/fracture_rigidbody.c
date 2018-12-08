@@ -74,6 +74,8 @@
 static void check_fracture(rbContactPoint *cp, Scene *scene);
 static void test_deactivate_rigidbody(RigidBodyOb *rbo, Shard *mi);
 static float box_volume(float size[3]);
+bool check_cluster_propagate(FractureModifierData *fmd1, FractureModifierData *fmd2,
+                             Object *ob1, Object* ob2, Shard *mi1, Shard *mi2);
 
 
 void BKE_rigidbody_activate(RigidBodyOb* rbo, RigidBodyWorld *UNUSED(rbw), Shard *mi, Object *ob)
@@ -799,7 +801,7 @@ static void rigidbody_create_shard_physics_constraint(FractureModifierData* fmd,
 	rbRigidBody *rb1;
 	rbRigidBody *rb2;
 
-	if (rbc && rbc->mi1 && rbc->mi2)
+	if (rbc && rbc->mi1 && rbc->mi2 && rbc->mi1->rigidbody && rbc->mi2->rigidbody)
 	{
 		rb1 = rbc->mi1->rigidbody->shared->physics_object;
 		rb2 = rbc->mi2->rigidbody->shared->physics_object;
@@ -1033,19 +1035,22 @@ static bool colgroup_check(int group1, int group2)
 
 static bool do_activate(Object* ob, Object *ob2, Shard *mi_compare, RigidBodyWorld *rbw, Shard *mi_trigger, bool activate)
 {
-	FractureModifierData *fmd;
+	FractureModifierData *fmd, *fmd2;
 	bool valid = true;
 	bool antiValid = ob2->rigidbody_object->flag & RBO_FLAG_ANTI_TRIGGER;
 	bool wouldActivate = false;
 	Shard *mi;
 
 	fmd = (FractureModifierData*)modifiers_findByType(ob, eModifierType_Fracture);
+	fmd2 = (FractureModifierData*)modifiers_findByType(ob2, eModifierType_Fracture);
+
 	valid = valid && (fmd != NULL);
 	antiValid = antiValid && (fmd != NULL);
 
 	valid = valid && (ob->rigidbody_object->flag & RBO_FLAG_IS_TRIGGERED);
-	valid = valid && ((ob2->rigidbody_object->flag & RBO_FLAG_IS_TRIGGER) || ((ob2->rigidbody_object->flag & RBO_FLAG_PROPAGATE_TRIGGER) &&
-			((mi_trigger) && (mi_trigger->rigidbody->flag & RBO_FLAG_PROPAGATE_TRIGGER))));
+	valid = valid && ((ob2->rigidbody_object->flag & RBO_FLAG_IS_TRIGGER) ||
+	        ((ob2->rigidbody_object->flag & RBO_FLAG_PROPAGATE_TRIGGER) &&
+	        ((mi_trigger) && (mi_trigger->rigidbody->flag & RBO_FLAG_PROPAGATE_TRIGGER))));
 
 #if 0
 	/*prefer dynamic trigger over trigger, and allow activation after queue is empty only (everything fractured) */
@@ -1199,6 +1204,26 @@ static bool check_constraint_island(FractureModifierData* fmd, Shard *mi1, Shard
 	return true;
 }
 
+bool check_cluster_propagate(FractureModifierData *fmd1, FractureModifierData *fmd2,
+                             Object *ob1, Object* ob2, Shard *mi1, Shard *mi2)
+{
+	if ((mi1 && (mi1->rigidbody->flag & RBO_FLAG_PROPAGATE_TRIGGER) &&
+	   (fmd1 && (fmd1->flag & MOD_FRACTURE_USE_ACTIVATE_BROKEN))&&
+	   ob1->rigidbody_object->flag & RBO_FLAG_IS_TRIGGERED))
+	{
+		return mi2 ? (mi2->rigidbody->flag & RBO_FLAG_IS_TRIGGER) : (ob2->rigidbody_object->flag & RBO_FLAG_IS_TRIGGER);
+	}
+
+	if ((mi2 && (mi2->rigidbody->flag & RBO_FLAG_PROPAGATE_TRIGGER) &&
+	   (fmd2 && (fmd2->flag & MOD_FRACTURE_USE_ACTIVATE_BROKEN))
+	    && ob2->rigidbody_object->flag & RBO_FLAG_IS_TRIGGERED))
+	{
+		return mi1 ? (mi1->rigidbody->flag & RBO_FLAG_IS_TRIGGER) : (ob1->rigidbody_object->flag & RBO_FLAG_IS_TRIGGER);
+	}
+
+	return false;
+}
+
 /* this allows partial object activation, only some shards will be activated, called from bullet(!) */
 int BKE_rigidbody_filter_callback(void* scene, void* island1, void* island2, void *blenderOb1, void* blenderOb2, bool activate)
 {
@@ -1250,6 +1275,8 @@ int BKE_rigidbody_filter_callback(void* scene, void* island1, void* island2, voi
 				  ((ob1->rigidbody_object->flag & RBO_FLAG_KINEMATIC) || (ob2->rigidbody_object->flag & RBO_FLAG_KINEMATIC)) &&
 				  ((ob1->rigidbody_object->type == RBO_TYPE_ACTIVE) && (ob2->rigidbody_object->type == RBO_TYPE_ACTIVE)));
 	}
+
+	validOb = validOb || check_cluster_propagate(fmd1, fmd2, ob1, ob2, mi1, mi2);
 
 	if (validOb || ((colgroup_check(ob1->rigidbody_object->col_groups, ob2->rigidbody_object->col_groups) &&
 				   ((ob1->rigidbody_object->flag & RBO_FLAG_CONSTRAINT_DISSOLVE) ||
@@ -1446,13 +1473,13 @@ static void check_fracture_meshisland(FractureModifierData *fmd, Shard *mi, Shar
 		}
 
 		if (size[0] > own_size[0])
-			size[0] = own_size[0];
+			size[0] = -1.0f;
 
 		if (size[1] > own_size[1])
-			size[1] = own_size[1];
+			size[1] = -1.0f;
 
 		if (size[2] > own_size[2])
-			size[2] = own_size[2];
+			size[2] = -1.0f;
 
 		copy_v3_v3(mi->impact_loc, contact_pos);
 		copy_v3_v3(mi->impact_size, size);
@@ -1686,7 +1713,7 @@ static void handle_breaking_percentage(FractureModifierData* fmd, Object *ob, Sh
 	/* calc ratio of broken cons here, per MeshIsland and flag the rest to be broken too*/
 	for (i = 0; i < cons; i++) {
 		con = mi->participating_constraints[i];
-		if (con) {
+		if (con && con->mi1 && con->mi2) {
 			if (fmd->cluster_breaking_percentage > 0)
 			{
 				/*only count as broken if between clusters!*/
@@ -1713,7 +1740,7 @@ static void handle_breaking_percentage(FractureModifierData* fmd, Object *ob, Sh
 		if ((float)broken_cluster_cons / (float)cluster_cons * 100 >= fmd->cluster_breaking_percentage) {
 			for (i = 0; i < cons; i++) {
 				con = mi->participating_constraints[i];
-				if (con && con->mi1->cluster_index != con->mi2->cluster_index) {
+				if (con && con->mi1 && con->mi2 && con->mi1->cluster_index != con->mi2->cluster_index) {
 					if (fmd->flag & MOD_FRACTURE_USE_BREAKING)
 					{
 						if (con->physics_constraint) {
@@ -2158,7 +2185,7 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 				}
 
 				BKE_rigidbody_shard_validate(rbw, is_empty ? NULL : mi, ob, fmd, do_rebuild,
-											 ((fmd->flag & MOD_FRACTURE_USE_DYNAMIC) && mi->fractured), bbsize, frame);
+											 ((fmd->flag & MOD_FRACTURE_USE_DYNAMIC) /* && mi->fractured*/), bbsize, frame);
 
 				mi->fractured = false;
 				mi->constraint_index = mi->id;
@@ -2245,7 +2272,7 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 					    !BKE_fracture_meshisland_check_frame(fmd, rbsc->mi2, frame))
 					{
 						//rbsc->flag |= RBC_FLAG_NEEDS_VALIDATE;
-						BKE_rigidbody_validate_sim_shard_constraint(rbw, fmd, ob, rbsc, false);
+						//BKE_rigidbody_validate_sim_shard_constraint(rbw, fmd, ob, rbsc, false);
 					}
 				}
 			}
@@ -2265,7 +2292,7 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 				RigidBodyOb *rbo1 = rbsc->mi1->rigidbody;
 				RigidBodyOb *rbo2 = rbsc->mi2->rigidbody;
 
-				if ((rbo1->force_thresh > 0 || rbo2->force_thresh > 0))
+				if ((rbo1 && rbo2) && ( rbo1->force_thresh > 0 || rbo2->force_thresh > 0))
 				{
 					if (RB_constraint_get_applied_impulse(rbsc->physics_constraint) >= rbo1->force_thresh + rbo2->force_thresh)
 					{
@@ -2494,6 +2521,10 @@ RigidBodyOb *BKE_rigidbody_create_shard(Object *ob, Object *target, Shard *mi, S
 		/* regular FM case */
 		rbo = BKE_rigidbody_copy_object(ob, 0);
 		//rbo->type = mi->passive_weight > 0.01f ? RBO_TYPE_PASSIVE : RBO_TYPE_ACTIVE;
+		if (mi->passive_weight > 0.01) {
+			rbo->flag |= RBO_FLAG_KINEMATIC;
+			rbo->flag |= RBO_FLAG_IS_TRIGGERED;
+		}
 
 		/* set initial transform */
 		mat4_to_loc_quat(rbo->pos, rbo->orn, ob->obmat);
