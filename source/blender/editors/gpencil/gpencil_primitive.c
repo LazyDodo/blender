@@ -210,6 +210,15 @@ static bool gpencil_primitive_add_poll(bContext *C)
 	return 1;
 }
 
+/* Allocate memory to stroke, adds MAX_EDGES on every call */
+static void gpencil_primitive_allocate_memory(tGPDprimitive *tgpi) {
+	tgpi->point_count += MAX_EDGES + 1;
+	bGPDstroke *gpsf = tgpi->gpf->strokes.first;
+	gpsf->points = MEM_reallocN(gpsf->points, sizeof(bGPDspoint) * tgpi->point_count);
+	if (gpsf->dvert != NULL)
+		gpsf->dvert = MEM_reallocN(gpsf->dvert, sizeof(MDeformVert) * tgpi->point_count);
+	tgpi->points = MEM_reallocN(tgpi->points, sizeof(tGPspoint) * tgpi->point_count);
+}
 
 /* ****************** Primitive Interactive *********************** */
 
@@ -270,7 +279,13 @@ static void gp_primitive_set_initdata(bContext *C, tGPDprimitive *tgpi)
 
 	/* add to strokes */
 	BLI_addtail(&tgpi->gpf->strokes, gps);
+
+	/* allocate memory for storage points */
+	gpencil_primitive_allocate_memory(tgpi);
+
 }
+
+
 
 /* ----------------------- */
 /* Drawing Callbacks */
@@ -463,16 +478,10 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	bGPDstroke *gps = tgpi->gpf->strokes.first;
 	GP_Sculpt_Settings *gset = &ts->gp_sculpt;
 
-	/* realloc points to new size */
-	/* TODO: only do this if the size has changed? */
-	gps->points = MEM_reallocN(gps->points, sizeof(bGPDspoint) * (tgpi->tot_edges + tgpi->tot_stored_edges));
-	if (gps->dvert != NULL) {
-		gps->dvert = MEM_reallocN(gps->dvert, sizeof(MDeformVert) * (tgpi->tot_edges + tgpi->tot_stored_edges));
-	}
 	gps->totpoints = (tgpi->tot_edges + tgpi->tot_stored_edges);
 
 	/* compute screen-space coordinates for points */
-	tgpi->points = MEM_reallocN(tgpi->points, sizeof(tGPspoint) * (tgpi->tot_edges + tgpi->tot_stored_edges));
+	
 	tGPspoint *points2D = tgpi->points;
 	switch (tgpi->type) {
 		case GP_STROKE_BOX:
@@ -587,6 +596,9 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 static void gpencil_primitive_add_segment(tGPDprimitive *tgpi)
 {
 	tgpi->tot_stored_edges += tgpi->tot_edges;
+	if (tgpi->tot_stored_edges >= tgpi->point_count) {
+		gpencil_primitive_allocate_memory(tgpi);
+	}
 }
 
 /* Update screen and stroke */
