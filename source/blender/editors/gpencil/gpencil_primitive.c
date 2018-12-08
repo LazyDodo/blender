@@ -477,11 +477,13 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	bGPdata *gpd = tgpi->gpd;
 	bGPDstroke *gps = tgpi->gpf->strokes.first;
 	GP_Sculpt_Settings *gset = &ts->gp_sculpt;
+	int depth_margin = (ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE) ? 4 : 0;
+	char *align_flag = &ts->gpencil_v3d_align;
+	bool is_depth = (bool)(*align_flag & (GP_PROJECT_DEPTH_VIEW | GP_PROJECT_DEPTH_STROKE));
 
 	gps->totpoints = (tgpi->tot_edges + tgpi->tot_stored_edges);
 
 	/* compute screen-space coordinates for points */
-	
 	tGPspoint *points2D = tgpi->points;
 	switch (tgpi->type) {
 		case GP_STROKE_BOX:
@@ -518,7 +520,78 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	if (gset->flag & GP_SCULPT_SETT_FLAG_PRIMITIVE_CURVE) {
 		curvemapping_initialize(ts->gp_sculpt.cur_primitive);
 	}
-	
+
+	/* get an array of depths, far depths are blended */
+	float *depth_arr = NULL;
+	if (is_depth) {
+		int i;
+		int mval_i[2], mval_prev[2] = { 0 };
+		bool interp_depth = false;
+		bool found_depth = false;
+
+		depth_arr = MEM_mallocN(sizeof(float) * gps->totpoints, "depth_points");
+		tGPspoint *ptc = &points2D[0];
+		for (i = 0; i < gps->totpoints; i++, ptc++) {
+			round_v2i_v2fl(mval_i, &ptc->x);
+			if ((ED_view3d_autodist_depth(tgpi->ar, mval_i, depth_margin, depth_arr + i) == 0) &&
+				(i && (ED_view3d_autodist_depth_seg(tgpi->ar, mval_i, mval_prev, depth_margin + 1, depth_arr + i) == 0)))
+			{
+				interp_depth = true;
+			}
+			else {
+				found_depth = true;
+			}
+			copy_v2_v2_int(mval_prev, mval_i);
+		}
+
+		if (!found_depth) {
+			for (i = gps->totpoints - 1; i >= 0; i--) {
+				depth_arr[i] = 0.9999f;
+			}
+		}
+		else {
+			if ((ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE_ENDPOINTS) ||
+				(ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE_FIRST))
+			{
+				int first_valid = 0;
+				int last_valid = 0;
+
+				/* find first valid contact point */
+				for (i = 0; i < gps->totpoints; i++) {
+					if (depth_arr[i] != FLT_MAX)
+						break;
+				}
+				first_valid = i;
+
+				/* find last valid contact point */
+				if (ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE_FIRST) {
+					last_valid = first_valid;
+				}
+				else {
+					for (i = gps->totpoints - 1; i >= 0; i--) {
+						if (depth_arr[i] != FLT_MAX)
+							break;
+					}
+					last_valid = i;
+				}
+
+				/* invalidate any other point, to interpolate between
+				 * first and last contact in an imaginary line between them */
+				for (i = 0; i < gps->totpoints; i++) {
+					if ((i != first_valid) && (i != last_valid)) {
+						depth_arr[i] = FLT_MAX;
+					}
+				}
+				interp_depth = true;
+			}
+
+			if (interp_depth) {
+				interp_sparse_array(depth_arr, gps->totpoints, FLT_MAX);
+			}
+		}
+	}
+
+	/* load stroke points and sbuffer */
 	for (int i = 0; i < gps->totpoints; i++) {
 		bGPDspoint *pt = &gps->points[i];
 		tGPspoint *p2d = &points2D[i];
@@ -550,7 +623,10 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		gpd->runtime.sbuffer_size++;
 
 		/* convert screen-coordinates to 3D coordinates */
-		gp_stroke_convertcoords_tpoint(tgpi->scene, tgpi->ar, tgpi->ob, tgpi->gpl, p2d, NULL, &pt->x);
+		gp_stroke_convertcoords_tpoint(
+			tgpi->scene, tgpi->ar, tgpi->ob, tgpi->gpl,
+			p2d, depth_arr ? depth_arr + i : NULL,
+			&pt->x);
 
 		pt->pressure = pressure;
 		pt->strength = tgpi->brush->gpencil_settings->draw_strength;
@@ -565,7 +641,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	}
 
 	/* if axis locked, reproject to plane locked */
-	if (tgpi->lock_axis > GP_LOCKAXIS_VIEW) {
+	if ((!is_depth) && (tgpi->lock_axis > GP_LOCKAXIS_VIEW)) {
 		bGPDspoint *tpt = gps->points;
 		float origin[3];
 		ED_gp_get_drawing_reference(tgpi->scene, tgpi->ob, tgpi->gpl,
@@ -586,6 +662,8 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 
 	/* force fill recalc */
 	gps->flag |= GP_STROKE_RECALC_CACHES;
+
+	MEM_SAFE_FREE(depth_arr);
 
 	DEG_id_tag_update(&gpd->id, ID_RECALC_COPY_ON_WRITE);
 	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
