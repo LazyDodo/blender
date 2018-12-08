@@ -112,7 +112,6 @@ static int prepareConstraintSearch(FractureModifierData *rmd, Shard ***mesh_isla
 
 	if (rmd->pack_group && (rmd->flag & MOD_FRACTURE_USE_GROUP_CONSTRAINTS_ONLY))
 	{
-
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_BEGIN(rmd->pack_group, ob)
 		{
 			if (obj != ob)
@@ -492,6 +491,8 @@ void BKE_fracture_constraint_create(Scene* scene, FractureModifierData* fmd, Sha
 	else {
 		rbsc->flag &= ~RBC_FLAG_DISABLE_COLLISIONS;
 	}
+
+	rbsc->flag |= RBC_FLAG_NEEDS_VALIDATE;
 
 	if ((mi1->cluster_index != -1) && (mi2->cluster_index != -1) &&
 		(mi1->cluster_index == mi2->cluster_index))

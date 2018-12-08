@@ -2272,7 +2272,7 @@ bool BKE_rigidbody_modifier_update(Scene* scene, Object* ob, RigidBodyWorld *rbw
 					    !BKE_fracture_meshisland_check_frame(fmd, rbsc->mi2, frame))
 					{
 						//rbsc->flag |= RBC_FLAG_NEEDS_VALIDATE;
-						//BKE_rigidbody_validate_sim_shard_constraint(rbw, fmd, ob, rbsc, false);
+						BKE_rigidbody_validate_sim_shard_constraint(rbw, fmd, ob, rbsc, false);
 					}
 				}
 			}
