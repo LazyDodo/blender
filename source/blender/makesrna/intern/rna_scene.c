@@ -2093,6 +2093,7 @@ static void rna_unit_system_update(Main *UNUSED(bmain), Scene *scene, PointerRNA
 static char *rna_UnitSettings_path(PointerRNA *UNUSED(ptr))
 {
 	return BLI_sprintfN("unit_settings");
+}
 
 /* lanpr */
 

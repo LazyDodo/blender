@@ -3614,7 +3614,7 @@ void SCENE_OT_lanpr_delete_line_component(struct wmOperatorType *ot) {
 	RNA_def_int(ot->srna, "index", 0, 0, 10000, "index", "index of this line component", 0, 10000);
 }
 
-#ifdef 0
+#ifdef USE_LANPR_HINT
 
 // how to access LANPR's occlusion info after LANPR software mode calculation
 
