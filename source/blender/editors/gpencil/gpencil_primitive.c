@@ -660,6 +660,11 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		gpd->runtime.sbuffer_size++;
 
 		/* convert screen-coordinates to 3D coordinates */
+		/* add small offset to keep stroke over the surface */
+		if ((depth_arr) && (gpd->zdepth_offset > 0.0f)) {
+			depth_arr[i] *= (1.0f - gpd->zdepth_offset);
+		}
+
 		gp_stroke_convertcoords_tpoint(
 			tgpi->scene, tgpi->ar, tgpi->ob, tgpi->gpl,
 			p2d, depth_arr ? depth_arr + i : NULL,
