@@ -155,20 +155,23 @@ typedef struct tGPDprimitive {
 	struct bGPDlayer *gpl;            /* layer */
 	struct bGPDframe *gpf;            /* frame */
 	int type;                         /* type of primitive */
-	bool curve;                         /* type of primitive is a curve */
+	bool curve;                       /* type of primitive is a curve */
 	short cyclic;                     /* cyclic option */
 	short flip;                       /* flip option */
-	tGPspoint *points;                 /* array of data-points for stroke */   
+	tGPspoint *points;                /* array of data-points for stroke */
+	tGPcontrolpoint *cp_points;       /* array of control-points for stroke */
+	int tot_cp_points;                /* array of control-points for stroke */
+	bool draw_cp_points;              /* array of control-points for stroke */
 	int point_count;                  /* number of edges allocated */
 	int tot_stored_edges;             /* stored number of polygon edges */
 	int tot_edges;                    /* number of polygon edges */
-	int top[2];                       /* first box corner */
-	int bottom[2];                    /* last box corner */
 	int origin[2];                    /* initial box corner */
-	int bezcp1[2];                     /* first bezier control point */
-	int bezcp2[2];                     /* second bezier control point */
+	int start[2];                     /* first box corner */
+	int end[2];                       /* last box corner */
+	int cp1[2];                       /* first control point */
+	int cp2[2];                       /* second control point */
+	int sel_cp;                       /* flag to determine control point is selected */
 	int flag;                         /* flag to determine operations in progress */
-	int sel_cp;                         /* flag to determine control point is selected */
 	int mvalo[2];                     /* previous recorded mouse-position */
 
 	int lock_axis;                    /* lock to viewport axis */

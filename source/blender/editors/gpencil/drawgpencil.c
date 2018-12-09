@@ -1430,6 +1430,23 @@ void ED_gp_draw_interpolation(const bContext *C, tGPDinterpolate *tgpi, const in
 	glDisable(GL_BLEND);
 }
 
+static void gp_primitive_draw_point(const tGPcontrolpoint *cp)
+{
+	GPUVertFormat *format = immVertexFormat();
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+	float color[4];
+	UI_GetThemeColor3fv(cp->color, color);
+	color[3] = 0.6f;
+	/* if drawing a single point, draw it larger */
+	GPU_point_size((float)cp->size);
+	immBindBuiltinProgram(GPU_SHADER_3D_POINT_UNIFORM_SIZE_UNIFORM_COLOR_AA);
+	immUniformColor4fv(color);
+	immBegin(GPU_PRIM_POINTS, 1);
+	immVertex3fv(pos, &cp->x);
+	immEnd();
+	immUnbindProgram();
+}
+
 /* draw interpolate strokes (used only while operator is running) */
 void ED_gp_draw_primitives(const bContext *C, tGPDprimitive *tgpi, const int type)
 {
@@ -1484,6 +1501,17 @@ void ED_gp_draw_primitives(const bContext *C, tGPDprimitive *tgpi, const int typ
 			gp_draw_strokes(&tgpw);
 		}
 	}
+
+	/* draw cps, this is temporary code */
+	if (tgpi->draw_cp_points) {
+		tGPcontrolpoint *cps = tgpi->cp_points;
+		for (int i = 0; i < tgpi->tot_cp_points; i++) {
+			tGPcontrolpoint *cp = &cps[i];
+			if (cp->display)
+				gp_primitive_draw_point(cp);
+		}
+	}
+
 	GPU_blend(false);
 }
 
