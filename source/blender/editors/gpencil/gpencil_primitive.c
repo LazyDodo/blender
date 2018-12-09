@@ -562,6 +562,10 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		bool interp_depth = false;
 		bool found_depth = false;
 
+		/* need to restore the original projection settings before packing up */
+		view3d_region_operator_needs_opengl(tgpi->win, tgpi->ar);
+		ED_view3d_autodist_init(tgpi->depsgraph, tgpi->ar, tgpi->v3d, (ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE) ? 1 : 0);
+
 		depth_arr = MEM_mallocN(sizeof(float) * gps->totpoints, "depth_points");
 		tGPspoint *ptc = &points2D[0];
 		for (i = 0; i < gps->totpoints; i++, ptc++) {
