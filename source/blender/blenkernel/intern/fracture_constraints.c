@@ -578,6 +578,7 @@ static void do_cluster_count(FractureModifierData *fmd, Object *obj)
 
 	seeds = MEM_mallocN(sizeof(Shard *) * (seed_count), "seeds");
 	tree = BLI_kdtree_new(seed_count + group_count);
+	//shard_tree = BLI_kdtree_new(mi_count);
 
 	/* pick n seed locations, randomly scattered over the object */
 	for (k = 0; k < seed_count; k++) {
@@ -604,6 +605,7 @@ static void do_cluster_count(FractureModifierData *fmd, Object *obj)
 
 	BLI_kdtree_balance(tree);
 
+
 	/* assign each shard to its closest center */
 	for (mi = fmd->shared->shards.first; mi; mi = mi->next ) {
 		KDTreeNearest n;
@@ -624,38 +626,93 @@ static void do_cluster_count(FractureModifierData *fmd, Object *obj)
 		if (obb && obb->type == OB_MESH)
 		{
 			/* use geometry of meshes */
-			MVert* mvert = NULL, *mv = NULL;
+			MVert* mvert = NULL;
+			MLoop* mloop = NULL;
+			MPoly* mpoly = NULL, *mp = NULL;
 			Mesh *dm = obb->runtime.mesh_eval;
-			int totvert, v;
-			in_shape = false;
-			float epsilon = 0.0001f;
+			int totpoly, p;
+			float mi_diff[3], normalized_mi_diff[3], len_mi;
+
+			sub_v3_v3v3(mi_diff, mi->loc, obb->loc);
+			normalize_v3_v3(normalized_mi_diff, mi_diff);
+			len_mi = len_v3(mi_diff);
 
 			if (!dm) {
 				dm = obb->data;
 			}
 
+			mloop = dm->mloop;
 			mvert = dm->mvert;
-			totvert = dm->totvert;
+			mpoly = dm->mpoly;
+			totpoly = dm->totpoly;
 
-			for (v = 0, mv = mvert; v < totvert; v++, mv++)
+			for (p = 0, mp = mpoly; p < totpoly; p++, mp++)
 			{
-				float loc[3], diff[3], len, diff_mi[3], len_mi;
-				mul_v3_m4v3(loc, obb->obmat, mv->co);
-				sub_v3_v3v3(diff, loc, obb->loc);
-				len = len_v3(diff);
+				//third point is always ob->loc
+				float centr[3] = {0, 0, 0}, co[3], co2[3], centr_diff[3], len, dot, normalized[3];
+				int i;
+				in_shape = true;
 
-				sub_v3_v3v3(diff_mi, mi->loc, obb->loc);
-				len_mi = len_v3(diff_mi);
-
-				/*is distance between vertex and centroid of object smaller than distance of shard to centroid ?
-				 * and is shard is in "same direction" (some fuzz factor, not totally exact) */
-				/* if yes, it lies inside */
-				/* same direction test/colinear : (u dot v) / (length(u) * length(v)) > 1 - epsilon */
-				if ((len >= len_mi && ((dot_v3v3(diff, diff_mi) / ((len * len_mi)+epsilon) > 0.75))))
+				for (i = 0; i < mp->totloop; i++)
 				{
-					in_shape = true;
-					break;
+					MVert *v, *v2;
+					int index, index2;
+					float co_ob[3], co2_ob[3], normal[3];
+
+					index = mloop[i+mp->loopstart].v;
+					if (i < mp->totloop-1)
+					{
+						index2 = mloop[i+1+mp->loopstart].v;
+					}
+					else {
+						index2 = mloop[mp->loopstart].v;
+					}
+
+					v = mvert + index;
+					v2 = mvert + index2;
+					add_v3_v3(centr, v->co);
+
+					mul_v3_m4v3(co, obb->obmat, v->co);
+					mul_v3_m4v3(co2, obb->obmat, v2->co);
+
+					//check triangle to objcentr... (as part of "frustum" this poly forms)
+					sub_v3_v3v3(co_ob, co, obb->loc);
+					sub_v3_v3v3(co2_ob, co2, obb->loc);
+					cross_v3_v3v3(normal, co_ob, co2_ob);
+
+					if (dot_v3v3(mi_diff, normal) < 0)
+					{
+						in_shape = false;
+						//break;
+					}
 				}
+
+				if (mp->totloop > 0) {
+					mul_v3_fl(centr, 1.0f/(float)mp->totloop);
+				}
+				mul_m4_v3(obb->obmat, centr);
+
+				if (in_shape)
+				{
+					in_shape = false;
+					sub_v3_v3v3(centr_diff, centr, obb->loc);
+					normalize_v3_v3(normalized, centr_diff);
+					dot = dot_v3v3(normalized, normalized_mi_diff);
+					len = len_v3(centr_diff);
+
+					//print_v3("CENTR", centr_diff);
+					//print_v3("MI", mi_diff);
+					//dot2 = dot_v3v3(centr_diff, mi_diff);
+
+					if ((len > len_mi * dot) && (dot > 0))
+					{
+						//printf("LEN_MI, LEN, DOT, DOT2 (OK) : %f %f %f %f\n", len_mi, len, dot, dot2);
+						in_shape = true;
+					}
+				}
+
+				if (in_shape)
+					break;
 			}
 		}
 
