@@ -379,7 +379,7 @@ class SCENE_PT_rigid_body_world(SceneButtonsPanel, Panel):
 class SCENE_PT_rigid_body_world_settings(SceneButtonsPanel, Panel):
     bl_label = "Settings"
     bl_parent_id = "SCENE_PT_rigid_body_world"
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
 
     @classmethod
     def poll(cls, context):
