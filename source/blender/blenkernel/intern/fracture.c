@@ -1313,7 +1313,7 @@ void BKE_fracture_clear_cache(FractureModifierData* fmd, Scene *scene)
 			mi->aves = MEM_callocN(sizeof (float) * 3 *frame, "mi->aves");
 			//mi->fractured = false;
 
-			if (!mi->rigidbody->shared->physics_object)
+			if (mi->rigidbody && !mi->rigidbody->shared->physics_object)
 			{
 				mi->rigidbody->flag |= (RBO_FLAG_NEEDS_VALIDATE | RBO_FLAG_NEEDS_RESHAPE);
 			}

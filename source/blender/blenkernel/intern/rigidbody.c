@@ -1102,7 +1102,7 @@ void BKE_rigidbody_world_id_loop(RigidBodyWorld *rbw, RigidbodyWorldIDFunc func,
 
 	if (rbw->objects) {
 		int i;
-		int count = BLI_listbase_count(&rbw->group->gobject);
+		int count = rbw->group ? BLI_listbase_count(&rbw->group->gobject) : 0;
 		if (count != rbw->numbodies) {
 			rigidbody_update_ob_array(rbw);
 		}
