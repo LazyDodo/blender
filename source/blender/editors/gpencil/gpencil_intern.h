@@ -165,14 +165,15 @@ typedef struct tGPDprimitive {
 	int point_count;                  /* number of edges allocated */
 	int tot_stored_edges;             /* stored number of polygon edges */
 	int tot_edges;                    /* number of polygon edges */
-	int origin[2];                    /* initial box corner */
-	int start[2];                     /* first box corner */
-	int end[2];                       /* last box corner */
-	int cp1[2];                       /* first control point */
-	int cp2[2];                       /* second control point */
+	float origin[2];                  /* initial box corner */
+	float start[2];                   /* first box corner */
+	float end[2];                     /* last box corner */
+	float cp1[2];                     /* first control point */
+	float cp2[2];                     /* second control point */
 	int sel_cp;                       /* flag to determine control point is selected */
 	int flag;                         /* flag to determine operations in progress */
-	int mvalo[2];                     /* previous recorded mouse-position */
+	float mval[2];                    /* recorded mouse-position */
+	float mvalo[2];                   /* previous recorded mouse-position */
 
 	int lock_axis;                    /* lock to viewport axis */
 
