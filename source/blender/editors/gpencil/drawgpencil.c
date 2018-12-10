@@ -1430,21 +1430,34 @@ void ED_gp_draw_interpolation(const bContext *C, tGPDinterpolate *tgpi, const in
 	glDisable(GL_BLEND);
 }
 
-static void gp_primitive_draw_point(const tGPcontrolpoint *cp)
+/* draw points, this is temporary code */
+static void gp_primitive_draw_point(const tGPDprimitive *tgpi)
 {
 	GPUVertFormat *format = immVertexFormat();
 	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
-	float color[4];
-	UI_GetThemeColor3fv(cp->color, color);
-	color[3] = 0.6f;
-	/* if drawing a single point, draw it larger */
-	GPU_point_size((float)cp->size);
-	immBindBuiltinProgram(GPU_SHADER_3D_POINT_UNIFORM_SIZE_UNIFORM_COLOR_AA);
-	immUniformColor4fv(color);
-	immBegin(GPU_PRIM_POINTS, 1);
-	immVertex3fv(pos, &cp->x);
+	uint size = GPU_vertformat_attr_add(format, "size", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
+	uint color = GPU_vertformat_attr_add(format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
+
+	//glEnable(GL_BLEND);
+	immBindBuiltinProgram(GPU_SHADER_3D_POINT_VARYING_SIZE_VARYING_COLOR);
+	GPU_enable_program_point_size();
+	immBegin(GPU_PRIM_POINTS, tgpi->tot_cp_points);
+
+	tGPcontrolpoint *cps = tgpi->cp_points;
+	for (int i = 0; i < tgpi->tot_cp_points; i++) {
+		tGPcontrolpoint *cp = &cps[i];
+		float ink[4];
+		UI_GetThemeColor4fv(cp->color, ink);
+		ink[3] = 0.5f;
+		immAttr4fv(color, ink);
+		immAttr1f(size, (float)cp->size); 
+		immVertex3fv(pos, &cp->x);
+	}
+
 	immEnd();
 	immUnbindProgram();
+	GPU_disable_program_point_size();
+	//glDisable(GL_BLEND);
 }
 
 /* draw interpolate strokes (used only while operator is running) */
@@ -1504,12 +1517,7 @@ void ED_gp_draw_primitives(const bContext *C, tGPDprimitive *tgpi, const int typ
 
 	/* draw cps, this is temporary code */
 	if (tgpi->draw_cp_points) {
-		tGPcontrolpoint *cps = tgpi->cp_points;
-		for (int i = 0; i < tgpi->tot_cp_points; i++) {
-			tGPcontrolpoint *cp = &cps[i];
-			if (cp->display)
-				gp_primitive_draw_point(cp);
-		}
+		gp_primitive_draw_point(tgpi);
 	}
 
 	GPU_blend(false);

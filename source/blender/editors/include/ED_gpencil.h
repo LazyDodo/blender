@@ -86,7 +86,6 @@ typedef struct tGPcontrolpoint {
 	float x, y, z;          /* x and y coordinates of control point */
 	int color;              /* theme color */
 	int size;               /* radius */
-	bool display;            /* display */
 } tGPcontrolpoint;
 
 /* used to sort by zdepth gpencil objects in viewport */

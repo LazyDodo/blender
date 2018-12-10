@@ -294,8 +294,7 @@ static void gp_primitive_set_cp(tGPDprimitive *tgpi, float p[2], int color, int 
 		tGPcontrolpoint *cp = &tgpi->cp_points[tgpi->tot_cp_points];
 		copy_v2_v2(&cp->x, p);
 		cp->color = color;
-		cp->display = true;
-		cp->size = MAX2(5, size);
+		cp->size = CLAMP(size, 5, 20);
 		tgpi->tot_cp_points += 1;
 	}
 }
@@ -453,6 +452,10 @@ static void gp_primitive_arc(tGPDprimitive *tgpi, tGPspoint *points2D)
 		p2d->y = (end[1] - cosf(a) * length[1]);
 		a += step;
 	}
+
+	gp_primitive_set_cp(tgpi, tgpi->start, TH_ACTIVE_VERT, 20);
+	gp_primitive_set_cp(tgpi, tgpi->end, TH_ACTIVE_VERT, 20);
+	gp_primitive_set_cp(tgpi, tgpi->origin, TH_REDALERT, 10);
 }
 
 /* create a bezier */
@@ -476,6 +479,12 @@ static void gp_primitive_bezier(tGPDprimitive *tgpi, tGPspoint *points2D)
 		interp_v2_v2v2v2v2_cubic(&p2d->x, bcp1, bcp2, bcp3, bcp4, a);
 		a += step;
 	}
+
+	gp_primitive_set_cp(tgpi, tgpi->start, TH_ACTIVE_VERT, 20);
+	gp_primitive_set_cp(tgpi, tgpi->end, TH_ACTIVE_VERT, 20);
+	gp_primitive_set_cp(tgpi, tgpi->origin, TH_REDALERT, 10);
+	gp_primitive_set_cp(tgpi, tgpi->cp1, TH_GP_VERTEX_SELECT, 20);
+	gp_primitive_set_cp(tgpi, tgpi->cp2, TH_GP_VERTEX_SELECT, 20);
 }
 
 /* create a circle */
@@ -499,6 +508,13 @@ static void gp_primitive_circle(tGPDprimitive *tgpi, tGPspoint *points2D)
 		p2d->y = (center[1] + sinf(a) * radius[1]);
 		a += step;
 	}
+
+	gp_primitive_set_cp(tgpi, tgpi->start, TH_ACTIVE_VERT, 20);
+	gp_primitive_set_cp(tgpi, tgpi->end, TH_ACTIVE_VERT, 20);
+	gp_primitive_set_cp(tgpi, tgpi->origin, TH_REDALERT, 10);
+	gp_primitive_set_cp(tgpi, center, TH_REDALERT, 15);
+	gp_primitive_set_cp(tgpi, radius, TH_REDALERT, 15);
+
 }
 
 /* Helper: Update shape of the stroke */
@@ -683,22 +699,13 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	}
 
 	/* store cps and convert coords, this is temporary code */
-	tgpi->draw_cp_points = ELEM(tgpi->flag, IN_PROGRESS, IN_CURVE_EDIT);
-	if (tgpi->draw_cp_points) {
-		gp_primitive_set_cp(tgpi, tgpi->start, TH_ACTIVE_VERT, 20);
-		gp_primitive_set_cp(tgpi, tgpi->end, TH_ACTIVE_VERT, 20);
-		gp_primitive_set_cp(tgpi, tgpi->origin, TH_REDALERT, 10);
-		if (tgpi->type == GP_STROKE_BEZIER) {
-			gp_primitive_set_cp(tgpi, tgpi->cp2, TH_GP_VERTEX_SELECT, 20);
-			gp_primitive_set_cp(tgpi, tgpi->cp1, TH_GP_VERTEX_SELECT, 20);
-		}
-
+	if (tgpi->tot_cp_points > 0) {
 		tGPcontrolpoint *cps = tgpi->cp_points;
 		for (int i = 0; i < tgpi->tot_cp_points; i++) {
 			tGPcontrolpoint *cp = &cps[i];
-			if(cp->display)
-				gp_stroke_convertcoords_tpoint(tgpi->scene, tgpi->ar, tgpi->ob, tgpi->gpl, (tGPspoint *)cp, NULL, &cp->x);
+			gp_stroke_convertcoords_tpoint(tgpi->scene, tgpi->ar, tgpi->ob, tgpi->gpl, (tGPspoint *)cp, NULL, &cp->x);
 		}
+		tgpi->draw_cp_points = true;
 	}
 
 	/* if axis locked, reproject to plane locked */
