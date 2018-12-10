@@ -796,7 +796,7 @@ static void gpencil_primitive_exit(bContext *C, wmOperator *op)
 		gpd->runtime.sbuffer_sflag = 0;
 	}
 
-	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_COPY_ON_WRITE);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
 
 	/* clear pointer */
