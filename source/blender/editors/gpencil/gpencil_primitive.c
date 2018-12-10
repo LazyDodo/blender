@@ -427,13 +427,11 @@ static void gp_primitive_arc(tGPDprimitive *tgpi, tGPspoint *points2D)
 	float length[2];
 	float start[2];
 	float end[2];
-	float cp[2];
 	float origin[2];
 	float a = 0.0f;
 
 	copy_v2_v2(start, tgpi->start);
 	copy_v2_v2(end, tgpi->end);
-	copy_v2_v2(cp, tgpi->cp1);
 	copy_v2_v2(origin, tgpi->origin);
 
 	if (tgpi->flip) {
@@ -443,9 +441,6 @@ static void gp_primitive_arc(tGPDprimitive *tgpi, tGPspoint *points2D)
 
 	length[0] = end[0] - start[0];
 	length[1] = end[1] - start[1];
-
-	cp[0] = cp[0] - origin[0];
-	cp[1] = cp[1] - origin[1];
 
 	for (int i = tgpi->tot_stored_edges; i < totpoints; i++) {
 		tGPspoint *p2d = &points2D[i];
