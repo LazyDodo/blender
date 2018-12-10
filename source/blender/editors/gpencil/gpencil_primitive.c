@@ -291,10 +291,11 @@ static void gp_primitive_set_initdata(bContext *C, tGPDprimitive *tgpi)
 static void gp_primitive_set_cp(tGPDprimitive *tgpi, float p[2], int color, int size)
 {
 	if (tgpi->tot_cp_points < MAX_CP) {
+		CLAMP(size, 5, 20);
 		tGPcontrolpoint *cp = &tgpi->cp_points[tgpi->tot_cp_points];
 		copy_v2_v2(&cp->x, p);
 		cp->color = color;
-		cp->size = CLAMP(size, 5, 20);
+		cp->size = size;
 		tgpi->tot_cp_points += 1;
 	}
 }
