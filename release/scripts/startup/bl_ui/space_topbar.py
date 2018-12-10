@@ -383,7 +383,7 @@ class _draw_left_context_mode:
                     sub.active = settings.use_thickness_curve
                     sub.popover(
                         panel="TOPBAR_PT_gpencil_primitive",
-                        text="Curve"
+                        text="Thickness Profile"
                     )
 
         @staticmethod
@@ -1053,12 +1053,8 @@ class TOPBAR_PT_gpencil_primitive(Panel):
         settings = context.tool_settings.gpencil_sculpt
 
         layout = self.layout
-        col = layout.column(align=True)
-        col.prop(settings, "use_thickness_curve")
-
         # Curve
-        if settings.use_thickness_curve:
-            layout.template_curve_mapping(settings, "thickness_primitive_curve", brush=True)
+        layout.template_curve_mapping(settings, "thickness_primitive_curve", brush=True)
 
 
 classes = (
