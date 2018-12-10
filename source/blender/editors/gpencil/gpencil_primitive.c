@@ -666,7 +666,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		tpt->strength = tgpi->brush->gpencil_settings->draw_strength;
 		
 		tpt->time = p2d->time;
-		tpt->uv_fac = p2d->uv_fac;
+		tpt->uv_fac = 1.0f;
 		tpt->uv_rot = p2d->uv_rot;
 
 		gpd->runtime.sbuffer_size++;
