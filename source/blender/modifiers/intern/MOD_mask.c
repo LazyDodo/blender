@@ -54,6 +54,7 @@
 #include "BKE_deform.h"
 
 #include "DEG_depsgraph_build.h"
+#include "DEG_depsgraph_query.h"
 
 #include "MOD_modifiertypes.h"
 
@@ -81,6 +82,7 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 		/* TODO(sergey): Is it a proper relation here? */
 		DEG_add_object_relation(ctx->node, mmd->ob_arm, DEG_OB_COMP_TRANSFORM, "Mask Modifier");
 		arm->flag |= ARM_HAS_VIZ_DEPS;
+		DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "Mask Modifier");
 	}
 }
 
@@ -136,7 +138,7 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 
 	/* if mode is to use selected armature bones, aggregate the bone groups */
 	if (mmd->mode == MOD_MASK_MODE_ARM) { /* --- using selected bones --- */
-		Object *oba = mmd->ob_arm;
+		Object *oba = DEG_get_evaluated_object(ctx->depsgraph, mmd->ob_arm);
 		bPoseChannel *pchan;
 		bDeformGroup *def;
 		bool *bone_select_array;

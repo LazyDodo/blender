@@ -143,6 +143,7 @@ enum {
 	G_DEBUG_GPU =       (1 << 16),  /* gpu debug */
 	G_DEBUG_IO =        (1 << 17),  /* IO Debugging (for Collada, ...)*/
 	G_DEBUG_GPU_SHADERS = (1 << 18),  /* GLSL shaders */
+	G_DEBUG_GPU_FORCE_WORKAROUNDS = (1 << 19),  /* force gpu workarounds bypassing detections. */
 };
 
 #define G_DEBUG_ALL  (G_DEBUG | G_DEBUG_FFMPEG | G_DEBUG_PYTHON | G_DEBUG_EVENTS | G_DEBUG_WM | G_DEBUG_JOBS | \
@@ -206,6 +207,7 @@ enum {
 #define G_TRANSFORM_EDIT        2
 #define G_TRANSFORM_SEQ         4
 #define G_TRANSFORM_FCURVES     8
+#define G_TRANSFORM_WM          16
 
 /* Memory is allocated where? blender.c */
 extern Global G;

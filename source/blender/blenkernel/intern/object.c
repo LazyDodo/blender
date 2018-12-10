@@ -425,6 +425,9 @@ static void object_update_from_subsurf_ccg(Object *object)
 	Mesh *mesh_cow = object->runtime.mesh_orig;
 	copy_ccg_data(mesh_cow, mesh_orig, CD_MDISPS);
 	copy_ccg_data(mesh_cow, mesh_orig, CD_GRID_PAINT_MASK);
+	/* Everything is now up-to-date. */
+	subdiv_ccg->dirty.coords = false;
+	subdiv_ccg->dirty.hidden = false;
 }
 
 /* free data derived from mesh, called when mesh changes or is freed */
@@ -514,7 +517,7 @@ void BKE_object_free_caches(Object *object)
 		     psys = psys->next)
 		{
 			psys_free_path_cache(psys, psys->edit);
-			update_flag |= PSYS_RECALC_REDO;
+			update_flag |= ID_RECALC_PSYS_REDO;
 		}
 	}
 
@@ -530,7 +533,7 @@ void BKE_object_free_caches(Object *object)
 					psmd->mesh_original = NULL;
 				}
 				psmd->flag |= eParticleSystemFlag_file_loaded;
-				update_flag |= OB_RECALC_DATA;
+				update_flag |= ID_RECALC_GEOMETRY;
 			}
 		}
 	}
@@ -541,7 +544,7 @@ void BKE_object_free_caches(Object *object)
 	 */
 	if ((object->base_flag & BASE_FROMDUPLI) == 0) {
 		BKE_object_free_derived_caches(object);
-		update_flag |= OB_RECALC_DATA;
+		update_flag |= ID_RECALC_GEOMETRY;
 	}
 
 	/* Tag object for update, so once memory critical operation is over and
@@ -582,7 +585,7 @@ void BKE_object_free(Object *ob, const int flag)
 
 	BKE_constraints_free_ex(&ob->constraints, false);
 
-	free_partdeflect(ob->pd);
+	BKE_partdeflect_free(ob->pd);
 	BKE_rigidbody_free_object(ob, NULL);
 	BKE_rigidbody_free_constraint(ob);
 
@@ -901,7 +904,7 @@ static Object *object_add_common(Main *bmain, ViewLayer *view_layer, int type, c
 	ob->data = BKE_object_obdata_add_from_type(bmain, type, name);
 	BKE_view_layer_base_deselect_all(view_layer);
 
-	DEG_id_tag_update_ex(bmain, &ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+	DEG_id_tag_update_ex(bmain, &ob->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION);
 	return ob;
 }
 
@@ -975,7 +978,7 @@ Object *BKE_object_add_for_data(
 	if (do_id_user) id_us_plus(data);
 
 	BKE_view_layer_base_deselect_all(view_layer);
-	DEG_id_tag_update_ex(bmain, &ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+	DEG_id_tag_update_ex(bmain, &ob->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION);
 
 	layer_collection = BKE_layer_collection_get_active(view_layer);
 	BKE_collection_object_add(bmain, layer_collection->collection, ob);
@@ -1224,14 +1227,14 @@ Object *BKE_object_pose_armature_get_visible(Object *ob, ViewLayer *view_layer, 
 /**
  * Access pose array with special check to get pose object when in weight paint mode.
  */
-Object **BKE_object_pose_array_get_ex(ViewLayer *view_layer, uint *r_objects_len, bool unique)
+Object **BKE_object_pose_array_get_ex(ViewLayer *view_layer, View3D *v3d, uint *r_objects_len, bool unique)
 {
 	Object *ob_active = OBACT(view_layer);
 	Object *ob_pose = BKE_object_pose_armature_get(ob_active);
 	Object **objects = NULL;
 	if (ob_pose == ob_active) {
 		objects = BKE_view_layer_array_from_objects_in_mode(
-		        view_layer, r_objects_len, {
+		        view_layer, v3d, r_objects_len, {
 		            .object_mode = OB_MODE_POSE,
 		            .no_dup_data = unique});
 	}
@@ -1246,16 +1249,16 @@ Object **BKE_object_pose_array_get_ex(ViewLayer *view_layer, uint *r_objects_len
 	}
 	return objects;
 }
-Object **BKE_object_pose_array_get_unique(ViewLayer *view_layer, uint *r_objects_len)
+Object **BKE_object_pose_array_get_unique(ViewLayer *view_layer, View3D *v3d, uint *r_objects_len)
 {
-	return BKE_object_pose_array_get_ex(view_layer, r_objects_len, true);
+	return BKE_object_pose_array_get_ex(view_layer, v3d, r_objects_len, true);
 }
-Object **BKE_object_pose_array_get(ViewLayer *view_layer, uint *r_objects_len)
+Object **BKE_object_pose_array_get(ViewLayer *view_layer, View3D *v3d, uint *r_objects_len)
 {
-	return BKE_object_pose_array_get_ex(view_layer, r_objects_len, false);
+	return BKE_object_pose_array_get_ex(view_layer, v3d, r_objects_len, false);
 }
 
-Base **BKE_object_pose_base_array_get_ex(ViewLayer *view_layer, uint *r_bases_len, bool unique)
+Base **BKE_object_pose_base_array_get_ex(ViewLayer *view_layer, View3D *v3d, uint *r_bases_len, bool unique)
 {
 	Base *base_active = BASACT(view_layer);
 	Object *ob_pose = base_active ? BKE_object_pose_armature_get(base_active->object) : NULL;
@@ -1273,7 +1276,7 @@ Base **BKE_object_pose_base_array_get_ex(ViewLayer *view_layer, uint *r_bases_le
 
 	if (base_active && (base_pose == base_active)) {
 		bases = BKE_view_layer_array_from_bases_in_mode(
-		        view_layer, r_bases_len, {
+		        view_layer, v3d, r_bases_len, {
 		            .object_mode = OB_MODE_POSE,
 		            .no_dup_data = unique});
 	}
@@ -1288,13 +1291,13 @@ Base **BKE_object_pose_base_array_get_ex(ViewLayer *view_layer, uint *r_bases_le
 	}
 	return bases;
 }
-Base **BKE_object_pose_base_array_get_unique(ViewLayer *view_layer, uint *r_bases_len)
+Base **BKE_object_pose_base_array_get_unique(ViewLayer *view_layer, View3D *v3d, uint *r_bases_len)
 {
-	return BKE_object_pose_base_array_get_ex(view_layer, r_bases_len, true);
+	return BKE_object_pose_base_array_get_ex(view_layer, v3d, r_bases_len, true);
 }
-Base **BKE_object_pose_base_array_get(ViewLayer *view_layer, uint *r_bases_len)
+Base **BKE_object_pose_base_array_get(ViewLayer *view_layer, View3D *v3d, uint *r_bases_len)
 {
-	return BKE_object_pose_base_array_get_ex(view_layer, r_bases_len, false);
+	return BKE_object_pose_base_array_get_ex(view_layer, v3d, r_bases_len, false);
 }
 
 void BKE_object_transform_copy(Object *ob_tar, const Object *ob_src)
@@ -1528,7 +1531,7 @@ void BKE_object_copy_proxy_drivers(Object *ob, Object *target)
 
 			for (dvar = driver->variables.first; dvar; dvar = dvar->next) {
 				/* all drivers */
-				DRIVER_TARGETS_LOOPER(dvar)
+				DRIVER_TARGETS_LOOPER_BEGIN(dvar)
 				{
 					if (dtar->id) {
 						if ((Object *)dtar->id == target)
@@ -1542,7 +1545,7 @@ void BKE_object_copy_proxy_drivers(Object *ob, Object *target)
 						}
 					}
 				}
-				DRIVER_TARGETS_LOOPER_END
+				DRIVER_TARGETS_LOOPER_END;
 			}
 		}
 	}
@@ -1564,8 +1567,8 @@ void BKE_object_make_proxy(Main *bmain, Object *ob, Object *target, Object *cob)
 	ob->proxy_group = cob;
 	id_lib_extern(&target->id);
 
-	DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
-	DEG_id_tag_update(&target->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+	DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION);
+	DEG_id_tag_update(&target->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION);
 
 	/* copy transform
 	 * - cob means this proxy comes from a collection, just apply the matrix
@@ -2513,7 +2516,10 @@ void BKE_object_boundbox_calc_from_mesh(struct Object *ob, struct Mesh *me_eval)
 
 	INIT_MINMAX(min, max);
 
-	BKE_mesh_minmax(me_eval, min, max);
+	if (!BKE_mesh_minmax(me_eval, min, max)) {
+		zero_v3(min);
+		zero_v3(max);
+	}
 
 	if (ob->bb == NULL) {
 		ob->bb = MEM_callocN(sizeof(BoundBox), "DM-BoundBox");
@@ -2853,7 +2859,7 @@ void BKE_object_handle_update_ex(Depsgraph *depsgraph,
                                  const bool do_proxy_update)
 {
 	const ID *object_data = ob->data;
-	const bool recalc_object = (ob->id.recalc & ID_RECALC) != 0;
+	const bool recalc_object = (ob->id.recalc & ID_RECALC_ALL) != 0;
 	const bool recalc_data =
 	        (object_data != NULL) ? ((object_data->recalc & ID_RECALC_ALL) != 0)
 	                              : 0;
@@ -2880,9 +2886,9 @@ void BKE_object_handle_update_ex(Depsgraph *depsgraph,
 			}
 		}
 	}
-	/* XXX new animsys warning: depsgraph tag OB_RECALC_DATA should not skip drivers,
+	/* XXX new animsys warning: depsgraph tag ID_RECALC_GEOMETRY should not skip drivers,
 	 * which is only in BKE_object_where_is_calc now */
-	/* XXX: should this case be OB_RECALC_OB instead? */
+	/* XXX: should this case be ID_RECALC_TRANSFORM instead? */
 	if (recalc_object || recalc_data) {
 		if (G.debug & G_DEBUG_DEPSGRAPH_EVAL) {
 			printf("recalcob %s\n", ob->id.name + 2);
@@ -3693,7 +3699,7 @@ void BKE_object_groups_clear(Main *bmain, Object *ob)
 	Collection *collection = NULL;
 	while ((collection = BKE_collection_object_find(bmain, collection, ob))) {
 		BKE_collection_object_remove(bmain, collection, ob, false);
-		DEG_id_tag_update(&collection->id, DEG_TAG_COPY_ON_WRITE);
+		DEG_id_tag_update(&collection->id, ID_RECALC_COPY_ON_WRITE);
 	}
 }
 
@@ -4014,7 +4020,7 @@ bool BKE_object_modifier_update_subframe(
 		}
 	}
 
-	/* was originally OB_RECALC_ALL - TODO - which flags are really needed??? */
+	/* was originally ID_RECALC_ALL - TODO - which flags are really needed??? */
 	/* TODO(sergey): What about animation? */
 	ob->id.recalc |= ID_RECALC_ALL;
 	BKE_animsys_evaluate_animdata(depsgraph, scene, &ob->id, ob->adt, frame, ADT_RECALC_ANIM);

@@ -748,19 +748,21 @@ static void gpencil_get_depth_array(tGPDfill *tgpf)
 		int depth_margin = 0;
 
 		/* get an array of depths, far depths are blended */
-		int mval[2], mval_prev[2] = { 0 };
+		int mval_prev[2] = { 0 };
 		int interp_depth = 0;
 		int found_depth = 0;
 
 		tgpf->depth_arr = MEM_mallocN(sizeof(float) * totpoints, "depth_points");
 
 		for (i = 0, ptc = tgpf->sbuffer; i < totpoints; i++, ptc++) {
-			copy_v2_v2_int(mval, &ptc->x);
+
+			int mval_i[2];
+			round_v2i_v2fl(mval_i, &ptc->x);
 
 			if ((ED_view3d_autodist_depth(
-			             tgpf->ar, mval, depth_margin, tgpf->depth_arr + i) == 0) &&
+			             tgpf->ar, mval_i, depth_margin, tgpf->depth_arr + i) == 0) &&
 			    (i && (ED_view3d_autodist_depth_seg(
-			                   tgpf->ar, mval, mval_prev, depth_margin + 1, tgpf->depth_arr + i) == 0)))
+			                   tgpf->ar, mval_i, mval_prev, depth_margin + 1, tgpf->depth_arr + i) == 0)))
 			{
 				interp_depth = true;
 			}
@@ -768,7 +770,7 @@ static void gpencil_get_depth_array(tGPDfill *tgpf)
 				found_depth = true;
 			}
 
-			copy_v2_v2_int(mval_prev, mval);
+			copy_v2_v2_int(mval_prev, mval_i);
 		}
 
 		if (found_depth == false) {
@@ -880,10 +882,10 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 	for (int i = 0; i < tgpf->sbuffer_size && point2D; i++, point2D++, pt++) {
 		/* convert screen-coordinates to 3D coordinates */
 		gp_stroke_convertcoords_tpoint(
-			tgpf->scene, tgpf->ar, tgpf->v3d, tgpf->ob,
-			tgpf->gpl, point2D,
-			tgpf->depth_arr ? tgpf->depth_arr + i : NULL,
-			&pt->x);
+		        tgpf->scene, tgpf->ar, tgpf->ob,
+		        tgpf->gpl, point2D,
+		        tgpf->depth_arr ? tgpf->depth_arr + i : NULL,
+		        &pt->x);
 
 		pt->pressure = 1.0f;
 		pt->strength = 1.0f;
@@ -920,7 +922,7 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 	if ((tgpf->lock_axis > GP_LOCKAXIS_VIEW) && ((ts->gpencil_v3d_align & GP_PROJECT_DEPTH_VIEW) == 0)) {
 		float origin[3];
 		ED_gp_get_drawing_reference(
-		        tgpf->v3d, tgpf->scene, tgpf->ob, tgpf->gpl,
+		        tgpf->scene, tgpf->ob, tgpf->gpl,
 		        ts->gpencil_v3d_align, origin);
 		ED_gp_project_stroke_to_plane(
 		        tgpf->ob, tgpf->rv3d, gps, origin,
@@ -1099,7 +1101,7 @@ static void gpencil_fill_exit(bContext *C, wmOperator *op)
 	/* drawing batch cache is dirty now */
 	if ((ob) && (ob->type == OB_GPENCIL) && (ob->data)) {
 		bGPdata *gpd2 = ob->data;
-		DEG_id_tag_update(&gpd2->id, OB_RECALC_OB | OB_RECALC_DATA);
+		DEG_id_tag_update(&gpd2->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 		gpd2->flag |= GP_DATA_CACHE_IS_DIRTY;
 	}
 
@@ -1160,7 +1162,7 @@ static int gpencil_fill_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSE
 
 	gpencil_fill_status_indicators(C, tgpf);
 
-	DEG_id_tag_update(&tgpf->gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&tgpf->gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
 
 	/* add a modal handler for this operator*/

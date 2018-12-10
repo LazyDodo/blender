@@ -126,23 +126,22 @@ void ED_object_base_select(Base *base, eObjectSelect_Mode mode)
  */
 void ED_object_base_activate(bContext *C, Base *base)
 {
+	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	view_layer->basact = base;
 
-	if (base) {
-		WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, view_layer);
-	}
-	else {
-		WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, NULL);
-	}
-	DEG_id_tag_update(&CTX_data_scene(C)->id, DEG_TAG_SELECT_UPDATE);
+	WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
+	DEG_id_tag_update(&CTX_data_scene(C)->id, ID_RECALC_SELECT);
 }
 
-bool ED_object_base_deselect_all_ex(ViewLayer *view_layer, int action, bool *r_any_visible)
+bool ED_object_base_deselect_all_ex(ViewLayer *view_layer, View3D *v3d, int action, bool *r_any_visible)
 {
 	if (action == SEL_TOGGLE) {
 		action = SEL_SELECT;
-		FOREACH_VISIBLE_BASE_BEGIN(view_layer, base) {
+		FOREACH_VISIBLE_BASE_BEGIN(view_layer, v3d, base) {
+			if (v3d && ((v3d->object_type_exclude_select & (1 << base->object->type)) != 0)) {
+				continue;
+			}
 			if ((base->flag & BASE_SELECTED) != 0) {
 				action = SEL_DESELECT;
 				break;
@@ -153,7 +152,10 @@ bool ED_object_base_deselect_all_ex(ViewLayer *view_layer, int action, bool *r_a
 
 	bool any_visible = false;
 	bool changed = false;
-	FOREACH_VISIBLE_BASE_BEGIN(view_layer, base) {
+	FOREACH_VISIBLE_BASE_BEGIN(view_layer, v3d, base) {
+		if (v3d && ((v3d->object_type_exclude_select & (1 << base->object->type)) != 0)) {
+			continue;
+		}
 		switch (action) {
 			case SEL_SELECT:
 				if ((base->flag & BASE_SELECTED) == 0) {
@@ -188,9 +190,9 @@ bool ED_object_base_deselect_all_ex(ViewLayer *view_layer, int action, bool *r_a
 }
 
 
-bool ED_object_base_deselect_all(ViewLayer *view_layer, int action)
+bool ED_object_base_deselect_all(ViewLayer *view_layer, View3D *v3d, int action)
 {
-	return ED_object_base_deselect_all_ex(view_layer, action, NULL);
+	return ED_object_base_deselect_all_ex(view_layer, v3d, action, NULL);
 }
 
 /********************** Jump To Object Utilities **********************/
@@ -258,6 +260,7 @@ bool ED_object_jump_to_object(
         bContext *C, Object *ob, const bool UNUSED(reveal_hidden))
 {
 	ViewLayer *view_layer = CTX_data_view_layer(C);
+	View3D *v3d = CTX_wm_view3d(C);
 	Base *base = BKE_view_layer_base_find(view_layer, ob);
 
 	if (base == NULL) {
@@ -269,7 +272,7 @@ bool ED_object_jump_to_object(
 	if (view_layer->basact != base || !(base->flag & BASE_SELECTED)) {
 		/* Select if not selected. */
 		if (!(base->flag & BASE_SELECTED)) {
-			ED_object_base_deselect_all(view_layer, SEL_DESELECT);
+			ED_object_base_deselect_all(view_layer, v3d, SEL_DESELECT);
 
 			if (base->flag & BASE_VISIBLE) {
 				ED_object_base_select(base, BA_SELECT);
@@ -388,13 +391,14 @@ static bool objects_selectable_poll(bContext *C)
 static int object_select_by_type_exec(bContext *C, wmOperator *op)
 {
 	ViewLayer *view_layer = CTX_data_view_layer(C);
+	View3D *v3d = CTX_wm_view3d(C);
 	short obtype, extend;
 
 	obtype = RNA_enum_get(op->ptr, "type");
 	extend = RNA_boolean_get(op->ptr, "extend");
 
 	if (extend == 0) {
-		ED_object_base_deselect_all(view_layer, SEL_DESELECT);
+		ED_object_base_deselect_all(view_layer, v3d, SEL_DESELECT);
 	}
 
 	CTX_DATA_BEGIN (C, Base *, base, visible_bases)
@@ -406,7 +410,7 @@ static int object_select_by_type_exec(bContext *C, wmOperator *op)
 	CTX_DATA_END;
 
 	Scene *scene = CTX_data_scene(C);
-	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+	DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 
 	return OPERATOR_FINISHED;
@@ -448,7 +452,7 @@ static const EnumPropertyItem prop_select_linked_types[] = {
 	//{OBJECT_SELECT_LINKED_IPO, "IPO", 0, "Object IPO", ""}, // XXX deprecated animation system stuff...
 	{OBJECT_SELECT_LINKED_OBDATA, "OBDATA", 0, "Object Data", ""},
 	{OBJECT_SELECT_LINKED_MATERIAL, "MATERIAL", 0, "Material", ""},
-	{OBJECT_SELECT_LINKED_DUPGROUP, "DUPGROUP", 0, "Dupligroup", ""},
+	{OBJECT_SELECT_LINKED_DUPGROUP, "DUPGROUP", 0, "Instanced Collection", ""},
 	{OBJECT_SELECT_LINKED_PARTICLE, "PARTICLE", 0, "Particle System", ""},
 	{OBJECT_SELECT_LINKED_LIBRARY, "LIBRARY", 0, "Library", ""},
 	{OBJECT_SELECT_LINKED_LIBRARY_OBDATA, "LIBRARY_OBDATA", 0, "Library (Object Data)", ""},
@@ -601,7 +605,7 @@ void ED_object_select_linked_by_id(bContext *C, ID *id)
 
 	if (changed) {
 		Scene *scene = CTX_data_scene(C);
-		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 	}
 }
@@ -610,6 +614,7 @@ static int object_select_linked_exec(bContext *C, wmOperator *op)
 {
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
+	View3D *v3d = CTX_wm_view3d(C);
 	Object *ob;
 	int nr = RNA_enum_get(op->ptr, "type");
 	bool changed = false, extend;
@@ -617,7 +622,7 @@ static int object_select_linked_exec(bContext *C, wmOperator *op)
 	extend = RNA_boolean_get(op->ptr, "extend");
 
 	if (extend == 0) {
-		ED_object_base_deselect_all(view_layer, SEL_DESELECT);
+		ED_object_base_deselect_all(view_layer, v3d, SEL_DESELECT);
 	}
 
 	ob = OBACT(view_layer);
@@ -672,7 +677,7 @@ static int object_select_linked_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 
 	if (changed) {
-		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 		return OPERATOR_FINISHED;
 	}
@@ -981,6 +986,7 @@ static int object_select_grouped_exec(bContext *C, wmOperator *op)
 {
 	Scene *scene = CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
+	View3D *v3d = CTX_wm_view3d(C);
 	Object *ob;
 	const int type = RNA_enum_get(op->ptr, "type");
 	bool changed = false, extend;
@@ -988,7 +994,7 @@ static int object_select_grouped_exec(bContext *C, wmOperator *op)
 	extend = RNA_boolean_get(op->ptr, "extend");
 
 	if (extend == 0) {
-		changed = ED_object_base_deselect_all(view_layer, SEL_DESELECT);
+		changed = ED_object_base_deselect_all(view_layer, v3d, SEL_DESELECT);
 	}
 
 	ob = OBACT(view_layer);
@@ -1040,7 +1046,7 @@ static int object_select_grouped_exec(bContext *C, wmOperator *op)
 	}
 
 	if (changed) {
-		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 		return OPERATOR_FINISHED;
 	}
@@ -1073,14 +1079,15 @@ void OBJECT_OT_select_grouped(wmOperatorType *ot)
 static int object_select_all_exec(bContext *C, wmOperator *op)
 {
 	ViewLayer *view_layer = CTX_data_view_layer(C);
+	View3D *v3d = CTX_wm_view3d(C);
 	int action = RNA_enum_get(op->ptr, "action");
 	bool any_visible = false;
 
-	bool changed = ED_object_base_deselect_all_ex(view_layer, action, &any_visible);
+	bool changed = ED_object_base_deselect_all_ex(view_layer, v3d, action, &any_visible);
 
 	if (changed) {
 		Scene *scene = CTX_data_scene(C);
-		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 
 		return OPERATOR_FINISHED;
@@ -1143,7 +1150,7 @@ static int object_select_same_collection_exec(bContext *C, wmOperator *op)
 	CTX_DATA_END;
 
 	Scene *scene = CTX_data_scene(C);
-	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+	DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 
 	return OPERATOR_FINISHED;
@@ -1200,7 +1207,7 @@ static int object_select_mirror_exec(bContext *C, wmOperator *op)
 	CTX_DATA_END;
 
 	/* undo? */
-	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+	DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 
 	return OPERATOR_FINISHED;
@@ -1289,7 +1296,7 @@ static int object_select_more_exec(bContext *C, wmOperator *UNUSED(op))
 
 	if (changed) {
 		Scene *scene = CTX_data_scene(C);
-		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 		return OPERATOR_FINISHED;
 	}
@@ -1319,7 +1326,7 @@ static int object_select_less_exec(bContext *C, wmOperator *UNUSED(op))
 
 	if (changed) {
 		Scene *scene = CTX_data_scene(C);
-		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 		return OPERATOR_FINISHED;
 	}
@@ -1367,7 +1374,7 @@ static int object_select_random_exec(bContext *C, wmOperator *op)
 	BLI_rng_free(rng);
 
 	Scene *scene = CTX_data_scene(C);
-	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+	DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 
 	return OPERATOR_FINISHED;

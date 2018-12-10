@@ -359,14 +359,16 @@ set(SRC
 	BKE_writeavi.h
 
 	nla_private.h
-	tracking_private.h
 	particle_private.h
+	tracking_private.h
 	intern/CCGSubSurf.h
 	intern/CCGSubSurf_inline.h
 	intern/CCGSubSurf_intern.h
 	intern/data_transfer_intern.h
+	intern/multires_inline.h
 	intern/pbvh_intern.h
 	intern/subdiv_converter.h
+	intern/subdiv_inline.h
 )
 
 if(WITH_BINRELOC)
@@ -567,9 +569,6 @@ if(WITH_OPENSUBDIV)
 	list(APPEND INC_SYS
 		${OPENSUBDIV_INCLUDE_DIRS}
 	)
-	if(WITH_OPENSUBDIV_MODIFIER)
-		add_definitions(-DWITH_OPENSUBDIV_MODIFIER)
-	endif()
 endif()
 
 if(WITH_OPENVDB)

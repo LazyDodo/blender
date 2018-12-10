@@ -442,8 +442,8 @@ void BKE_particlesettings_free(ParticleSettings *part)
 	if (part->twistcurve)
 		curvemapping_free(part->twistcurve);
 
-	free_partdeflect(part->pd);
-	free_partdeflect(part->pd2);
+	BKE_partdeflect_free(part->pd);
+	BKE_partdeflect_free(part->pd2);
 
 	MEM_SAFE_FREE(part->effector_weights);
 
@@ -469,6 +469,7 @@ void free_hair(Object *object, ParticleSystem *psys, int dynamics)
 	if (psys->clmd) {
 		if (dynamics) {
 			modifier_free((ModifierData *)psys->clmd);
+			psys->clmd = NULL;
 			PTCacheID pid;
 			BKE_ptcache_id_from_particles(&pid, object, psys);
 			BKE_ptcache_id_clear(&pid, PTCACHE_CLEAR_ALL, 0);
@@ -3087,7 +3088,7 @@ ModifierData *object_add_particle_system(Main *bmain, Scene *scene, Object *ob, 
 	psys->cfra = BKE_scene_frame_get_from_ctime(scene, CFRA + 1);
 
 	DEG_relations_tag_update(bmain);
-	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+	DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 
 	return md;
 }
@@ -3133,10 +3134,10 @@ void object_remove_particle_system(Main *bmain, Scene *UNUSED(scene), Object *ob
 		ob->mode &= ~OB_MODE_PARTICLE_EDIT;
 
 	DEG_relations_tag_update(bmain);
-	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+	DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 
 	/* Flush object mode. */
-	DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&ob->id, ID_RECALC_COPY_ON_WRITE);
 }
 
 static void default_particle_settings(ParticleSettings *part)
@@ -3212,7 +3213,7 @@ static void default_particle_settings(ParticleSettings *part)
 	part->draw_col = PART_DRAW_COL_MAT;
 
 	if (!part->effector_weights)
-		part->effector_weights = BKE_add_effector_weights(NULL);
+		part->effector_weights = BKE_effector_add_weights(NULL);
 
 	part->omat = 1;
 	part->use_modifier_stack = false;
@@ -3246,6 +3247,8 @@ void BKE_particlesettings_clump_curve_init(ParticleSettings *part)
 	cumap->cm[0].curve[1].x = 1.0f;
 	cumap->cm[0].curve[1].y = 1.0f;
 
+	curvemapping_initialize(cumap);
+
 	part->clumpcurve = cumap;
 }
 
@@ -3258,6 +3261,8 @@ void BKE_particlesettings_rough_curve_init(ParticleSettings *part)
 	cumap->cm[0].curve[1].x = 1.0f;
 	cumap->cm[0].curve[1].y = 1.0f;
 
+	curvemapping_initialize(cumap);
+
 	part->roughcurve = cumap;
 }
 
@@ -3269,6 +3274,8 @@ void BKE_particlesettings_twist_curve_init(ParticleSettings *part)
 	cumap->cm[0].curve[0].y = 1.0f;
 	cumap->cm[0].curve[1].x = 1.0f;
 	cumap->cm[0].curve[1].y = 1.0f;
+
+	curvemapping_initialize(cumap);
 
 	part->twistcurve = cumap;
 }
@@ -4207,9 +4214,7 @@ void psys_make_billboard(ParticleBillboardData *bb, float xvec[3], float yvec[3]
 	/* can happen with bad pointcache or physics calculation
 	 * since this becomes geometry, nan's and inf's crash raytrace code.
 	 * better not allow this. */
-	if ((!isfinite(bb->vec[0])) || (!isfinite(bb->vec[1])) || (!isfinite(bb->vec[2])) ||
-	    (!isfinite(bb->vel[0])) || (!isfinite(bb->vel[1])) || (!isfinite(bb->vel[2])) )
-	{
+	if (!is_finite_v3(bb->vec) || !is_finite_v3(bb->vec)) {
 		zero_v3(bb->vec);
 		zero_v3(bb->vel);
 

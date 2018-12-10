@@ -565,9 +565,9 @@ static void rna_Modifier_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *p
 {
 	BKE_rigidbody_cache_reset(scene);
 
-	DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA | OB_RECALC_OB | OB_RECALC_TIME |
-									DEG_TAG_COPY_ON_WRITE | DEG_TAG_BASE_FLAGS_UPDATE);
-	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE | DEG_TAG_BASE_FLAGS_UPDATE);
+	DEG_id_tag_update(ptr->id.data, ID_RECALC_GEOMETRY | ID_RECALC_TRANSFORM | ID_RECALC_ANIMATION |
+									ID_RECALC_COPY_ON_WRITE | ID_RECALC_BASE_FLAGS);
+	DEG_id_tag_update(&scene->id, ID_RECALC_COPY_ON_WRITE | ID_RECALC_BASE_FLAGS);
 
 	WM_main_add_notifier(NC_OBJECT | ND_MODIFIER, ptr->id.data);
 	WM_main_add_notifier(NC_OBJECT | ND_POINTCACHE, NULL);

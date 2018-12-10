@@ -2712,7 +2712,7 @@ static int view3d_all_exec(bContext *C, wmOperator *op)
 
 	if (center) {
 		/* in 2.4x this also move the cursor to (0, 0, 0) (with shift+c). */
-		View3DCursor *cursor = ED_view3d_cursor3d_get(scene, v3d);
+		View3DCursor *cursor = &scene->cursor;
 		zero_v3(min);
 		zero_v3(max);
 		zero_v3(cursor->location);
@@ -2734,6 +2734,11 @@ static int view3d_all_exec(bContext *C, wmOperator *op)
 			BKE_object_minmax(base_eval->object, min, max, false);
 		}
 	}
+
+	if (center) {
+		DEG_id_tag_update(&scene->id, ID_RECALC_COPY_ON_WRITE);
+	}
+
 	if (!changed) {
 		ED_region_tag_redraw(ar);
 		/* TODO - should this be cancel?
@@ -2751,10 +2756,6 @@ static int view3d_all_exec(bContext *C, wmOperator *op)
 	}
 	else {
 		view3d_from_minmax(C, v3d, ar, min, max, true, smooth_viewtx);
-	}
-
-	if (center) {
-		DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
 	}
 
 	return OPERATOR_FINISHED;
@@ -2847,19 +2848,25 @@ static int viewselected_exec(bContext *C, wmOperator *op)
 	}
 	else if (ob_eval && (ob_eval->type == OB_GPENCIL)) {
 		ok |= BKE_gpencil_data_minmax(ob_eval, gpd, min, max);
+		/* if no strokes, use object location */
+		if ((ob_eval) && (!ok)) {
+			copy_v3_v3(min, ob_eval->obmat[3]);
+			copy_v3_v3(max, ob_eval->obmat[3]);
+			ok = true;
+		}
 	}
 	else if (is_face_map) {
 		ok = WM_gizmomap_minmax(ar->gizmo_map, true, true, min, max);
 	}
 	else if (obedit) {
 		/* only selected */
-		FOREACH_OBJECT_IN_MODE_BEGIN (view_layer_eval, obedit->mode, ob_eval_iter) {
+		FOREACH_OBJECT_IN_MODE_BEGIN (view_layer_eval, v3d, obedit->type, obedit->mode, ob_eval_iter) {
 			ok |= ED_view3d_minmax_verts(ob_eval_iter, min, max);
 		}
 		FOREACH_OBJECT_IN_MODE_END;
 	}
 	else if (ob_eval && (ob_eval->mode & OB_MODE_POSE)) {
-		FOREACH_OBJECT_IN_MODE_BEGIN (view_layer_eval, ob_eval->mode, ob_eval_iter) {
+		FOREACH_OBJECT_IN_MODE_BEGIN (view_layer_eval, v3d, ob_eval->type, ob_eval->mode, ob_eval_iter) {
 			ok |= BKE_pose_minmax(ob_eval_iter, min, max, true, true);
 		}
 		FOREACH_OBJECT_IN_MODE_END;
@@ -3043,7 +3050,7 @@ static int viewcenter_cursor_exec(bContext *C, wmOperator *op)
 
 		/* non camera center */
 		float new_ofs[3];
-		negate_v3_v3(new_ofs, ED_view3d_cursor3d_get(scene, v3d)->location);
+		negate_v3_v3(new_ofs, scene->cursor.location);
 		ED_view3d_smooth_view(
 		        C, v3d, ar, smooth_viewtx,
 		        &(const V3D_SmoothParams) {.ofs = new_ofs});
@@ -3276,7 +3283,7 @@ static int render_border_exec(bContext *C, wmOperator *op)
 	}
 
 	if (rv3d->persp == RV3D_CAMOB) {
-		DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_COPY_ON_WRITE);
 	}
 	return OPERATOR_FINISHED;
 }
@@ -3336,7 +3343,7 @@ static int clear_render_border_exec(bContext *C, wmOperator *UNUSED(op))
 	border->ymax = 1.0f;
 
 	if (rv3d->persp == RV3D_CAMOB) {
-		DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_COPY_ON_WRITE);
 	}
 	return OPERATOR_FINISHED;
 }
@@ -4755,7 +4762,7 @@ void ED_view3d_cursor3d_update(
 	ARegion *ar = CTX_wm_region(C);
 	RegionView3D *rv3d = ar->regiondata;
 
-	View3DCursor *cursor_curr = ED_view3d_cursor3d_get(scene, v3d);
+	View3DCursor *cursor_curr = &scene->cursor;
 	View3DCursor  cursor_prev = *cursor_curr;
 
 	ED_view3d_cursor3d_position_rotation(
@@ -4795,7 +4802,7 @@ void ED_view3d_cursor3d_update(
 		        mbus, &scene->id, scene, Scene, cursor_location);
 	}
 
-	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&scene->id, ID_RECALC_COPY_ON_WRITE);
 }
 
 static int view3d_cursor3d_invoke(bContext *C, wmOperator *op, const wmEvent *event)

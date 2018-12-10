@@ -101,7 +101,7 @@ void GeometryExporter::operator()(Object *ob)
 	// writes <source> for normal coords
 	createNormalsSource(geom_id, me, nor);
 
-	bool has_uvs = (bool)CustomData_has_layer(&me->fdata, CD_MTFACE);
+	bool has_uvs = (bool)CustomData_has_layer(&me->ldata, CD_MLOOPUV);
 
 	// writes <source> for uv coords if mesh has uv coords
 	if (has_uvs) {
@@ -187,7 +187,7 @@ void GeometryExporter::export_key_mesh(Object *ob, Mesh *me, KeyBlock *kb)
 	// writes <source> for normal coords
 	createNormalsSource(geom_id, me, nor);
 
-	bool has_uvs = (bool)CustomData_has_layer(&me->fdata, CD_MTFACE);
+	bool has_uvs = (bool)CustomData_has_layer(&me->ldata, CD_MLOOPUV);
 
 	// writes <source> for uv coords if mesh has uv coords
 	if (has_uvs) {
@@ -346,16 +346,17 @@ void GeometryExporter::createPolylist(short material_index,
 	til.push_back(input2);
 
 	// if mesh has uv coords writes <input> for TEXCOORD
-	int num_layers = CustomData_number_of_layers(&me->fdata, CD_MTFACE);
-	int active_uv_index = CustomData_get_active_layer_index(&me->fdata, CD_MTFACE)-1;
+	int num_layers = CustomData_number_of_layers(&me->ldata, CD_MLOOPUV);
+	int active_uv_index = CustomData_get_active_layer_index(&me->ldata, CD_MLOOPUV);
 	for (i = 0; i < num_layers; i++) {
-		if (!this->export_settings->active_uv_only || i == active_uv_index) {
+		int layer_index = CustomData_get_layer_index_n(&me->ldata, CD_MLOOPUV, i);
+		if (!this->export_settings->active_uv_only || layer_index == active_uv_index) {
 
-			// char *name = CustomData_get_layer_name(&me->fdata, CD_MTFACE, i);
+			// char *name = CustomData_get_layer_name(&me->ldata, CD_MLOOPUV, i);
 			COLLADASW::Input input3(COLLADASW::InputSemantic::TEXCOORD,
 									makeUrl(makeTexcoordSourceId(geom_id, i, this->export_settings->active_uv_only)),
 									2, // this is only until we have optimized UV sets
-									(this->export_settings->active_uv_only) ? 0 : i  // only_active_uv exported -> we have only one set
+									(this->export_settings->active_uv_only) ? 0 : layer_index  // only_active_uv exported -> we have only one set
 									);
 			til.push_back(input3);
 		}

@@ -715,17 +715,24 @@ void BKE_pose_bone_done(struct Depsgraph *depsgraph,
 		copy_v3_v3(pchan_orig->pose_head, pchan->pose_mat[3]);
 		copy_m4_m4(pchan_orig->constinv, pchan->constinv);
 		BKE_pose_where_is_bone_tail(pchan_orig);
+		if (pchan->bone == NULL || pchan->bone->segments <= 1) {
+			BKE_pose_channel_free_bbone_cache(pchan_orig);
+		}
 	}
 }
 
 void BKE_pose_eval_bbone_segments(struct Depsgraph *depsgraph,
-                               struct Object *ob,
-                               int pchan_index)
+                                  struct Object *ob,
+                                  int pchan_index)
 {
 	bPoseChannel *pchan = pose_pchan_get_indexed(ob, pchan_index);
 	DEG_debug_print_eval(depsgraph, __func__, pchan->name, pchan);
 	if (pchan->bone != NULL && pchan->bone->segments > 1) {
-		BKE_pchan_cache_bbone_segments(pchan);
+		BKE_pchan_bbone_segments_cache_compute(pchan);
+		bArmature *arm = (bArmature *)ob->data;
+		if (DEG_is_active(depsgraph) && arm->edbo == NULL) {
+			BKE_pchan_bbone_segments_cache_copy(pchan->orig_pchan, pchan);
+		}
 	}
 }
 
@@ -850,5 +857,5 @@ void BKE_pose_eval_proxy_copy_bone(
 	BLI_assert(pchan != NULL);
 	BLI_assert(pchan_from != NULL);
 	BKE_pose_copyesult_pchan_result(pchan, pchan_from);
-	BKE_pchan_copy_bbone_segments_cache(pchan, pchan_from);
+	BKE_pchan_bbone_segments_cache_copy(pchan, pchan_from);
 }

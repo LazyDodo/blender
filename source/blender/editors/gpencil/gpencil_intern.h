@@ -154,9 +154,12 @@ typedef struct tGPDprimitive {
 	struct bGPDlayer *gpl;            /* layer */
 	struct bGPDframe *gpf;            /* frame */
 	int type;                         /* type of primitive */
+	short cyclic;                       /* cyclic option */
+	short flip;                         /* flip option */
 	int tot_edges;                    /* number of polygon edges */
 	int top[2];                       /* first box corner */
 	int bottom[2];                    /* last box corner */
+	int origin[2];                    /* initial box corner */
 	int flag;                         /* flag to determine operations in progress */
 
 	int lock_axis;                    /* lock to viewport axis */
@@ -193,7 +196,7 @@ typedef struct GP_SpaceConversion {
 } GP_SpaceConversion;
 
 bool gp_stroke_inside_circle(
-        const int mval[2], const int UNUSED(mvalo[2]),
+        const float mval[2], const float UNUSED(mvalo[2]),
         int rad, int x0, int y0, int x1, int y1);
 
 void gp_point_conversion_init(struct bContext *C, GP_SpaceConversion *r_gsc);
@@ -221,7 +224,7 @@ bool gp_point_xy_to_3d(GP_SpaceConversion *gsc, struct Scene *scene, const float
 /* helper to convert 2d to 3d */
 void gp_stroke_convertcoords_tpoint(
         struct Scene *scene, struct ARegion *ar,
-        struct View3D *v3d, struct Object *ob,
+        struct Object *ob,
         bGPDlayer *gpl, const struct tGPspoint *point2D,
         float *depth, float out[3]);
 
@@ -368,7 +371,8 @@ enum {
 enum {
 	GP_STROKE_BOX = -1,
 	GP_STROKE_LINE = 1,
-	GP_STROKE_CIRCLE = 2
+	GP_STROKE_CIRCLE = 2,
+	GP_STROKE_ARC = 3
 };
 
 

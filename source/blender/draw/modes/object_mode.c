@@ -895,7 +895,7 @@ static void DRW_shgroup_empty_image(
 		DRW_shgroup_uniform_int_copy(grp, "depthMode", ob->empty_image_depth);
 		DRW_shgroup_uniform_float(grp, "size", &ob->empty_drawsize, 1);
 		DRW_shgroup_uniform_vec2(grp, "offset", ob->ima_ofs, 1);
-		DRW_shgroup_uniform_vec4(grp, "color", color, 1);
+		DRW_shgroup_uniform_vec3(grp, "color", color, 1);
 		DRW_shgroup_call_add(grp, DRW_cache_image_plane_wire_get(), ob->obmat);
 	}
 }
@@ -2379,31 +2379,30 @@ static void DRW_shgroup_texture_space(OBJECT_ShadingGroupList *sgl, Object *ob, 
 	ID *ob_data = ob->data;
 	float *texcoloc = NULL;
 	float *texcosize = NULL;
-	if (ob->data != NULL) {
-		switch (GS(ob_data->name)) {
-			case ID_ME:
-				BKE_mesh_texspace_get_reference((Mesh *)ob_data, NULL, &texcoloc, NULL, &texcosize);
-				break;
-			case ID_CU:
-			{
-				Curve *cu = (Curve *)ob_data;
-				if (cu->bb == NULL || (cu->bb->flag & BOUNDBOX_DIRTY)) {
-					BKE_curve_texspace_calc(cu);
-				}
-				texcoloc = cu->loc;
-				texcosize = cu->size;
-				break;
+
+	switch (GS(ob_data->name)) {
+		case ID_ME:
+			BKE_mesh_texspace_get_reference((Mesh *)ob_data, NULL, &texcoloc, NULL, &texcosize);
+			break;
+		case ID_CU:
+		{
+			Curve *cu = (Curve *)ob_data;
+			if (cu->bb == NULL || (cu->bb->flag & BOUNDBOX_DIRTY)) {
+				BKE_curve_texspace_calc(cu);
 			}
-			case ID_MB:
-			{
-				MetaBall *mb = (MetaBall *)ob_data;
-				texcoloc = mb->loc;
-				texcosize = mb->size;
-				break;
-			}
-			default:
-				BLI_assert(0);
+			texcoloc = cu->loc;
+			texcosize = cu->size;
+			break;
 		}
+		case ID_MB:
+		{
+			MetaBall *mb = (MetaBall *)ob_data;
+			texcoloc = mb->loc;
+			texcosize = mb->size;
+			break;
+		}
+		default:
+			BLI_assert(0);
 	}
 
 	float tmp[4][4] = {{0.0f}}, one = 1.0f;
@@ -2743,7 +2742,9 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 			break;
 		case OB_ARMATURE:
 		{
-			if (v3d->overlay.flag & V3D_OVERLAY_HIDE_BONES) {
+			if ((v3d->flag2 & V3D_RENDER_OVERRIDE) ||
+			    (v3d->overlay.flag & V3D_OVERLAY_HIDE_BONES))
+			{
 				break;
 			}
 			bArmature *arm = ob->data;
@@ -2863,17 +2864,17 @@ static void OBJECT_draw_scene(void *vedata)
 
 	MULTISAMPLE_SYNC_ENABLE(dfbl, dtxl);
 
-	/* This needs to be drawn after the oultine */
 	DRW_draw_pass(stl->g_data->sgl.spot_shapes);
 	DRW_draw_pass(stl->g_data->sgl.bone_solid);
 	DRW_draw_pass(stl->g_data->sgl.bone_wire);
 	DRW_draw_pass(stl->g_data->sgl.bone_outline);
 	DRW_draw_pass(stl->g_data->sgl.non_meshes);
 	DRW_draw_pass(psl->particle);
-	DRW_draw_pass(stl->g_data->sgl.image_empties);
 	DRW_draw_pass(stl->g_data->sgl.bone_axes);
 
 	MULTISAMPLE_SYNC_DISABLE(dfbl, dtxl)
+
+	DRW_draw_pass(stl->g_data->sgl.image_empties);
 
 	if (DRW_state_is_fbo() && outline_calls > 0) {
 		DRW_stats_group_start("Outlines");

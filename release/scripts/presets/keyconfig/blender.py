@@ -18,32 +18,41 @@ class Prefs(bpy.types.KeyConfigPreferences):
     select_mouse: EnumProperty(
         name="Select Mouse",
         items=(
-            ('LEFT', "Left", "Use left Mouse Button for selection"),
-            ('RIGHT', "Right", "Use Right Mouse Button for selection"),
+            ('LEFT', "Left",
+             "Use left mouse button for selection. "
+             "The standard behavior that works well for mouse, trackpad and tablet devices"),
+            ('RIGHT', "Right",
+             "Use right mouse button for selection, and left mouse button for actions. "
+             "This works well primarily for keyboard and mouse devices"),
         ),
         description=(
             "Mouse button used for selection"
         ),
-        default='RIGHT',
+        default='LEFT',
         update=update_fn,
     )
     spacebar_action: EnumProperty(
         name="Spacebar",
         items=(
-            ('TOOL', "Tool-Bar",
+            ('PLAY', "Play",
+             "Toggle animation playback "
+             "('Shift-Space' for Tools)",
+             1),
+            ('TOOL', "Tools",
              "Open the popup tool-bar\n"
              "When 'Space' is held and used as a modifier:\n"
              "\u2022 Pressing the tools binding key switches to it immediately.\n"
              "\u2022 Dragging the cursor over a tool and releasing activates it (like a pie menu).\n"
-            ),
-            ('PLAY', "Playback",
-             "Toggle animation playback"
-            ),
+             "For Play use 'Shift-Space'",
+             0),
+            ('SEARCH', "Search",
+             "Open the operator search popup",
+             2),
         ),
         description=(
-            "Action when 'Space' is pressed ('Shift-Space' is used for the other action)"
+            "Action when 'Space' is pressed"
         ),
-        default='TOOL',
+        default='PLAY',
         update=update_fn,
     )
     use_select_all_toggle: BoolProperty(
@@ -96,14 +105,17 @@ blender_default = bpy.utils.execfile(os.path.join(dirname, "keymap_data", "blend
 
 
 def load():
+    from bpy import context
     from bl_keymap_utils.io import keyconfig_init_from_data
 
-    kc = bpy.context.window_manager.keyconfigs.new(idname)
+    prefs = context.user_preferences
+    kc = context.window_manager.keyconfigs.new(idname)
     kc_prefs = kc.preferences
 
     keyconfig_data = blender_default.generate_keymaps(
         blender_default.Params(
             select_mouse=kc_prefs.select_mouse,
+            use_mouse_emulate_3_button=prefs.inputs.use_mouse_emulate_3_button,
             spacebar_action=kc_prefs.spacebar_action,
             use_select_all_toggle=kc_prefs.use_select_all_toggle,
             use_v3d_tab_menu=kc_prefs.use_v3d_tab_menu,

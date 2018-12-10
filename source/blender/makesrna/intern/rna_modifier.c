@@ -313,6 +313,7 @@ const EnumPropertyItem rna_enum_axis_flag_xyz_items[] = {
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
+#include "DEG_depsgraph_query.h"
 
 #ifdef WITH_ALEMBIC
 #  include "ABC_alembic.h"
@@ -479,7 +480,7 @@ static char *rna_Modifier_path(PointerRNA *ptr)
 
 static void rna_Modifier_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
-	DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA);
+	DEG_id_tag_update(ptr->id.data, ID_RECALC_GEOMETRY);
 	WM_main_add_notifier(NC_OBJECT | ND_MODIFIER, ptr->id.data);
 }
 
@@ -783,7 +784,7 @@ static void rna_OceanModifier_ocean_chop_set(PointerRNA *ptr, float value)
 static bool rna_LaplacianDeformModifier_is_bind_get(PointerRNA *ptr)
 {
 	LaplacianDeformModifierData *lmd = (LaplacianDeformModifierData *)ptr->data;
-	return ((lmd->flag & MOD_LAPLACIANDEFORM_BIND) && (lmd->cache_system != NULL));
+	return ((lmd->flag & MOD_LAPLACIANDEFORM_BIND) && (lmd->vertexco != NULL));
 }
 
 /* NOTE: Curve and array modifiers requires curve path to be evaluated,
@@ -802,7 +803,7 @@ static void rna_CurveModifier_dependency_update(Main *bmain, Scene *scene, Point
 	if (cmd->object != NULL) {
 		Curve *curve = cmd->object->data;
 		if ((curve->flag & CU_PATH) == 0) {
-			DEG_id_tag_update(&curve->id, OB_RECALC_DATA);
+			DEG_id_tag_update(&curve->id, ID_RECALC_GEOMETRY);
 		}
 	}
 }
@@ -815,7 +816,7 @@ static void rna_ArrayModifier_dependency_update(Main *bmain, Scene *scene, Point
 	if (amd->curve_ob != NULL) {
 		Curve *curve = amd->curve_ob->data;
 		if ((curve->flag & CU_PATH) == 0) {
-			DEG_id_tag_update(&curve->id, OB_RECALC_DATA);
+			DEG_id_tag_update(&curve->id, ID_RECALC_GEOMETRY);
 		}
 	}
 }
@@ -905,7 +906,6 @@ static const EnumPropertyItem *rna_DataTransferModifier_layers_select_src_itemf(
 	}
 
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
-	Scene *scene = CTX_data_scene(C);
 
 	/* No active here! */
 	RNA_enum_items_add_value(&item, &totitem, rna_enum_dt_layers_select_src_items, DT_LAYERS_ALL_SRC);
@@ -943,7 +943,10 @@ static const EnumPropertyItem *rna_DataTransferModifier_layers_select_src_itemf(
 			Mesh *me_eval;
 			int num_data, i;
 
-			me_eval = mesh_get_eval_final(depsgraph, scene, ob_src, CD_MASK_BAREMESH | CD_MLOOPUV);
+			Scene *scene_eval = DEG_get_evaluated_scene(depsgraph);
+			Object *ob_src_eval = DEG_get_evaluated_object(depsgraph, ob_src);
+
+			me_eval = mesh_get_eval_final(depsgraph, scene_eval, ob_src_eval, CD_MASK_BAREMESH | CD_MLOOPUV);
 			num_data = CustomData_number_of_layers(&me_eval->ldata, CD_MLOOPUV);
 
 			RNA_enum_item_add_separator(&item, &totitem);
@@ -962,7 +965,10 @@ static const EnumPropertyItem *rna_DataTransferModifier_layers_select_src_itemf(
 			Mesh *me_eval;
 			int num_data, i;
 
-			me_eval = mesh_get_eval_final(depsgraph, scene, ob_src, CD_MASK_BAREMESH | CD_MLOOPCOL);
+			Scene *scene_eval = DEG_get_evaluated_scene(depsgraph);
+			Object *ob_src_eval = DEG_get_evaluated_object(depsgraph, ob_src);
+
+			me_eval = mesh_get_eval_final(depsgraph, scene_eval, ob_src_eval, CD_MASK_BAREMESH | CD_MLOOPCOL);
 			num_data = CustomData_number_of_layers(&me_eval->ldata, CD_MLOOPCOL);
 
 			RNA_enum_item_add_separator(&item, &totitem);
@@ -1231,14 +1237,12 @@ static PropertyRNA *rna_def_property_subdivision_common(StructRNA *srna, const c
 	RNA_def_property_ui_text(prop, "UV Smooth", "Controls how smoothing is applied to UVs");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
 
-#ifdef WITH_OPENSUBDIV_MODIFIER
 	prop = RNA_def_property(srna, "quality", PROP_INT, PROP_UNSIGNED);
 	RNA_def_property_int_sdna(prop, NULL, "quality");
 	RNA_def_property_range(prop, 1, 10);
 	RNA_def_property_ui_range(prop, 1, 6, 1, -1);
 	RNA_def_property_ui_text(prop, "Quality", "Accuracy of vertex positions, lower value is faster but less precise");
 	RNA_def_property_update(prop, 0, "rna_Modifier_update");
-#endif
 
 	prop = RNA_def_property(srna, "subdivision_type", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, type);
@@ -1297,7 +1301,7 @@ static void rna_def_modifier_generic_map_info(StructRNA *srna)
 	prop = RNA_def_property(srna, "texture", PROP_POINTER, PROP_NONE);
 	RNA_def_property_ui_text(prop, "Texture", "");
 	RNA_def_property_flag(prop, PROP_EDITABLE);
-	RNA_def_property_update(prop, 0, "rna_Modifier_update");
+	RNA_def_property_update(prop, 0, "rna_Modifier_dependency_update");
 
 	prop = RNA_def_property(srna, "texture_coords", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "texmapping");

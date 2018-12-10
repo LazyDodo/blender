@@ -78,7 +78,7 @@ void(*BKE_gpencil_batch_cache_free_cb)(bGPdata *gpd) = NULL;
 void BKE_gpencil_batch_cache_dirty_tag(bGPdata *gpd)
 {
 	if (gpd) {
-		DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&gpd->id, ID_RECALC_GEOMETRY);
 		BKE_gpencil_batch_cache_dirty_tag_cb(gpd);
 	}
 }
@@ -373,6 +373,9 @@ bGPDlayer *BKE_gpencil_layer_addnew(bGPdata *gpd, const char *name, bool setacti
 		/* set default thickness of new strokes for this layer */
 		gpl->thickness = 3;
 
+		/* Onion colors */
+		ARRAY_SET_ITEMS(gpl->gcolor_prev, 0.302f, 0.851f, 0.302f);
+		ARRAY_SET_ITEMS(gpl->gcolor_next, 0.250f, 0.1f, 1.0f);
 	}
 	else {
 		/* thickness parameter represents "thickness change", not absolute thickness */
@@ -1216,7 +1219,7 @@ void BKE_gpencil_vgroup_remove(Object *ob, bDeformGroup *defgroup)
 
 	/* Remove the group */
 	BLI_freelinkN(&ob->defbase, defgroup);
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 }
 
 

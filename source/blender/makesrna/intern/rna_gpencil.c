@@ -78,6 +78,15 @@ const EnumPropertyItem rna_enum_gplayer_move_type_items[] = {
    {0, NULL, 0, NULL, NULL}
 };
 
+static const EnumPropertyItem rna_enum_layer_blend_modes_items[] = {
+	{eGplBlendMode_Normal, "NORMAL", 0, "Normal", "" },
+	{eGplBlendMode_Overlay, "OVERLAY", 0, "Overlay", "" },
+	{eGplBlendMode_Add, "ADD", 0, "Add", "" },
+	{eGplBlendMode_Subtract, "SUBTRACT", 0, "Subtract", "" },
+	{eGplBlendMode_Multiply, "MULTIPLY", 0, "Multiply", "" },
+	{eGplBlendMode_Divide, "DIVIDE", 0, "Divide", "" },
+	{0, NULL, 0, NULL, NULL }
+};
 #endif
 
 #ifdef RNA_RUNTIME
@@ -96,7 +105,7 @@ const EnumPropertyItem rna_enum_gplayer_move_type_items[] = {
 
 static void rna_GPencil_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
-	DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA);
+	DEG_id_tag_update(ptr->id.data, ID_RECALC_GEOMETRY);
 	WM_main_add_notifier(NC_GPENCIL | NA_EDITED, NULL);
 }
 
@@ -135,7 +144,7 @@ static void rna_GPencil_autolock(Main *bmain, Scene *scene, PointerRNA *ptr)
 static void rna_GPencil_editmode_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
 	bGPdata *gpd = (bGPdata *)ptr->id.data;
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 
 	/* Notify all places where GPencil data lives that the editing state is different */
 	WM_main_add_notifier(NC_GPENCIL | NA_EDITED, NULL);
@@ -373,7 +382,7 @@ static void rna_GPencil_active_layer_index_set(PointerRNA *ptr, int value)
 	BKE_gpencil_layer_setactive(gpd, gpl);
 
 	/* Now do standard updates... */
-	DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_GEOMETRY);
 	WM_main_add_notifier(NC_GPENCIL | ND_DATA | NA_EDITED | ND_SPACE_PROPERTIES, NULL);
 }
 
@@ -689,7 +698,7 @@ static void rna_GPencil_layer_move(bGPdata *gpd, ReportList *reports, PointerRNA
 	const int direction = type * -1;
 
 	if (BLI_listbase_link_move(&gpd->layers, gpl, direction)) {
-		DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+		DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	}
 
 	WM_main_add_notifier(NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
@@ -1067,6 +1076,8 @@ static void rna_def_gpencil_layer(BlenderRNA *brna)
 	PropertyRNA *prop;
 
 	FunctionRNA *func;
+	static const float default_onion_color_b[] = { 0.302f, 0.851f, 0.302f };
+	static const float default_onion_color_a[] = { 0.250f, 0.1f, 1.0f };
 
 	srna = RNA_def_struct(brna, "GPencilLayer", NULL);
 	RNA_def_struct_sdna(srna, "bGPDlayer");
@@ -1148,6 +1159,42 @@ static void rna_def_gpencil_layer(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Onion Skinning", "Display onion skins before and after the current frame");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
+	prop = RNA_def_property(srna, "use_annotation_onion_skinning", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "onion_flag", GP_LAYER_ONIONSKIN);
+	RNA_def_property_ui_text(prop, "Onion Skinning",
+		"Display annotation onion skins before and after the current frame");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+
+	prop = RNA_def_property(srna, "annotation_onion_before_range", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "gstep");
+	RNA_def_property_range(prop, -1, 120);
+	RNA_def_property_ui_text(prop, "Frames Before",
+		"Maximum number of frames to show before current frame");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+
+	prop = RNA_def_property(srna, "annotation_onion_after_range", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "gstep_next");
+	RNA_def_property_range(prop, -1, 120);
+	RNA_def_property_ui_text(prop, "Frames After",
+		"Maximum number of frames to show after current frame");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+
+	prop = RNA_def_property(srna, "annotation_onion_before_color", PROP_FLOAT, PROP_COLOR_GAMMA);
+	RNA_def_property_float_sdna(prop, NULL, "gcolor_prev");
+	RNA_def_property_array(prop, 3);
+	RNA_def_property_range(prop, 0.0f, 1.0f);
+	RNA_def_property_float_array_default(prop, default_onion_color_b);
+	RNA_def_property_ui_text(prop, "Before Color", "Base color for ghosts before the active frame");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+
+	prop = RNA_def_property(srna, "annotation_onion_after_color", PROP_FLOAT, PROP_COLOR_GAMMA);
+	RNA_def_property_float_sdna(prop, NULL, "gcolor_next");
+	RNA_def_property_array(prop, 3);
+	RNA_def_property_range(prop, 0.0f, 1.0f);
+	RNA_def_property_float_array_default(prop, default_onion_color_a);
+	RNA_def_property_ui_text(prop, "After Color", "Base color for ghosts after the active frame");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+
 	/* pass index for compositing and modifiers */
 	prop = RNA_def_property(srna, "pass_index", PROP_INT, PROP_UNSIGNED);
 	RNA_def_property_int_sdna(prop, NULL, "pass_index");
@@ -1158,6 +1205,13 @@ static void rna_def_gpencil_layer(BlenderRNA *brna)
 	RNA_def_property_string_sdna(prop, NULL, "viewlayername");
 	RNA_def_property_ui_text(prop, "ViewLayer",
 		"Only include Layer in this View Layer render output (leave blank to include always)");
+
+	/* blend mode */
+	prop = RNA_def_property(srna, "blend_mode", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "blend_mode");
+	RNA_def_property_enum_items(prop, rna_enum_layer_blend_modes_items);
+	RNA_def_property_ui_text(prop, "Blend Mode", "Blend mode");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	/* Flags */
 	prop = RNA_def_property(srna, "hide", PROP_BOOLEAN, PROP_NONE);
@@ -1184,6 +1238,12 @@ static void rna_def_gpencil_layer(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Lock Material", "Disable Material editing");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
+	prop = RNA_def_property(srna, "clamp_layer", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_LAYER_USE_MASK);
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_ui_text(prop, "Clamp Layer",
+		"Clamp any pixel outside underlying layers drawing");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
 	/* exposed as layers.active */
 #if 0

@@ -104,7 +104,7 @@ class Collection(bpy_types.ID):
         """The collection instance objects this collection is used in"""
         import bpy
         return tuple(obj for obj in bpy.data.objects
-                     if self == obj.dupli_group)
+                     if self == obj.instance_collection)
 
 
 class Object(bpy_types.ID):
@@ -645,7 +645,7 @@ class Gizmo(StructRNA):
 
 # Only defined so operators members can be used by accessing self.order
 # with doc generation 'self.properties.bl_rna.properties' can fail
-class Operator(StructRNA):
+class Operator(StructRNA, metaclass=RNAMeta):
     __slots__ = ()
 
     def __getattribute__(self, attr):

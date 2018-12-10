@@ -48,6 +48,8 @@
 #include "BKE_mesh.h"
 #include "BKE_modifier.h"
 
+#include "DEG_depsgraph_query.h"
+
 #include "MOD_util.h"
 
 static void initData(ModifierData *md)
@@ -105,7 +107,8 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 }
 
 static void sphere_do(
-        CastModifierData *cmd, Object *ob, Mesh *mesh,
+        CastModifierData *cmd, const ModifierEvalContext *ctx,
+        Object *ob, Mesh *mesh,
         float (*vertexCos)[3], int numVerts)
 {
 	MDeformVert *dvert = NULL;
@@ -128,7 +131,7 @@ static void sphere_do(
 	if (type == MOD_CAST_TYPE_CYLINDER)
 		flag &= ~MOD_CAST_Z;
 
-	ctrl_ob = cmd->object;
+	ctrl_ob = DEG_get_evaluated_object(ctx->depsgraph, cmd->object);
 
 	/* spherify's center is {0, 0, 0} (the ob's own center in its local
 	 * space), by default, but if the user defined a control object,
@@ -226,7 +229,8 @@ static void sphere_do(
 }
 
 static void cuboid_do(
-        CastModifierData *cmd, Object *ob, Mesh *mesh,
+        CastModifierData *cmd, const ModifierEvalContext *ctx,
+        Object *ob, Mesh *mesh,
         float (*vertexCos)[3], int numVerts)
 {
 	MDeformVert *dvert = NULL;
@@ -244,7 +248,7 @@ static void cuboid_do(
 
 	flag = cmd->flag;
 
-	ctrl_ob = cmd->object;
+	ctrl_ob = DEG_get_evaluated_object(ctx->depsgraph, cmd->object);
 
 	/* now we check which options the user wants */
 
@@ -429,18 +433,21 @@ static void deformVerts(
         int numVerts)
 {
 	CastModifierData *cmd = (CastModifierData *)md;
-	Mesh *mesh_src = MOD_get_mesh_eval(ctx->object, NULL, mesh, NULL, false, false);
+	Mesh *mesh_src = NULL;
 
-	BLI_assert(mesh_src->totvert == numVerts);
+	if (ctx->object->type == OB_MESH && cmd->defgrp_name[0] != '\0') {
+		/* mesh_src is only needed for vgroups. */
+		mesh_src = MOD_deform_mesh_eval_get(ctx->object, NULL, mesh, NULL, numVerts, false, false);
+	}
 
 	if (cmd->type == MOD_CAST_TYPE_CUBOID) {
-		cuboid_do(cmd, ctx->object, mesh_src, vertexCos, numVerts);
+		cuboid_do(cmd, ctx, ctx->object, mesh_src, vertexCos, numVerts);
 	}
 	else { /* MOD_CAST_TYPE_SPHERE or MOD_CAST_TYPE_CYLINDER */
-		sphere_do(cmd, ctx->object, mesh_src, vertexCos, numVerts);
+		sphere_do(cmd, ctx, ctx->object, mesh_src, vertexCos, numVerts);
 	}
 
-	if (mesh_src != mesh) {
+	if (!ELEM(mesh_src, NULL, mesh)) {
 		BKE_id_free(NULL, mesh_src);
 	}
 }
@@ -451,15 +458,15 @@ static void deformVertsEM(
         Mesh *mesh, float (*vertexCos)[3], int numVerts)
 {
 	CastModifierData *cmd = (CastModifierData *)md;
-	Mesh *mesh_src = MOD_get_mesh_eval(ctx->object, editData, mesh, NULL, false, false);
+	Mesh *mesh_src = MOD_deform_mesh_eval_get(ctx->object, editData, mesh, NULL, numVerts, false, false);
 
 	BLI_assert(mesh_src->totvert == numVerts);
 
 	if (cmd->type == MOD_CAST_TYPE_CUBOID) {
-		cuboid_do(cmd, ctx->object, mesh_src, vertexCos, numVerts);
+		cuboid_do(cmd, ctx, ctx->object, mesh_src, vertexCos, numVerts);
 	}
 	else { /* MOD_CAST_TYPE_SPHERE or MOD_CAST_TYPE_CYLINDER */
-		sphere_do(cmd, ctx->object, mesh_src, vertexCos, numVerts);
+		sphere_do(cmd, ctx, ctx->object, mesh_src, vertexCos, numVerts);
 	}
 
 	if (mesh_src != mesh) {

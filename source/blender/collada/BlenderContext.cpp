@@ -25,14 +25,15 @@
   */
 
 #include "BlenderContext.h"
+#include "BKE_scene.h"
 
 BlenderContext::BlenderContext(bContext *C)
 {
 	context = C;
 	main = CTX_data_main(C);
-	depsgraph = CTX_data_depsgraph(C);
 	scene = CTX_data_scene(C);
-	view_layer = DEG_get_evaluated_view_layer(depsgraph);
+	view_layer = CTX_data_view_layer(C);
+	depsgraph = nullptr; // create only when needed
 }
 
 bContext *BlenderContext::get_context()
@@ -42,12 +43,27 @@ bContext *BlenderContext::get_context()
 
 Depsgraph *BlenderContext::get_depsgraph()
 {
+	if (!depsgraph) {
+		depsgraph = BKE_scene_get_depsgraph(scene, view_layer, true);
+	}
 	return depsgraph;
 }
 
 Scene *BlenderContext::get_scene()
 {
 	return scene;
+}
+
+Scene *BlenderContext::get_evaluated_scene()
+{
+	Scene *scene_eval = DEG_get_evaluated_scene(get_depsgraph());
+	return scene_eval;
+}
+
+Object *BlenderContext::get_evaluated_object(Object *ob)
+{
+	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
+	return ob_eval;
 }
 
 ViewLayer *BlenderContext::get_view_layer()

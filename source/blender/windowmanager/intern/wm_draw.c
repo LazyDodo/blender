@@ -73,6 +73,7 @@
 
 #include "WM_api.h"
 #include "WM_types.h"
+#include "WM_toolsystem.h"
 #include "wm.h"
 #include "wm_draw.h"
 #include "wm_window.h"
@@ -542,6 +543,13 @@ static void wm_draw_window_offscreen(bContext *C, wmWindow *win, bool stereo)
 
 		ED_area_update_region_sizes(wm, win, sa);
 
+		if (sa->flag & AREA_FLAG_ACTIVE_TOOL_UPDATE) {
+			if ((1 << sa->spacetype) & WM_TOOLSYSTEM_SPACE_MASK) {
+				WM_toolsystem_update_from_context(C, CTX_wm_workspace(C), CTX_data_view_layer(C), sa);
+			}
+			sa->flag &= ~AREA_FLAG_ACTIVE_TOOL_UPDATE;
+		}
+
 		/* Then do actual drawing of regions. */
 		for (ARegion *ar = sa->regionbase.first; ar; ar = ar->next) {
 			if (ar->visible && ar->do_draw) {
@@ -614,8 +622,14 @@ static void wm_draw_window_onscreen(bContext *C, wmWindow *win, int view)
 
 	/* Draw into the window framebuffer, in full window coordinates. */
 	wmWindowViewport(win);
+
+	/* We draw on all pixels of the windows so we don't need to clear them before.
+	 * Actually this is only a problem when resizing the window.
+	 * If it becomes a problem we should clear only when window size changes. */
+#if 0
 	glClearColor(0, 0, 0, 0);
 	glClear(GL_COLOR_BUFFER_BIT);
+#endif
 
 	/* Blit non-overlapping area regions. */
 	ED_screen_areas_iter(win, screen, sa) {

@@ -190,7 +190,7 @@ static int gpencil_editmode_toggle_exec(bContext *C, wmOperator *op)
 	/* setup other modes */
 	ED_gpencil_setup_modes(C, gpd, mode);
 	/* set cache as dirty */
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA, NULL);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_GPENCIL_EDITMODE, NULL);
@@ -238,7 +238,7 @@ static int gpencil_selectmode_toggle_exec(bContext *C, wmOperator *op)
 	ts->gpencil_selectmode = mode;
 
 	WM_main_add_notifier(NC_SCENE | ND_TOOLSETTINGS, NULL);
-	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&scene->id, ID_RECALC_COPY_ON_WRITE);
 
 	return OPERATOR_FINISHED;
 }
@@ -330,7 +330,7 @@ static int gpencil_paintmode_toggle_exec(bContext *C, wmOperator *op)
 	/* setup other modes */
 	ED_gpencil_setup_modes(C, gpd, mode);
 	/* set cache as dirty */
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | ND_GPENCIL_EDITMODE, NULL);
 	WM_event_add_notifier(C, NC_SCENE | ND_MODE, NULL);
@@ -418,7 +418,7 @@ static int gpencil_sculptmode_toggle_exec(bContext *C, wmOperator *op)
 	/* setup other modes */
 	ED_gpencil_setup_modes(C, gpd, mode);
 	/* set cache as dirty */
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | ND_GPENCIL_EDITMODE, NULL);
 	WM_event_add_notifier(C, NC_SCENE | ND_MODE, NULL);
@@ -506,7 +506,7 @@ static int gpencil_weightmode_toggle_exec(bContext *C, wmOperator *op)
 	/* setup other modes */
 	ED_gpencil_setup_modes(C, gpd, mode);
 	/* set cache as dirty */
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | ND_GPENCIL_EDITMODE, NULL);
 	WM_event_add_notifier(C, NC_SCENE | ND_MODE, NULL);
@@ -739,7 +739,7 @@ static int gp_duplicate_exec(bContext *C, wmOperator *op)
 	CTX_DATA_END;
 
 	/* updates */
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 
 	return OPERATOR_FINISHED;
@@ -1135,7 +1135,7 @@ static int gp_strokes_paste_exec(bContext *C, wmOperator *op)
 	BLI_ghash_free(new_colors, NULL, NULL);
 
 	/* updates */
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 
 	return OPERATOR_FINISHED;
@@ -1250,7 +1250,7 @@ static int gp_move_to_layer_exec(bContext *C, wmOperator *op)
 	}
 
 	/* updates */
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 
 	return OPERATOR_FINISHED;
@@ -1337,7 +1337,7 @@ static int gp_blank_frame_add_exec(bContext *C, wmOperator *op)
 	CTX_DATA_END;
 
 	/* notifiers */
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 
 	return OPERATOR_FINISHED;
@@ -1396,7 +1396,7 @@ static int gp_actframe_delete_exec(bContext *C, wmOperator *op)
 	BKE_gpencil_layer_delframe(gpl, gpf);
 
 	/* notifiers */
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 
 	return OPERATOR_FINISHED;
@@ -1454,7 +1454,7 @@ static int gp_actframe_delete_all_exec(bContext *C, wmOperator *op)
 
 	/* updates */
 	if (success) {
-		DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+		DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 		WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 		return OPERATOR_FINISHED;
 	}
@@ -1551,7 +1551,7 @@ static int gp_delete_selected_strokes(bContext *C)
 	CTX_DATA_END;
 
 	if (changed) {
-		DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+		DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 		WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 		return OPERATOR_FINISHED;
 	}
@@ -1665,7 +1665,7 @@ static int gp_dissolve_selected_points(bContext *C, eGP_DissolveMode mode)
 								MEM_freeN(gps->triangles);
 							}
 							BLI_freelinkN(&gpf->strokes, gps);
-							DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+							DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 						}
 						else {
 							/* just copy all points to keep into a smaller buffer */
@@ -1794,7 +1794,7 @@ static int gp_dissolve_selected_points(bContext *C, eGP_DissolveMode mode)
 	CTX_DATA_END;
 
 	if (changed) {
-		DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+		DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 		WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 		return OPERATOR_FINISHED;
 	}
@@ -2004,7 +2004,7 @@ static int gp_delete_selected_points(bContext *C)
 	CTX_DATA_END;
 
 	if (changed) {
-		DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+		DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 		WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 		return OPERATOR_FINISHED;
 	}
@@ -2168,8 +2168,8 @@ static int gp_snap_to_grid(bContext *C, wmOperator *UNUSED(op))
 		}
 	}
 
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
-	DEG_id_tag_update(&obact->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+	DEG_id_tag_update(&obact->id, ID_RECALC_COPY_ON_WRITE);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 	return OPERATOR_FINISHED;
 }
@@ -2196,12 +2196,11 @@ static int gp_snap_to_cursor(bContext *C, wmOperator *op)
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 
 	Scene *scene = CTX_data_scene(C);
-	View3D *v3d = CTX_wm_view3d(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Object *obact = CTX_data_active_object(C);
 
 	const bool use_offset = RNA_boolean_get(op->ptr, "use_offset");
-	const float *cursor_global = ED_view3d_cursor3d_get(scene, v3d)->location;
+	const float *cursor_global = scene->cursor.location;
 
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		/* only editable and visible layers are considered */
@@ -2252,8 +2251,8 @@ static int gp_snap_to_cursor(bContext *C, wmOperator *op)
 		}
 	}
 
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
-	DEG_id_tag_update(&obact->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+	DEG_id_tag_update(&obact->id, ID_RECALC_COPY_ON_WRITE);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 	return OPERATOR_FINISHED;
 }
@@ -2288,7 +2287,7 @@ static int gp_snap_cursor_to_sel(bContext *C, wmOperator *UNUSED(op))
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Object *obact = CTX_data_active_object(C);
 
-	float *cursor = ED_view3d_cursor3d_get(scene, v3d)->location;
+	float *cursor = scene->cursor.location;
 	float centroid[3] = {0.0f};
 	float min[3], max[3];
 	size_t count = 0;
@@ -2345,7 +2344,7 @@ static int gp_snap_cursor_to_sel(bContext *C, wmOperator *UNUSED(op))
 	}
 
 
-	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&scene->id, ID_RECALC_COPY_ON_WRITE);
 	WM_event_add_notifier(C, NC_SPACE | ND_SPACE_VIEW3D, v3d);
 
 	return OPERATOR_FINISHED;
@@ -2394,7 +2393,7 @@ static int gp_stroke_apply_thickness_exec(bContext *C, wmOperator *UNUSED(op))
 	gpl->line_change = 0;
 
 	/* notifiers */
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 
 	return OPERATOR_FINISHED;
@@ -2469,7 +2468,7 @@ static int gp_stroke_cyclical_set_exec(bContext *C, wmOperator *op)
 	CTX_DATA_END;
 
 	/* notifiers */
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 
 	return OPERATOR_FINISHED;
@@ -2748,7 +2747,7 @@ static int gp_stroke_join_exec(bContext *C, wmOperator *op)
 	}
 
 	/* notifiers */
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 
 	return OPERATOR_FINISHED;
@@ -2816,7 +2815,7 @@ static int gp_stroke_flip_exec(bContext *C, wmOperator *UNUSED(op))
 	CTX_DATA_END;
 
 	/* notifiers */
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 
 	return OPERATOR_FINISHED;
@@ -2857,10 +2856,8 @@ static int gp_strokes_reproject_exec(bContext *C, wmOperator *op)
 	ToolSettings *ts = CTX_data_tool_settings(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Object *ob = CTX_data_active_object(C);
-	ScrArea *sa = CTX_wm_area(C);
 	ARegion *ar = CTX_wm_region(C);
 	RegionView3D *rv3d = ar->regiondata;
-	View3D *v3d = sa->spacedata.first;
 
 	GP_SpaceConversion gsc = {NULL};
 	eGP_ReprojectModes mode = RNA_enum_get(op->ptr, "type");
@@ -2905,7 +2902,7 @@ static int gp_strokes_reproject_exec(bContext *C, wmOperator *op)
 
 				/* Project stroke in one axis */
 				if (ELEM(mode, GP_REPROJECT_FRONT, GP_REPROJECT_SIDE, GP_REPROJECT_TOP)) {
-					ED_gp_get_drawing_reference(v3d, scene, ob, gpl,
+					ED_gp_get_drawing_reference(scene, ob, gpl,
 						ts->gpencil_v3d_align, origin);
 
 					int axis = 0;
@@ -2974,7 +2971,7 @@ static int gp_strokes_reproject_exec(bContext *C, wmOperator *op)
 	}
 	GP_EDITABLE_STROKES_END(gpstroke_iter);
 
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 	return OPERATOR_FINISHED;
 }
@@ -3155,7 +3152,7 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 	GP_EDITABLE_STROKES_END(gpstroke_iter);
 
 	/* notifiers */
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 
 	return OPERATOR_FINISHED;
@@ -3205,7 +3202,7 @@ static int gp_stroke_simplify_exec(bContext *C, wmOperator *op)
 	GP_EDITABLE_STROKES_END(gpstroke_iter);
 
 	/* notifiers */
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 
 	return OPERATOR_FINISHED;
@@ -3255,7 +3252,7 @@ static int gp_stroke_simplify_fixed_exec(bContext *C, wmOperator *op)
 	GP_EDITABLE_STROKES_END(gpstroke_iter);
 
 	/* notifiers */
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 
 	return OPERATOR_FINISHED;
@@ -3456,8 +3453,8 @@ static int gp_stroke_separate_exec(bContext *C, wmOperator *op)
 			BLI_addtail(&gpd_dst->layers, gpl);
 		}
 	}
-	DEG_id_tag_update(&gpd_src->id, OB_RECALC_OB | OB_RECALC_DATA);
-	DEG_id_tag_update(&gpd_dst->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd_src->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+	DEG_id_tag_update(&gpd_dst->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 
 	DEG_relations_tag_update(bmain);
 	WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, NULL);
@@ -3573,7 +3570,7 @@ static int gp_stroke_split_exec(bContext *C, wmOperator *UNUSED(op))
 	}
 	CTX_DATA_END;
 
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 

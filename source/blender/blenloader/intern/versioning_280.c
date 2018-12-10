@@ -723,24 +723,12 @@ void do_versions_after_linking_280(Main *bmain)
 
 	if (!MAIN_VERSION_ATLEAST(bmain, 280, 4)) {
 		for (Object *object = bmain->object.first; object; object = object->id.next) {
-#ifndef VERSION_280_SUBVERSION_4
-			/* If any object already has an initialized value for
-			 * duplicator_visibility_flag it means we've already doversioned it.
-			 * TODO(all) remove the VERSION_280_SUBVERSION_4 code once the subversion was bumped. */
-			if (object->duplicator_visibility_flag != 0) {
-				break;
-			}
-#endif
 			if (object->particlesystem.first) {
 				object->duplicator_visibility_flag = OB_DUPLI_FLAG_VIEWPORT;
 				for (ParticleSystem *psys = object->particlesystem.first; psys; psys = psys->next) {
 					if (psys->part->draw & PART_DRAW_EMITTER) {
 						object->duplicator_visibility_flag |= OB_DUPLI_FLAG_RENDER;
-#ifndef VERSION_280_SUBVERSION_4
-						psys->part->draw &= ~PART_DRAW_EMITTER;
-#else
 						break;
-#endif
 					}
 				}
 			}
@@ -750,6 +738,11 @@ void do_versions_after_linking_280(Main *bmain)
 			else {
 				object->duplicator_visibility_flag = OB_DUPLI_FLAG_VIEWPORT | OB_DUPLI_FLAG_RENDER;
 			}
+		}
+
+		/* Cleanup deprecated flag from particlesettings data-blocks. */
+		for (ParticleSettings *part = bmain->particle.first; part; part = part->id.next) {
+			part->draw &= ~PART_DRAW_EMITTER;
 		}
 	}
 
@@ -1015,7 +1008,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 		 * Also, metallic node is now unified into the principled node. */
 		eNTreeDoVersionErrors error = NTREE_DOVERSION_NO_ERROR;
 
-		FOREACH_NODETREE(bmain, ntree, id) {
+		FOREACH_NODETREE_BEGIN(bmain, ntree, id) {
 			if (ntree->type == NTREE_SHADER) {
 				for (bNode *node = ntree->nodes.first; node; node = node->next) {
 					if (node->type == 194 /* SH_NODE_EEVEE_METALLIC */ &&
@@ -1047,12 +1040,12 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 					}
 				}
 			}
-		} FOREACH_NODETREE_END
+		} FOREACH_NODETREE_END;
 
-			if (error & NTREE_DOVERSION_NEED_OUTPUT) {
-				BKE_report(fd->reports, RPT_ERROR, "Eevee material conversion problem. Error in console");
-				printf("You need to connect Principled and Eevee Specular shader nodes to new material output nodes.\n");
-			}
+		if (error & NTREE_DOVERSION_NEED_OUTPUT) {
+			BKE_report(fd->reports, RPT_ERROR, "Eevee material conversion problem. Error in console");
+			printf("You need to connect Principled and Eevee Specular shader nodes to new material output nodes.\n");
+		}
 
 		if (error & NTREE_DOVERSION_TRANSPARENCY_EMISSION) {
 			BKE_report(fd->reports, RPT_ERROR, "Eevee material conversion problem. Error in console");
@@ -1116,7 +1109,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 			}
 
 			/* Init grease pencil pixel size factor */
-			if (!DNA_struct_elem_find(fd->filesdna, "bGPDdata", "int", "pixfactor")) {
+			if (!DNA_struct_elem_find(fd->filesdna, "bGPdata", "int", "pixfactor")) {
 				for (bGPdata *gpd = bmain->gpencil.first; gpd; gpd = gpd->id.next) {
 					gpd->pixfactor = GP_DEFAULT_PIX_FACTOR;
 				}
@@ -1131,9 +1124,9 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 						gset->cur_falloff = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
 						curvemapping_initialize(gset->cur_falloff);
 						curvemap_reset(gset->cur_falloff->cm,
-							&gset->cur_falloff->clipr,
-							CURVE_PRESET_GAUSS,
-							CURVEMAP_SLOPE_POSITIVE);
+						               &gset->cur_falloff->clipr,
+						               CURVE_PRESET_GAUSS,
+						               CURVEMAP_SLOPE_POSITIVE);
 					}
 				}
 			}
@@ -1373,16 +1366,6 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 		if (!DNA_struct_find(fd->filesdna, "View3DCursor")) {
 			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
 				unit_qt(scene->cursor.rotation);
-			}
-			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
-				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
-					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
-						if (sl->spacetype == SPACE_VIEW3D) {
-							View3D *v3d = (View3D *)sl;
-							unit_qt(v3d->cursor.rotation);
-						}
-					}
-				}
 			}
 		}
 	}
@@ -1687,7 +1670,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 			}
 		}
 		if (!DNA_struct_elem_find(fd->filesdna, "View3DShading", "char", "matcap[256]")) {
-			StudioLight *default_matcap = BKE_studiolight_find_first(STUDIOLIGHT_ORIENTATION_VIEWNORMAL);
+			StudioLight *default_matcap = BKE_studiolight_find_first(STUDIOLIGHT_TYPE_MATCAP);
 			/* when loading the internal file is loaded before the matcaps */
 			if (default_matcap) {
 				for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
@@ -2424,11 +2407,88 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 #undef PAINT_BLEND_HUE
 #undef PAINT_BLEND_ALPHA_SUB
 #undef PAINT_BLEND_ALPHA_ADD
+		}
+	}
 
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 34)) {
+		for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
+			for (ScrArea *area = screen->areabase.first; area; area = area->next) {
+				for (SpaceLink *slink = area->spacedata.first; slink; slink = slink->next) {
+					if (slink->spacetype == SPACE_USERPREF) {
+						ARegion *navigation_region = BKE_spacedata_find_region_type(slink, area, RGN_TYPE_NAV_BAR);
+
+						if (!navigation_region) {
+							ListBase *regionbase = (slink == area->spacedata.first) ?
+							                       &area->regionbase : &slink->regionbase;
+
+							navigation_region = MEM_callocN(sizeof(ARegion), "userpref navigation-region do_versions");
+
+							BLI_addhead(regionbase, navigation_region); /* order matters, addhead not addtail! */
+							navigation_region->regiontype = RGN_TYPE_NAV_BAR;
+							navigation_region->alignment = RGN_ALIGN_LEFT;
+						}
+					}
+				}
+			}
 		}
 	}
 
 	{
 		/* Versioning code until next subversion bump goes here. */
+
+		if (!DNA_struct_elem_find(fd->filesdna, "View3DShading", "float", "curvature_ridge_factor")) {
+			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
+				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+						if (sl->spacetype == SPACE_VIEW3D) {
+							View3D *v3d = (View3D *)sl;
+							v3d->shading.curvature_ridge_factor = 1.0f;
+							v3d->shading.curvature_valley_factor = 1.0f;
+						}
+					}
+				}
+			}
+		}
+
+		/* Rename OpenGL to Workbench. */
+		for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+			if (STREQ(scene->r.engine, "BLENDER_OPENGL")) {
+				STRNCPY(scene->r.engine, RE_engine_id_BLENDER_WORKBENCH);
+			}
+		}
+
+		/* init Annotations onion skin */
+		if (!DNA_struct_elem_find(fd->filesdna, "bGPDlayer", "int", "gstep")) {
+			for (bGPdata *gpd = bmain->gpencil.first; gpd; gpd = gpd->id.next) {
+				for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+					ARRAY_SET_ITEMS(gpl->gcolor_prev, 0.302f, 0.851f, 0.302f);
+					ARRAY_SET_ITEMS(gpl->gcolor_next, 0.250f, 0.1f, 1.0f);
+				}
+			}
+		}
+
+		/* Move studio_light selection to lookdev_light. */
+		if (!DNA_struct_elem_find(fd->filesdna, "View3DShading", "char", "lookdev_light[256]")) {
+			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
+				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+						if (sl->spacetype == SPACE_VIEW3D) {
+							View3D *v3d = (View3D *)sl;
+							memcpy(v3d->shading.lookdev_light, v3d->shading.studio_light, sizeof(char) * 256);
+						}
+					}
+				}
+			}
+		}
+
+		/* Change Solid mode shadow orientation. */
+		if (!DNA_struct_elem_find(fd->filesdna, "SceneDisplay", "float", "shadow_focus")) {
+			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+				float *dir = scene->display.light_direction;
+				SWAP(float, dir[2], dir[1]);
+				dir[2] = -dir[2];
+				dir[0] = -dir[0];
+			}
+		}
 	}
 }

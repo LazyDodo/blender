@@ -183,8 +183,8 @@ int bc_set_parent(Object *ob, Object *par, bContext *C, bool is_parent_space)
 	BKE_object_workob_calc_parent(depsgraph, sce, ob, &workob);
 	invert_m4_m4(ob->parentinv, workob.obmat);
 
-	DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA);
-	DEG_id_tag_update(&par->id, OB_RECALC_OB);
+	DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+	DEG_id_tag_update(&par->id, ID_RECALC_TRANSFORM);
 
 	return true;
 }
@@ -243,7 +243,7 @@ Object *bc_add_object(Main *bmain, Scene *scene, ViewLayer *view_layer, int type
 
 	ob->data = BKE_object_obdata_add_from_type(bmain, type, name);
 	ob->lay = scene->lay;
-	DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+	DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION);
 
 	LayerCollection *layer_collection = BKE_layer_collection_get_active(view_layer);
 	BKE_collection_object_add(bmain, layer_collection->collection, ob);
@@ -263,7 +263,6 @@ Mesh *bc_get_mesh_copy(
 	bool triangulate)
 {
 	CustomDataMask mask = CD_MASK_MESH;
-	Mesh *mesh = (Mesh *)ob->data;
 	Mesh *tmpmesh = NULL;
 	if (apply_modifiers) {
 #if 0  /* Not supported by new system currently... */
@@ -281,12 +280,13 @@ Mesh *bc_get_mesh_copy(
 		}
 #else
 		Depsgraph *depsgraph = blender_context.get_depsgraph();
-		Scene *scene = blender_context.get_scene();
-		tmpmesh = mesh_get_eval_final(depsgraph, scene, ob, mask);
+		Scene *scene_eval = blender_context.get_evaluated_scene();
+		Object *ob_eval = blender_context.get_evaluated_object(ob);
+		tmpmesh = mesh_get_eval_final(depsgraph, scene_eval, ob_eval, mask);
 #endif
 	}
 	else {
-		tmpmesh = mesh;
+		tmpmesh = (Mesh *)ob->data;
 	}
 
 	BKE_id_copy_ex(NULL, &tmpmesh->id, (ID **)&tmpmesh,
@@ -443,7 +443,7 @@ bool bc_is_root_bone(Bone *aBone, bool deform_bones_only)
 int bc_get_active_UVLayer(Object *ob)
 {
 	Mesh *me = (Mesh *)ob->data;
-	return CustomData_get_active_layer_index(&me->fdata, CD_MTFACE);
+	return CustomData_get_active_layer_index(&me->ldata, CD_MLOOPUV);
 }
 
 std::string bc_url_encode(std::string data)
@@ -1135,11 +1135,27 @@ void bc_sanitize_mat(float mat[4][4], int precision)
 		}
 }
 
+void bc_sanitize_v3(float v[3], int precision)
+{
+	for (int i = 0; i < 3; i++) {
+		double val = (double)v[i];
+		val = double_round(val, precision);
+		v[i] = (float)val;
+	}
+}
+
 void bc_sanitize_mat(double mat[4][4], int precision)
 {
 	for (int i = 0; i < 4; i++)
 		for (int j = 0; j < 4; j++)
 			mat[i][j] = double_round(mat[i][j], precision);
+}
+
+void bc_sanitize_v3(double v[3], int precision)
+{
+	for (int i = 0; i < 3; i++) {
+		v[i] = double_round(v[i], precision);
+	}
 }
 
 void bc_copy_m4_farray(float r[4][4], float *a)
@@ -1186,9 +1202,9 @@ void bc_copy_m4d_v44(double (&r)[4][4], std::vector<std::vector<double>> &a)
  */
 std::string bc_get_active_uvlayer_name(Mesh *me)
 {
-	int num_layers = CustomData_number_of_layers(&me->fdata, CD_MTFACE);
+	int num_layers = CustomData_number_of_layers(&me->ldata, CD_MLOOPUV);
 	if (num_layers) {
-		char *layer_name = bc_CustomData_get_active_layer_name(&me->fdata, CD_MTFACE);
+		char *layer_name = bc_CustomData_get_active_layer_name(&me->ldata, CD_MLOOPUV);
 		if (layer_name) {
 			return std::string(layer_name);
 		}
@@ -1211,9 +1227,9 @@ std::string bc_get_active_uvlayer_name(Object *ob)
  */
 std::string bc_get_uvlayer_name(Mesh *me, int layer)
 {
-	int num_layers = CustomData_number_of_layers(&me->fdata, CD_MTFACE);
+	int num_layers = CustomData_number_of_layers(&me->ldata, CD_MLOOPUV);
 	if (num_layers && layer < num_layers) {
-		char *layer_name = bc_CustomData_get_layer_name(&me->fdata, CD_MTFACE, layer);
+		char *layer_name = bc_CustomData_get_layer_name(&me->ldata, CD_MLOOPUV, layer);
 		if (layer_name) {
 			return std::string(layer_name);
 		}
@@ -1298,7 +1314,7 @@ static bNodeSocket *bc_group_add_output_socket(bNodeTree *ntree, bNode *from_nod
 
 void bc_make_group(bContext *C, bNodeTree *ntree, std::map<std::string, bNode *> nmap)
 {
-	bNode * gnode = node_group_make_from_selected(C, ntree, "ShaderNodeGroup", "ShaderNodeTree");
+	bNode *gnode = node_group_make_from_selected(C, ntree, "ShaderNodeGroup", "ShaderNodeTree");
 	bNodeTree *gtree = (bNodeTree *)gnode->id;
 
 	bc_group_add_input_socket(gtree, nmap["main"], 0, "Diffuse");

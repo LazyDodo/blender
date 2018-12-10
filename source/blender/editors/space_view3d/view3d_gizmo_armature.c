@@ -59,7 +59,7 @@
 /*
  * TODO(campbell): Current conversion is a approximation (usable not correct),
  * we'll need to take the next/previous bones into account to get the tangent directions.
- * First last matrices from 'b_bone_spline_setup' are close but also not quite accurate
+ * First last matrices from 'BKE_pchan_bbone_spline_setup' are close but also not quite accurate
  * since they're not at either end-points on the curve.
  *
  * Likely we'll need a function especially to get the first/last orientations.
@@ -133,7 +133,8 @@ static bool WIDGETGROUP_armature_spline_poll(const bContext *C, wmGizmoGroupType
 	if (ob != NULL) {
 		const bArmature *arm = ob->data;
 		if (arm->drawtype == ARM_B_BONE) {
-			if (arm->act_bone && arm->act_bone->segments > 1) {
+			bPoseChannel *pchan = BKE_pose_channel_active(ob);
+			if (pchan && pchan->bone->segments > 1) {
 				View3D *v3d = CTX_wm_view3d(C);
 				if ((v3d->flag2 & V3D_RENDER_OVERRIDE) ||
 				    (v3d->gizmo_flag & (V3D_GIZMO_HIDE | V3D_GIZMO_HIDE_CONTEXT)))

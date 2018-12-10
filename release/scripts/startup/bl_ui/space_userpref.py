@@ -33,8 +33,7 @@ class USERPREF_HT_header(Header):
     def draw(self, context):
         layout = self.layout
 
-        # No need to show type selector.
-        # layout.template_header()
+        layout.template_header()
 
         userpref = context.user_preferences
 
@@ -46,9 +45,11 @@ class USERPREF_HT_header(Header):
             layout.operator("wm.addon_refresh", icon='FILE_REFRESH')
             layout.menu("USERPREF_MT_addons_online_resources")
         elif userpref.active_section == 'LIGHTS':
-            layout.operator('wm.studiolight_install', text="Add MatCap").orientation = 'MATCAP'
-            layout.operator('wm.studiolight_install', text="Add World HDRI").orientation = 'WORLD'
-            layout.operator('wm.studiolight_install', text="Add Camera HDRI").orientation = 'CAMERA'
+            layout.operator('wm.studiolight_install', text="Add MatCap").type = 'MATCAP'
+            layout.operator('wm.studiolight_install', text="Add LookDev HDRI").type = 'WORLD'
+            op = layout.operator('wm.studiolight_install', text="Add Studio Light")
+            op.type = 'STUDIO'
+            op.filter_glob = ".sl"
         elif userpref.active_section == 'THEMES':
             layout.operator("wm.theme_install", icon='FILEBROWSER')
             layout.operator("ui.reset_default_theme", icon='LOOP_BACK')
@@ -59,10 +60,10 @@ class USERPREF_HT_header(Header):
         layout.operator("wm.save_userpref")
 
 
-class USERPREF_PT_tabs(Panel):
+class USERPREF_PT_navigation(Panel):
     bl_label = ""
     bl_space_type = 'USER_PREFERENCES'
-    bl_region_type = 'WINDOW'
+    bl_region_type = 'NAVIGATION_BAR'
     bl_options = {'HIDE_HEADER'}
 
     def draw(self, context):
@@ -70,7 +71,11 @@ class USERPREF_PT_tabs(Panel):
 
         userpref = context.user_preferences
 
-        layout.row().prop(userpref, "active_section", expand=True)
+        col = layout.column()
+
+        col.scale_x = 1.3
+        col.scale_y = 1.3
+        col.prop(userpref, "active_section", expand=True)
 
 
 class USERPREF_PT_interface(Panel):
@@ -199,7 +204,6 @@ class USERPREF_PT_interface(Panel):
         col.label(text="App Template:")
         col.label(text="Options intended for use with app-templates only.")
         col.prop(view, "show_layout_ui")
-        col.prop(view, "show_view3d_cursor")
 
 
 class USERPREF_PT_edit(Panel):
@@ -331,16 +335,16 @@ class USERPREF_PT_edit(Panel):
         col.prop(edit, "use_duplicate_particle", text="Particle")
 
 
-class USERPREF_PT_system(Panel):
+class USERPREF_PT_system_general(Panel):
     bl_space_type = 'USER_PREFERENCES'
-    bl_label = "System"
+    bl_label = "System General"
     bl_region_type = 'WINDOW'
     bl_options = {'HIDE_HEADER'}
 
     @classmethod
     def poll(cls, context):
         userpref = context.user_preferences
-        return (userpref.active_section == 'SYSTEM')
+        return (userpref.active_section == 'SYSTEM_GENERAL')
 
     def draw(self, context):
         import sys
@@ -380,9 +384,10 @@ class USERPREF_PT_system(Panel):
                 addon.preferences.draw_impl(col, context)
             del addon
 
-        if hasattr(system, "opensubdiv_compute_type"):
-            col.label(text="OpenSubdiv compute:")
-            col.row().prop(system, "opensubdiv_compute_type", text="")
+        # NOTE: Disabled for until GPU side of OpenSubdiv is brought back.
+        # if hasattr(system, "opensubdiv_compute_type"):
+        #     col.label(text="OpenSubdiv compute:")
+        #     col.row().prop(system, "opensubdiv_compute_type", text="")
 
         # 2. Column
         column = split.column()
@@ -749,6 +754,8 @@ class USERPREF_PT_theme(Panel):
             colsub.row().prop(ui_state, "inner_key_sel")
             colsub.row().prop(ui_state, "inner_overridden")
             colsub.row().prop(ui_state, "inner_overridden_sel")
+            colsub.row().prop(ui_state, "inner_changed")
+            colsub.row().prop(ui_state, "inner_changed_sel")
 
             col.separator()
             col.separator()
@@ -880,7 +887,7 @@ class USERPREF_PT_file(Panel):
     @classmethod
     def poll(cls, context):
         userpref = context.user_preferences
-        return (userpref.active_section == 'FILES')
+        return (userpref.active_section == 'SYSTEM_FILES')
 
     def draw(self, context):
         layout = self.layout
@@ -1489,12 +1496,16 @@ class StudioLightPanelMixin():
         return (userpref.active_section == 'LIGHTS')
 
     def _get_lights(self, userpref):
-        return [light for light in userpref.studio_lights if light.is_user_defined and light.orientation == self.sl_orientation]
+        return [light for light in userpref.studio_lights if light.is_user_defined and light.type == self.sl_type]
 
     def draw(self, context):
         layout = self.layout
         userpref = context.user_preferences
         lights = self._get_lights(userpref)
+
+        self.draw_light_list(layout, lights)
+
+    def draw_light_list(self, layout, lights):
         if lights:
             flow = layout.column_flow(columns=4)
             for studio_light in lights:
@@ -1507,56 +1518,64 @@ class StudioLightPanelMixin():
         row = box.row()
 
         row.template_icon(layout.icon(studio_light), scale=6.0)
-        op = row.operator('wm.studiolight_uninstall', text="", icon='REMOVE')
+        col = row.column()
+        op = col.operator('wm.studiolight_uninstall', text="", icon='REMOVE')
         op.index = studio_light.index
+
+        if studio_light.type == 'STUDIO':
+            op = col.operator('wm.studiolight_copy_settings', text="", icon='IMPORT')
+            op.index = studio_light.index
 
         box.label(text=studio_light.name)
 
 
 class USERPREF_PT_studiolight_matcaps(Panel, StudioLightPanelMixin):
     bl_label = "MatCaps"
-    sl_orientation = 'MATCAP'
+    sl_type = 'MATCAP'
 
 
 class USERPREF_PT_studiolight_world(Panel, StudioLightPanelMixin):
-    bl_label = "World HDRI"
-    sl_orientation = 'WORLD'
+    bl_label = "LookDev HDRIs"
+    sl_type = 'WORLD'
 
 
-class USERPREF_PT_studiolight_camera(Panel, StudioLightPanelMixin):
-    bl_label = "Camera HDRI"
-    sl_orientation = 'CAMERA'
+class USERPREF_PT_studiolight_lights(Panel, StudioLightPanelMixin):
+    bl_label = "Studio Lights"
+    sl_type = 'STUDIO'
 
 
-class USERPREF_PT_studiolight_specular(Panel, StudioLightPanelMixin):
-    bl_label = "Specular Lights"
-    sl_orientation = 'CAMERA'
+class USERPREF_PT_studiolight_light_editor(Panel):
+    bl_label = "Studio Light Editor"
+    bl_parent_id = "USERPREF_PT_studiolight_lights"
+    bl_space_type = 'USER_PREFERENCES'
+    bl_region_type = 'WINDOW'
 
-    @classmethod
-    def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'LIGHTS')
+    def opengl_light_buttons(self, layout, light):
 
-    def opengl_light_buttons(self, column, light):
-        split = column.split()
-
-        col = split.column()
-        col.prop(light, "use", text="Use", icon='OUTLINER_OB_LIGHT' if light.use else 'LIGHT_DATA')
-
-        sub = col.column()
-        sub.active = light.use
-        sub.prop(light, "specular_color")
-
-        col = split.column()
+        col = layout.column()
         col.active = light.use
-        col.prop(light, "direction", text="")
+
+        col.prop(light, "use", text="Use Light")
+        col.prop(light, "diffuse_color", text="Diffuse")
+        col.prop(light, "specular_color", text="Specular")
+        col.prop(light, "smooth")
+        col.prop(light, "direction")
 
     def draw(self, context):
         layout = self.layout
-        column = layout.split()
 
         userpref = context.user_preferences
         system = userpref.system
+
+        row = layout.row()
+        row.prop(system, "edit_studio_light", toggle=True)
+        row.operator('wm.studiolight_new', text="Save as Studio light", icon="FILE_TICK")
+
+        layout.separator()
+
+        layout.use_property_split = True
+        column = layout.split()
+        column.active = system.edit_studio_light
 
         light = system.solid_lights[0]
         colsplit = column.split(factor=0.85)
@@ -1567,15 +1586,23 @@ class USERPREF_PT_studiolight_specular(Panel, StudioLightPanelMixin):
         self.opengl_light_buttons(colsplit, light)
 
         light = system.solid_lights[2]
+        colsplit = column.split(factor=0.85)
+        self.opengl_light_buttons(colsplit, light)
+
+        light = system.solid_lights[3]
         self.opengl_light_buttons(column, light)
+
+        layout.separator()
+
+        layout.prop(system, "light_ambient")
 
 
 classes = (
     USERPREF_HT_header,
-    USERPREF_PT_tabs,
+    USERPREF_PT_navigation,
     USERPREF_PT_interface,
     USERPREF_PT_edit,
-    USERPREF_PT_system,
+    USERPREF_PT_system_general,
     USERPREF_MT_interface_theme_presets,
     USERPREF_PT_theme,
     USERPREF_PT_file,
@@ -1584,10 +1611,10 @@ classes = (
     USERPREF_PT_input,
     USERPREF_MT_addons_online_resources,
     USERPREF_PT_addons,
+    USERPREF_PT_studiolight_lights,
+    USERPREF_PT_studiolight_light_editor,
     USERPREF_PT_studiolight_matcaps,
     USERPREF_PT_studiolight_world,
-    USERPREF_PT_studiolight_camera,
-    USERPREF_PT_studiolight_specular,
 )
 
 if __name__ == "__main__":  # only for live edit.

@@ -296,6 +296,7 @@ typedef enum {
 	DRW_STATE_WIRE_SMOOTH   = (1 << 22),
 	DRW_STATE_TRANS_FEEDBACK = (1 << 23),
 	DRW_STATE_BLEND_OIT     = (1 << 24),
+	DRW_STATE_FIRST_VERTEX_CONVENTION = (1 << 25),
 
 	DRW_STATE_WRITE_STENCIL          = (1 << 27),
 	DRW_STATE_WRITE_STENCIL_SHADOW_PASS   = (1 << 28),
@@ -512,8 +513,12 @@ DrawData *DRW_drawdata_ensure(
 bool DRW_object_is_renderable(const struct Object *ob);
 bool DRW_object_is_visible_in_active_context(const struct Object *ob);
 bool DRW_object_is_flat_normal(const struct Object *ob);
+bool DRW_object_use_hide_faces(const struct Object *ob);
 
 bool DRW_object_is_visible_psys_in_active_context(const struct Object *object, const struct ParticleSystem *psys);
+
+struct Object *DRW_object_get_dupli_parent(const struct Object *ob);
+struct DupliObject *DRW_object_get_dupli(const struct Object *ob);
 
 /* Draw commands */
 void DRW_draw_pass(DRWPass *pass);
@@ -552,6 +557,7 @@ bool DRW_state_is_depth(void);
 bool DRW_state_is_image_render(void);
 bool DRW_state_is_scene_render(void);
 bool DRW_state_is_opengl_render(void);
+bool DRW_state_is_playback(void);
 bool DRW_state_show_text(void);
 bool DRW_state_draw_support(void);
 bool DRW_state_draw_background(void);

@@ -101,8 +101,7 @@
 			BLI_assert(*(id_pp) == old_id); \
 		} \
 		if (old_id && (_flag & IDWALK_RECURSE)) { \
-			if (!BLI_gset_haskey((_data)->ids_handled, old_id)) { \
-				BLI_gset_add((_data)->ids_handled, old_id); \
+			if (BLI_gset_add((_data)->ids_handled, old_id)) { \
 				if (!(callback_return & IDWALK_RET_STOP_RECURSION)) { \
 					BLI_LINKSTACK_PUSH((_data)->ids_todo, old_id); \
 				} \
@@ -249,11 +248,11 @@ static void library_foreach_animationData(LibraryForeachIDData *data, AnimData *
 
 		for (dvar = driver->variables.first; dvar; dvar = dvar->next) {
 			/* only used targets */
-			DRIVER_TARGETS_USED_LOOPER(dvar)
+			DRIVER_TARGETS_USED_LOOPER_BEGIN(dvar)
 			{
 				FOREACH_CALLBACK_INVOKE_ID(data, dtar->id, IDWALK_CB_NOP);
 			}
-			DRIVER_TARGETS_LOOPER_END
+			DRIVER_TARGETS_LOOPER_END;
 		}
 	}
 
@@ -320,8 +319,7 @@ static void library_foreach_ID_as_subdata_link(
 	if (flag & IDWALK_RECURSE) {
 		/* Defer handling into main loop, recursively calling BKE_library_foreach_ID_link in IDWALK_RECURSE case is
 		 * troublesome, see T49553. */
-		if (!BLI_gset_haskey(data->ids_handled, id)) {
-			BLI_gset_add(data->ids_handled, id);
+		if (BLI_gset_add(data->ids_handled, id)) {
 			BLI_LINKSTACK_PUSH(data->ids_todo, id);
 		}
 	}
@@ -409,6 +407,7 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 				CALLBACK_INVOKE(scene->world, IDWALK_CB_USER);
 				CALLBACK_INVOKE(scene->set, IDWALK_CB_NOP);
 				CALLBACK_INVOKE(scene->clip, IDWALK_CB_USER);
+				CALLBACK_INVOKE(scene->r.bake.cage_object, IDWALK_CB_NOP);
 				if (scene->nodetree) {
 					/* nodetree **are owned by IDs**, treat them as mere sub-data and not real ID! */
 					library_foreach_ID_as_subdata_link((ID **)&scene->nodetree, callback, user_data, flag, &data);
@@ -426,8 +425,7 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 						for (SequenceModifierData *smd = seq->modifiers.first; smd; smd = smd->next) {
 							CALLBACK_INVOKE(smd->mask_id, IDWALK_CB_USER);
 						}
-					}
-					SEQ_END
+					} SEQ_END;
 				}
 
 

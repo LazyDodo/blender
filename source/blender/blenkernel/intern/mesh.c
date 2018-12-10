@@ -662,6 +662,8 @@ static Mesh *mesh_new_nomain_from_template_ex(
 	me_dst->totloop = loops_len;
 	me_dst->totpoly = polys_len;
 
+	me_dst->cd_flag = me_src->cd_flag;
+
 	CustomData_copy(&me_src->vdata, &me_dst->vdata, mask, CD_CALLOC, verts_len);
 	CustomData_copy(&me_src->edata, &me_dst->edata, mask, CD_CALLOC, edges_len);
 	CustomData_copy(&me_src->ldata, &me_dst->ldata, mask, CD_CALLOC, loops_len);
@@ -914,16 +916,25 @@ void BKE_mesh_texspace_calc(Mesh *me)
 
 BoundBox *BKE_mesh_boundbox_get(Object *ob)
 {
-	Mesh *me = ob->data;
+	/* This is Object-level data access, DO NOT touch to Mesh's bb, would be totally thread-unsafe. */
+	if (ob->bb == NULL || ob->bb->flag & BOUNDBOX_DIRTY) {
+		Mesh *me = ob->data;
+		float min[3], max[3];
 
-	if (ob->bb)
-		return ob->bb;
+		INIT_MINMAX(min, max);
+		if (!BKE_mesh_minmax(me, min, max)) {
+			min[0] = min[1] = min[2] = -1.0f;
+			max[0] = max[1] = max[2] = 1.0f;
+		}
 
-	if (me->bb == NULL || (me->bb->flag & BOUNDBOX_DIRTY)) {
-		BKE_mesh_texspace_calc(me);
+		if (ob->bb == NULL) {
+			ob->bb = MEM_mallocN(sizeof(*ob->bb), __func__);
+		}
+		BKE_boundbox_init_from_minmax(ob->bb, min, max);
+		ob->bb->flag &= ~BOUNDBOX_DIRTY;
 	}
 
-	return me->bb;
+	return ob->bb;
 }
 
 BoundBox *BKE_mesh_texspace_get(Mesh *me, float r_loc[3], float r_rot[3], float r_size[3])
@@ -1910,5 +1921,8 @@ void BKE_mesh_eval_geometry(
 	DEG_debug_print_eval(depsgraph, __func__, mesh->id.name, mesh);
 	if (mesh->bb == NULL || (mesh->bb->flag & BOUNDBOX_DIRTY)) {
 		BKE_mesh_texspace_calc(mesh);
+		/* Clear autospace flag in evaluated mesh, so that texspace does not get recomputed when bbox is
+		 * (e.g. after modifiers, etc.) */
+		mesh->texflag &= ~ME_AUTOSPACE;
 	}
 }
