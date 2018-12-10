@@ -83,6 +83,7 @@
 #include "BKE_paint.h"
 #include "BKE_pointcache.h"
 #include "BKE_report.h"
+#include "BKE_rigidbody.h"
 #include "BKE_scene.h"
 #include "BKE_screen.h"
 #include "BKE_sequencer.h"
@@ -2433,9 +2434,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 		}
 	}
 
-	{
-		/* Versioning code until next subversion bump goes here. */
-
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 36)) {
 		if (!DNA_struct_elem_find(fd->filesdna, "View3DShading", "float", "curvature_ridge_factor")) {
 			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
 				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
@@ -2491,6 +2490,18 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 			}
 		}
 
+		/* Ensure we get valid rigidbody object/constraint data in relevant collections' objects. */
+		for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+			RigidBodyWorld *rbw = scene->rigidbody_world;
+
+			if (rbw == NULL) {
+				continue;
+			}
+
+			BKE_rigidbody_objects_collection_validate(scene, rbw);
+			BKE_rigidbody_constraints_collection_validate(scene, rbw);
+		}
+
 		/* Grease pencil primitive curve */
 		if (!DNA_struct_elem_find(fd->filesdna, "GP_Sculpt_Settings", "CurveMapping", "cur_primitive")) {
 			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
@@ -2505,5 +2516,10 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				}
 			}
 		}
+	}
+
+	{
+		/* Versioning code until next subversion bump goes here. */
+
 	}
 }
