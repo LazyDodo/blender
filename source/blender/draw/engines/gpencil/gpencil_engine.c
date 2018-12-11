@@ -315,7 +315,7 @@ void GPENCIL_cache_init(void *vedata)
 	if (!stl->g_data) {
 		/* Alloc transient pointers */
 		stl->g_data = MEM_mallocN(sizeof(g_data), "g_data");
-		stl->storage->xray = GP_XRAY_BACK; /* used for drawing */
+		stl->storage->xray = GP_XRAY_FRONT; /* used for drawing */
 		stl->storage->stroke_style = GP_STYLE_STROKE_STYLE_SOLID; /* used for drawing */
 	}
 	stl->storage->tonemapping = 0;
