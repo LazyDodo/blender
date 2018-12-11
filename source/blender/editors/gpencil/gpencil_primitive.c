@@ -128,6 +128,9 @@ static void gp_session_validatebuffer(tGPDprimitive *p)
 	/* reset flags */
 	gpd->runtime.sbuffer_sflag = 0;
 	gpd->runtime.sbuffer_sflag |= GP_STROKE_3DSPACE;
+
+	if (ELEM(p->type, GP_STROKE_BOX, GP_STROKE_CIRCLE))
+		gpd->runtime.sbuffer_sflag |= GP_STROKE_CYCLIC;
 }
 
 static void gp_init_colors(tGPDprimitive *p)
