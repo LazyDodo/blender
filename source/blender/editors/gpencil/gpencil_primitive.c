@@ -325,7 +325,7 @@ static void gpencil_primitive_status_indicators(bContext *C, tGPDprimitive *tgpi
 		BLI_strncpy(msg_str, IFACE_("Rectangle: ESC/RMB to cancel, LMB set origin, Enter/LMB to confirm, Shift to square, Alt to center"), UI_MAX_DRAW_STR);
 	}
 	else if (tgpi->type == GP_STROKE_LINE) {
-		BLI_strncpy(msg_str, IFACE_("Line: ESC/RMB to cancel, LMB set origin, Enter/LMB to confirm, Alt to center"), UI_MAX_DRAW_STR);
+		BLI_strncpy(msg_str, IFACE_("Line: ESC/RMB to cancel, LMB set origin, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to align, Alt to center"), UI_MAX_DRAW_STR);
 	}
 	else if (tgpi->type == GP_STROKE_ARC) {
 		BLI_strncpy(msg_str, IFACE_("Arc: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center, F to flip, C to Close"), UI_MAX_DRAW_STR);
@@ -337,7 +337,7 @@ static void gpencil_primitive_status_indicators(bContext *C, tGPDprimitive *tgpi
 		BLI_strncpy(msg_str, IFACE_("Circle: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center"), UI_MAX_DRAW_STR);
 	}
 
-	if (tgpi->type == GP_STROKE_CIRCLE || tgpi->type == GP_STROKE_ARC) {
+	if (ELEM(tgpi->type, GP_STROKE_CIRCLE, GP_STROKE_ARC, GP_STROKE_LINE)) {
 		if (hasNumInput(&tgpi->num)) {
 			char str_offs[NUM_STR_REP_LEN];
 
@@ -397,15 +397,31 @@ static void gp_primitive_rectangle(tGPDprimitive *tgpi, tGPspoint *points2D)
 /* create a line */
 static void gp_primitive_line(tGPDprimitive *tgpi, tGPspoint *points2D)
 {
-	BLI_assert(tgpi->tot_edges == 2);
+	if (tgpi->tot_edges == 2) {
+		int i = tgpi->tot_stored_edges;
 
-	int i = tgpi->tot_stored_edges;
+		points2D[i].x = tgpi->start[0];
+		points2D[i].y = tgpi->start[1];
 
-	points2D[i].x = tgpi->start[0];
-	points2D[i].y = tgpi->start[1];
+		points2D[i + 1].x = tgpi->end[0];
+		points2D[i + 1].y = tgpi->end[1];
+	}
+	else {
+		const int totpoints = (tgpi->tot_edges + tgpi->tot_stored_edges);
+		const float step = 1.0f / (float)(tgpi->tot_edges - 1);
+		float a = 0.0f;
 
-	points2D[i + 1].x = tgpi->end[0];
-	points2D[i + 1].y = tgpi->end[1];
+		for (int i = tgpi->tot_stored_edges; i < totpoints; i++) {
+			tGPspoint *p2d = &points2D[i];
+			interp_v2_v2v2(&p2d->x, tgpi->start, tgpi->end, a);
+			a += step;
+		}
+
+		float color[4];
+		UI_GetThemeColor4fv(TH_REDALERT, color);
+		gp_primitive_set_cp(tgpi, tgpi->origin, color, 10);
+	}
+
 }
 
 /* unused at the moment */
@@ -661,7 +677,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 
 		/* calc pressure */
 		float pressure = 1.0;
-		if (ELEM(tgpi->type, GP_STROKE_ARC, GP_STROKE_BEZIER)) {
+		if (ELEM(tgpi->type, GP_STROKE_ARC, GP_STROKE_BEZIER, GP_STROKE_LINE)) {
 			if (gset->flag & GP_SCULPT_SETT_FLAG_PRIMITIVE_CURVE) {
 				/* normalize value to evaluate curve */
 				float value = (float)i / (gps->totpoints - 1);
@@ -876,7 +892,7 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 		RNA_int_set(op->ptr, "edges", 4);
 	}
 	else { /* LINE */
-		RNA_int_set(op->ptr, "edges", 2);
+		RNA_int_set(op->ptr, "edges", 24);
 	}
 
 	tgpi->tot_stored_edges = 0;
@@ -1272,7 +1288,7 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 		case PADPLUSKEY:
 		case WHEELUPMOUSE:
 		{
-			if ((event->val != KM_RELEASE) && (tgpi->type == GP_STROKE_CIRCLE || tgpi->type == GP_STROKE_ARC)) {
+			if ((event->val != KM_RELEASE) && ELEM(tgpi->type, GP_STROKE_CIRCLE, GP_STROKE_ARC, GP_STROKE_LINE)) {
 				tgpi->tot_edges = tgpi->tot_edges + 1;
 				CLAMP(tgpi->tot_edges, MIN_EDGES, MAX_EDGES);
 				RNA_int_set(op->ptr, "edges", tgpi->tot_edges);
@@ -1285,7 +1301,7 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 		case PADMINUS:
 		case WHEELDOWNMOUSE:
 		{
-			if ((event->val != KM_RELEASE) && (tgpi->type == GP_STROKE_CIRCLE || tgpi->type == GP_STROKE_ARC)) {
+			if ((event->val != KM_RELEASE) && ELEM(tgpi->type, GP_STROKE_CIRCLE, GP_STROKE_ARC, GP_STROKE_LINE)) {
 				tgpi->tot_edges = tgpi->tot_edges - 1;
 				CLAMP(tgpi->tot_edges, MIN_EDGES, MAX_EDGES);
 				RNA_int_set(op->ptr, "edges", tgpi->tot_edges);

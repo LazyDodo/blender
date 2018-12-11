@@ -375,7 +375,7 @@ class _draw_left_context_mode:
 
                 draw_color_selector()
 
-                if tool.name in {"Arc", "Bezier"}:
+                if tool.name in {"Arc", "Bezier", "Line"}:
                     settings = context.tool_settings.gpencil_sculpt
                     row = layout.row(align=True)
                     row.prop(settings, "use_thickness_curve", text="", icon='CURVE_DATA')
