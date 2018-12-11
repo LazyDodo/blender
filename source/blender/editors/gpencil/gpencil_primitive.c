@@ -41,8 +41,11 @@
 #include "BLI_blenlib.h"
 #include "BLI_utildefines.h"
 #include "BLI_math.h"
+#include "BLI_rand.h"
 
 #include "BLT_translation.h"
+
+#include "PIL_time.h"
 
 #include "DNA_brush_types.h"
 #include "DNA_gpencil_types.h"
@@ -284,6 +287,11 @@ static void gp_primitive_set_initdata(bContext *C, tGPDprimitive *tgpi)
 
 	/* allocate memory for storage points */
 	gpencil_primitive_allocate_memory(tgpi);
+
+	/* Random generator, only init once. */
+	uint rng_seed = (uint)(PIL_check_seconds_timer_i() & UINT_MAX);
+	rng_seed ^= POINTER_AS_UINT(tgpi->origin);
+	tgpi->rng = BLI_rng_new(rng_seed);
 
 }
 
@@ -531,6 +539,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 {
 	ToolSettings *ts = tgpi->scene->toolsettings;
 	bGPdata *gpd = tgpi->gpd;
+	Brush *brush = tgpi->brush;
 	bGPDstroke *gps = tgpi->gpf->strokes.first;
 	GP_Sculpt_Settings *gset = &ts->gp_sculpt;
 	int depth_margin = (ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE) ? 4 : 0;
@@ -666,13 +675,24 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		/* calc pressure */
 		float pressure = 1.0;
 		if (ELEM(tgpi->type, GP_STROKE_ARC, GP_STROKE_BEZIER, GP_STROKE_LINE)) {
+			/* apply randomness to pressure */
+			if ((brush->gpencil_settings->flag & GP_BRUSH_GROUP_RANDOM))
+			{
+				float rnd = BLI_rng_get_float(tgpi->rng);
+				if (rnd > 0.5f) {
+					pressure -= brush->gpencil_settings->draw_random_press * rnd;
+				}
+				else {
+					pressure += brush->gpencil_settings->draw_random_press * rnd;
+				}
+			}
+			/* normalize value to evaluate curve */
 			if (gset->flag & GP_SCULPT_SETT_FLAG_PRIMITIVE_CURVE) {
-				/* normalize value to evaluate curve */
 				float value = (float)i / (gps->totpoints - 1);
 				float curvef = curvemapping_evaluateF(gset->cur_primitive, 0, value);
-				pressure = 1.0f * curvef;
-				CLAMP_MIN(pressure, 0.1f);
+				pressure *= curvef;
 			}
+			CLAMP_MIN(pressure, 0.1f);
 		}
 
 		tpt->pressure = pressure;
@@ -874,7 +894,7 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 		RNA_int_set(op->ptr, "edges", 4);
 	}
 	else { /* LINE */
-		RNA_int_set(op->ptr, "edges", 24);
+		RNA_int_set(op->ptr, "edges", 32);
 	}
 
 	tgpi->tot_stored_edges = 0;
@@ -1197,6 +1217,7 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 
 	switch (event->type) {
 		case LEFTMOUSE:
+		{
 			if ((event->val == KM_PRESS) && (tgpi->flag == IDLE)) {
 				/* start drawing primitive */
 				/* TODO: Ignore if not in main region yet */
@@ -1216,6 +1237,7 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 				}
 			}
 			break;
+		}
 		case SPACEKEY:  /* confirm */
 		case RETKEY:
 		{
@@ -1225,12 +1247,13 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 			return OPERATOR_FINISHED;
 		}
 		case RIGHTMOUSE:
-		if (tgpi->flag == IN_CURVE_EDIT) {
-			tgpi->flag = IDLE;
-			gpencil_primitive_update(C, op, tgpi);
-			gpencil_primitive_interaction_end(C, op, win, tgpi);
-			/* done! */
-			return OPERATOR_FINISHED;
+		{
+			if (tgpi->flag == IN_CURVE_EDIT) {
+				tgpi->flag = IDLE;
+				gpencil_primitive_interaction_end(C, op, win, tgpi);
+				/* done! */
+				return OPERATOR_FINISHED;
+			}
 		}
 		case ESCKEY:
 		{

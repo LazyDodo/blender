@@ -173,6 +173,7 @@ typedef struct tGPDprimitive {
 	float mvalo[2];                   /* previous recorded mouse-position */
 
 	int lock_axis;                    /* lock to viewport axis */
+	struct RNG *rng;
 
 	NumInput num;                     /* numeric input */
 } tGPDprimitive;
