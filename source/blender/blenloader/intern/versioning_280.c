@@ -2490,6 +2490,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 			}
 		}
 
+#ifdef WITH_BULLET
 		/* Ensure we get valid rigidbody object/constraint data in relevant collections' objects. */
 		for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
 			RigidBodyWorld *rbw = scene->rigidbody_world;
@@ -2500,6 +2501,20 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 
 			BKE_rigidbody_objects_collection_validate(scene, rbw);
 			BKE_rigidbody_constraints_collection_validate(scene, rbw);
+		}
+#endif
+	}
+
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 37)) {
+		for (Camera *ca = bmain->camera.first; ca; ca = ca->id.next) {
+			ca->drawsize *= 2.0f;
+		}
+		for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+			if (ob->type != OB_EMPTY) {
+				if (UNLIKELY(ob->transflag & OB_DUPLICOLLECTION)) {
+					BKE_object_type_set_empty_for_versioning(ob);
+				}
+			}
 		}
 
 		/* Grease pencil primitive curve */
