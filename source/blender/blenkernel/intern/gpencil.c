@@ -78,7 +78,7 @@ void(*BKE_gpencil_batch_cache_free_cb)(bGPdata *gpd) = NULL;
 void BKE_gpencil_batch_cache_dirty_tag(bGPdata *gpd)
 {
 	if (gpd) {
-		DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&gpd->id, ID_RECALC_GEOMETRY);
 		BKE_gpencil_batch_cache_dirty_tag_cb(gpd);
 	}
 }
@@ -381,8 +381,6 @@ bGPDlayer *BKE_gpencil_layer_addnew(bGPdata *gpd, const char *name, bool setacti
 		/* thickness parameter represents "thickness change", not absolute thickness */
 		gpl->thickness = 0;
 		gpl->opacity = 1.0f;
-		/* onion-skinning settings */
-		gpl->onion_flag |= GP_LAYER_ONIONSKIN;
 	}
 
 	/* auto-name */
@@ -415,7 +413,8 @@ bGPdata *BKE_gpencil_data_addnew(Main *bmain, const char name[])
 	/* general flags */
 	gpd->flag |= GP_DATA_VIEWALIGN;
 	gpd->flag |= GP_DATA_STROKE_FORCE_RECALC;
-
+	/* always enable object onion skin swith */
+	gpd->flag |= GP_DATA_SHOW_ONIONSKINS;
 	/* GP object specific settings */
 	ARRAY_SET_ITEMS(gpd->line_color, 0.6f, 0.6f, 0.6f, 0.5f);
 
@@ -1219,7 +1218,7 @@ void BKE_gpencil_vgroup_remove(Object *ob, bDeformGroup *defgroup)
 
 	/* Remove the group */
 	BLI_freelinkN(&ob->defbase, defgroup);
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 }
 
 

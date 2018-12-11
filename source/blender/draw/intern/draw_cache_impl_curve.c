@@ -325,10 +325,7 @@ typedef struct CurveBatchCache {
 
 	/* Wireframes */
 	struct {
-		GPUVertBuf *elem_vbo;
-		GPUTexture *elem_tx;
-		GPUTexture *verts_tx;
-		uint tri_count;
+		GPUBatch *batch;
 	} face_wire;
 
 	/* 3d text */
@@ -450,10 +447,7 @@ static void curve_batch_cache_clear(Curve *cu)
 	GPU_BATCH_DISCARD_ARRAY_SAFE(cache->surface.shaded_triangles, cache->surface.mat_len);
 	GPU_BATCH_DISCARD_SAFE(cache->surface.batch);
 
-	GPU_VERTBUF_DISCARD_SAFE(cache->face_wire.elem_vbo);
-	DRW_TEXTURE_FREE_SAFE(cache->face_wire.elem_tx);
-	DRW_TEXTURE_FREE_SAFE(cache->face_wire.verts_tx);
-	cache->face_wire.tri_count = 0;
+	GPU_BATCH_DISCARD_SAFE(cache->face_wire.batch);
 
 	/* don't own vbo & elems */
 	GPU_BATCH_DISCARD_SAFE(cache->wire.batch);
@@ -801,40 +795,6 @@ static GPUBatch *curve_batch_cache_get_pos_and_normals(CurveRenderData *rdata, C
 	return cache->surface.batch;
 }
 
-static GPUTexture *curve_batch_cache_get_edges_overlay_texture_buf(CurveRenderData *rdata, CurveBatchCache *cache)
-{
-	BLI_assert(rdata->types & CU_DATATYPE_SURFACE);
-
-	if (cache->face_wire.elem_tx != NULL) {
-		return cache->face_wire.elem_tx;
-	}
-
-	ListBase *lb = &rdata->ob_curve_cache->disp;
-
-	/* We need a special index buffer. */
-	GPUVertBuf *vbo = cache->face_wire.elem_vbo = DRW_displist_create_edges_overlay_texture_buf(lb);
-
-	/* Upload data early because we need to create the texture for it. */
-	GPU_vertbuf_use(vbo);
-	cache->face_wire.elem_tx = GPU_texture_create_from_vertbuf(vbo);
-	cache->face_wire.tri_count = vbo->vertex_alloc / 3;
-
-	return cache->face_wire.elem_tx;
-}
-
-static GPUTexture *curve_batch_cache_get_vert_pos_and_nor_in_order_buf(CurveRenderData *rdata, CurveBatchCache *cache)
-{
-	BLI_assert(rdata->types & CU_DATATYPE_SURFACE);
-
-	if (cache->face_wire.verts_tx == NULL) {
-		curve_batch_cache_get_pos_and_normals(rdata, cache);
-		GPU_vertbuf_use(cache->surface.verts); /* Upload early for buffer texture creation. */
-		cache->face_wire.verts_tx = GPU_texture_create_buffer(GPU_R32F, cache->surface.verts->vbo_id);
-	}
-
-	return cache->face_wire.verts_tx;
-}
-
 /** \} */
 
 
@@ -844,7 +804,7 @@ static GPUTexture *curve_batch_cache_get_vert_pos_and_nor_in_order_buf(CurveRend
  * \{ */
 
 
-static GPUBatch *curve_batch_cache_get_overlay_select(CurveRenderData *rdata, CurveBatchCache *cache)
+static GPUBatch *curve_batch_cache_get_edit_select(CurveRenderData *rdata, CurveBatchCache *cache)
 {
 	BLI_assert(rdata->types & CU_DATATYPE_TEXT_SELECT);
 	if (cache->text.select == NULL) {
@@ -919,7 +879,7 @@ static GPUBatch *curve_batch_cache_get_overlay_select(CurveRenderData *rdata, Cu
 	return cache->text.select;
 }
 
-static GPUBatch *curve_batch_cache_get_overlay_cursor(CurveRenderData *rdata, CurveBatchCache *cache)
+static GPUBatch *curve_batch_cache_get_edit_cursor(CurveRenderData *rdata, CurveBatchCache *cache)
 {
 	BLI_assert(rdata->types & CU_DATATYPE_TEXT_SELECT);
 	if (cache->text.cursor == NULL) {
@@ -993,7 +953,7 @@ GPUBatch *DRW_curve_batch_cache_get_normal_edge(Curve *cu, CurveCache *ob_curve_
 	return cache->normal.batch;
 }
 
-GPUBatch *DRW_curve_batch_cache_get_overlay_edges(Curve *cu)
+GPUBatch *DRW_curve_batch_cache_get_edit_edges(Curve *cu)
 {
 	CurveBatchCache *cache = curve_batch_cache_get(cu);
 
@@ -1004,7 +964,7 @@ GPUBatch *DRW_curve_batch_cache_get_overlay_edges(Curve *cu)
 	return cache->overlay.edges;
 }
 
-GPUBatch *DRW_curve_batch_cache_get_overlay_verts(Curve *cu, bool handles)
+GPUBatch *DRW_curve_batch_cache_get_edit_verts(Curve *cu, bool handles)
 {
 	CurveBatchCache *cache = curve_batch_cache_get(cu);
 
@@ -1074,24 +1034,21 @@ GPUBatch **DRW_curve_batch_cache_get_surface_shaded(
 	return cache->surface.shaded_triangles;
 }
 
-void DRW_curve_batch_cache_get_wireframes_face_texbuf(
-        Curve *cu, CurveCache *ob_curve_cache,
-        GPUTexture **verts_data, GPUTexture **face_indices, int *tri_count, bool UNUSED(reduce_len))
+GPUBatch *DRW_curve_batch_cache_get_wireframes_face(Curve *cu, CurveCache *ob_curve_cache)
 {
 	CurveBatchCache *cache = curve_batch_cache_get(cu);
 
-	if (cache->face_wire.elem_tx == NULL || cache->face_wire.verts_tx == NULL) {
+	if (cache->face_wire.batch == NULL) {
 		CurveRenderData *rdata = curve_render_data_create(cu, ob_curve_cache, CU_DATATYPE_SURFACE);
 
-		curve_batch_cache_get_edges_overlay_texture_buf(rdata, cache);
-		curve_batch_cache_get_vert_pos_and_nor_in_order_buf(rdata, cache);
+		ListBase *lb = &rdata->ob_curve_cache->disp;
+
+		cache->face_wire.batch = DRW_displist_create_edges_overlay_batch(lb);
 
 		curve_render_data_free(rdata);
 	}
 
-	*tri_count = cache->face_wire.tri_count;
-	*face_indices = cache->face_wire.elem_tx;
-	*verts_data = cache->face_wire.verts_tx;
+	return cache->face_wire.batch;
 }
 
 /* -------------------------------------------------------------------- */
@@ -1099,14 +1056,14 @@ void DRW_curve_batch_cache_get_wireframes_face_texbuf(
 /** \name Public Object/Font API
  * \{ */
 
-GPUBatch *DRW_curve_batch_cache_get_overlay_select(Curve *cu)
+GPUBatch *DRW_curve_batch_cache_get_edit_select(Curve *cu)
 {
 	CurveBatchCache *cache = curve_batch_cache_get(cu);
 
 	if (cache->text.select == NULL) {
 		CurveRenderData *rdata = curve_render_data_create(cu, NULL, CU_DATATYPE_TEXT_SELECT);
 
-		curve_batch_cache_get_overlay_select(rdata, cache);
+		curve_batch_cache_get_edit_select(rdata, cache);
 
 		curve_render_data_free(rdata);
 	}
@@ -1114,14 +1071,14 @@ GPUBatch *DRW_curve_batch_cache_get_overlay_select(Curve *cu)
 	return cache->text.select;
 }
 
-GPUBatch *DRW_curve_batch_cache_get_overlay_cursor(Curve *cu)
+GPUBatch *DRW_curve_batch_cache_get_edit_cursor(Curve *cu)
 {
 	CurveBatchCache *cache = curve_batch_cache_get(cu);
 
 	if (cache->text.cursor == NULL) {
 		CurveRenderData *rdata = curve_render_data_create(cu, NULL, CU_DATATYPE_TEXT_SELECT);
 
-		curve_batch_cache_get_overlay_cursor(rdata, cache);
+		curve_batch_cache_get_edit_cursor(rdata, cache);
 
 		curve_render_data_free(rdata);
 	}

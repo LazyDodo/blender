@@ -83,6 +83,7 @@
 #include "BKE_paint.h"
 #include "BKE_pointcache.h"
 #include "BKE_report.h"
+#include "BKE_rigidbody.h"
 #include "BKE_scene.h"
 #include "BKE_screen.h"
 #include "BKE_sequencer.h"
@@ -915,6 +916,20 @@ void do_versions_after_linking_280(Main *bmain)
 			}
 		}
 		BKE_paint_toolslots_init_from_main(bmain);
+	}
+
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 36)) {
+		/* Ensure we get valid rigidbody object/constraint data in relevant collections' objects. */
+		for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+			RigidBodyWorld *rbw = scene->rigidbody_world;
+
+			if (rbw == NULL) {
+				continue;
+			}
+
+			BKE_rigidbody_objects_collection_validate(scene, rbw);
+			BKE_rigidbody_constraints_collection_validate(scene, rbw);
+		}
 	}
 }
 
@@ -2433,9 +2448,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 		}
 	}
 
-	{
-		/* Versioning code until next subversion bump goes here. */
-
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 36)) {
 		if (!DNA_struct_elem_find(fd->filesdna, "View3DShading", "float", "curvature_ridge_factor")) {
 			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
 				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
@@ -2490,5 +2503,23 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				dir[0] = -dir[0];
 			}
 		}
+	}
+
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 37)) {
+		for (Camera *ca = bmain->camera.first; ca; ca = ca->id.next) {
+			ca->drawsize *= 2.0f;
+		}
+		for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+			if (ob->type != OB_EMPTY) {
+				if (UNLIKELY(ob->transflag & OB_DUPLICOLLECTION)) {
+					BKE_object_type_set_empty_for_versioning(ob);
+				}
+			}
+		}
+	}
+
+	{
+		/* Versioning code until next subversion bump goes here. */
+
 	}
 }

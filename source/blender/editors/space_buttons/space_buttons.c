@@ -431,18 +431,19 @@ static void buttons_navigation_bar_region_draw(const bContext *C, ARegion *ar)
 	ED_region_panels_draw(C, ar);
 }
 
-static void buttons_navigation_bar_region_listener(
-        wmWindow *UNUSED(win), ScrArea *UNUSED(sa), ARegion *ar, wmNotifier *wmn,
-        const Scene *UNUSED(scene))
+static void buttons_navigation_bar_region_message_subscribe(
+        const bContext *UNUSED(C),
+        WorkSpace *UNUSED(workspace), Scene *UNUSED(scene),
+        bScreen *UNUSED(screen), ScrArea *UNUSED(sa), ARegion *ar,
+        struct wmMsgBus *mbus)
 {
-	/* Context changes. */
-	switch (wmn->category) {
-		case NC_SCREEN:
-			if (ELEM(wmn->data, ND_LAYER)) {
-				ED_region_tag_redraw(ar);
-			}
-			break;
-	}
+	wmMsgSubscribeValue msg_sub_value_region_tag_redraw = {
+		.owner = ar,
+		.user_data = ar,
+		.notify = ED_region_do_msg_notify_tag_redraw,
+	};
+
+	WM_msg_subscribe_rna_anon_prop(mbus, Window, view_layer, &msg_sub_value_region_tag_redraw);
 }
 
 /* draw a certain button set only if properties area is currently
@@ -746,7 +747,7 @@ void ED_spacetype_buttons(void)
 	art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_FRAMES;
 	art->init = buttons_navigation_bar_region_init;
 	art->draw = buttons_navigation_bar_region_draw;
-	art->listener = buttons_navigation_bar_region_listener;
+	art->message_subscribe = buttons_navigation_bar_region_message_subscribe;
 	BLI_addhead(&st->regiontypes, art);
 
 	BKE_spacetype_register(st);

@@ -662,6 +662,8 @@ static Mesh *mesh_new_nomain_from_template_ex(
 	me_dst->totloop = loops_len;
 	me_dst->totpoly = polys_len;
 
+	me_dst->cd_flag = me_src->cd_flag;
+
 	CustomData_copy(&me_src->vdata, &me_dst->vdata, mask, CD_CALLOC, verts_len);
 	CustomData_copy(&me_src->edata, &me_dst->edata, mask, CD_CALLOC, edges_len);
 	CustomData_copy(&me_src->ldata, &me_dst->ldata, mask, CD_CALLOC, loops_len);
@@ -920,7 +922,10 @@ BoundBox *BKE_mesh_boundbox_get(Object *ob)
 		float min[3], max[3];
 
 		INIT_MINMAX(min, max);
-		BKE_mesh_minmax(me, min, max);
+		if (!BKE_mesh_minmax(me, min, max)) {
+			min[0] = min[1] = min[2] = -1.0f;
+			max[0] = max[1] = max[2] = 1.0f;
+		}
 
 		if (ob->bb == NULL) {
 			ob->bb = MEM_mallocN(sizeof(*ob->bb), __func__);

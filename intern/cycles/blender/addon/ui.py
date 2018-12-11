@@ -911,6 +911,8 @@ class CYCLES_RENDER_PT_denoising(CyclesButtonsPanel, Panel):
         split.active = cycles_view_layer.use_denoising
 
         layout = layout.column(align=True)
+        layout.prop(cycles_view_layer, "denoising_radius", text="Radius")
+        layout.prop(cycles_view_layer, "denoising_strength", slider=True, text="Strength")
         layout.prop(cycles_view_layer, "denoising_feature_strength", slider=True, text="Feature Strength")
         layout.prop(cycles_view_layer, "denoising_relative_pca")
 
@@ -1815,7 +1817,7 @@ class CYCLES_RENDER_PT_bake(CyclesButtonsPanel, Panel):
             sub.prop(cbk, "use_cage", text="Cage")
             if cbk.use_cage:
                 sub.prop(cbk, "cage_extrusion", text="Extrusion")
-                sub.prop_search(cbk, "cage_object", scene, "objects", text="Cage Object")
+                sub.prop(cbk, "cage_object", text="Cage Object")
             else:
                 sub.prop(cbk, "cage_extrusion", text="Ray Distance")
 

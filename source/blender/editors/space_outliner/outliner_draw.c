@@ -299,13 +299,13 @@ static void hidebutton_base_flag_cb(bContext *C, void *poin, void *poin2)
 
 	if (changed_restrict_view) {
 		BKE_main_collection_sync(bmain);
-		DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
+		DEG_id_tag_update(&ob->id, ID_RECALC_COPY_ON_WRITE);
 		DEG_relations_tag_update(bmain);
 		WM_main_add_notifier(NC_OBJECT | ND_DRAW, &ob->id);
 	}
 	if (!freeze) {
 		BKE_layer_collection_sync(scene, view_layer);
-		DEG_id_tag_update(&scene->id, DEG_TAG_BASE_FLAGS_UPDATE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_BASE_FLAGS);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 	}
 }
@@ -331,7 +331,7 @@ static void hidebutton_layer_collection_flag_cb(bContext *C, void *poin, void *p
 
 	BKE_layer_collection_sync(scene, view_layer);
 
-	DEG_id_tag_update(&scene->id, DEG_TAG_BASE_FLAGS_UPDATE);
+	DEG_id_tag_update(&scene->id, ID_RECALC_BASE_FLAGS);
 	DEG_relations_tag_update(CTX_data_main(C));
 	WM_main_add_notifier(NC_SCENE | ND_LAYER_CONTENT, NULL);
 }
@@ -363,7 +363,7 @@ static void namebutton_cb(bContext *C, void *tsep, char *oldname)
 				{
 					Object *ob = (Object *)tselem->id;
 					if (ob->type == OB_MBALL) {
-						DEG_id_tag_update(&ob->id, DEG_TAG_GEOMETRY);
+						DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 					}
 					WM_event_add_notifier(C, NC_ID | NA_RENAME, NULL); break;
 				}
