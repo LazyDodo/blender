@@ -102,16 +102,10 @@
 #define SELECT_CP2 3
 #define SELECT_END 4
 
-<<<<<<< HEAD
 #define BIG_SIZE_CTL    15
 #define MID_SIZE_CTL    10
 #define SMALL_SIZE_CTL   8 
 
-=======
-#define BIG_SIZE_CTL    10
-#define MID_SIZE_CTL    15
-#define SMALL_SIZE_CTL  20 
->>>>>>> GP: Primitive, add noise to box and circle
   /* ************************************************ */
   /* Core/Shared Utilities */
 
