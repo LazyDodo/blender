@@ -102,9 +102,9 @@
 #define SELECT_CP2 3
 #define SELECT_END 4
 
-#define BIG_SIZE_CTL    10
-#define MID_SIZE_CTL    15
-#define SMALL_SIZE_CTL  20 
+#define BIG_SIZE_CTL    15
+#define MID_SIZE_CTL    10
+#define SMALL_SIZE_CTL   8 
 
   /* ************************************************ */
   /* Core/Shared Utilities */
@@ -417,9 +417,11 @@ static void gp_primitive_line(tGPDprimitive *tgpi, tGPspoint *points2D)
 			a += step;
 		}
 
+#if 0 /* GPXX Do we need this? */
 		float color[4];
 		UI_GetThemeColor4fv(TH_REDALERT, color);
 		gp_primitive_set_cp(tgpi, tgpi->origin, color, SMALL_SIZE_CTL);
+#endif  
 	}
 
 }
