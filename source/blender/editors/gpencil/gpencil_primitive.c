@@ -102,6 +102,10 @@
 #define SELECT_CP2 3
 #define SELECT_END 4
 
+#define BIG_SIZE_CTL    10
+#define MID_SIZE_CTL    15
+#define SMALL_SIZE_CTL  20 
+
   /* ************************************************ */
   /* Core/Shared Utilities */
 
@@ -415,7 +419,7 @@ static void gp_primitive_line(tGPDprimitive *tgpi, tGPspoint *points2D)
 
 		float color[4];
 		UI_GetThemeColor4fv(TH_REDALERT, color);
-		gp_primitive_set_cp(tgpi, tgpi->origin, color, 10);
+		gp_primitive_set_cp(tgpi, tgpi->origin, color, SMALL_SIZE_CTL);
 	}
 
 }
@@ -464,10 +468,10 @@ static void gp_primitive_arc(tGPDprimitive *tgpi, tGPspoint *points2D)
 	}
 	float color[4];
 	UI_GetThemeColor4fv(TH_ACTIVE_VERT, color);
-	gp_primitive_set_cp(tgpi, tgpi->start, color, 20);
-	gp_primitive_set_cp(tgpi, tgpi->end, color, 20);
+	gp_primitive_set_cp(tgpi, tgpi->start, color, BIG_SIZE_CTL);
+	gp_primitive_set_cp(tgpi, tgpi->end, color, BIG_SIZE_CTL);
 	UI_GetThemeColor4fv(TH_REDALERT, color);
-	gp_primitive_set_cp(tgpi, tgpi->origin, color, 10);
+	gp_primitive_set_cp(tgpi, tgpi->origin, color, SMALL_SIZE_CTL);
 }
 
 /* create a bezier */
@@ -493,13 +497,13 @@ static void gp_primitive_bezier(tGPDprimitive *tgpi, tGPspoint *points2D)
 	}
 	float color[4];
 	UI_GetThemeColor4fv(TH_ACTIVE_VERT, color);
-	gp_primitive_set_cp(tgpi, tgpi->start, color, 20);
-	gp_primitive_set_cp(tgpi, tgpi->end, color, 20);
+	gp_primitive_set_cp(tgpi, tgpi->start, color, BIG_SIZE_CTL);
+	gp_primitive_set_cp(tgpi, tgpi->end, color, BIG_SIZE_CTL);
 	UI_GetThemeColor4fv(TH_REDALERT, color);
-	gp_primitive_set_cp(tgpi, tgpi->origin, color, 10);
+	gp_primitive_set_cp(tgpi, tgpi->origin, color, SMALL_SIZE_CTL);
 	UI_GetThemeColor4fv(TH_GP_VERTEX_SELECT, color);
-	gp_primitive_set_cp(tgpi, tgpi->cp1, color, 20);
-	gp_primitive_set_cp(tgpi, tgpi->cp2, color, 20);
+	gp_primitive_set_cp(tgpi, tgpi->cp1, color, BIG_SIZE_CTL);
+	gp_primitive_set_cp(tgpi, tgpi->cp2, color, BIG_SIZE_CTL);
 }
 
 /* create a circle */
@@ -525,12 +529,12 @@ static void gp_primitive_circle(tGPDprimitive *tgpi, tGPspoint *points2D)
 	}
 	float color[4];
 	UI_GetThemeColor4fv(TH_ACTIVE_VERT, color);
-	gp_primitive_set_cp(tgpi, tgpi->start, color, 20);
-	gp_primitive_set_cp(tgpi, tgpi->end, color, 20);
+	gp_primitive_set_cp(tgpi, tgpi->start, color, BIG_SIZE_CTL);
+	gp_primitive_set_cp(tgpi, tgpi->end, color, BIG_SIZE_CTL);
 	UI_GetThemeColor4fv(TH_REDALERT, color);
-	gp_primitive_set_cp(tgpi, tgpi->origin, color, 10);
-	gp_primitive_set_cp(tgpi, center, color, 15);
-	gp_primitive_set_cp(tgpi, radius, color, 15);
+	gp_primitive_set_cp(tgpi, tgpi->origin, color, SMALL_SIZE_CTL);
+	gp_primitive_set_cp(tgpi, center, color, MID_SIZE_CTL);
+	gp_primitive_set_cp(tgpi, radius, color, MID_SIZE_CTL);
 
 }
 
