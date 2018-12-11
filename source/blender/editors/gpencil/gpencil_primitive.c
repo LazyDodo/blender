@@ -288,15 +288,17 @@ static void gp_primitive_set_initdata(bContext *C, tGPDprimitive *tgpi)
 }
 
 /* Helper: set control point */
-static void gp_primitive_set_cp(tGPDprimitive *tgpi, float p[2], int color, int size)
+static void gp_primitive_set_cp(tGPDprimitive *tgpi, float p[2], float color[4], int size)
 {
-	if (tgpi->tot_cp_points < MAX_CP) {
+	bGPDcontrolpoint *cp_points = tgpi->gpd->runtime.cp_points;
+
+	if (tgpi->gpd->runtime.tot_cp_points < MAX_CP) {
 		CLAMP(size, 5, 20);
-		tGPcontrolpoint *cp = &tgpi->cp_points[tgpi->tot_cp_points];
+		bGPDcontrolpoint *cp = &cp_points[tgpi->gpd->runtime.tot_cp_points];
 		copy_v2_v2(&cp->x, p);
-		cp->color = color;
+		copy_v4_v4(cp->color, color);
 		cp->size = size;
-		tgpi->tot_cp_points += 1;
+		tgpi->gpd->runtime.tot_cp_points += 1;
 	}
 }
 
@@ -448,10 +450,12 @@ static void gp_primitive_arc(tGPDprimitive *tgpi, tGPspoint *points2D)
 		p2d->y = (end[1] - cosf(a) * length[1]);
 		a += step;
 	}
-
-	gp_primitive_set_cp(tgpi, tgpi->start, TH_ACTIVE_VERT, 20);
-	gp_primitive_set_cp(tgpi, tgpi->end, TH_ACTIVE_VERT, 20);
-	gp_primitive_set_cp(tgpi, tgpi->origin, TH_REDALERT, 10);
+	float color[4];
+	UI_GetThemeColor4fv(TH_ACTIVE_VERT, color);
+	gp_primitive_set_cp(tgpi, tgpi->start, color, 20);
+	gp_primitive_set_cp(tgpi, tgpi->end, color, 20);
+	UI_GetThemeColor4fv(TH_REDALERT, color);
+	gp_primitive_set_cp(tgpi, tgpi->origin, color, 10);
 }
 
 /* create a bezier */
@@ -475,12 +479,15 @@ static void gp_primitive_bezier(tGPDprimitive *tgpi, tGPspoint *points2D)
 		interp_v2_v2v2v2v2_cubic(&p2d->x, bcp1, bcp2, bcp3, bcp4, a);
 		a += step;
 	}
-
-	gp_primitive_set_cp(tgpi, tgpi->start, TH_ACTIVE_VERT, 20);
-	gp_primitive_set_cp(tgpi, tgpi->end, TH_ACTIVE_VERT, 20);
-	gp_primitive_set_cp(tgpi, tgpi->origin, TH_REDALERT, 10);
-	gp_primitive_set_cp(tgpi, tgpi->cp1, TH_GP_VERTEX_SELECT, 20);
-	gp_primitive_set_cp(tgpi, tgpi->cp2, TH_GP_VERTEX_SELECT, 20);
+	float color[4];
+	UI_GetThemeColor4fv(TH_ACTIVE_VERT, color);
+	gp_primitive_set_cp(tgpi, tgpi->start, color, 20);
+	gp_primitive_set_cp(tgpi, tgpi->end, color, 20);
+	UI_GetThemeColor4fv(TH_REDALERT, color);
+	gp_primitive_set_cp(tgpi, tgpi->origin, color, 10);
+	UI_GetThemeColor4fv(TH_GP_VERTEX_SELECT, color);
+	gp_primitive_set_cp(tgpi, tgpi->cp1, color, 20);
+	gp_primitive_set_cp(tgpi, tgpi->cp2, color, 20);
 }
 
 /* create a circle */
@@ -504,12 +511,14 @@ static void gp_primitive_circle(tGPDprimitive *tgpi, tGPspoint *points2D)
 		p2d->y = (center[1] + sinf(a) * radius[1]);
 		a += step;
 	}
-
-	gp_primitive_set_cp(tgpi, tgpi->start, TH_ACTIVE_VERT, 20);
-	gp_primitive_set_cp(tgpi, tgpi->end, TH_ACTIVE_VERT, 20);
-	gp_primitive_set_cp(tgpi, tgpi->origin, TH_REDALERT, 10);
-	gp_primitive_set_cp(tgpi, center, TH_REDALERT, 15);
-	gp_primitive_set_cp(tgpi, radius, TH_REDALERT, 15);
+	float color[4];
+	UI_GetThemeColor4fv(TH_ACTIVE_VERT, color);
+	gp_primitive_set_cp(tgpi, tgpi->start, color, 20);
+	gp_primitive_set_cp(tgpi, tgpi->end, color, 20);
+	UI_GetThemeColor4fv(TH_REDALERT, color);
+	gp_primitive_set_cp(tgpi, tgpi->origin, color, 10);
+	gp_primitive_set_cp(tgpi, center, color, 15);
+	gp_primitive_set_cp(tgpi, radius, color, 15);
 
 }
 
@@ -526,7 +535,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 
 	gps->totpoints = (tgpi->tot_edges + tgpi->tot_stored_edges);
 
-	tgpi->tot_cp_points = 0;
+	tgpi->gpd->runtime.tot_cp_points = 0;
 
 	/* compute screen-space coordinates for points */
 	tGPspoint *points2D = tgpi->points;
@@ -695,10 +704,10 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	}
 
 	/* store cps and convert coords, this is temporary code */
-	if (tgpi->tot_cp_points > 0) {
-		tGPcontrolpoint *cps = tgpi->cp_points;
-		for (int i = 0; i < tgpi->tot_cp_points; i++) {
-			tGPcontrolpoint *cp = &cps[i];
+	if (tgpi->gpd->runtime.tot_cp_points > 0) {
+		bGPDcontrolpoint *cps = tgpi->gpd->runtime.cp_points;
+		for (int i = 0; i < tgpi->gpd->runtime.tot_cp_points; i++) {
+			bGPDcontrolpoint *cp = &cps[i];
 			gp_stroke_convertcoords_tpoint(tgpi->scene, tgpi->ar, tgpi->ob, tgpi->gpl, (tGPspoint *)cp, NULL, &cp->x);
 		}
 		tgpi->draw_cp_points = true;
@@ -782,7 +791,8 @@ static void gpencil_primitive_exit(bContext *C, wmOperator *op)
 		ED_workspace_status_text(C, NULL);
 
 		MEM_SAFE_FREE(tgpi->points);
-		MEM_SAFE_FREE(tgpi->cp_points);
+		tgpi->gpd->runtime.tot_cp_points = 0;
+		MEM_SAFE_FREE(tgpi->gpd->runtime.cp_points);
 		/* finally, free memory used by temp data */
 		BKE_gpencil_free_strokes(tgpi->gpf);
 		MEM_SAFE_FREE(tgpi->gpf);
@@ -822,8 +832,6 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 	op->customdata = tgpi;
 
 	tgpi->points = MEM_callocN(sizeof(tGPspoint), "gp primitive points2D");
-	tgpi->cp_points = MEM_callocN(sizeof(tGPcontrolpoint) * MAX_CP, "gp primitive cpoint");
-	tgpi->tot_cp_points = 0;
 
 	/* set current scene and window info */
 	tgpi->bmain = CTX_data_main(C);
@@ -841,6 +849,10 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 
 	/* set GP datablock */
 	tgpi->gpd = gpd;
+
+	/* control points */
+	tgpi->gpd->runtime.cp_points = MEM_callocN(sizeof(bGPDcontrolpoint) * MAX_CP, "gp primitive cpoint");
+	tgpi->gpd->runtime.tot_cp_points = 0;
 
 	/* getcolor info */
 	tgpi->mat = BKE_gpencil_material_ensure(bmain, tgpi->ob);

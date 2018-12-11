@@ -1441,15 +1441,13 @@ static void gp_primitive_draw_point(const tGPDprimitive *tgpi)
 	//glEnable(GL_BLEND);
 	immBindBuiltinProgram(GPU_SHADER_3D_POINT_VARYING_SIZE_VARYING_COLOR);
 	GPU_enable_program_point_size();
-	immBegin(GPU_PRIM_POINTS, tgpi->tot_cp_points);
+	immBegin(GPU_PRIM_POINTS, tgpi->gpd->runtime.tot_cp_points);
 
-	tGPcontrolpoint *cps = tgpi->cp_points;
-	for (int i = 0; i < tgpi->tot_cp_points; i++) {
-		tGPcontrolpoint *cp = &cps[i];
-		float ink[4];
-		UI_GetThemeColor4fv(cp->color, ink);
-		ink[3] = 0.5f;
-		immAttr4fv(color, ink);
+	bGPDcontrolpoint *cps = tgpi->gpd->runtime.cp_points;
+	for (int i = 0; i < tgpi->gpd->runtime.tot_cp_points; i++) {
+		bGPDcontrolpoint *cp = &cps[i];
+		cp->color[3] = 0.5f;
+		immAttr4fv(color, cp->color);
 		immAttr1f(size, (float)cp->size); 
 		immVertex3fv(pos, &cp->x);
 	}

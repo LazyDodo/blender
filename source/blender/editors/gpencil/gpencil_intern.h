@@ -159,8 +159,6 @@ typedef struct tGPDprimitive {
 	short cyclic;                     /* cyclic option */
 	short flip;                       /* flip option */
 	tGPspoint *points;                /* array of data-points for stroke */
-	tGPcontrolpoint *cp_points;       /* array of control-points for stroke */
-	int tot_cp_points;                /* array of control-points for stroke */
 	bool draw_cp_points;              /* array of control-points for stroke */
 	int point_count;                  /* number of edges allocated */
 	int tot_stored_edges;             /* stored number of polygon edges */

@@ -81,13 +81,6 @@ typedef struct tGPspoint {
 	float uv_rot;           /* uv rotation for dor mode */
 } tGPspoint;
 
-/* Temporary 'Control Point' data for curves */
-typedef struct tGPcontrolpoint {
-	float x, y, z;          /* x and y coordinates of control point */
-	int color;              /* theme color */
-	int size;               /* radius */
-} tGPcontrolpoint;
-
 /* used to sort by zdepth gpencil objects in viewport */
 /* TODO: this could be a system parameter in userprefs screen */
 #define GP_CACHE_BLOCK_SIZE 16
