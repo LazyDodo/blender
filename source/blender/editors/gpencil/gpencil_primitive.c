@@ -819,6 +819,12 @@ static void gpencil_primitive_exit(bContext *C, wmOperator *op)
 		/* finally, free memory used by temp data */
 		BKE_gpencil_free_strokes(tgpi->gpf);
 		MEM_SAFE_FREE(tgpi->gpf);
+
+		/* free random seed */
+		if (tgpi->rng != NULL) {
+			BLI_rng_free(tgpi->rng);
+		}
+
 		MEM_freeN(tgpi);
 	}
 
