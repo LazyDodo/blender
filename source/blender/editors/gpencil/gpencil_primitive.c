@@ -438,11 +438,9 @@ static void gp_primitive_line(tGPDprimitive *tgpi, tGPspoint *points2D)
 			a += step;
 		}
 
-#if 0 /* GPXX Do we need this? */
 		float color[4];
 		UI_GetThemeColor4fv(TH_REDALERT, color);
 		gp_primitive_set_cp(tgpi, tgpi->origin, color, SMALL_SIZE_CTL);
-#endif  
 	}
 }
 
