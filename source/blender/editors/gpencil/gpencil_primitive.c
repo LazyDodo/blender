@@ -302,18 +302,6 @@ static void gp_primitive_set_cp(tGPDprimitive *tgpi, float p[2], float color[4],
 	}
 }
 
-/* ----------------------- */
-/* Drawing Callbacks */
-
-/* Drawing callback for modal operator in 3d mode */
-static void gpencil_primitive_draw_3d(const bContext *C, ARegion *UNUSED(ar), void *arg)
-{
-	tGPDprimitive *tgpi = (tGPDprimitive *)arg;
-	ED_gp_draw_primitives(C, tgpi, REGION_DRAW_POST_VIEW);
-}
-
-/* ----------------------- */
-
 /* Helper: Draw status message while the user is running the operator */
 static void gpencil_primitive_status_indicators(bContext *C, tGPDprimitive *tgpi)
 {
@@ -797,11 +785,6 @@ static void gpencil_primitive_exit(bContext *C, wmOperator *op)
 
 	/* don't assume that operator data exists at all */
 	if (tgpi) {
-		/* remove drawing handler */
-		if (tgpi->draw_handle_3d) {
-			ED_region_draw_cb_exit(tgpi->ar->type, tgpi->draw_handle_3d);
-		}
-
 		/* clear status message area */
 		ED_workspace_status_text(C, NULL);
 
@@ -928,9 +911,6 @@ static int gpencil_primitive_invoke(bContext *C, wmOperator *op, const wmEvent *
 	 */
 	op->flag |= OP_IS_MODAL_CURSOR_REGION;
 
-	/* Enable custom drawing handlers */
-	tgpi->draw_handle_3d = ED_region_draw_cb_activate(tgpi->ar->type, gpencil_primitive_draw_3d, tgpi, REGION_DRAW_POST_VIEW);
-	
 	/* set cursor to indicate modal */
 	WM_cursor_modal_set(win, BC_CROSSCURSOR);
 

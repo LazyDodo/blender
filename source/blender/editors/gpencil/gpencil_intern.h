@@ -175,14 +175,12 @@ typedef struct tGPDprimitive {
 	int lock_axis;                    /* lock to viewport axis */
 
 	NumInput num;                     /* numeric input */
-	void *draw_handle_3d;             /* handle for drawing strokes while operator is running 3d stuff */
 } tGPDprimitive;
 
 
 /* Modal Operator Drawing Callbacks ------------------------ */
 
 void ED_gp_draw_interpolation(const struct bContext *C, struct tGPDinterpolate *tgpi, const int type);
-void ED_gp_draw_primitives(const struct bContext *C, struct tGPDprimitive *tgpi, const int type);
 void ED_gp_draw_fill(struct tGPDdraw *tgpw);
 
 /* ***************************************************** */
