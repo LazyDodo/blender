@@ -102,10 +102,16 @@
 #define SELECT_CP2 3
 #define SELECT_END 4
 
+<<<<<<< HEAD
 #define BIG_SIZE_CTL    15
 #define MID_SIZE_CTL    10
 #define SMALL_SIZE_CTL   8 
 
+=======
+#define BIG_SIZE_CTL    10
+#define MID_SIZE_CTL    15
+#define SMALL_SIZE_CTL  20 
+>>>>>>> GP: Primitive, add noise to box and circle
   /* ************************************************ */
   /* Core/Shared Utilities */
 
@@ -221,7 +227,7 @@ static bool gpencil_primitive_add_poll(bContext *C)
 
 /* Allocate memory to stroke, adds MAX_EDGES on every call */
 static void gpencil_primitive_allocate_memory(tGPDprimitive *tgpi) {
-	tgpi->point_count += (MAX_EDGES + 1);
+	tgpi->point_count += (tgpi->type == GP_STROKE_BOX) ? (MAX_EDGES * 4 + 1) : (MAX_EDGES + 1);
 	bGPDstroke *gpsf = tgpi->gpf->strokes.first;
 	gpsf->points = MEM_reallocN(gpsf->points, sizeof(bGPDspoint) * tgpi->point_count);
 	if (gpsf->dvert != NULL)
@@ -299,6 +305,13 @@ static void gp_primitive_set_initdata(bContext *C, tGPDprimitive *tgpi)
 
 }
 
+/* add new segment to curve */
+static void gpencil_primitive_add_segment(tGPDprimitive *tgpi)
+{
+	tgpi->tot_stored_edges += tgpi->tot_edges;
+	gpencil_primitive_allocate_memory(tgpi);
+}
+
 /* Helper: set control point */
 static void gp_primitive_set_cp(tGPDprimitive *tgpi, float p[2], float color[4], int size)
 {
@@ -322,7 +335,7 @@ static void gpencil_primitive_status_indicators(bContext *C, tGPDprimitive *tgpi
 	char msg_str[UI_MAX_DRAW_STR];
 
 	if (tgpi->type == GP_STROKE_BOX) {
-		BLI_strncpy(msg_str, IFACE_("Rectangle: ESC/RMB to cancel, LMB set origin, Enter/LMB to confirm, Shift to square, Alt to center"), UI_MAX_DRAW_STR);
+		BLI_strncpy(msg_str, IFACE_("Rectangle: ESC/RMB to cancel, LMB set origin, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center"), UI_MAX_DRAW_STR);
 	}
 	else if (tgpi->type == GP_STROKE_LINE) {
 		BLI_strncpy(msg_str, IFACE_("Line: ESC/RMB to cancel, LMB set origin, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to align, Alt to center"), UI_MAX_DRAW_STR);
@@ -377,21 +390,35 @@ static void gpencil_primitive_status_indicators(bContext *C, tGPDprimitive *tgpi
 /* create a rectangle */
 static void gp_primitive_rectangle(tGPDprimitive *tgpi, tGPspoint *points2D)
 {
-	BLI_assert(tgpi->tot_edges == 4);
+	float coords[5][2];
 
+	coords[0][0] = tgpi->start[0];
+	coords[0][1] = tgpi->start[1];
+	coords[1][0] = tgpi->end[0];
+	coords[1][1] = tgpi->start[1];
+	coords[2][0] = tgpi->end[0];
+	coords[2][1] = tgpi->end[1];
+	coords[3][0] = tgpi->start[0];
+	coords[3][1] = tgpi->end[1];
+	coords[4][0] = tgpi->start[0];
+	coords[4][1] = tgpi->start[1];
+
+	const float step = 1.0f / (float)(tgpi->tot_edges);
 	int i = tgpi->tot_stored_edges;
 
-	points2D[i].x = tgpi->start[0];
-	points2D[i].y = tgpi->start[1];
+	for (int j = 0; j < 4; j++) {
+		float a = 0.0f;
+		for (int k = 0; k < tgpi->tot_edges; k++) {
+			tGPspoint *p2d = &points2D[i];
+			interp_v2_v2v2(&p2d->x, coords[j], coords[j + 1], a);
+			a += step;
+			i++;
+		}
+	}
 
-	points2D[i + 1].x = tgpi->end[0];
-	points2D[i + 1].y = tgpi->start[1];
-
-	points2D[i + 2].x = tgpi->end[0];
-	points2D[i + 2].y = tgpi->end[1];
-
-	points2D[i + 3].x = tgpi->start[0];
-	points2D[i + 3].y = tgpi->end[1];
+	float color[4];
+	UI_GetThemeColor4fv(TH_REDALERT, color);
+	gp_primitive_set_cp(tgpi, tgpi->origin, color, 10);
 }
 
 /* create a line */
@@ -423,7 +450,6 @@ static void gp_primitive_line(tGPDprimitive *tgpi, tGPspoint *points2D)
 		gp_primitive_set_cp(tgpi, tgpi->origin, color, SMALL_SIZE_CTL);
 #endif  
 	}
-
 }
 
 /* unused at the moment */
@@ -442,7 +468,6 @@ void interp_v2_v2v2v2_quadratic(
 static void gp_primitive_arc(tGPDprimitive *tgpi, tGPspoint *points2D)
 {
 	const int totpoints = (tgpi->tot_edges + tgpi->tot_stored_edges);
-	
 	const float step = M_PI_2 / (float)(tgpi->tot_edges - 1);
 	float length[2];
 	float start[2];
@@ -537,7 +562,6 @@ static void gp_primitive_circle(tGPDprimitive *tgpi, tGPspoint *points2D)
 	gp_primitive_set_cp(tgpi, tgpi->origin, color, SMALL_SIZE_CTL);
 	gp_primitive_set_cp(tgpi, center, color, MID_SIZE_CTL);
 	gp_primitive_set_cp(tgpi, radius, color, MID_SIZE_CTL);
-
 }
 
 /* Helper: Update shape of the stroke */
@@ -552,7 +576,10 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	char *align_flag = &ts->gpencil_v3d_align;
 	bool is_depth = (bool)(*align_flag & (GP_PROJECT_DEPTH_VIEW | GP_PROJECT_DEPTH_STROKE));
 
-	gps->totpoints = (tgpi->tot_edges + tgpi->tot_stored_edges);
+	if (tgpi->type == GP_STROKE_BOX)
+		gps->totpoints = (tgpi->tot_edges * 4 + tgpi->tot_stored_edges);
+	else
+		gps->totpoints = (tgpi->tot_edges + tgpi->tot_stored_edges);
 
 	tgpi->gpd->runtime.tot_cp_points = 0;
 
@@ -680,26 +707,28 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 
 		/* calc pressure */
 		float pressure = 1.0;
-		if (ELEM(tgpi->type, GP_STROKE_ARC, GP_STROKE_BEZIER, GP_STROKE_LINE)) {
-			/* apply randomness to pressure */
-			if ((brush->gpencil_settings->flag & GP_BRUSH_GROUP_RANDOM))
-			{
-				float rnd = BLI_rng_get_float(tgpi->rng);
-				if (rnd > 0.5f) {
-					pressure -= brush->gpencil_settings->draw_random_press * rnd;
-				}
-				else {
-					pressure += brush->gpencil_settings->draw_random_press * rnd;
-				}
+
+		/* apply randomness to pressure */
+		if ((brush->gpencil_settings->flag & GP_BRUSH_GROUP_RANDOM))
+		{
+			float rnd = BLI_rng_get_float(tgpi->rng);
+			if (rnd > 0.5f) {
+				pressure -= brush->gpencil_settings->draw_random_press * rnd;
 			}
-			/* normalize value to evaluate curve */
+			else {
+				pressure += brush->gpencil_settings->draw_random_press * rnd;
+			}
+		}
+		/* normalize value to evaluate curve */
+		if (ELEM(tgpi->type, GP_STROKE_ARC, GP_STROKE_BEZIER, GP_STROKE_LINE)) {
 			if (gset->flag & GP_SCULPT_SETT_FLAG_PRIMITIVE_CURVE) {
 				float value = (float)i / (gps->totpoints - 1);
 				float curvef = curvemapping_evaluateF(gset->cur_primitive, 0, value);
 				pressure *= curvef;
 			}
-			CLAMP_MIN(pressure, 0.1f);
+			
 		}
+		CLAMP_MIN(pressure, 0.1f);
 
 		tpt->pressure = pressure;
 		tpt->strength = tgpi->brush->gpencil_settings->draw_strength;
@@ -771,13 +800,6 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	DEG_id_tag_update(&gpd->id, ID_RECALC_COPY_ON_WRITE);
 	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
-}
-
-/* add new segment to curve */
-static void gpencil_primitive_add_segment(tGPDprimitive *tgpi)
-{
-	tgpi->tot_stored_edges += tgpi->tot_edges;
-	gpencil_primitive_allocate_memory(tgpi);
 }
 
 /* Update screen and stroke */
@@ -897,23 +919,16 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 		tgpi->curve = false;
 
 	/* set default edge count */
-	if (tgpi->type == GP_STROKE_CIRCLE) {
+	
+	if (tgpi->type == GP_STROKE_BOX)
+		RNA_int_set(op->ptr, "edges", 32);
+	else if (tgpi->type == GP_STROKE_CIRCLE)
+		RNA_int_set(op->ptr, "edges", 96);
+	else
 		RNA_int_set(op->ptr, "edges", 64);
-	}
-	else if (tgpi->curve) {
-		RNA_int_set(op->ptr, "edges", 32);
-	}
-	else if (tgpi->type == GP_STROKE_BOX) {
-		RNA_int_set(op->ptr, "edges", 4);
-	}
-	else { /* LINE */
-		RNA_int_set(op->ptr, "edges", 32);
-	}
-
 	tgpi->tot_stored_edges = 0;
 	tgpi->tot_edges = RNA_int_get(op->ptr, "edges");
 	tgpi->flag = IDLE;
-
 	tgpi->lock_axis = ts->gp_sculpt.lock_axis;
 
 	/* set temp layer, frame and stroke */
@@ -1303,7 +1318,7 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 		case PADPLUSKEY:
 		case WHEELUPMOUSE:
 		{
-			if ((event->val != KM_RELEASE) && ELEM(tgpi->type, GP_STROKE_CIRCLE, GP_STROKE_ARC, GP_STROKE_LINE)) {
+			if ((event->val != KM_RELEASE)) {
 				tgpi->tot_edges = tgpi->tot_edges + 1;
 				CLAMP(tgpi->tot_edges, MIN_EDGES, MAX_EDGES);
 				RNA_int_set(op->ptr, "edges", tgpi->tot_edges);
@@ -1316,7 +1331,7 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 		case PADMINUS:
 		case WHEELDOWNMOUSE:
 		{
-			if ((event->val != KM_RELEASE) && ELEM(tgpi->type, GP_STROKE_CIRCLE, GP_STROKE_ARC, GP_STROKE_LINE)) {
+			if ((event->val != KM_RELEASE)) {
 				tgpi->tot_edges = tgpi->tot_edges - 1;
 				CLAMP(tgpi->tot_edges, MIN_EDGES, MAX_EDGES);
 				RNA_int_set(op->ptr, "edges", tgpi->tot_edges);
