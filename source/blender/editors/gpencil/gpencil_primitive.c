@@ -556,7 +556,6 @@ static void gp_primitive_circle(tGPDprimitive *tgpi, tGPspoint *points2D)
 	UI_GetThemeColor4fv(TH_REDALERT, color);
 	gp_primitive_set_cp(tgpi, tgpi->origin, color, SMALL_SIZE_CTL);
 	gp_primitive_set_cp(tgpi, center, color, MID_SIZE_CTL);
-	gp_primitive_set_cp(tgpi, radius, color, MID_SIZE_CTL);
 }
 
 /* Helper: Update shape of the stroke */
