@@ -434,7 +434,7 @@ DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(
 		DRW_shgroup_uniform_int(grp, "xraymode", (const int *) &gpd->xray_mode, 1);
 	}
 	else {
-		/* for drawing always on front */
+		/* for drawing always on predefined z-depth */
 		DRW_shgroup_uniform_int(grp, "xraymode", &stl->storage->xray, 1);
 	}
 
@@ -527,7 +527,7 @@ static DRWShadingGroup *DRW_gpencil_shgroup_point_create(
 		DRW_shgroup_uniform_int(grp, "xraymode", (const int *)&gpd->xray_mode, 1);
 	}
 	else {
-		/* for drawing always on front */
+		/* for drawing always on on predefined z-depth */
 		DRW_shgroup_uniform_int(grp, "xraymode", &stl->storage->xray, 1);
 	}
 
