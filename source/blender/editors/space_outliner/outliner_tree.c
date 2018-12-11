@@ -1315,7 +1315,8 @@ static void outliner_add_layer_collections_recursive(
 
 		const bool exclude = (lc->flag & LAYER_COLLECTION_EXCLUDE) != 0;
 		if (exclude ||
-		    ((lc->runtime_flag & LAYER_COLLECTION_VISIBLE) == 0))
+		    ((layer->runtime_flag & VIEW_LAYER_HAS_HIDE) &&
+		     !(lc->runtime_flag & LAYER_COLLECTION_HAS_VISIBLE_OBJECTS)))
 		{
 			ten->flag |= TE_DISABLED;
 		}
