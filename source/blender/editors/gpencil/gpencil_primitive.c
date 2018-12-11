@@ -344,7 +344,7 @@ static void gpencil_primitive_status_indicators(bContext *C, tGPDprimitive *tgpi
 		BLI_strncpy(msg_str, IFACE_("Circle: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center"), UI_MAX_DRAW_STR);
 	}
 
-	if (ELEM(tgpi->type, GP_STROKE_CIRCLE, GP_STROKE_ARC, GP_STROKE_LINE)) {
+	if (ELEM(tgpi->type, GP_STROKE_CIRCLE, GP_STROKE_ARC, GP_STROKE_LINE, GP_STROKE_BOX)) {
 		if (hasNumInput(&tgpi->num)) {
 			char str_offs[NUM_STR_REP_LEN];
 
