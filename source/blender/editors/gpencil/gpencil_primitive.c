@@ -337,8 +337,8 @@ static void gpencil_primitive_status_indicators(bContext *C, tGPDprimitive *tgpi
 	else if (tgpi->type == GP_STROKE_ARC) {
 		BLI_strncpy(msg_str, IFACE_("Arc: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center, F to flip, C to Close"), UI_MAX_DRAW_STR);
 	}
-	else if (tgpi->type == GP_STROKE_BEZIER) {
-		BLI_strncpy(msg_str, IFACE_("Bezier: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center, C to Close"), UI_MAX_DRAW_STR);
+	else if (tgpi->type == GP_STROKE_CURVE) {
+		BLI_strncpy(msg_str, IFACE_("Curve: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center, C to Close"), UI_MAX_DRAW_STR);
 	}
 	else {
 		BLI_strncpy(msg_str, IFACE_("Circle: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center"), UI_MAX_DRAW_STR);
@@ -595,13 +595,13 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		case GP_STROKE_ARC:
 			gp_primitive_arc(tgpi, points2D);
 			break;
-		case GP_STROKE_BEZIER:
+		case GP_STROKE_CURVE:
 			gp_primitive_bezier(tgpi, points2D);
 		default:
 			break;
 	}
 
-	if (ELEM(tgpi->type, GP_STROKE_ARC, GP_STROKE_BEZIER)) {
+	if (ELEM(tgpi->type, GP_STROKE_ARC, GP_STROKE_CURVE)) {
 		if (tgpi->cyclic)
 			gps->flag |= GP_STROKE_CYCLIC;
 		else
@@ -714,7 +714,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 			}
 		}
 		/* normalize value to evaluate curve */
-		if (ELEM(tgpi->type, GP_STROKE_ARC, GP_STROKE_BEZIER, GP_STROKE_LINE)) {
+		if (ELEM(tgpi->type, GP_STROKE_ARC, GP_STROKE_CURVE, GP_STROKE_LINE)) {
 			if (gset->flag & GP_SCULPT_SETT_FLAG_PRIMITIVE_CURVE) {
 				float value = (float)i / (gps->totpoints - 1);
 				float curvef = curvemapping_evaluateF(gset->cur_primitive, 0, value);
@@ -907,7 +907,7 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 	/* set parameters */
 	tgpi->type = RNA_enum_get(op->ptr, "type");
 
-	if(ELEM(tgpi->type, GP_STROKE_ARC, GP_STROKE_BEZIER))
+	if(ELEM(tgpi->type, GP_STROKE_ARC, GP_STROKE_CURVE))
 		tgpi->curve = true;
 	else
 		tgpi->curve = false;
@@ -1232,7 +1232,7 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 	copy_v2fl_v2i(tgpi->mval, event->mval);
 
 	/* bezier event handling */
-	if (tgpi->type == GP_STROKE_BEZIER)
+	if (tgpi->type == GP_STROKE_CURVE)
 		gpencil_primitive_bezier_event_handling(C, op, win, event, tgpi);
 	else if (tgpi->type == GP_STROKE_ARC)
 		gpencil_primitive_arc_event_handling(C, op, win, event, tgpi);
@@ -1246,7 +1246,7 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 				tgpi->flag = IN_PROGRESS;
 				gpencil_primitive_interaction_begin(tgpi, event);
 			}
-			else if ((event->val == KM_RELEASE) && (tgpi->flag == IN_PROGRESS) && (tgpi->type != GP_STROKE_BEZIER)) {
+			else if ((event->val == KM_RELEASE) && (tgpi->flag == IN_PROGRESS) && (tgpi->type != GP_STROKE_CURVE)) {
 				/* stop drawing primitive */
 				tgpi->flag = IDLE;
 				gpencil_primitive_interaction_end(C, op, win, tgpi);
@@ -1421,7 +1421,7 @@ void GPENCIL_OT_primitive(wmOperatorType *ot)
 		{GP_STROKE_LINE, "LINE", 0, "Line", ""},
 		{GP_STROKE_CIRCLE, "CIRCLE", 0, "Circle", ""},
 		{GP_STROKE_ARC, "ARC", 0, "Arc", ""},
-		{GP_STROKE_BEZIER, "BEZIER", 0, "Bezier", ""},
+		{GP_STROKE_CURVE, "CURVE", 0, "Curve", ""},
 		{0, NULL, 0, NULL, NULL}
 	};
 

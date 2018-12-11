@@ -5707,13 +5707,13 @@ def km_3d_view_tool_gpencil_paint_arc(params):
         ]},
     )
 
-def km_3d_view_tool_gpencil_paint_bezier(params):
+def km_3d_view_tool_gpencil_paint_curve(params):
     return (
-        "3D View Tool: Gpencil Paint, Bezier",
+        "3D View Tool: Gpencil Paint, Curve",
         {"space_type": 'VIEW_3D', "region_type": 'WINDOW'},
         {"items": [
             ("gpencil.primitive", {"type": params.tool_tweak, "value": 'ANY'},
-             {"properties": [("type", 'BEZIER'), ("wait_for_input", False)]}),
+             {"properties": [("type", 'CURVE'), ("wait_for_input", False)]}),
         ]},
     )	
 
@@ -5990,7 +5990,7 @@ def generate_keymaps(params=None):
         km_3d_view_tool_gpencil_paint_box(params),
         km_3d_view_tool_gpencil_paint_circle(params),
         km_3d_view_tool_gpencil_paint_arc(params),
-        km_3d_view_tool_gpencil_paint_bezier(params),
+        km_3d_view_tool_gpencil_paint_curve(params),
         km_3d_view_tool_gpencil_edit_select(params),
         km_3d_view_tool_gpencil_edit_select_box(params),
         km_3d_view_tool_gpencil_edit_select_circle(params),

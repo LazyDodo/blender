@@ -301,7 +301,7 @@ class _draw_left_context_mode:
                 return
 
             is_paint = True
-            if (tool.name in {"Line", "Box", "Circle", "Arc", "Bezier"}):
+            if (tool.name in {"Line", "Box", "Circle", "Arc", "Curve"}):
                 is_paint = False
             elif (not tool.has_datablock):
                 return
@@ -375,7 +375,7 @@ class _draw_left_context_mode:
 
                 draw_color_selector()
 
-                if tool.name in {"Arc", "Bezier", "Line"}:
+                if tool.name in {"Arc", "Curve", "Line"}:
                     settings = context.tool_settings.gpencil_sculpt
                     row = layout.row(align=True)
                     row.prop(settings, "use_thickness_curve", text="", icon='CURVE_DATA')

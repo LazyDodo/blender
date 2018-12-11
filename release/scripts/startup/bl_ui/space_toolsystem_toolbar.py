@@ -1079,10 +1079,10 @@ class _defs_gpencil_paint:
 		
 
     @ToolDef.from_fn
-    def bezier():
+    def curve():
         return dict(
-            text="Bezier",
-            icon="ops.gpencil.primitive_bezier",
+            text="Curve",
+            icon="ops.gpencil.primitive_curve",
             cursor='CROSSHAIR',
             widget=None,
             keymap=(),
@@ -1594,7 +1594,7 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             _defs_gpencil_paint.box,
             _defs_gpencil_paint.circle,
             _defs_gpencil_paint.arc,
-            _defs_gpencil_paint.bezier,
+            _defs_gpencil_paint.curve,
         ],
         'GPENCIL_EDIT': [
             *_tools_gpencil_select,
