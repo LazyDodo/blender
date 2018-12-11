@@ -128,9 +128,6 @@ static void gp_session_validatebuffer(tGPDprimitive *p)
 	/* reset flags */
 	gpd->runtime.sbuffer_sflag = 0;
 	gpd->runtime.sbuffer_sflag |= GP_STROKE_3DSPACE;
-	if (p->cyclic) {
-		gpd->runtime.sbuffer_sflag |= GP_STROKE_CYCLIC;
-	}
 }
 
 static void gp_init_colors(tGPDprimitive *p)
@@ -268,12 +265,9 @@ static void gp_primitive_set_initdata(bContext *C, tGPDprimitive *tgpi)
 	gps->flag |= GP_STROKE_RECALC_CACHES;
 	gps->flag &= ~GP_STROKE_SELECT;
 	/* the polygon must be closed, so enabled cyclic */
-	if (tgpi->type != GP_STROKE_LINE && tgpi->type != GP_STROKE_ARC) {
+	if (ELEM(tgpi->type,GP_STROKE_BOX ,GP_STROKE_CIRCLE))
 		gps->flag |= GP_STROKE_CYCLIC;
-	}
-	else {
-		gps->flag &= ~GP_STROKE_CYCLIC;
-	}
+
 	gps->flag |= GP_STROKE_3DSPACE;
 
 	gps->mat_nr = BKE_gpencil_get_material_index(tgpi->ob, tgpi->mat) - 1;
@@ -581,15 +575,12 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	tGPspoint *points2D = tgpi->points;
 	switch (tgpi->type) {
 		case GP_STROKE_BOX:
-			tgpi->cyclic = true;
 			gp_primitive_rectangle(tgpi, points2D);
 			break;
 		case GP_STROKE_LINE:
-			tgpi->cyclic = false;
 			gp_primitive_line(tgpi, points2D);
 			break;
 		case GP_STROKE_CIRCLE:
-			tgpi->cyclic = true;
 			gp_primitive_circle(tgpi, points2D);
 			break;
 		case GP_STROKE_ARC:
@@ -600,13 +591,6 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		default:
 			break;
 	}
-
-	if (ELEM(tgpi->type, GP_STROKE_ARC, GP_STROKE_BEZIER)) {
-		if (tgpi->cyclic)
-			gps->flag |= GP_STROKE_CYCLIC;
-		else
-			gps->flag &= ~GP_STROKE_CYCLIC;
-	}	
 
 	/* convert screen-coordinates to 3D coordinates */
 	gp_session_validatebuffer(tgpi);
@@ -1288,16 +1272,6 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 
 			/* canceled! */
 			return OPERATOR_CANCELLED;
-		}
-		case CKEY:
-		{
-			if ((event->val == KM_RELEASE) && tgpi->type == GP_STROKE_ARC) {
-				tgpi->cyclic ^= 1;
-
-				/* update screen */
-				gpencil_primitive_update(C, op, tgpi);
-			}
-			break;
 		}
 		case FKEY:
 		{
