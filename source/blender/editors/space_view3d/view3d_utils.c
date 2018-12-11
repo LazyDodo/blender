@@ -91,25 +91,15 @@ void ED_view3d_background_color_get(const Scene *scene, const View3D *v3d, float
 	}
 }
 
-View3DCursor *ED_view3d_cursor3d_get(Scene *scene, View3D *v3d)
+void ED_view3d_cursor3d_calc_mat3(const Scene *scene, float mat[3][3])
 {
-	if (v3d && v3d->localvd) {
-		return &v3d->cursor;
-	}
-	else {
-		return &scene->cursor;
-	}
-}
-
-void ED_view3d_cursor3d_calc_mat3(const Scene *scene, const View3D *v3d, float mat[3][3])
-{
-	const View3DCursor *cursor = ED_view3d_cursor3d_get((Scene *)scene, (View3D *)v3d);
+	const View3DCursor *cursor = &scene->cursor;
 	quat_to_mat3(mat, cursor->rotation);
 }
 
-void ED_view3d_cursor3d_calc_mat4(const Scene *scene, const View3D *v3d, float mat[4][4])
+void ED_view3d_cursor3d_calc_mat4(const Scene *scene, float mat[4][4])
 {
-	const View3DCursor *cursor = ED_view3d_cursor3d_get((Scene *)scene, (View3D *)v3d);
+	const View3DCursor *cursor = &scene->cursor;
 	quat_to_mat4(mat, cursor->rotation);
 	copy_v3_v3(mat[3], cursor->location);
 }
@@ -541,7 +531,7 @@ bool ED_view3d_camera_lock_sync(const Depsgraph *depsgraph, View3D *v3d, RegionV
 
 			ob_update = v3d->camera;
 			while (ob_update) {
-				DEG_id_tag_update(&ob_update->id, OB_RECALC_OB);
+				DEG_id_tag_update(&ob_update->id, ID_RECALC_TRANSFORM);
 				WM_main_add_notifier(NC_OBJECT | ND_TRANSFORM, ob_update);
 				ob_update = ob_update->parent;
 			}
@@ -553,7 +543,7 @@ bool ED_view3d_camera_lock_sync(const Depsgraph *depsgraph, View3D *v3d, RegionV
 			ED_view3d_to_object(depsgraph, v3d->camera, rv3d->ofs, rv3d->viewquat, rv3d->dist);
 			BKE_object_tfm_protected_restore(v3d->camera, &obtfm, v3d->camera->protectflag | protect_scale_all);
 
-			DEG_id_tag_update(&v3d->camera->id, OB_RECALC_OB);
+			DEG_id_tag_update(&v3d->camera->id, ID_RECALC_TRANSFORM);
 			WM_main_add_notifier(NC_OBJECT | ND_TRANSFORM, v3d->camera);
 		}
 

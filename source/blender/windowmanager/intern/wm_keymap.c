@@ -513,6 +513,20 @@ wmKeyMapItem *WM_keymap_add_item(wmKeyMap *keymap, const char *idname, int type,
 	return kmi;
 }
 
+wmKeyMapItem *WM_keymap_add_item_copy(
+        struct wmKeyMap *keymap, wmKeyMapItem *kmi_src)
+{
+	wmKeyMapItem *kmi_dst = wm_keymap_item_copy(kmi_src);
+
+	BLI_addtail(&keymap->items, kmi_dst);
+
+	keymap_item_set_id(keymap, kmi_dst);
+
+	WM_keyconfig_update_tag(keymap, kmi_dst);
+
+	return kmi_dst;
+}
+
 bool WM_keymap_remove_item(wmKeyMap *keymap, wmKeyMapItem *kmi)
 {
 	if (BLI_findindex(&keymap->items, kmi) != -1) {
@@ -792,6 +806,18 @@ wmKeyMap *WM_keymap_list_find(ListBase *lb, const char *idname, int spaceid, int
 	return NULL;
 }
 
+wmKeyMap *WM_keymap_list_find_spaceid_or_empty(ListBase *lb, const char *idname, int spaceid, int regionid)
+{
+	wmKeyMap *km;
+
+	for (km = lb->first; km; km = km->next)
+		if (ELEM(km->spaceid, spaceid, SPACE_EMPTY) && km->regionid == regionid)
+			if (STREQLEN(idname, km->idname, KMAP_MAX_NAME))
+				return km;
+
+	return NULL;
+}
+
 wmKeyMap *WM_keymap_ensure(wmKeyConfig *keyconf, const char *idname, int spaceid, int regionid)
 {
 	wmKeyMap *km = WM_keymap_list_find(&keyconf->keymaps, idname, spaceid, regionid);
@@ -811,6 +837,13 @@ wmKeyMap *WM_keymap_find_all(const bContext *C, const char *idname, int spaceid,
 	wmWindowManager *wm = CTX_wm_manager(C);
 
 	return WM_keymap_list_find(&wm->userconf->keymaps, idname, spaceid, regionid);
+}
+
+wmKeyMap *WM_keymap_find_all_spaceid_or_empty(const bContext *C, const char *idname, int spaceid, int regionid)
+{
+	wmWindowManager *wm = CTX_wm_manager(C);
+
+	return WM_keymap_list_find_spaceid_or_empty(&wm->userconf->keymaps, idname, spaceid, regionid);
 }
 
 /* ****************** modal keymaps ************ */

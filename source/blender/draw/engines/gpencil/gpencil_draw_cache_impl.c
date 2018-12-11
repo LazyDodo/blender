@@ -109,9 +109,8 @@ void DRW_gpencil_get_point_geom(GpencilBatchCacheElem *be, bGPDstroke *gps, shor
 		GPU_vertbuf_data_alloc(be->vbo, be->tot_vertex);
 		be->vbo_len = 0;
 	}
-	else {
-		gpencil_vbo_ensure_size(be, totvertex);
-	}
+	gpencil_vbo_ensure_size(be, totvertex);
+
 	/* draw stroke curve */
 	const bGPDspoint *pt = gps->points;
 	float alpha;
@@ -156,9 +155,7 @@ void DRW_gpencil_get_stroke_geom(struct GpencilBatchCacheElem *be, bGPDstroke *g
 		GPU_vertbuf_data_alloc(be->vbo, be->tot_vertex);
 		be->vbo_len = 0;
 	}
-	else {
-		gpencil_vbo_ensure_size(be, totvertex);
-	}
+	gpencil_vbo_ensure_size(be, totvertex);
 
 	/* draw stroke curve */
 	const bGPDspoint *pt = points;
@@ -229,9 +226,7 @@ void DRW_gpencil_get_fill_geom(struct GpencilBatchCacheElem *be, Object *ob, bGP
 		GPU_vertbuf_data_alloc(be->vbo, be->tot_vertex);
 		be->vbo_len = 0;
 	}
-	else {
-		gpencil_vbo_ensure_size(be, totvertex);
-	}
+	gpencil_vbo_ensure_size(be, totvertex);
 
 	/* Draw all triangles for filling the polygon (cache must be calculated before) */
 	bGPDtriangle *stroke_triangle = gps->triangles;
@@ -250,7 +245,6 @@ GPUBatch *DRW_gpencil_get_buffer_stroke_geom(bGPdata *gpd, short thickness)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
-	View3D *v3d = draw_ctx->v3d;
 	ARegion *ar = draw_ctx->ar;
 	RegionView3D *rv3d = draw_ctx->rv3d;
 	ToolSettings *ts = scene->toolsettings;
@@ -279,7 +273,7 @@ GPUBatch *DRW_gpencil_get_buffer_stroke_geom(bGPdata *gpd, short thickness)
 	/* get origin to reproject point */
 	float origin[3];
 	bGPDlayer *gpl = BKE_gpencil_layer_getactive(gpd);
-	ED_gp_get_drawing_reference(v3d, scene, ob, gpl, ts->gpencil_v3d_align, origin);
+	ED_gp_get_drawing_reference(scene, ob, gpl, ts->gpencil_v3d_align, origin);
 
 	for (int i = 0; i < totpoints; i++, tpt++) {
 		ED_gpencil_tpoint_to_point(ar, origin, tpt, &pt);
@@ -328,7 +322,6 @@ GPUBatch *DRW_gpencil_get_buffer_point_geom(bGPdata *gpd, short thickness)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
-	View3D *v3d = draw_ctx->v3d;
 	ARegion *ar = draw_ctx->ar;
 	RegionView3D *rv3d = draw_ctx->rv3d;
 	ToolSettings *ts = scene->toolsettings;
@@ -357,7 +350,7 @@ GPUBatch *DRW_gpencil_get_buffer_point_geom(bGPdata *gpd, short thickness)
 	/* get origin to reproject point */
 	float origin[3];
 	bGPDlayer *gpl = BKE_gpencil_layer_getactive(gpd);
-	ED_gp_get_drawing_reference(v3d, scene, ob, gpl, ts->gpencil_v3d_align, origin);
+	ED_gp_get_drawing_reference(scene, ob, gpl, ts->gpencil_v3d_align, origin);
 
 	for (int i = 0; i < totpoints; i++, tpt++) {
 		ED_gpencil_tpoint_to_point(ar, origin, tpt, &pt);
@@ -389,7 +382,6 @@ GPUBatch *DRW_gpencil_get_buffer_fill_geom(bGPdata *gpd)
 
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
-	View3D *v3d = draw_ctx->v3d;
 	ARegion *ar = draw_ctx->ar;
 	ToolSettings *ts = scene->toolsettings;
 	Object *ob = draw_ctx->obact;
@@ -397,7 +389,7 @@ GPUBatch *DRW_gpencil_get_buffer_fill_geom(bGPdata *gpd)
 	/* get origin to reproject point */
 	float origin[3];
 	bGPDlayer *gpl = BKE_gpencil_layer_getactive(gpd);
-	ED_gp_get_drawing_reference(v3d, scene, ob, gpl, ts->gpencil_v3d_align, origin);
+	ED_gp_get_drawing_reference(scene, ob, gpl, ts->gpencil_v3d_align, origin);
 
 	int tot_triangles = totpoints - 2;
 	/* allocate memory for temporary areas */
@@ -500,9 +492,7 @@ void DRW_gpencil_get_edit_geom(struct GpencilBatchCacheElem *be, bGPDstroke *gps
 		GPU_vertbuf_data_alloc(be->vbo, gps->totpoints);
 		be->vbo_len = 0;
 	}
-	else {
-		gpencil_vbo_ensure_size(be, gps->totpoints);
-	}
+	gpencil_vbo_ensure_size(be, gps->totpoints);
 
 	/* Draw start and end point differently if enabled stroke direction hint */
 	bool show_direction_hint = (dflag & GP_DATA_SHOW_DIRECTION) && (gps->totpoints > 1);
@@ -581,9 +571,7 @@ void DRW_gpencil_get_edlin_geom(struct GpencilBatchCacheElem *be, bGPDstroke *gp
 		GPU_vertbuf_data_alloc(be->vbo, gps->totpoints);
 		be->vbo_len = 0;
 	}
-	else {
-		gpencil_vbo_ensure_size(be, gps->totpoints);
-	}
+	gpencil_vbo_ensure_size(be, gps->totpoints);
 
 	/* Draw all the stroke lines (selected or not) */
 	bGPDspoint *pt = gps->points;

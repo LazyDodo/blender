@@ -23,7 +23,6 @@ import _cycles
 
 from bpy.types import (
     Panel,
-    Menu,
     Operator,
 )
 
@@ -48,6 +47,16 @@ class CyclesButtonsPanel:
     bl_space_type = "PROPERTIES"
     bl_region_type = "WINDOW"
     bl_context = "render"
+    COMPAT_ENGINES = {'CYCLES'}
+
+    @classmethod
+    def poll(cls, context):
+        return context.engine in cls.COMPAT_ENGINES
+
+
+class CyclesNodeButtonsPanel:
+    bl_space_type = "NODE_EDITOR"
+    bl_region_type = "UI"
     COMPAT_ENGINES = {'CYCLES'}
 
     @classmethod
@@ -328,7 +337,6 @@ class CYCLES_RENDER_PT_hair(CyclesButtonsPanel, Panel):
     def draw_header(self, context):
         layout = self.layout
         scene = context.scene
-        cscene = scene.cycles
         ccscene = scene.cycles_curves
 
         layout.prop(ccscene, "use_curves", text="")
@@ -339,7 +347,6 @@ class CYCLES_RENDER_PT_hair(CyclesButtonsPanel, Panel):
         layout.use_property_decorate = False
 
         scene = context.scene
-        cscene = scene.cycles
         ccscene = scene.cycles_curves
 
         layout.active = ccscene.use_curves
@@ -369,7 +376,6 @@ class CYCLES_RENDER_PT_volumes(CyclesButtonsPanel, Panel):
 
         scene = context.scene
         cscene = scene.cycles
-        ccscene = scene.cycles_curves
 
         col = layout.column()
         col.prop(cscene, "volume_step_size", text="Step Size")
@@ -485,7 +491,6 @@ class CYCLES_RENDER_PT_motion_blur_curve(CyclesButtonsPanel, Panel):
         layout.use_property_decorate = False
 
         scene = context.scene
-        cscene = scene.cycles
         rd = scene.render
         layout.active = rd.use_motion_blur
 
@@ -524,7 +529,6 @@ class CYCLES_RENDER_PT_film_transparency(CyclesButtonsPanel, Panel):
 
     def draw_header(self, context):
         layout = self.layout
-        rd = context.scene.render
 
         scene = context.scene
         cscene = scene.cycles
@@ -584,7 +588,6 @@ class CYCLES_RENDER_PT_performance_threads(CyclesButtonsPanel, Panel):
 
         scene = context.scene
         rd = scene.render
-        cscene = scene.cycles
 
         col = layout.column()
 
@@ -632,7 +635,6 @@ class CYCLES_RENDER_PT_performance_acceleration_structure(CyclesButtonsPanel, Pa
         layout.use_property_decorate = False
 
         scene = context.scene
-        rd = scene.render
         cscene = scene.cycles
 
         col = layout.column()
@@ -661,7 +663,6 @@ class CYCLES_RENDER_PT_performance_final_render(CyclesButtonsPanel, Panel):
 
         scene = context.scene
         rd = scene.render
-        cscene = scene.cycles
 
         col = layout.column()
 
@@ -785,7 +786,6 @@ class CYCLES_RENDER_PT_passes_light(CyclesButtonsPanel, Panel):
         layout.use_property_split = True
         layout.use_property_decorate = False
 
-        scene = context.scene
         view_layer = context.view_layer
         cycles_view_layer = view_layer.cycles
 
@@ -894,7 +894,6 @@ class CYCLES_RENDER_PT_denoising(CyclesButtonsPanel, Panel):
         scene = context.scene
         view_layer = context.view_layer
         cycles_view_layer = view_layer.cycles
-        cscene = scene.cycles
         layout = self.layout
 
         layout.prop(cycles_view_layer, "use_denoising", text="")
@@ -905,7 +904,6 @@ class CYCLES_RENDER_PT_denoising(CyclesButtonsPanel, Panel):
         layout.use_property_decorate = False
 
         scene = context.scene
-        cscene = scene.cycles
         view_layer = context.view_layer
         cycles_view_layer = view_layer.cycles
 
@@ -913,6 +911,8 @@ class CYCLES_RENDER_PT_denoising(CyclesButtonsPanel, Panel):
         split.active = cycles_view_layer.use_denoising
 
         layout = layout.column(align=True)
+        layout.prop(cycles_view_layer, "denoising_radius", text="Radius")
+        layout.prop(cycles_view_layer, "denoising_strength", slider=True, text="Strength")
         layout.prop(cycles_view_layer, "denoising_feature_strength", slider=True, text="Feature Strength")
         layout.prop(cycles_view_layer, "denoising_relative_pca")
 
@@ -999,8 +999,6 @@ class CYCLES_CAMERA_PT_dof(CyclesButtonsPanel, Panel):
         layout.use_property_split = True
 
         cam = context.camera
-        ccam = cam.cycles
-        dof_options = cam.gpu_dof
 
         split = layout.split()
 
@@ -1027,7 +1025,6 @@ class CYCLES_CAMERA_PT_dof_aperture(CyclesButtonsPanel, Panel):
 
         cam = context.camera
         ccam = cam.cycles
-        dof_options = cam.gpu_dof
 
         col = flow.column()
         col.prop(ccam, "aperture_type")
@@ -1138,7 +1135,7 @@ class CYCLES_OBJECT_PT_motion_blur(CyclesButtonsPanel, Panel):
         if CyclesButtonsPanel.poll(context) and ob:
             if ob.type in {'MESH', 'CURVE', 'CURVE', 'SURFACE', 'FONT', 'META', 'CAMERA'}:
                 return True
-            if ob.dupli_type == 'COLLECTION' and ob.dupli_group:
+            if ob.instance_type == 'COLLECTION' and ob.instance_collection:
                 return True
             # TODO(sergey): More duplicator types here?
         return False
@@ -1183,7 +1180,7 @@ class CYCLES_OBJECT_PT_cycles_settings(CyclesButtonsPanel, Panel):
         ob = context.object
         return (CyclesButtonsPanel.poll(context) and
                 ob and ((ob.type in {'MESH', 'CURVE', 'SURFACE', 'FONT', 'META', 'LIGHT'}) or
-                        (ob.dupli_type == 'COLLECTION' and ob.dupli_group)))
+                        (ob.instance_type == 'COLLECTION' and ob.instance_collection)))
 
     def draw(self, context):
         pass
@@ -1200,7 +1197,6 @@ class CYCLES_OBJECT_PT_cycles_settings_ray_visibility(CyclesButtonsPanel, Panel)
         layout.use_property_decorate = False
 
         scene = context.scene
-        cscene = scene.cycles
         ob = context.object
         cob = ob.cycles
         visibility = ob.cycles_visibility
@@ -1247,7 +1243,6 @@ class CYCLES_OBJECT_PT_cycles_settings_performance(CyclesButtonsPanel, Panel):
         cscene = scene.cycles
         ob = context.object
         cob = ob.cycles
-        visibility = ob.cycles_visibility
 
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
 
@@ -1551,11 +1546,7 @@ class CYCLES_WORLD_PT_settings(CyclesButtonsPanel, Panel):
         layout.use_property_split = True
         layout.use_property_decorate = False
 
-        world = context.world
-        cworld = world.cycles
-        # cscene = context.scene.cycles
-
-        col = layout.column()
+        layout.column()
 
 
 class CYCLES_WORLD_PT_settings_surface(CyclesButtonsPanel, Panel):
@@ -1689,15 +1680,16 @@ class CYCLES_MATERIAL_PT_settings(CyclesButtonsPanel, Panel):
     def poll(cls, context):
         return context.material and CyclesButtonsPanel.poll(context)
 
-    def draw(self, context):
+    @staticmethod
+    def draw_shared(self, mat):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
 
-        mat = context.material
-        cmat = mat.cycles
-
         layout.prop(mat, "pass_index")
+
+    def draw(self, context):
+        self.draw_shared(self, context.material)
 
 
 class CYCLES_MATERIAL_PT_settings_surface(CyclesButtonsPanel, Panel):
@@ -1705,16 +1697,12 @@ class CYCLES_MATERIAL_PT_settings_surface(CyclesButtonsPanel, Panel):
     bl_parent_id = "CYCLES_MATERIAL_PT_settings"
     bl_context = "material"
 
-    @classmethod
-    def poll(cls, context):
-        return context.material and CyclesButtonsPanel.poll(context)
-
-    def draw(self, context):
+    @staticmethod
+    def draw_shared(self, mat):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
 
-        mat = context.material
         cmat = mat.cycles
 
         col = layout.column()
@@ -1722,22 +1710,21 @@ class CYCLES_MATERIAL_PT_settings_surface(CyclesButtonsPanel, Panel):
         col.prop(cmat, "use_transparent_shadow")
         col.prop(cmat, "displacement_method", text="Displacement Method")
 
+    def draw(self, context):
+        self.draw_shared(self, context.material)
+
 
 class CYCLES_MATERIAL_PT_settings_volume(CyclesButtonsPanel, Panel):
     bl_label = "Volume"
     bl_parent_id = "CYCLES_MATERIAL_PT_settings"
     bl_context = "material"
 
-    @classmethod
-    def poll(cls, context):
-        return context.material and CyclesButtonsPanel.poll(context)
-
-    def draw(self, context):
+    @staticmethod
+    def draw_shared(self, context, mat):
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
 
-        mat = context.material
         cmat = mat.cycles
 
         col = layout.column()
@@ -1746,6 +1733,9 @@ class CYCLES_MATERIAL_PT_settings_volume(CyclesButtonsPanel, Panel):
         sub.prop(cmat, "volume_sampling", text="Sampling")
         col.prop(cmat, "volume_interpolation", text="Interpolation")
         col.prop(cmat, "homogeneous_volume", text="Homogeneous")
+
+    def draw(self, context):
+        self.draw_shared(self, context, context.material)
 
 
 class CYCLES_RENDER_PT_bake(CyclesButtonsPanel, Panel):
@@ -1827,7 +1817,7 @@ class CYCLES_RENDER_PT_bake(CyclesButtonsPanel, Panel):
             sub.prop(cbk, "use_cage", text="Cage")
             if cbk.use_cage:
                 sub.prop(cbk, "cage_extrusion", text="Extrusion")
-                sub.prop_search(cbk, "cage_object", scene, "objects", text="Cage Object")
+                sub.prop(cbk, "cage_object", text="Cage Object")
             else:
                 sub.prop(cbk, "cage_extrusion", text="Ray Distance")
 
@@ -1981,6 +1971,42 @@ class CYCLES_RENDER_PT_simplify_culling(CyclesButtonsPanel, Panel):
         sub.prop(cscene, "distance_cull_margin", text="Distance")
 
 
+class CYCLES_NODE_PT_settings(CyclesNodeButtonsPanel, Panel):
+    bl_label = "Settings"
+    bl_category = "Node"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        snode = context.space_data
+        return CyclesNodeButtonsPanel.poll(context) and \
+               snode.tree_type == 'ShaderNodeTree' and snode.id
+
+    def draw(self, context):
+        material = context.space_data.id
+        CYCLES_MATERIAL_PT_settings.draw_shared(self, material)
+
+
+class CYCLES_NODE_PT_settings_surface(CyclesNodeButtonsPanel, Panel):
+    bl_label = "Surface"
+    bl_category = "Node"
+    bl_parent_id = "CYCLES_NODE_PT_settings"
+
+    def draw(self, context):
+        material = context.space_data.id
+        CYCLES_MATERIAL_PT_settings_surface.draw_shared(self, material)
+
+
+class CYCLES_NODE_PT_settings_volume(CyclesNodeButtonsPanel, Panel):
+    bl_label = "Volume"
+    bl_category = "Node"
+    bl_parent_id = "CYCLES_NODE_PT_settings"
+
+    def draw(self, context):
+        material = context.space_data.id
+        CYCLES_MATERIAL_PT_settings_volume.draw_shared(self, context, material)
+
+
 def draw_device(self, context):
     scene = context.scene
     layout = self.layout
@@ -2109,6 +2135,9 @@ classes = (
     CYCLES_MATERIAL_PT_settings_volume,
     CYCLES_RENDER_PT_bake,
     CYCLES_RENDER_PT_debug,
+    CYCLES_NODE_PT_settings,
+    CYCLES_NODE_PT_settings_surface,
+    CYCLES_NODE_PT_settings_volume,
 )
 
 

@@ -263,7 +263,7 @@ typedef enum eScenePassType {
 	SCE_PASS_SUBSURFACE_DIRECT        = (1 << 28),
 	SCE_PASS_SUBSURFACE_INDIRECT      = (1 << 29),
 	SCE_PASS_SUBSURFACE_COLOR         = (1 << 30),
-	SCE_PASS_ROUGHNESS                = (1 << 31),
+	SCE_PASS_ROUGHNESS                = (1u << 31u),
 } eScenePassType;
 
 #define RE_PASSNAME_COMBINED "Combined"
@@ -521,7 +521,7 @@ typedef struct BakeData {
 	char save_mode;
 	char pad[3];
 
-	char cage[64];  /* MAX_NAME */
+	struct Object *cage_object;
 } BakeData;
 
 /* BakeData.normal_swizzle (char) */
@@ -1441,13 +1441,12 @@ typedef struct DisplaySafeAreas {
 /* Scene Display - used for store scene specific display settings for the 3d view */
 typedef struct SceneDisplay {
 	float light_direction[3];      /* light direction for shadows/highlight */
-	float shadow_shift;
+	float shadow_shift, shadow_focus;
 
 	/* Settings for Cavity Shader */
 	float matcap_ssao_distance;
 	float matcap_ssao_attenuation;
 	int matcap_ssao_samples;
-	int pad;
 
 	/* OpenGL render engine settings. */
 	View3DShading shading;
@@ -1586,6 +1585,7 @@ typedef struct Scene {
 	/* Physics simulation settings */
 	struct PhysicsSettings physics_settings;
 
+	void *pad8;
 	uint64_t customdata_mask;	/* XXX. runtime flag for drawing, actually belongs in the window, only used by BKE_object_handle_update() */
 	uint64_t customdata_mask_modal; /* XXX. same as above but for temp operator use (gl renders) */
 
@@ -1724,10 +1724,11 @@ enum {
 #define R_STAMP_MEMORY		0x2000
 #define R_STAMP_HIDE_LABELS	0x4000
 #define R_STAMP_FRAME_RANGE	0x8000
+#define R_STAMP_HOSTNAME	0x10000
 #define R_STAMP_ALL (R_STAMP_TIME|R_STAMP_FRAME|R_STAMP_DATE|R_STAMP_CAMERA|R_STAMP_SCENE| \
                      R_STAMP_NOTE|R_STAMP_MARKER|R_STAMP_FILENAME|R_STAMP_SEQSTRIP|        \
                      R_STAMP_RENDERTIME|R_STAMP_CAMERALENS|R_STAMP_MEMORY|                 \
-                     R_STAMP_HIDE_LABELS|R_STAMP_FRAME_RANGE)
+                     R_STAMP_HIDE_LABELS|R_STAMP_FRAME_RANGE|R_STAMP_HOSTNAME)
 
 /* RenderData.alphamode */
 #define R_ADDSKY		0
@@ -1785,7 +1786,7 @@ enum {
 
 /* RenderData.engine (scene.c) */
 extern const char *RE_engine_id_BLENDER_EEVEE;
-extern const char *RE_engine_id_BLENDER_OPENGL;
+extern const char *RE_engine_id_BLENDER_WORKBENCH;
 extern const char *RE_engine_id_CYCLES;
 
 /* **************** SCENE ********************* */
@@ -1805,24 +1806,41 @@ extern const char *RE_engine_id_CYCLES;
 #define MINAFRAMEF	-1048574.0f
 
 /* deprecate this! */
-#define TESTBASE(base)  (                                                     \
+#define TESTBASE(v3d, base)  (                                                \
+	(((v3d)->localvd == NULL) || ((v3d)->local_view_uuid & (base)->local_view_bits)) && \
+	(((1 << (base)->object->type) & (v3d)->object_type_exclude_viewport) == 0) && \
 	(((base)->flag & BASE_SELECTED) != 0) &&                                  \
 	(((base)->flag & BASE_VISIBLE) != 0))
-#define TESTBASELIB(base)  (                                                  \
+#define TESTBASELIB(v3d, base)  (                                             \
+	(((v3d)->localvd == NULL) || ((v3d)->local_view_uuid & (base)->local_view_bits)) && \
+	(((1 << (base)->object->type) & (v3d)->object_type_exclude_viewport) == 0) && \
 	(((base)->flag & BASE_SELECTED) != 0) &&                                  \
 	((base)->object->id.lib == NULL) &&                                       \
 	(((base)->flag & BASE_VISIBLE) != 0))
-#define TESTBASELIB_BGMODE(base)  (                                           \
+#define TESTBASELIB_BGMODE(v3d, base)  (                                      \
+	((v3d == NULL) || ((v3d)->localvd == NULL) || ((v3d)->local_view_uuid & (base)->local_view_bits)) && \
+	((v3d == NULL) || (((1 << (base)->object->type) & (v3d)->object_type_exclude_viewport) == 0)) && \
 	(((base)->flag & BASE_SELECTED) != 0) &&                                  \
 	((base)->object->id.lib == NULL) &&                                       \
 	(((base)->flag & BASE_VISIBLE) != 0))
-#define BASE_EDITABLE_BGMODE(base)  (                                         \
+#define BASE_EDITABLE_BGMODE(v3d, base)  (                                    \
+	((v3d == NULL) || ((v3d)->localvd == NULL) || ((v3d)->local_view_uuid & (base)->local_view_bits)) && \
+	((v3d == NULL) || (((1 << (base)->object->type) & (v3d)->object_type_exclude_viewport) == 0)) && \
 	((base)->object->id.lib == NULL) &&                                       \
 	(((base)->flag & BASE_VISIBLE) != 0))
-#define BASE_SELECTABLE(base)                                                 \
-	(((base)->flag & BASE_SELECTABLE) != 0)
-#define BASE_VISIBLE(base)  (                                                 \
-	((base)->flag & BASE_VISIBLE) != 0)
+#define BASE_SELECTABLE(v3d, base)  (                                         \
+	(((v3d)->localvd == NULL) || ((v3d)->local_view_uuid & (base)->local_view_bits)) && \
+	(((1 << (base)->object->type) & (v3d)->object_type_exclude_viewport) == 0) && \
+	(((1 << (base)->object->type) & (v3d)->object_type_exclude_select) == 0) && \
+	(((base)->flag & BASE_SELECTABLE) != 0))
+#define BASE_VISIBLE(v3d, base)  (                                            \
+	(((v3d)->localvd == NULL) || ((v3d)->local_view_uuid & (base)->local_view_bits)) && \
+	(((1 << (base)->object->type) & (v3d)->object_type_exclude_viewport) == 0) && \
+	(((base)->flag & BASE_VISIBLE) != 0))
+#define BASE_VISIBLE_BGMODE(v3d, base) ( \
+	((v3d == NULL) || ((v3d)->localvd == NULL) || ((v3d)->local_view_uuid & (base)->local_view_bits)) && \
+	((v3d == NULL) || (((1 << (base)->object->type) & (v3d)->object_type_exclude_viewport) == 0)) && \
+	(((base)->flag & BASE_VISIBLE) != 0))
 
 #define FIRSTBASE(_view_layer)  ((_view_layer)->object_bases.first)
 #define LASTBASE(_view_layer)   ((_view_layer)->object_bases.last)
@@ -2127,7 +2145,9 @@ typedef enum eGPencil_SimplifyFlags {
 	/* Remove fill external line */
 	SIMPLIFY_GPENCIL_REMOVE_FILL_LINE = (1 << 4),
 	/* Simplify Shader FX */
-	SIMPLIFY_GPENCIL_FX               = (1 << 5)
+	SIMPLIFY_GPENCIL_FX               = (1 << 5),
+	/* Simplify layer blending */
+	SIMPLIFY_GPENCIL_BLEND            = (1 << 6),
 } eGPencil_SimplifyFlags;
 
 /* ToolSettings.gpencil_*_align - Stroke Placement mode flags */

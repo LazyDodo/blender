@@ -199,6 +199,22 @@ typedef struct bPoseChannelDrawData {
 	float bbone_matrix[0][4][4];
 } bPoseChannelDrawData;
 
+struct Mat4;
+struct DualQuat;
+
+typedef struct bPoseChannelRuntime {
+	int bbone_segments;
+	char pad[4];
+
+	/* Rest and posed matrices for segments. */
+	struct Mat4 *bbone_rest_mats;
+	struct Mat4 *bbone_pose_mats;
+
+	/* Delta from rest to pose in matrix and DualQuat form. */
+	struct Mat4 *bbone_deform_mats;
+	struct DualQuat *bbone_dual_quats;
+} bPoseChannelRuntime;
+
 /* ************************************************ */
 /* Poses */
 
@@ -287,6 +303,9 @@ typedef struct bPoseChannel {
 
 	/* Points to an original pose channel. */
 	struct bPoseChannel *orig_pchan;
+
+	/* Runtime data. */
+	struct bPoseChannelRuntime runtime;
 } bPoseChannel;
 
 
@@ -673,6 +692,11 @@ typedef enum eDopeSheet_Flag {
 
 
 
+typedef struct SpaceAction_Runtime {
+	char flag;
+	char _pad0[7];
+} SpaceAction_Runtime;
+
 /* Action Editor Space. This is defined here instead of in DNA_space_types.h */
 typedef struct SpaceAction {
 	struct SpaceLink *next, *prev;
@@ -697,6 +721,8 @@ typedef struct SpaceAction {
 	char autosnap;              /* automatic keyframe snapping mode   */
 	char cache_display;         /* (eTimeline_Cache_Flag) */
 	char _pad1[6];
+
+	SpaceAction_Runtime runtime;
 } SpaceAction;
 
 /* SpaceAction flag */
@@ -719,8 +745,6 @@ typedef enum eSAction_Flag {
 	SACTION_NODRAWGCOLORS = (1 << 7),
 	/* don't draw current frame number beside frame indicator */
 	SACTION_NODRAWCFRANUM = (1 << 8),
-	/* temporary flag to force channel selections to be synced with main */
-	SACTION_TEMP_NEEDCHANSYNC = (1 << 9),
 	/* don't perform realtime updates */
 	SACTION_NOREALTIMEUPDATES = (1 << 10),
 	/* move markers as well as keyframes */
@@ -730,6 +754,13 @@ typedef enum eSAction_Flag {
 	/* show extremes */
 	SACTION_SHOW_EXTREMES = (1 << 13),
 } eSAction_Flag;
+
+
+/* SpaceAction_Runtime.flag */
+typedef enum eSAction_Runtime_Flag {
+	/** Temporary flag to force channel selections to be synced with main */
+	SACTION_RUNTIME_FLAG_NEED_CHAN_SYNC = (1 << 0),
+} eSAction_Runtime_Flag;
 
 /* SpaceAction Mode Settings */
 typedef enum eAnimEdit_Context {

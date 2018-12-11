@@ -46,6 +46,7 @@ struct ShaderFxData;
 struct Object;
 struct ReportList;
 struct Scene;
+struct View3D;
 struct ViewLayer;
 struct bConstraint;
 struct bContext;
@@ -111,8 +112,8 @@ void ED_object_parent_clear(struct Object *ob, const int type);
 void ED_object_base_select(struct Base *base, eObjectSelect_Mode mode);
 void ED_object_base_activate(struct bContext *C, struct Base *base);
 void ED_object_base_free_and_unlink(struct Main *bmain, struct Scene *scene, struct Object *ob);
-bool ED_object_base_deselect_all_ex(struct ViewLayer *view_layer, int action, bool *r_any_visible);
-bool ED_object_base_deselect_all(struct ViewLayer *view_layer, int action);
+bool ED_object_base_deselect_all_ex(struct ViewLayer *view_layer, struct View3D *v3d, int action, bool *r_any_visible);
+bool ED_object_base_deselect_all(struct ViewLayer *view_layer, struct View3D *v3d, int action);
 
 /* single object duplicate, if (dupflag == 0), fully linked, else it uses the flags given */
 struct Base *ED_object_add_duplicate(struct Main *bmain, struct Scene *scene, struct ViewLayer *view_layer, struct Base *base, int dupflag);
@@ -177,14 +178,15 @@ void ED_object_add_unit_props_size(struct wmOperatorType *ot);
 void ED_object_add_unit_props_radius(struct wmOperatorType *ot);
 void ED_object_add_generic_props(struct wmOperatorType *ot, bool do_editmode);
 void ED_object_add_mesh_props(struct wmOperatorType *ot);
-bool ED_object_add_generic_get_opts(struct bContext *C, struct wmOperator *op, const char view_align_axis,
-                                    float loc[3], float rot[3],
-                                    bool *enter_editmode, bool *is_view_aligned);
+bool ED_object_add_generic_get_opts(
+        struct bContext *C, struct wmOperator *op, const char view_align_axis,
+        float loc[3], float rot[3],
+        bool *enter_editmode, unsigned short *local_view_bits, bool *is_view_aligned);
 
 struct Object *ED_object_add_type(
         struct bContext *C,
         int type, const char *name, const float loc[3], const float rot[3],
-        bool enter_editmode)
+        bool enter_editmode, unsigned short local_view_bits)
         ATTR_NONNULL(1) ATTR_RETURNS_NONNULL;
 
 void ED_object_single_users(struct Main *bmain, struct Scene *scene, const bool full, const bool copy_groups);

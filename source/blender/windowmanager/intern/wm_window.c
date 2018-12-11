@@ -954,7 +954,7 @@ wmWindow *WM_window_open_temp(bContext *C, int x, int y, int sizex, int sizey, i
 	if (sa->spacetype == SPACE_IMAGE)
 		title = IFACE_("Blender Render");
 	else if (ELEM(sa->spacetype, SPACE_OUTLINER, SPACE_USERPREF))
-		title = IFACE_("Blender User Preferences");
+		title = IFACE_("Blender Preferences");
 	else if (sa->spacetype == SPACE_FILE)
 		title = IFACE_("Blender File View");
 	else if (sa->spacetype == SPACE_IPO)
@@ -2196,7 +2196,7 @@ void WM_window_set_active_view_layer(wmWindow *win, ViewLayer *view_layer)
 	wmWindow *win_parent = (win->parent) ? win->parent : win;
 
 	/* Set  view layer in parent and child windows. */
-	STRNCPY(win->view_layer_name, view_layer->name);
+	STRNCPY(win_parent->view_layer_name, view_layer->name);
 
 	for (wmWindow *win_child = wm->windows.first; win_child; win_child = win_child->next) {
 		if (win_child->parent == win_parent) {
@@ -2230,6 +2230,11 @@ void WM_window_set_active_workspace(bContext *C, wmWindow *win, WorkSpace *works
 
 	for (wmWindow *win_child = wm->windows.first; win_child; win_child = win_child->next) {
 		if (win_child->parent == win_parent) {
+			bScreen *screen = WM_window_get_active_screen(win_child);
+			/* Don't change temporary screens, they only serve a single purpose. */
+			if (screen->temp) {
+				continue;
+			}
 			ED_workspace_change(workspace, C, wm, win_child);
 		}
 	}

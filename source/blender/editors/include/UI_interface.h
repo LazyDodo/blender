@@ -195,11 +195,12 @@ enum {
 	UI_BUT_TEXTEDIT_UPDATE = (1 << 29),  /* when widget is in textedit mode, update value on each char stroke */
 	UI_BUT_VALUE_CLEAR     = (1 << 30),  /* show 'x' icon to clear/unlink value of text or search button */
 
-	UI_BUT_OVERRIDEN       = (1 << 31),  /* RNA property of the button is overridden from linked reference data. */
+	UI_BUT_OVERRIDEN       = (1u << 31u),  /* RNA property of the button is overridden from linked reference data. */
 };
 
 #define UI_PANEL_WIDTH          340
 #define UI_COMPACT_PANEL_WIDTH  160
+#define UI_NAVIGATION_REGION_WIDTH UI_COMPACT_PANEL_WIDTH
 
 #define UI_PANEL_CATEGORY_MARGIN_WIDTH (U.widget_unit * 1.0f)
 
@@ -239,6 +240,8 @@ enum {
 	UI_BUT_HAS_SHORTCUT      = (1 << 23), /* Button has shortcut text. */
 
 	UI_BUT_ICON_REVERSE      = (1 << 24), /* Reverse order of consecutive off/on icons */
+
+	UI_BUT_ANIMATED_CHANGED  = (1 << 25), /* Value is animated, but the current value differs from the animated one. */
 };
 
 /* scale fixed button widths by this to account for DPI */

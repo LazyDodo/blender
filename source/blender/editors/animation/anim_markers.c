@@ -416,6 +416,7 @@ static void draw_marker(
 		else {
 			immUniformColor4f(0.0f, 0.0f, 0.0f, 0.38f);
 		}
+		immUniform1i("colors_len", 0);  /* "simple" mode */
 		immUniform1f("dash_width", 6.0f);
 		immUniform1f("dash_factor", 0.5f);
 
@@ -1200,7 +1201,7 @@ static int ed_marker_select(bContext *C, const wmEvent *event, bool extend, bool
 			}
 		}
 
-		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 	}
 #else

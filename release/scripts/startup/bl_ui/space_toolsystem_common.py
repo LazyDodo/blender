@@ -64,7 +64,8 @@ ToolDef = namedtuple(
     (
         # The name to display in the interface.
         "text",
-        # Description (for tooltip), when not set, use the description of 'operator'.
+        # Description (for tooltip), when not set, use the description of 'operator',
+        # may be a string or a 'function(context, item, keymap) -> string'.
         "description",
         # The name of the icon to use (found in ``release/datafiles/icons``) or None for no icon.
         "icon",
@@ -293,6 +294,12 @@ class ToolSelectPanelHelper:
             if tool is not None:
                 tool.refresh_from_context()
                 return tool
+        elif space_type == 'NODE_EDITOR':
+            space_data = context.space_data
+            tool = context.workspace.tools.from_space_node(create=create)
+            if tool is not None:
+                tool.refresh_from_context()
+                return tool
         return None
 
     @staticmethod
@@ -306,7 +313,7 @@ class ToolSelectPanelHelper:
         if km is None:
             km = kc.keymaps.new(km_idname, space_type=cls.bl_space_type, region_type='WINDOW', tool=True)
             keymap_fn[0](km)
-        keymap_fn[0] = km
+        keymap_fn[0] = km.name
 
     # Special internal function, gives use items that contain keymaps.
     @staticmethod
@@ -354,9 +361,9 @@ class ToolSelectPanelHelper:
         for context_mode_test, tools in cls.tools_all():
             if context_mode_test == context_mode:
                 for item in cls._tools_flatten_with_keymap(tools):
-                    km = item.keymap[0]
+                    km_name = item.keymap[0]
                     # print((km.name, cls.bl_space_type, 'WINDOW', []))
-                    yield (km.name, cls.bl_space_type, 'WINDOW', [])
+                    yield (km_name, cls.bl_space_type, 'WINDOW', [])
 
     # -------------------------------------------------------------------------
     # Layout Generators
@@ -604,7 +611,7 @@ def _activate_by_item(context, space_type, item, index):
     tool = ToolSelectPanelHelper._tool_active_from_context(context, space_type, create=True)
     tool.setup(
         name=item.text,
-        keymap=item.keymap[0].name if item.keymap is not None else "",
+        keymap=item.keymap[0] if item.keymap is not None else "",
         cursor=item.cursor or 'DEFAULT',
         gizmo_group=item.widget or "",
         data_block=item.data_block or "",
@@ -679,16 +686,22 @@ def description_from_name(context, space_type, text, *, use_operator=True):
     # Custom description.
     description = item.description
     if description is not None:
+        if callable(description):
+            km = _keymap_from_item(context, item)
+            return description(context, item, km)
         return description
 
     # Extract from the operator.
     if use_operator:
         operator = item.operator
-
         if operator is None:
             if item.keymap is not None:
-                if item.keymap[0].keymap_items:
-                    operator = item.keymap[0].keymap_items[0].idname
+                km = _keymap_from_item(context, item)
+                if km is not None:
+                    for kmi in km.keymap_items:
+                        if kmi.active:
+                            operator = kmi.idname
+                            break
 
         if operator is not None:
             import _bpy
@@ -707,6 +720,14 @@ def keymap_from_name(context, space_type, text):
     if keymap:
         return keymap[0]
     return ""
+
+
+def _keymap_from_item(context, item):
+    if item.keymap is not None:
+        wm = context.window_manager
+        keyconf = wm.keyconfigs.active
+        return keyconf.keymaps.get(item.keymap[0])
+    return None
 
 
 classes = (

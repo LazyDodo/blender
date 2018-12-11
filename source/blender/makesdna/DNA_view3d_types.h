@@ -135,17 +135,20 @@ typedef struct View3DCursor {
 
 /* 3D Viewport Shading settings */
 typedef struct View3DShading {
-	short type;        /* Shading type (VIEW3D_SHADE_SOLID, ..) */
-	short prev_type;   /* Runtime, for toggle between rendered viewport. */
+	char type;        /* Shading type (VIEW3D_SHADE_SOLID, ..) */
+	char prev_type;   /* Runtime, for toggle between rendered viewport. */
+	char prev_type_wire;
 
-	short flag;
 	char color_type;
-	char _pad0[7];
+	short flag;
 
 	char light;
 	char background_type;
+	char cavity_type;
+	char pad[7];
 
 	char studio_light[256]; /* FILE_MAXFILE */
+	char lookdev_light[256]; /* FILE_MAXFILE */
 	char matcap[256]; /* FILE_MAXFILE */
 
 	float shadow_intensity;
@@ -162,6 +165,9 @@ typedef struct View3DShading {
 	float cavity_ridge_factor;
 
 	float background_color[3];
+
+	float curvature_ridge_factor;
+	float curvature_valley_factor;
 
 } View3DShading;
 
@@ -188,7 +194,7 @@ typedef struct View3DOverlay {
 
 	/* Armature edit/pose mode settings */
 	int arm_flag;
-	float bone_select_alpha;
+	float xray_alpha_bone;
 
 	/* Other settings */
 	float wireframe_threshold;
@@ -232,7 +238,8 @@ typedef struct View3D {
 
 	char ob_centre_bone[64];		/* optional string for armature bone to define center, MAXBONENAME */
 
-	unsigned int lay DNA_DEPRECATED;
+	unsigned short local_view_uuid;
+	short _pad6;
 	int layact DNA_DEPRECATED;
 
 	short ob_centre_cursor;		/* optional bool for 3d cursor to define center */
@@ -244,8 +251,6 @@ typedef struct View3D {
 	float lens, grid;
 	float near, far;
 	float ofs[3]  DNA_DEPRECATED;			/* XXX deprecated */
-
-	View3DCursor cursor;
 
 	char _pad[4];
 
@@ -389,7 +394,8 @@ enum {
 	V3D_SHADING_CAVITY              = (1 << 5),
 	V3D_SHADING_MATCAP_FLIP_X       = (1 << 6),
 	V3D_SHADING_SCENE_WORLD         = (1 << 7),
-	V3D_SHADING_XRAY_WIREFRAME      = (1 << 8),
+	V3D_SHADING_XRAY_BONE           = (1 << 8),
+	V3D_SHADING_WORLD_ORIENTATION   = (1 << 9),
 };
 
 /* View3DShading->color_type */
@@ -405,6 +411,13 @@ enum {
 	V3D_SHADING_BACKGROUND_THEME    = 0,
 	V3D_SHADING_BACKGROUND_WORLD    = 1,
 	V3D_SHADING_BACKGROUND_VIEWPORT = 2,
+};
+
+/* View3DShading->cavity_type */
+enum {
+	V3D_SHADING_CAVITY_SSAO = 0,
+	V3D_SHADING_CAVITY_CURVATURE = 1,
+	V3D_SHADING_CAVITY_BOTH = 2,
 };
 
 /* View3DOverlay->flag */

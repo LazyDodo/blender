@@ -70,14 +70,14 @@
 #define MAX_INFO_NUM_LEN 16
 
 typedef struct SceneStats {
-	int totvert, totvertsel;
-	int totedge, totedgesel;
-	int totface, totfacesel;
-	int totbone, totbonesel;
-	int totobj,  totobjsel;
-	int totlamp, totlampsel;
-	int tottri;
-	int totgplayer, totgpframe, totgpstroke, totgppoint;
+	uint64_t totvert, totvertsel;
+	uint64_t totedge, totedgesel;
+	uint64_t totface, totfacesel;
+	uint64_t totbone, totbonesel;
+	uint64_t totobj,  totobjsel;
+	uint64_t totlamp, totlampsel;
+	uint64_t tottri;
+	uint64_t totgplayer, totgpframe, totgpstroke, totgppoint;
 
 	char infostr[MAX_INFO_LEN];
 } SceneStats;
@@ -95,6 +95,30 @@ typedef struct SceneStatsFmt {
 	char totgpstroke[MAX_INFO_NUM_LEN], totgppoint[MAX_INFO_NUM_LEN];
 } SceneStatsFmt;
 
+static bool stats_mesheval(Mesh *me_eval, int sel, int totob, SceneStats *stats)
+{
+	int totvert, totedge, totface, totloop;
+
+	if (me_eval) {
+		totvert = me_eval->totvert;
+		totedge = me_eval->totedge;
+		totface = me_eval->totpoly;
+		totloop = me_eval->totloop;
+
+		stats->totvert += totvert * totob;
+		stats->totedge += totedge * totob;
+		stats->totface += totface * totob;
+		stats->tottri  += poly_to_tri_count(totface, totloop) * totob;
+
+		if (sel) {
+			stats->totvertsel += totvert;
+			stats->totfacesel += totface;
+		}
+		return true;
+	}
+	return false;
+}
+
 static void stats_object(Object *ob, int sel, int totob, SceneStats *stats)
 {
 	switch (ob->type) {
@@ -102,24 +126,7 @@ static void stats_object(Object *ob, int sel, int totob, SceneStats *stats)
 		{
 			/* we assume evaluated mesh is already built, this strictly does stats now. */
 			Mesh *me_eval = ob->runtime.mesh_eval;
-			int totvert, totedge, totface, totloop;
-
-			if (me_eval) {
-				totvert = me_eval->totvert;
-				totedge = me_eval->totedge;
-				totface = me_eval->totpoly;
-				totloop = me_eval->totloop;
-
-				stats->totvert += totvert * totob;
-				stats->totedge += totedge * totob;
-				stats->totface += totface * totob;
-				stats->tottri  += poly_to_tri_count(totface, totloop) * totob;
-
-				if (sel) {
-					stats->totvertsel += totvert;
-					stats->totfacesel += totface;
-				}
-			}
+			stats_mesheval(me_eval, sel, totob, stats);
 			break;
 		}
 		case OB_LAMP:
@@ -131,6 +138,13 @@ static void stats_object(Object *ob, int sel, int totob, SceneStats *stats)
 		case OB_SURF:
 		case OB_CURVE:
 		case OB_FONT:
+		{
+			Mesh *me_eval = ob->runtime.mesh_eval;
+			if (stats_mesheval(me_eval, sel, totob, stats)) {
+				break;
+			}
+			ATTR_FALLTHROUGH;  /* Falltrough to displist. */
+		}
 		case OB_MBALL:
 		{
 			int totv = 0, totf = 0, tottri = 0;
@@ -398,7 +412,7 @@ static void stats_update(Depsgraph *depsgraph, ViewLayer *view_layer)
 
 	if (obedit) {
 		/* Edit Mode */
-		FOREACH_OBJECT_IN_MODE_BEGIN(view_layer, ob->mode, ob_iter)
+		FOREACH_OBJECT_IN_MODE_BEGIN(view_layer, ((View3D *)NULL), ob->type, ob->mode, ob_iter)
 		{
 			stats_object_edit(ob_iter, &stats);
 		}
@@ -450,7 +464,7 @@ static void stats_string(ViewLayer *view_layer)
 
 	/* Generate formatted numbers */
 #define SCENE_STATS_FMT_INT(_id) \
-	BLI_str_format_int_grouped(stats_fmt._id, stats->_id)
+	BLI_str_format_uint64_grouped(stats_fmt._id, stats->_id)
 
 	SCENE_STATS_FMT_INT(totvert);
 	SCENE_STATS_FMT_INT(totvertsel);

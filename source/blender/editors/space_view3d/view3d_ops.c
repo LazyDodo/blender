@@ -204,10 +204,11 @@ void view3d_operatortypes(void)
 	WM_operatortype_append(VIEW3D_OT_camera_to_view);
 	WM_operatortype_append(VIEW3D_OT_camera_to_view_selected);
 	WM_operatortype_append(VIEW3D_OT_object_as_camera);
+	WM_operatortype_append(VIEW3D_OT_localview);
+	WM_operatortype_append(VIEW3D_OT_localview_remove_from);
 	WM_operatortype_append(VIEW3D_OT_fly);
 	WM_operatortype_append(VIEW3D_OT_walk);
 	WM_operatortype_append(VIEW3D_OT_navigate);
-	WM_operatortype_append(VIEW3D_OT_ruler);
 	WM_operatortype_append(VIEW3D_OT_copybuffer);
 	WM_operatortype_append(VIEW3D_OT_pastebuffer);
 
@@ -224,6 +225,7 @@ void view3d_operatortypes(void)
 	WM_operatortype_append(VIEW3D_OT_snap_cursor_to_active);
 
 	WM_operatortype_append(VIEW3D_OT_toggle_shading);
+	WM_operatortype_append(VIEW3D_OT_toggle_xray);
 	WM_operatortype_append(VIEW3D_OT_toggle_matcap_flip);
 
 	WM_operatortype_append(VIEW3D_OT_ruler_add);

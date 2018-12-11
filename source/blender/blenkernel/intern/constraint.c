@@ -110,6 +110,7 @@
 static void damptrack_do_transform(float matrix[4][4], const float tarvec[3], int track_axis);
 
 static bConstraint *constraint_find_original(Object *ob, bPoseChannel *pchan, bConstraint *con, Object **r_orig_ob);
+static bConstraint *constraint_find_original_for_update(bConstraintOb *cob, bConstraint *con);
 
 /* -------------- Naming -------------- */
 
@@ -590,14 +591,11 @@ static void constraint_target_to_mat4(Object *ob, const char *substring, float m
 				/* skip length interpolation if set to head */
 				mul_m4_m4m4(mat, ob->obmat, pchan->pose_mat);
 			}
-			else if (is_bbone) {
+			else if (is_bbone && pchan->bone->segments == pchan->runtime.bbone_segments) {
 				/* use point along bbone */
-				Mat4 bbone[MAX_BBONE_SUBDIV];
+				Mat4 *bbone = pchan->runtime.bbone_pose_mats;
 				float tempmat[4][4];
 				float loc[3], fac;
-
-				/* get bbone segments */
-				b_bone_spline_setup(pchan, false, bbone);
 
 				/* figure out which segment(s) the headtail value falls in */
 				fac = (float)pchan->bone->segments * headtail;
@@ -2164,16 +2162,13 @@ static void armdef_get_tarmat(struct Depsgraph *UNUSED(depsgraph),
 /* Compute and accumulate transformation for a single target bone. */
 static void armdef_accumulate_bone(bConstraintTarget *ct, bPoseChannel *pchan, const float wco[3], bool force_envelope, float *r_totweight, float r_sum_mat[4][4], DualQuat *r_sum_dq)
 {
-	float mat[4][4], iobmat[4][4], iamat[4][4], basemat[4][4], co[3];
+	float mat[4][4], iobmat[4][4], basemat[4][4], co[3];
 	Bone *bone = pchan->bone;
 	float weight = ct->weight;
 
 	/* Our object's location in target pose space. */
 	invert_m4_m4(iobmat, ct->tar->obmat);
 	mul_v3_m4v3(co, iobmat, wco);
-
-	/* Inverted rest pose matrix: bone->chan_mat may not be final yet. */
-	invert_m4_m4(iamat, bone->arm_mat);
 
 	/* Multiply by the envelope weight when appropriate. */
 	if (force_envelope || (bone->flag & BONE_MULT_VG_ENV)) {
@@ -2182,7 +2177,10 @@ static void armdef_accumulate_bone(bConstraintTarget *ct, bPoseChannel *pchan, c
 	}
 
 	/* Find the correct bone transform matrix in world space. */
-	if (bone->segments > 1) {
+	if (bone->segments > 1 && bone->segments == pchan->runtime.bbone_segments) {
+		Mat4 *b_bone_mats = pchan->runtime.bbone_deform_mats;
+		float (*iamat)[4] = b_bone_mats[0].mat;
+
 		/* The target is a B-Bone:
 		 * FIRST: find the segment (see b_bone_deform in armature.c)
 		 * Need to transform co back to bonespace, only need y. */
@@ -2193,19 +2191,12 @@ static void armdef_accumulate_bone(bConstraintTarget *ct, bPoseChannel *pchan, c
 
 		CLAMP(a, 0, bone->segments - 1);
 
-		/* SECOND: compute the matrix (see pchan_b_bone_defmats in armature.c) */
-		Mat4 b_bone[MAX_BBONE_SUBDIV], b_bone_rest[MAX_BBONE_SUBDIV];
-		float irmat[4][4];
-
-		b_bone_spline_setup(pchan, false, b_bone);
-		b_bone_spline_setup(pchan, true, b_bone_rest);
-
-		invert_m4_m4(irmat, b_bone_rest[a].mat);
-		mul_m4_series(mat, ct->matrix, b_bone[a].mat, irmat, iamat, iobmat);
+		/* Convert the selected matrix into object space. */
+		mul_m4_series(mat, ct->tar->obmat, b_bone_mats[a + 1].mat, iobmat);
 	}
 	else {
-		/* Simple bone. */
-		mul_m4_series(mat, ct->matrix, iamat, iobmat);
+		/* Simple bone. This requires DEG_OPCODE_BONE_DONE dependency due to chan_mat. */
+		mul_m4_series(mat, ct->tar->obmat, pchan->chan_mat, iobmat);
 	}
 
 	/* Accumulate the transformation. */
@@ -2829,8 +2820,18 @@ static void distlimit_evaluate(bConstraint *con, bConstraintOb *cob, ListBase *t
 		dist = len_v3v3(cob->matrix[3], ct->matrix[3]);
 
 		/* set distance (flag is only set when user demands it) */
-		if (data->dist == 0)
+		if (data->dist == 0) {
 			data->dist = dist;
+
+			/* Write the computed distance back to the master copy if in COW evaluation. */
+			bConstraint *orig_con = constraint_find_original_for_update(cob, con);
+
+			if (orig_con != NULL) {
+				bDistLimitConstraint *orig_data = orig_con->data;
+
+				orig_data->dist = data->dist;
+			}
+		}
 
 		/* check if we're which way to clamp from, and calculate interpolation factor (if needed) */
 		if (data->mode == LIMITDIST_OUTSIDE) {
@@ -2983,17 +2984,12 @@ static void stretchto_evaluate(bConstraint *con, bConstraintOb *cob, ListBase *t
 			data->orglength = dist;
 
 			/* Write the computed length back to the master copy if in COW evaluation. */
-			if (DEG_is_active(cob->depsgraph)) {
-				Object *orig_ob = NULL;
-				bConstraint *orig_con = constraint_find_original(cob->ob, cob->pchan, con, &orig_ob);
+			bConstraint *orig_con = constraint_find_original_for_update(cob, con);
 
-				if (orig_con != NULL) {
-					bStretchToConstraint *orig_data = orig_con->data;
+			if (orig_con != NULL) {
+				bStretchToConstraint *orig_data = orig_con->data;
 
-					orig_data->orglength = data->orglength;
-
-					DEG_id_tag_update(&orig_ob->id, DEG_TAG_COPY_ON_WRITE | DEG_TAG_TRANSFORM);
-				}
+				orig_data->orglength = data->orglength;
 			}
 		}
 
@@ -5117,11 +5113,7 @@ static bConstraint *constraint_find_original(Object *ob, bPoseChannel *pchan, bC
 	ListBase *constraints, *orig_constraints;
 
 	if (pchan != NULL) {
-		if (orig_ob->type != OB_ARMATURE || orig_ob->pose == NULL) {
-			return NULL;
-		}
-
-		bPoseChannel *orig_pchan = BKE_pose_channel_find_name(orig_ob->pose, pchan->name);
+		bPoseChannel *orig_pchan = pchan->orig_pchan;
 
 		if (orig_pchan == NULL) {
 			return NULL;
@@ -5152,6 +5144,23 @@ static bConstraint *constraint_find_original(Object *ob, bPoseChannel *pchan, bC
 	}
 
 	return NULL;
+}
+
+static bConstraint *constraint_find_original_for_update(bConstraintOb *cob, bConstraint *con)
+{
+	/* Write the computed distance back to the master copy if in COW evaluation. */
+	if (!DEG_is_active(cob->depsgraph)) {
+		return NULL;
+	}
+
+	Object *orig_ob = NULL;
+	bConstraint *orig_con = constraint_find_original(cob->ob, cob->pchan, con, &orig_ob);
+
+	if (orig_con != NULL) {
+		DEG_id_tag_update(&orig_ob->id, ID_RECALC_COPY_ON_WRITE | ID_RECALC_TRANSFORM);
+	}
+
+	return orig_con;
 }
 
 /* -------- Constraints and Proxies ------- */

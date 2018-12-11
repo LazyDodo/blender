@@ -787,8 +787,8 @@ bool id_single_user(bContext *C, ID *id, PointerRNA *ptr, PropertyRNA *prop)
 
 				/* tag grease pencil datablock and disable onion */
 				if (GS(id->name) == ID_GD) {
-					DEG_id_tag_update(id, OB_RECALC_OB | OB_RECALC_DATA);
-					DEG_id_tag_update(newid, OB_RECALC_OB | OB_RECALC_DATA);
+					DEG_id_tag_update(id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+					DEG_id_tag_update(newid, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 					bGPdata *gpd = (bGPdata *)newid;
 					gpd->flag &= ~GP_DATA_SHOW_ONIONSKINS;
 				}
@@ -979,7 +979,7 @@ void BKE_main_lib_objects_recalc_all(Main *bmain)
 	/* flag for full recalc */
 	for (ob = bmain->object.first; ob; ob = ob->id.next) {
 		if (ID_IS_LINKED(ob)) {
-			DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+			DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION);
 		}
 	}
 
@@ -1359,6 +1359,16 @@ void *BKE_libblock_copy_nolib(const ID *id, const bool do_action)
 
 	BKE_libblock_copy_ex(NULL, id, &idn, LIB_ID_CREATE_NO_MAIN | LIB_ID_CREATE_NO_USER_REFCOUNT | (do_action ? LIB_ID_COPY_ACTIONS : 0));
 
+	return idn;
+}
+
+void *BKE_libblock_copy_for_localize(const ID *id)
+{
+	ID *idn;
+	BKE_libblock_copy_ex(NULL, id, &idn, (LIB_ID_CREATE_NO_MAIN |
+	                                      LIB_ID_CREATE_NO_USER_REFCOUNT |
+	                                      LIB_ID_COPY_ACTIONS |
+	                                      LIB_ID_COPY_NO_ANIMDATA));
 	return idn;
 }
 
@@ -2124,7 +2134,7 @@ void BKE_libblock_rename(Main *bmain, ID *id, const char *name)
 }
 
 /**
- * Generate full name of the data-block (without ID code, but with library is any)
+ * Generate full name of the data-block (without ID code, but with library if any).
  *
  * \note Result is unique to a given ID type in a given Main database.
  *
@@ -2147,7 +2157,7 @@ void BKE_id_full_name_get(char name[MAX_ID_FULL_NAME], const ID *id)
 }
 
 /**
- * Generate full name of the data-block (without ID code, but with library is any), with a 3-character prefix prepended
+ * Generate full name of the data-block (without ID code, but with library if any), with a 3-character prefix prepended
  * indicating whether it comes from a library, is overriding, has a fake or no user, etc.
  *
  * \note Result is unique to a given ID type in a given Main database.

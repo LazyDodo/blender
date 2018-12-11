@@ -164,11 +164,26 @@ typedef struct BBoneSplineParameters {
 	float curveInX, curveInY, curveOutX, curveOutY;
 } BBoneSplineParameters;
 
-void BKE_pchan_get_bbone_handles(struct bPoseChannel *pchan, struct bPoseChannel **r_prev, struct bPoseChannel **r_next);
+void BKE_pchan_bbone_handles_get(
+        struct bPoseChannel *pchan, struct bPoseChannel **r_prev, struct bPoseChannel **r_next);
+void BKE_pchan_bbone_spline_params_get(
+        struct bPoseChannel *pchan, const bool rest, struct BBoneSplineParameters *r_param);
 
-void b_bone_spline_setup(struct bPoseChannel *pchan, const bool rest, Mat4 result_array[MAX_BBONE_SUBDIV]);
+void BKE_pchan_bbone_spline_setup(
+        struct bPoseChannel *pchan, const bool rest, Mat4 result_array[MAX_BBONE_SUBDIV]);
 
-int BKE_compute_b_bone_spline(struct BBoneSplineParameters *param, Mat4 result_array[MAX_BBONE_SUBDIV]);
+void BKE_pchan_bbone_handles_compute(
+        const BBoneSplineParameters *param,
+        float h1[3], float *r_roll1,
+        float h2[3], float *r_roll2,
+        bool ease, bool offsets);
+int  BKE_pchan_bbone_spline_compute(
+        struct BBoneSplineParameters *param, Mat4 result_array[MAX_BBONE_SUBDIV]);
+
+void BKE_pchan_bbone_segments_cache_compute(
+        struct bPoseChannel *pchan);
+void BKE_pchan_bbone_segments_cache_copy(
+        struct bPoseChannel *pchan, struct bPoseChannel *pchan_from);
 
 /* like EBONE_VISIBLE */
 #define PBONE_VISIBLE(arm, bone) ( \
@@ -217,40 +232,45 @@ void BKE_splineik_execute_tree(
 void BKE_pose_eval_init(
         struct Depsgraph *depsgraph,
         struct Scene *scene,
-        struct Object *ob);
+        struct Object *object);
 
 void BKE_pose_eval_init_ik(
         struct Depsgraph *depsgraph,
         struct Scene *scene,
-        struct Object *ob);
+        struct Object *object);
 
 void BKE_pose_eval_bone(
         struct Depsgraph *depsgraph,
         struct Scene *scene,
-        struct Object *ob,
+        struct Object *object,
         int pchan_index);
 
 void BKE_pose_constraints_evaluate(
         struct Depsgraph *depsgraph,
         struct Scene *scene,
-        struct Object *ob,
+        struct Object *object,
         int pchan_index);
 
 void BKE_pose_bone_done(
         struct Depsgraph *depsgraph,
-        struct Object *ob,
+        struct Object *object,
+        int pchan_index);
+
+void BKE_pose_eval_bbone_segments(
+        struct Depsgraph *depsgraph,
+        struct Object *object,
         int pchan_index);
 
 void BKE_pose_iktree_evaluate(
         struct Depsgraph *depsgraph,
         struct Scene *scene,
-        struct Object *ob,
+        struct Object *object,
         int rootchan_index);
 
 void BKE_pose_splineik_evaluate(
         struct Depsgraph *depsgraph,
         struct Scene *scene,
-        struct Object *ob,
+        struct Object *object,
         int rootchan_index);
 
 void BKE_pose_eval_done(
@@ -260,7 +280,7 @@ void BKE_pose_eval_done(
 void BKE_pose_eval_cleanup(
         struct Depsgraph *depsgraph,
         struct Scene *scene,
-        struct Object *ob);
+        struct Object *object);
 
 void BKE_pose_eval_proxy_init(struct Depsgraph *depsgraph,
                               struct Object *object);
@@ -280,11 +300,11 @@ void BKE_pose_eval_proxy_copy_bone(
  * used by armature_deform_verts().
  */
 struct ObjectBBoneDeform;
-struct ObjectBBoneDeform * armature_cached_bbone_deformation_get(
+struct ObjectBBoneDeform * BKE_armature_cached_bbone_deformation_get(
         struct Object *object);
-void armature_cached_bbone_deformation_free_data(struct Object *object);
-void armature_cached_bbone_deformation_free(struct Object *object);
-void armature_cached_bbone_deformation_update(struct Object *object);
+void BKE_armature_cached_bbone_deformation_free_data(struct Object *object);
+void BKE_armature_cached_bbone_deformation_free(struct Object *object);
+void BKE_armature_cached_bbone_deformation_update(struct Object *object);
 
 #ifdef __cplusplus
 }

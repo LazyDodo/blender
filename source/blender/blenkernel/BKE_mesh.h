@@ -165,7 +165,7 @@ void BKE_mesh_smooth_flag_set(struct Object *meshOb, int enableSmooth);
 const char *BKE_mesh_cmp(struct Mesh *me1, struct Mesh *me2, float thresh);
 
 struct BoundBox *BKE_mesh_boundbox_get(struct Object *ob);
-void BKE_mesh_texspace_get(struct Mesh *me, float r_loc[3], float r_rot[3], float r_size[3]);
+struct BoundBox *BKE_mesh_texspace_get(struct Mesh *me, float r_loc[3], float r_rot[3], float r_size[3]);
 void BKE_mesh_texspace_get_reference(struct Mesh *me, short **r_texflag,  float **r_loc, float **r_rot, float **r_size);
 void BKE_mesh_texspace_copy_from_object(struct Mesh *me, struct Object *ob);
 
@@ -487,8 +487,10 @@ bool BKE_mesh_validate_arrays(
         bool *r_change);
 
 bool BKE_mesh_validate_all_customdata(
-        struct CustomData *vdata, struct CustomData *edata,
-        struct CustomData *ldata, struct CustomData *pdata,
+        struct CustomData *vdata, const uint totvert,
+        struct CustomData *edata, const uint totedge,
+        struct CustomData *ldata, const uint totloop,
+        struct CustomData *pdata, const uint totpoly,
         const bool check_meshmask,
         const bool do_verbose, const bool do_fixes,
         bool *r_change);

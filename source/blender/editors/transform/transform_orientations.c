@@ -432,7 +432,7 @@ void initTransformOrientation(bContext *C, TransInfo *t)
 	Object *ob = CTX_data_active_object(C);
 	Object *obedit = CTX_data_active_object(C);
 
-	switch (t->current_orientation) {
+	switch (t->orientation.user) {
 		case V3D_MANIP_GLOBAL:
 			unit_m3(t->spacemtx);
 			BLI_strncpy(t->spacename, IFACE_("global"), sizeof(t->spacename));
@@ -484,7 +484,7 @@ void initTransformOrientation(bContext *C, TransInfo *t)
 		case V3D_MANIP_CURSOR:
 		{
 			BLI_strncpy(t->spacename, IFACE_("cursor"), sizeof(t->spacename));
-			ED_view3d_cursor3d_calc_mat3(t->scene, CTX_wm_view3d(C), t->spacemtx);
+			ED_view3d_cursor3d_calc_mat3(t->scene, t->spacemtx);
 			break;
 		}
 		case V3D_MANIP_CUSTOM_MATRIX:
@@ -492,9 +492,9 @@ void initTransformOrientation(bContext *C, TransInfo *t)
 			BLI_strncpy(t->spacename, IFACE_("custom"), sizeof(t->spacename));
 			break;
 		case V3D_MANIP_CUSTOM:
-			BLI_strncpy(t->spacename, t->custom_orientation->name, sizeof(t->spacename));
+			BLI_strncpy(t->spacename, t->orientation.custom->name, sizeof(t->spacename));
 
-			if (applyTransformOrientation(t->custom_orientation, t->spacemtx, t->spacename)) {
+			if (applyTransformOrientation(t->orientation.custom, t->spacemtx, t->spacename)) {
 				/* pass */
 			}
 			else {
@@ -588,6 +588,7 @@ static unsigned int bm_mesh_faces_select_get_n(BMesh *bm, BMVert **elems, const 
 int getTransformOrientation_ex(const bContext *C, float normal[3], float plane[3], const short around)
 {
 	ViewLayer *view_layer = CTX_data_view_layer(C);
+	View3D *v3d = CTX_wm_view3d(C);
 	Object *obedit = CTX_data_edit_object(C);
 	Base *base;
 	Object *ob = OBACT(view_layer);
@@ -839,7 +840,6 @@ int getTransformOrientation_ex(const bContext *C, float normal[3], float plane[3
 				}
 			}
 			else {
-				View3D *v3d = CTX_wm_view3d(C);
 				const bool use_handle = (v3d->overlay.edit_flag & V3D_OVERLAY_EDIT_CU_HANDLES) != 0;
 
 				for (nu = nurbs->first; nu; nu = nu->next) {
@@ -1090,7 +1090,7 @@ int getTransformOrientation_ex(const bContext *C, float normal[3], float plane[3
 			/* first selected */
 			ob = NULL;
 			for (base = view_layer->object_bases.first; base; base = base->next) {
-				if (TESTBASELIB(base)) {
+				if (TESTBASELIB(v3d, base)) {
 					ob = base->object;
 					break;
 				}

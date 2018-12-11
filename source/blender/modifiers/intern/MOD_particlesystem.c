@@ -104,7 +104,7 @@ static void deformVerts(
         ModifierData *md, const ModifierEvalContext *ctx,
         Mesh *mesh,
         float (*vertexCos)[3],
-        int UNUSED(numVerts))
+        int numVerts)
 {
 	Mesh *mesh_src = mesh;
 	ParticleSystemModifierData *psmd = (ParticleSystemModifierData *) md;
@@ -120,7 +120,7 @@ static void deformVerts(
 		return;
 
 	if (mesh_src == NULL) {
-		mesh_src = MOD_get_mesh_eval(ctx->object, NULL, NULL, vertexCos, false, true);
+		mesh_src = MOD_deform_mesh_eval_get(ctx->object, NULL, NULL, vertexCos, numVerts, false, true);
 		if (mesh_src == NULL) {
 			return;
 		}
@@ -141,7 +141,7 @@ static void deformVerts(
 	}
 	else {
 		/* no dm before, so recalc particles fully */
-		psys->recalc |= PSYS_RECALC_RESET;
+		psys->recalc |= ID_RECALC_PSYS_RESET;
 	}
 
 	/* make new mesh */
@@ -192,7 +192,7 @@ static void deformVerts(
 	    psmd->mesh_final->totedge != psmd->totdmedge ||
 	    psmd->mesh_final->totface != psmd->totdmface)
 	{
-		psys->recalc |= PSYS_RECALC_RESET;
+		psys->recalc |= ID_RECALC_PSYS_RESET;
 
 		psmd->totdmvert = psmd->mesh_final->totvert;
 		psmd->totdmedge = psmd->mesh_final->totedge;

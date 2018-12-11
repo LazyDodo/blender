@@ -73,7 +73,7 @@ struct wmWindowManager;
  * Used as part of the 'stroke cache' used during drawing of new strokes
  */
 typedef struct tGPspoint {
-	int x, y;               /* x and y coordinates of cursor (in relative to area) */
+	float x, y;               /* x and y coordinates of cursor (in relative to area) */
 	float pressure;         /* pressure of tablet at this point */
 	float strength;         /* pressure of tablet at this point for alpha factor */
 	float time;             /* Time relative to stroke start (used when converting to path) */
@@ -113,7 +113,7 @@ struct bGPdata *ED_gpencil_data_get_active_direct(
 bool ED_gpencil_data_owner_is_annotation(struct PointerRNA *owner_ptr);
 
 /* 3D View */
-struct bGPdata  *ED_gpencil_data_get_active_v3d(struct ViewLayer *view_layer);
+struct bGPdata  *ED_gpencil_data_get_active_v3d(struct ViewLayer *view_layer, struct View3D *v3d);
 
 bool ED_gpencil_has_keyframe_v3d(struct Scene *scene, struct Object *ob, int cfra);
 
@@ -222,14 +222,21 @@ void ED_gpencil_create_monkey(struct bContext *C, float mat[4][4]);
 void ED_gpencil_create_stroke(struct bContext *C, float mat[4][4]);
 
 /* ------------ Object Utilities ------------ */
-struct Object *ED_add_gpencil_object(struct bContext *C, struct Scene *scene, const float loc[3]);
+struct Object *ED_add_gpencil_object(
+        struct bContext *C, struct Scene *scene, const float loc[3], unsigned short local_view_bits);
 void ED_gpencil_add_defaults(struct bContext *C);
 /* set object modes */
 void ED_gpencil_setup_modes(struct bContext *C, struct bGPdata *gpd, int newmode);
 
-void ED_gp_project_stroke_to_plane(struct Object *ob, struct RegionView3D *rv3d, struct bGPDstroke *gps, const float origin[3], const int axis);
-void ED_gp_project_point_to_plane(struct Object *ob, struct RegionView3D *rv3d, const float origin[3], const int axis, struct bGPDspoint *pt);
-void ED_gp_get_drawing_reference(struct View3D *v3d, struct Scene *scene, struct Object *ob, struct bGPDlayer *gpl, char align_flag, float vec[3]);
+void ED_gp_project_stroke_to_plane(
+        const struct Object *ob, const struct RegionView3D *rv3d,
+        struct bGPDstroke *gps, const float origin[3], const int axis);
+void ED_gp_project_point_to_plane(
+        const struct Object *ob, const struct RegionView3D *rv3d,
+        const float origin[3], const int axis, struct bGPDspoint *pt);
+void ED_gp_get_drawing_reference(
+        const struct Scene *scene, const struct Object *ob,
+        struct bGPDlayer *gpl, char align_flag, float vec[3]);
 
 /* set sculpt cursor */
 void ED_gpencil_toggle_brush_cursor(struct bContext *C, bool enable, void *customdata);

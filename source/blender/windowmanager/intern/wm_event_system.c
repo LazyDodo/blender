@@ -51,6 +51,7 @@
 #include "BLI_dynstr.h"
 #include "BLI_utildefines.h"
 #include "BLI_math.h"
+#include "BLI_timer.h"
 
 #include "BKE_context.h"
 #include "BKE_idprop.h"
@@ -91,8 +92,9 @@
 
 #include "DEG_depsgraph.h"
 
-/* Motion in pixels allowed before we don't consider single/double click. */
-#define WM_EVENT_CLICK_WIGGLE_ROOM 2
+/* Motion in pixels allowed before we don't consider single/double click,
+ * or detect the start of a tweak event. */
+#define WM_EVENT_CLICK_TWEAK_THRESHOLD (U.tweak_threshold * U.dpi_fac)
 
 static void wm_notifier_clear(wmNotifier *note);
 static void update_tablet_data(wmWindow *win, wmEvent *event);
@@ -370,6 +372,8 @@ void wm_event_do_notifiers(bContext *C)
 
 	if (wm == NULL)
 		return;
+
+	BLI_timer_execute();
 
 	/* disable? - keep for now since its used for window level notifiers. */
 #if 1
@@ -2612,8 +2616,8 @@ static int wm_handlers_do(bContext *C, wmEvent *event, ListBase *handlers)
 		if (wm_action_not_handled(action)) {
 			if (event->check_drag) {
 				wmWindow *win = CTX_wm_window(C);
-				if ((abs(event->x - win->eventstate->prevclickx)) >= U.tweak_threshold ||
-				    (abs(event->y - win->eventstate->prevclicky)) >= U.tweak_threshold)
+				if ((abs(event->x - win->eventstate->prevclickx)) >= WM_EVENT_CLICK_TWEAK_THRESHOLD ||
+				    (abs(event->y - win->eventstate->prevclicky)) >= WM_EVENT_CLICK_TWEAK_THRESHOLD)
 				{
 					int x = event->x;
 					int y = event->y;
@@ -2634,15 +2638,15 @@ static int wm_handlers_do(bContext *C, wmEvent *event, ListBase *handlers)
 					event->x = x;
 					event->y = y;
 
-					win->eventstate->check_click = 0;
-					win->eventstate->check_drag = 0;
+					win->eventstate->check_click = false;
+					win->eventstate->check_drag = false;
 				}
 			}
 		}
 		else {
 			wmWindow *win = CTX_wm_window(C);
 			if (win) {
-				win->eventstate->check_drag = 0;
+				win->eventstate->check_drag = false;
 			}
 		}
 	}
@@ -2672,8 +2676,8 @@ static int wm_handlers_do(bContext *C, wmEvent *event, ListBase *handlers)
 				    (win->eventstate->prevval == KM_PRESS) &&
 				    (win->eventstate->check_click == true))
 				{
-					if ((abs(event->x - win->eventstate->prevclickx)) <= WM_EVENT_CLICK_WIGGLE_ROOM &&
-					    (abs(event->y - win->eventstate->prevclicky)) <= WM_EVENT_CLICK_WIGGLE_ROOM)
+					if ((abs(event->x - win->eventstate->prevclickx)) < WM_EVENT_CLICK_TWEAK_THRESHOLD &&
+					    (abs(event->y - win->eventstate->prevclicky)) < WM_EVENT_CLICK_TWEAK_THRESHOLD)
 					{
 						/* Position is where the actual click happens, for more
 						 * accurate selecting in case the mouse drifts a little. */
@@ -2850,15 +2854,17 @@ static bool wm_event_pie_filter(wmWindow *win, const wmEvent *event)
 }
 
 #ifdef USE_WORKSPACE_TOOL
-static void wm_event_gizmo_temp_handler_apply(
+static void wm_event_temp_tool_handler_apply(
         bContext *C, ScrArea *sa, ARegion *ar, wmEventHandler *sneaky_handler)
 {
 	if (ar->regiontype == RGN_TYPE_WINDOW) {
 		bToolRef_Runtime *tref_rt = sa->runtime.tool ? sa->runtime.tool->runtime : NULL;
 		if (tref_rt && tref_rt->keymap[0]) {
-			wmKeyMap *km = WM_keymap_find_all(
+			wmKeyMap *km = WM_keymap_find_all_spaceid_or_empty(
 			        C, tref_rt->keymap, sa->spacetype, RGN_TYPE_WINDOW);
+			/* We shouldn't use keymaps from unrelated spaces. */
 			if (km != NULL) {
+				// printf("Keymap: '%s' -> '%s'\n", tref_rt->keymap, sa->runtime.tool->idname);
 				sneaky_handler->keymap = km;
 				sneaky_handler->keymap_tool = sa->runtime.tool;
 
@@ -2870,11 +2876,14 @@ static void wm_event_gizmo_temp_handler_apply(
 				/* Head of list or after last gizmo. */
 				BLI_insertlinkafter(&ar->handlers, handler_last, sneaky_handler);
 			}
+			else {
+				printf("Keymap: '%s' not found for tool '%s'\n", tref_rt->keymap, sa->runtime.tool->idname);
+			}
 		}
 	}
 }
 
-static void wm_event_gizmo_temp_handler_clear(
+static void wm_event_temp_tool_handler_clear(
         bContext *UNUSED(C), ScrArea *UNUSED(sa), ARegion *ar, wmEventHandler *sneaky_handler)
 {
 	if (sneaky_handler->keymap) {
@@ -3067,13 +3076,13 @@ void wm_event_do_handlers(bContext *C)
 									 * to fetch its current keymap.
 									 */
 									wmEventHandler sneaky_handler = {NULL};
-									wm_event_gizmo_temp_handler_apply(C, sa, ar, &sneaky_handler);
+									wm_event_temp_tool_handler_apply(C, sa, ar, &sneaky_handler);
 #endif /* USE_WORKSPACE_TOOL */
 
 									action |= wm_handlers_do(C, event, &ar->handlers);
 
 #ifdef USE_WORKSPACE_TOOL
-									wm_event_gizmo_temp_handler_clear(C, sa, ar, &sneaky_handler);
+									wm_event_temp_tool_handler_clear(C, sa, ar, &sneaky_handler);
 #endif /* USE_WORKSPACE_TOOL */
 
 									/* fileread case (python), [#29489] */
@@ -3112,6 +3121,15 @@ void wm_event_do_handlers(bContext *C)
 						return;
 				}
 
+			}
+
+			/* If press was handled, we don't want to do click. This way
+			 * press in tool keymap can override click in editor keymap.*/
+			if (ISMOUSE_BUTTON(event->type) &&
+			    event->val == KM_PRESS &&
+			    !wm_action_not_handled(action))
+			{
+				win->eventstate->check_click = false;
 			}
 
 			/* update previous mouse position for following events to use */
@@ -3783,8 +3801,8 @@ static bool wm_event_is_double_click(wmEvent *event, const wmEvent *event_state)
 	    (event->val == KM_PRESS))
 	{
 		if ((ISMOUSE(event->type) == false) ||
-		    ((abs(event->x - event_state->prevclickx)) <= WM_EVENT_CLICK_WIGGLE_ROOM &&
-		     (abs(event->y - event_state->prevclicky)) <= WM_EVENT_CLICK_WIGGLE_ROOM))
+		    ((abs(event->x - event_state->prevclickx)) < WM_EVENT_CLICK_TWEAK_THRESHOLD &&
+		     (abs(event->y - event_state->prevclicky)) < WM_EVENT_CLICK_TWEAK_THRESHOLD))
 		{
 			if ((PIL_check_seconds_timer() - event_state->prevclicktime) * 1000 < U.dbl_click_time) {
 				return true;
@@ -4538,7 +4556,7 @@ void WM_window_cursor_keymap_status_refresh(bContext *C, wmWindow *win)
 
 #ifdef USE_WORKSPACE_TOOL
 	wmEventHandler sneaky_handler = {NULL};
-	wm_event_gizmo_temp_handler_apply(C, sa, ar, &sneaky_handler);
+	wm_event_temp_tool_handler_apply(C, sa, ar, &sneaky_handler);
 #endif
 
 	ListBase *handlers[] = {
@@ -4571,7 +4589,7 @@ void WM_window_cursor_keymap_status_refresh(bContext *C, wmWindow *win)
 	}
 
 #ifdef USE_WORKSPACE_TOOL
-	wm_event_gizmo_temp_handler_clear(C, sa, ar, &sneaky_handler);
+	wm_event_temp_tool_handler_clear(C, sa, ar, &sneaky_handler);
 #endif
 
 	if (memcmp(&cd_prev.text, &cd->text, sizeof(cd_prev.text)) != 0) {

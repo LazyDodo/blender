@@ -54,6 +54,7 @@
 #include "BLI_string.h"
 #include "BLI_threads.h"
 #include "BLI_utildefines.h"
+#include "BLI_timer.h"
 
 #include "BLO_writefile.h"
 #include "BLO_undofile.h"
@@ -254,7 +255,10 @@ void WM_init(bContext *C, int argc, const char **argv)
 	WM_msgbus_types_init();
 
 	/* get the default database, plus a wm */
-	wm_homefile_read(C, NULL, G.factory_startup, false, true, NULL, WM_init_state_app_template_get());
+	bool is_factory_startup = true;
+	wm_homefile_read(
+	        C, NULL, G.factory_startup, false, true, NULL, WM_init_state_app_template_get(),
+	        &is_factory_startup);
 
 	/* Call again to set from userpreferences... */
 	BLT_lang_set(NULL);
@@ -335,6 +339,9 @@ void WM_init(bContext *C, int argc, const char **argv)
 
 		BLI_callback_exec(bmain, NULL, BLI_CB_EVT_VERSION_UPDATE);
 		BLI_callback_exec(bmain, NULL, BLI_CB_EVT_LOAD_POST);
+		if (is_factory_startup) {
+			BLI_callback_exec(bmain, NULL, BLI_CB_EVT_LOAD_FACTORY_STARTUP_POST);
+		}
 
 		wm_file_read_report(C, bmain);
 
@@ -459,6 +466,8 @@ void WM_exit_ext(bContext *C, const bool do_python)
 			ED_screen_exit(C, win, WM_window_get_active_screen(win));
 		}
 	}
+
+	BLI_timer_free();
 
 	WM_paneltype_clear();
 

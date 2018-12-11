@@ -49,9 +49,17 @@ def generate(context, space_type):
     def dict_as_tuple(d):
         return tuple((k, v) for (k, v) in sorted(d.items()))
 
-    tool_blacklist = set()
+    cls = ToolSelectPanelHelper._tool_class_from_space_type(space_type)
 
-    use_simple_keymap = False
+    items_all = [
+        # 0: tool
+        # 1: keymap item (direct access)
+        # 2: keymap item (newly calculated for toolbar)
+        [item, None, None]
+        for item in ToolSelectPanelHelper._tools_flatten(cls.tools_from_context(context))
+        if item is not None
+    ]
+    items_all_text = {item_container[0].text for item_container in items_all}
 
     # Press the toolbar popup key again to set the default tool,
     # this is useful because the select box tool is useful as a way
@@ -62,7 +70,7 @@ def generate(context, space_type):
     # TODO: support other tools for modes which don't use this tool.
     tap_reset_tool = "Cursor"
     # Check the tool is available in the current context.
-    if ToolSelectPanelHelper._tool_get_by_name(context, space_type, tap_reset_tool)[1] is None:
+    if tap_reset_tool not in items_all_text:
         use_tap_reset = False
 
     from bl_operators.wm import use_toolbar_release_hack
@@ -71,30 +79,54 @@ def generate(context, space_type):
     use_release_confirm = True
 
     # Generate items when no keys are mapped.
-    use_auto_keymap = True
+    use_auto_keymap_alpha = False  # Map manially in the default keymap
+    use_auto_keymap_num = True
 
     # Temporary, only create so we can pass 'properties' to find_item_from_operator.
     use_hack_properties = True
 
-    km_name = "Toolbar Popup"
+    km_name_default = "Toolbar Popup"
+    km_name = km_name_default + " <temp>"
     wm = context.window_manager
     keyconf = wm.keyconfigs.active
     keymap = keyconf.keymaps.get(km_name)
     if keymap is None:
-        keymap = keyconf.keymaps.new(km_name, space_type='EMPTY', region_type='TEMPORARY', tool=True)
+        keymap = keyconf.keymaps.new(km_name, space_type='EMPTY', region_type='TEMPORARY')
     for kmi in keymap.keymap_items:
         keymap.keymap_items.remove(kmi)
 
+    keymap_src = keyconf.keymaps.get(km_name_default)
+    if keymap_src is not None:
+        for kmi_src in keymap_src.keymap_items:
+            # Skip tools that aren't currently shown.
+            if (
+                    (kmi_src.idname == "wm.tool_set_by_name") and
+                    (kmi_src.properties.name not in items_all_text)
+            ):
+                continue
+            keymap.keymap_items.new_from_item(kmi_src)
+    del keymap_src
+    del items_all_text
+
+
     kmi_unique_args = set()
+
+    def kmi_unique_or_pass(kmi_args):
+        kmi_unique_len = len(kmi_unique_args)
+        kmi_unique_args.add(dict_as_tuple(kmi_args))
+        return kmi_unique_len != len(kmi_unique_args)
+
 
     cls = ToolSelectPanelHelper._tool_class_from_space_type(space_type)
 
     if use_hack_properties:
-        kmi_hack = keymap.keymap_items.new("wm.tool_set_by_name", 'A', 'PRESS')
+        kmi_hack = keymap.keymap_items.new("wm.tool_set_by_name", 'NONE', 'PRESS')
         kmi_hack_properties = kmi_hack.properties
+        kmi_hack.active = False
 
-        kmi_hack_brush_select = keymap.keymap_items.new("paint.brush_select", 'A', 'PRESS')
+        kmi_hack_brush_select = keymap.keymap_items.new("paint.brush_select", 'NONE', 'PRESS')
         kmi_hack_brush_select_properties = kmi_hack_brush_select.properties
+        kmi_hack_brush_select.active = False
 
     if use_release_confirm or use_tap_reset:
         kmi_toolbar = wm.keyconfigs.find_item_from_operator(idname="wm.toolbar")[1]
@@ -122,82 +154,74 @@ def generate(context, space_type):
         del kmi_found
 
     if use_tap_reset:
-        kmi_toolbar_tuple = dict_as_tuple(kmi_toolbar_args)
-        if kmi_toolbar_tuple not in kmi_unique_args:
-            # Used after keymap is setup.
-            kmi_unique_args.add(kmi_toolbar_tuple)
-        else:
-            use_tap_reset = False
-        del kmi_toolbar_tuple
+        use_tap_reset = kmi_unique_or_pass(kmi_toolbar_args)
 
     if use_tap_reset:
-        tool_blacklist.add(tap_reset_tool)
+        items_all[:] = [
+            item_container
+            for item_container in items_all
+            if item_container[0].text != tap_reset_tool
+        ]
 
-    items_all = [
-        # 0: tool
-        # 1: keymap item (direct access)
-        # 2: keymap item (newly calculated for toolbar)
-        [item, None, None]
-        for item in ToolSelectPanelHelper._tools_flatten(cls.tools_from_context(context))
-        if item is not None
-        if item.text not in tool_blacklist
-    ]
+    # -----------------------
+    # Begin Keymap Generation
 
-    if use_simple_keymap:
-        # Simply assign a key from A-Z.
-        for i, (item, _, _) in enumerate(items_all):
-            key = chr(ord('A') + i)
-            kmi = keymap.keymap_items.new("wm.tool_set_by_name", key, 'PRESS')
-            kmi.properties.name = item.text
-    else:
-        for item_container in items_all:
-            item = item_container[0]
-            # Only check the first item in the tools key-map (a little arbitrary).
-            if use_hack_properties:
-                # First check for direct assignment.
-                kmi_hack_properties.name = item.text
-                kmi_found = wm.keyconfigs.find_item_from_operator(
-                    idname="wm.tool_set_by_name",
-                    context='INVOKE_REGION_WIN',
-                    # properties={"name": item.text},
-                    properties=kmi_hack_properties,
-                )[1]
+    # -------------------------------------------------------------------------
+    # Direct Tool Assignment & Brushes
 
-                if kmi_found is None:
-                    if item.data_block:
-                        # PAINT_OT_brush_select
-                        mode = context.active_object.mode
-                        # See: BKE_paint_get_tool_prop_id_from_paintmode
-                        attr = {
-                            'SCULPT': "sculpt_tool",
-                            'VERTEX_PAINT': "vertex_tool",
-                            'WEIGHT_PAINT': "weight_tool",
-                            'TEXTURE_PAINT': "image_tool",
-                            'GPENCIL_PAINT': "gpencil_tool",
-                        }.get(mode, None)
-                        if attr is not None:
-                            setattr(kmi_hack_brush_select_properties, attr, item.data_block)
-                            kmi_found = wm.keyconfigs.find_item_from_operator(
-                                idname="paint.brush_select",
-                                context='INVOKE_REGION_WIN',
-                                properties=kmi_hack_brush_select_properties,
-                            )[1]
-                        else:
-                            print("Unsupported mode:", mode)
-                        del mode, attr
+    for item_container in items_all:
+        item = item_container[0]
+        # Only check the first item in the tools key-map (a little arbitrary).
+        if use_hack_properties:
+            # First check for direct assignment.
+            kmi_hack_properties.name = item.text
+            kmi_found = wm.keyconfigs.find_item_from_operator(
+                idname="wm.tool_set_by_name",
+                context='INVOKE_REGION_WIN',
+                # properties={"name": item.text},
+                properties=kmi_hack_properties,
+            )[1]
 
-            else:
+            if kmi_found is None:
+                if item.data_block:
+                    # PAINT_OT_brush_select
+                    mode = context.active_object.mode
+                    # See: BKE_paint_get_tool_prop_id_from_paintmode
+                    attr = {
+                        'SCULPT': "sculpt_tool",
+                        'VERTEX_PAINT': "vertex_tool",
+                        'WEIGHT_PAINT': "weight_tool",
+                        'TEXTURE_PAINT': "image_tool",
+                        'GPENCIL_PAINT': "gpencil_tool",
+                    }.get(mode, None)
+                    if attr is not None:
+                        setattr(kmi_hack_brush_select_properties, attr, item.data_block)
+                        kmi_found = wm.keyconfigs.find_item_from_operator(
+                            idname="paint.brush_select",
+                            context='INVOKE_REGION_WIN',
+                            properties=kmi_hack_brush_select_properties,
+                        )[1]
+                    else:
+                        print("Unsupported mode:", mode)
+                    del mode, attr
+
+        else:
+            kmi_found = None
+
+        if kmi_found is not None:
+            pass
+        elif item.operator is not None:
+            kmi_found = wm.keyconfigs.find_item_from_operator(
+                idname=item.operator,
+                context='INVOKE_REGION_WIN',
+            )[1]
+        elif item.keymap is not None:
+            km = keyconf.keymaps.get(item.keymap[0])
+            if km is None:
+                print("Keymap", repr(item.keymap[0]), "not found for tool", item.text)
                 kmi_found = None
-
-            if kmi_found is not None:
-                pass
-            elif item.operator is not None:
-                kmi_found = wm.keyconfigs.find_item_from_operator(
-                    idname=item.operator,
-                    context='INVOKE_REGION_WIN',
-                )[1]
-            elif item.keymap is not None:
-                kmi_first = item.keymap[0].keymap_items
+            else:
+                kmi_first = km.keymap_items
                 kmi_first = kmi_first[0] if kmi_first else None
                 if kmi_first is not None:
                     kmi_found = wm.keyconfigs.find_item_from_operator(
@@ -208,126 +232,162 @@ def generate(context, space_type):
                 else:
                     kmi_found = None
                 del kmi_first
-            else:
-                kmi_found = None
-            item_container[1] = kmi_found
+            del km
+        else:
+            kmi_found = None
+        item_container[1] = kmi_found
 
-        # More complex multi-pass test.
-        for item_container in items_all:
-            item, kmi_found = item_container[:2]
-            if kmi_found is None:
-                continue
-            kmi_found_type = kmi_found.type
+    # -------------------------------------------------------------------------
+    # Single Key Access
 
-            # Only for single keys.
-            if (
-                    (len(kmi_found_type) == 1) or
-                    # When a tool is being activated instead of running an operator, just copy the shortcut.
-                    (kmi_found.idname in {"wm.tool_set_by_name", "WM_OT_tool_set_by_name"})
-            ):
-                kmi_args = {"type": kmi_found_type, **modifier_keywords_from_item(kmi_found)}
+    # More complex multi-pass test.
+    for item_container in items_all:
+        item, kmi_found = item_container[:2]
+        if kmi_found is None:
+            continue
+        kmi_found_type = kmi_found.type
+
+        # Only for single keys.
+        if (
+                (len(kmi_found_type) == 1) or
+                # When a tool is being activated instead of running an operator, just copy the shortcut.
+                (kmi_found.idname in {"wm.tool_set_by_name", "WM_OT_tool_set_by_name"})
+        ):
+            kmi_args = {"type": kmi_found_type, **modifier_keywords_from_item(kmi_found)}
+            if kmi_unique_or_pass(kmi_args):
                 kmi = keymap.keymap_items.new(idname="wm.tool_set_by_name", value='PRESS', **kmi_args)
                 kmi.properties.name = item.text
                 item_container[2] = kmi
-                if use_auto_keymap:
-                    kmi_unique_args.add(dict_as_tuple(kmi_args))
 
-        # Test for key_modifier, where alpha key is used as a 'key_modifier'
-        # (grease pencil holding 'D' for example).
+    # -------------------------------------------------------------------------
+    # Single Key Modifier
+    #
+    #
+    # Test for key_modifier, where alpha key is used as a 'key_modifier'
+    # (grease pencil holding 'D' for example).
+
+    for item_container in items_all:
+        item, kmi_found, kmi_exist = item_container
+        if kmi_found is None or kmi_exist:
+            continue
+
+        kmi_found_type = kmi_found.type
+        if kmi_found_type in {
+                'LEFTMOUSE',
+                'RIGHTMOUSE',
+                'MIDDLEMOUSE',
+                'BUTTON4MOUSE',
+                'BUTTON5MOUSE',
+                'BUTTON6MOUSE',
+                'BUTTON7MOUSE',
+        }:
+            kmi_found_type = kmi_found.key_modifier
+            # excludes 'NONE'
+            if len(kmi_found_type) == 1:
+                kmi_args = {"type": kmi_found_type, **modifier_keywords_from_item(kmi_found)}
+                del kmi_args["key_modifier"]
+                if kmi_unique_or_pass(kmi_args):
+                    kmi = keymap.keymap_items.new(idname="wm.tool_set_by_name", value='PRESS', **kmi_args)
+                    kmi.properties.name = item.text
+                    item_container[2] = kmi
+
+    # -------------------------------------------------------------------------
+    # Assign A-Z to Keys
+    #
+    # When th keys are free.
+
+    if use_auto_keymap_alpha:
+        # Map all unmapped keys to numbers,
+        # while this is a bit strange it means users will not confuse regular key bindings to ordered bindings.
+
+        # First map A-Z.
+        kmi_type_alpha_char = [chr(i) for i in range(65, 91)]
+        kmi_type_alpha_args = {c: {"type": c} for c in kmi_type_alpha_char}
+        kmi_type_alpha_args_tuple = {c: dict_as_tuple(kmi_type_alpha_args[c]) for c in kmi_type_alpha_char}
         for item_container in items_all:
             item, kmi_found, kmi_exist = item_container
-            if kmi_found is None or kmi_exist:
+            if kmi_exist:
                 continue
+            kmi_type = item.text[0].upper()
+            kmi_tuple = kmi_type_alpha_args_tuple.get(kmi_type)
+            if kmi_tuple and kmi_tuple not in kmi_unique_args:
+                kmi_unique_args.add(kmi_tuple)
+                kmi = keymap.keymap_items.new(
+                    idname="wm.tool_set_by_name",
+                    value='PRESS',
+                    **kmi_type_alpha_args[kmi_type],
+                )
+                kmi.properties.name = item.text
+                item_container[2] = kmi
+        del kmi_type_alpha_char, kmi_type_alpha_args, kmi_type_alpha_args_tuple
 
-            kmi_found_type = kmi_found.type
-            if kmi_found_type in {
-                    'LEFTMOUSE',
-                    'RIGHTMOUSE',
-                    'MIDDLEMOUSE',
-                    'BUTTON4MOUSE',
-                    'BUTTON5MOUSE',
-                    'BUTTON6MOUSE',
-                    'BUTTON7MOUSE',
-            }:
-                kmi_found_type = kmi_found.key_modifier
-                # excludes 'NONE'
-                if len(kmi_found_type) == 1:
-                    kmi_args = {"type": kmi_found_type, **modifier_keywords_from_item(kmi_found)}
-                    del kmi_args["key_modifier"]
+    # -------------------------------------------------------------------------
+    # Assign Numbers to Keys
+
+    if use_auto_keymap_num:
+        # Free events (last used first).
+        kmi_type_auto = ('ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'ZERO')
+        # Map both numbers and num-pad.
+        kmi_type_dupe = {
+            'ONE': 'NUMPAD_1',
+            'TWO': 'NUMPAD_2',
+            'THREE': 'NUMPAD_3',
+            'FOUR': 'NUMPAD_4',
+            'FIVE': 'NUMPAD_5',
+            'SIX': 'NUMPAD_6',
+            'SEVEN': 'NUMPAD_7',
+            'EIGHT': 'NUMPAD_8',
+            'NINE': 'NUMPAD_9',
+            'ZERO': 'NUMPAD_0',
+        }
+
+        def iter_free_events():
+            for mod in ({}, {"shift": True}, {"ctrl": True}, {"alt": True}):
+                for e in kmi_type_auto:
+                    yield (e, mod)
+
+        iter_events = iter(iter_free_events())
+
+        for item_container in items_all:
+            item, kmi_found, kmi_exist = item_container
+            if kmi_exist:
+                continue
+            kmi_args = None
+            while True:
+                key, mod = next(iter_events, (None, None))
+                if key is None:
+                    break
+                kmi_args = {"type": key, **mod}
+                kmi_tuple = dict_as_tuple(kmi_args)
+                if kmi_tuple in kmi_unique_args:
+                    kmi_args = None
+                else:
+                    break
+
+            if kmi_args is not None:
+                kmi = keymap.keymap_items.new(idname="wm.tool_set_by_name", value='PRESS', **kmi_args)
+                kmi.properties.name = item.text
+                item_container[2] = kmi
+                kmi_unique_args.add(kmi_tuple)
+
+                key = kmi_type_dupe.get(kmi_args["type"])
+                if key is not None:
+                    kmi_args["type"] = key
                     kmi_tuple = dict_as_tuple(kmi_args)
-                    if kmi_tuple in kmi_unique_args:
-                        continue
-                    kmi = keymap.keymap_items.new(idname="wm.tool_set_by_name", value='PRESS', **kmi_args)
-                    kmi.properties.name = item.text
-                    item_container[2] = kmi
-                    if use_auto_keymap:
+                    if not kmi_tuple in kmi_unique_args:
+                        kmi = keymap.keymap_items.new(idname="wm.tool_set_by_name", value='PRESS', **kmi_args)
+                        kmi.properties.name = item.text
                         kmi_unique_args.add(kmi_tuple)
 
-        if use_auto_keymap:
-            # Map all unmapped keys to numbers,
-            # while this is a bit strange it means users will not confuse regular key bindings to ordered bindings.
 
-            # Free events (last used first).
-            kmi_type_auto = ('ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'ZERO')
-            # Map both numbers and num-pad.
-            kmi_type_dupe = {
-                'ONE': 'NUMPAD_1',
-                'TWO': 'NUMPAD_2',
-                'THREE': 'NUMPAD_3',
-                'FOUR': 'NUMPAD_4',
-                'FIVE': 'NUMPAD_5',
-                'SIX': 'NUMPAD_6',
-                'SEVEN': 'NUMPAD_7',
-                'EIGHT': 'NUMPAD_8',
-                'NINE': 'NUMPAD_9',
-                'ZERO': 'NUMPAD_0',
-            }
-
-            def iter_free_events():
-                for mod in ({}, {"shift": True}, {"ctrl": True}, {"alt": True}):
-                    for e in kmi_type_auto:
-                        yield (e, mod)
-
-            iter_events = iter(iter_free_events())
-
-            for item_container in items_all:
-                item, kmi_found, kmi_exist = item_container
-                if kmi_exist:
-                    continue
-                kmi_args = None
-                while True:
-                    key, mod = next(iter_events, (None, None))
-                    if key is None:
-                        break
-                    kmi_args = {"type": key, **mod}
-                    kmi_tuple = dict_as_tuple(kmi_args)
-                    if kmi_tuple in kmi_unique_args:
-                        kmi_args = None
-                    else:
-                        break
-
-                if kmi_args is not None:
-                    kmi = keymap.keymap_items.new(idname="wm.tool_set_by_name", value='PRESS', **kmi_args)
-                    kmi.properties.name = item.text
-                    item_container[2] = kmi
-                    if use_auto_keymap:
-                        kmi_unique_args.add(kmi_tuple)
-
-                    key = kmi_type_dupe.get(kmi_args["type"])
-                    if key is not None:
-                        kmi_args["type"] = key
-                        kmi_tuple = dict_as_tuple(kmi_args)
-                        if not kmi_tuple in kmi_unique_args:
-                            kmi = keymap.keymap_items.new(idname="wm.tool_set_by_name", value='PRESS', **kmi_args)
-                            kmi.properties.name = item.text
-                            if use_auto_keymap:
-                                kmi_unique_args.add(kmi_tuple)
+    # ---------------------
+    # End Keymap Generation
 
     if use_hack_properties:
         keymap.keymap_items.remove(kmi_hack)
+        keymap.keymap_items.remove(kmi_hack_brush_select)
 
-
-    # Keepo last so we can try add a key without any modifiers
+    # Keep last so we can try add a key without any modifiers
     # in the case this toolbar was activated with modifiers.
     if use_tap_reset:
         if len(kmi_toolbar_args_type_only) == len(kmi_toolbar_args):

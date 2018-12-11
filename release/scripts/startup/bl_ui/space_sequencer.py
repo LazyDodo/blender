@@ -22,6 +22,7 @@ from bpy.types import Header, Menu, Panel
 from rna_prop_ui import PropertyPanel
 from .properties_grease_pencil_common import (
     AnnotationDataPanel,
+    AnnotationOnionSkin,
     GreasePencilToolsPanel,
 )
 from bpy.app.translations import pgettext_iface as iface_
@@ -476,14 +477,14 @@ class SEQUENCER_MT_strip_lock_mute(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("sequencer.lock", icon='LOCK')
+        layout.operator("sequencer.lock", icon='LOCKED')
         layout.operator("sequencer.unlock")
 
         layout.separator()
 
         layout.operator("sequencer.mute").unselected = False
         layout.operator("sequencer.unmute").unselected = False
-        layout.operator("sequencer.mute", text="Mute Deselected Strips").unselected = True
+        layout.operator("sequencer.mute", text="Mute Unselected Strips").unselected = True
 
 
 class SEQUENCER_MT_strip(Menu):
@@ -1185,6 +1186,7 @@ class SEQUENCER_PT_preview(SequencerButtonsPanel_Output, Panel):
     bl_label = "Scene Preview/Render"
     bl_space_type = 'SEQUENCE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Strip"
 
     def draw(self, context):
         layout = self.layout
@@ -1203,6 +1205,7 @@ class SEQUENCER_PT_preview(SequencerButtonsPanel_Output, Panel):
 
 class SEQUENCER_PT_view(SequencerButtonsPanel_Output, Panel):
     bl_label = "View Settings"
+    bl_category = "Strip"
 
     def draw(self, context):
         layout = self.layout
@@ -1224,6 +1227,7 @@ class SEQUENCER_PT_view(SequencerButtonsPanel_Output, Panel):
 
 class SEQUENCER_PT_view_safe_areas(SequencerButtonsPanel_Output, Panel):
     bl_label = "Safe Areas"
+    bl_category = "Strip"
     bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
@@ -1326,6 +1330,17 @@ class SEQUENCER_PT_modifiers(SequencerButtonsPanel, Panel):
 class SEQUENCER_PT_grease_pencil(AnnotationDataPanel, SequencerButtonsPanel_Output, Panel):
     bl_space_type = 'SEQUENCE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Strip"
+
+    # NOTE: this is just a wrapper around the generic GP Panel
+    # But, it should only show up when there are images in the preview region
+
+
+class SEQUENCER_PT_annotation_onion(AnnotationOnionSkin, SequencerButtonsPanel_Output, Panel):
+    bl_space_type = 'SEQUENCE_EDITOR'
+    bl_region_type = 'UI'
+    bl_category = "Strip"
+    bl_parent_id = 'SEQUENCER_PT_grease_pencil'
 
     # NOTE: this is just a wrapper around the generic GP Panel
     # But, it should only show up when there are images in the preview region
@@ -1334,6 +1349,7 @@ class SEQUENCER_PT_grease_pencil(AnnotationDataPanel, SequencerButtonsPanel_Outp
 class SEQUENCER_PT_grease_pencil_tools(GreasePencilToolsPanel, SequencerButtonsPanel_Output, Panel):
     bl_space_type = 'SEQUENCE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Strip"
 
     # NOTE: this is just a wrapper around the generic GP tools panel
     # It contains access to some essential tools usually found only in
@@ -1341,7 +1357,7 @@ class SEQUENCER_PT_grease_pencil_tools(GreasePencilToolsPanel, SequencerButtonsP
 
 
 class SEQUENCER_PT_custom_props(SequencerButtonsPanel, PropertyPanel, Panel):
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_WORKBENCH'}
     _context_path = "scene.sequence_editor.active_strip"
     _property_type = (bpy.types.Sequence,)
     bl_category = "Strip"
@@ -1376,6 +1392,7 @@ classes = (
     SEQUENCER_PT_view_safe_areas,
     SEQUENCER_PT_modifiers,
     SEQUENCER_PT_grease_pencil,
+    SEQUENCER_PT_annotation_onion,
     SEQUENCER_PT_grease_pencil_tools,
     SEQUENCER_PT_custom_props,
 )

@@ -63,13 +63,16 @@
 
 #include "bmesh.h"
 
-void MOD_init_texture(const Depsgraph *depsgraph, Tex *tex)
+void MOD_init_texture(MappingInfoModifierData *dmd, const ModifierEvalContext *ctx)
 {
-	if (!tex)
+	Tex *tex = (Tex *)DEG_get_evaluated_id(ctx->depsgraph, &dmd->texture->id);
+
+	if (tex == NULL) {
 		return;
+	}
 
 	if (tex->ima && BKE_image_is_animated(tex->ima)) {
-		BKE_image_user_frame_calc(&tex->iuser, DEG_get_ctime(depsgraph));
+		BKE_image_user_frame_calc(&tex->iuser, DEG_get_ctime(ctx->depsgraph));
 	}
 }
 
@@ -77,6 +80,7 @@ void MOD_init_texture(const Depsgraph *depsgraph, Tex *tex)
 /** \param cos may be NULL, in which case we use directly mesh vertices' coordinates. */
 void MOD_get_texture_coords(
         MappingInfoModifierData *dmd,
+        const ModifierEvalContext *ctx,
         Object *ob,
         Mesh *mesh,
         float (*cos)[3],
@@ -88,10 +92,13 @@ void MOD_get_texture_coords(
 	float mapob_imat[4][4];
 
 	if (texmapping == MOD_DISP_MAP_OBJECT) {
-		if (dmd->map_object)
-			invert_m4_m4(mapob_imat, dmd->map_object->obmat);
-		else /* if there is no map object, default to local */
+		if (dmd->map_object != NULL) {
+			Object *map_object = DEG_get_evaluated_object(ctx->depsgraph, dmd->map_object);
+			invert_m4_m4(mapob_imat, map_object->obmat);
+		}
+		else {/* if there is no map object, default to local */
 			texmapping = MOD_DISP_MAP_LOCAL;
+		}
 	}
 
 	/* UVs need special handling, since they come from faces */
@@ -168,11 +175,12 @@ void MOD_previous_vcos_store(ModifierData *md, float (*vertexCos)[3])
 }
 
 /* returns a mesh if mesh == NULL, for deforming modifiers that need it */
-Mesh *MOD_get_mesh_eval(
+Mesh *MOD_deform_mesh_eval_get(
         Object *ob, struct BMEditMesh *em, Mesh *mesh,
-        float (*vertexCos)[3], bool use_normals, bool use_orco)
+        float (*vertexCos)[3], const int num_verts,
+        const bool use_normals, const bool use_orco)
 {
-	if (mesh) {
+	if (mesh != NULL) {
 		/* pass */
 	}
 	else if (ob->type == OB_MESH) {
@@ -207,6 +215,13 @@ Mesh *MOD_get_mesh_eval(
 	else if (ELEM(ob->type, OB_FONT, OB_CURVE, OB_SURF)) {
 		/* TODO(sybren): get evaluated mesh from depsgraph once that's properly generated for curves. */
 		mesh = BKE_mesh_new_nomain_from_curve(ob);
+
+		/* Currently, that may not be the case everytime
+		 * (texts e.g. tend to give issues, also when deforming curve points instead of generated curve geometry... ). */
+		if (mesh != NULL && mesh->totvert != num_verts) {
+			BKE_id_free(NULL, mesh);
+			mesh = NULL;
+		}
 	}
 
 	if (use_normals) {
@@ -214,6 +229,8 @@ Mesh *MOD_get_mesh_eval(
 			BKE_mesh_ensure_normals(mesh);
 		}
 	}
+
+	BLI_assert(mesh == NULL || mesh->totvert == num_verts);
 
 	return mesh;
 }

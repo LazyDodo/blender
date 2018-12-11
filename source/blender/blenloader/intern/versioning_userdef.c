@@ -93,6 +93,15 @@ static void do_versions_theme(UserDef *userdef, bTheme *btheme)
 		copy_v4_v4_char(btheme->tclip.list_text, U_theme_default.tclip.list_text);
 	}
 
+	if (!USER_VERSION_ATLEAST(280, 33)) {
+		copy_v4_v4_char(btheme->tuserpref.navigation_bar, U_theme_default.tuserpref.navigation_bar);
+	}
+
+	if (!USER_VERSION_ATLEAST(280, 36)) {
+		copy_v4_v4_char(btheme->tui.wcol_state.inner_changed, U_theme_default.tui.wcol_state.inner_changed);
+		copy_v4_v4_char(btheme->tui.wcol_state.inner_changed_sel, U_theme_default.tui.wcol_state.inner_changed_sel);
+	}
+
 #undef USER_VERSION_ATLEAST
 }
 
@@ -398,12 +407,18 @@ void BLO_version_defaults_userpref_blend(Main *bmain, UserDef *userdef)
 		}
 	}
 
-	if (!USER_VERSION_ATLEAST(280, 32)) {
-		if ((userdef->flag & USER_LMOUSESELECT) ) {
-			userdef->flag &= ~USER_LMOUSESELECT;
-			wmKeyConfigPref *kpt = BKE_keyconfig_pref_ensure(userdef, WM_KEYCONFIG_STR_DEFAULT);
-			IDP_AddToGroup(kpt->prop, IDP_New(IDP_INT, &(IDPropertyTemplate){ .i = 0, }, "select_mouse"));
+	if (!USER_VERSION_ATLEAST(280, 33)) {
+		/* Enable GLTF addon by default. */
+		BKE_addon_ensure(&userdef->addons, "io_scene_gltf2");
+	}
+
+	if (!USER_VERSION_ATLEAST(280, 35)) {
+		/* Preserve RMB select setting after moving to Python and changing default value. */
+		if (USER_VERSION_ATLEAST(280, 32) || !(userdef->flag & USER_LMOUSESELECT)) {
+			BKE_keyconfig_pref_set_select_mouse(userdef, 1, false);
 		}
+
+		userdef->flag &= ~USER_LMOUSESELECT;
 	}
 
 	/**
@@ -411,6 +426,31 @@ void BLO_version_defaults_userpref_blend(Main *bmain, UserDef *userdef)
 	 */
 	{
 		/* (keep this block even if it becomes empty). */
+		copy_v4_fl4(userdef->light_param[0].vec, -0.580952, 0.228571, 0.781185, 0.0);
+		copy_v4_fl4(userdef->light_param[0].col, 0.900000, 0.900000, 0.900000, 1.000000);
+		copy_v4_fl4(userdef->light_param[0].spec, 0.318547, 0.318547, 0.318547, 1.000000);
+		userdef->light_param[0].flag = 1;
+		userdef->light_param[0].smooth = 0.1;
+
+		copy_v4_fl4(userdef->light_param[1].vec, 0.788218, 0.593482, -0.162765, 0.0);
+		copy_v4_fl4(userdef->light_param[1].col, 0.267115, 0.269928, 0.358840, 1.000000);
+		copy_v4_fl4(userdef->light_param[1].spec, 0.090838, 0.090838, 0.090838, 1.000000);
+		userdef->light_param[1].flag = 1;
+		userdef->light_param[1].smooth = 0.25;
+
+		copy_v4_fl4(userdef->light_param[2].vec, 0.696472, -0.696472, -0.172785, 0.0);
+		copy_v4_fl4(userdef->light_param[2].col, 0.293216, 0.304662, 0.401968, 1.000000);
+		copy_v4_fl4(userdef->light_param[2].spec, 0.069399, 0.020331, 0.020331, 1.000000);
+		userdef->light_param[2].flag = 1;
+		userdef->light_param[2].smooth = 0.4;
+
+		copy_v4_fl4(userdef->light_param[3].vec, 0.021053, -0.989474, 0.143173, 0.0);
+		copy_v4_fl4(userdef->light_param[3].col, 0.0, 0.0, 0.0, 1.0);
+		copy_v4_fl4(userdef->light_param[3].spec, 0.072234, 0.082253, 0.162642, 1.000000);
+		userdef->light_param[3].flag = 1;
+		userdef->light_param[3].smooth = 0.7;
+
+		copy_v4_fl4(userdef->light_ambient, 0.025000, 0.025000, 0.025000, 1.000000);
 	}
 
 	if (userdef->pixelsize == 0.0f)

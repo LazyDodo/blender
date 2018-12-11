@@ -523,7 +523,8 @@ class IMAGE_HT_header(Header):
         row = layout.row(align=True)
         row.template_header()
 
-        layout.prop(sima, "mode", text="")
+        if sima.mode != 'UV':
+            layout.prop(sima, "ui_mode", text="")
 
         # UV editing.
         if show_uvedit:
@@ -653,26 +654,31 @@ from .properties_mask_common import (
 class IMAGE_PT_mask(MASK_PT_mask, Panel):
     bl_space_type = 'IMAGE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Image"
 
 
 class IMAGE_PT_mask_layers(MASK_PT_layers, Panel):
     bl_space_type = 'IMAGE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Image"
 
 
 class IMAGE_PT_mask_display(MASK_PT_display, Panel):
     bl_space_type = 'IMAGE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Image"
 
 
 class IMAGE_PT_active_mask_spline(MASK_PT_spline, Panel):
     bl_space_type = 'IMAGE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Image"
 
 
 class IMAGE_PT_active_mask_point(MASK_PT_point, Panel):
     bl_space_type = 'IMAGE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Image"
 
 
 # --- end mask ---
@@ -681,6 +687,7 @@ class IMAGE_PT_active_mask_point(MASK_PT_point, Panel):
 class IMAGE_PT_image_properties(Panel):
     bl_space_type = 'IMAGE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Image"
     bl_label = "Image"
 
     @classmethod
@@ -802,6 +809,7 @@ class IMAGE_UL_render_slots(UIList):
 class IMAGE_PT_render_slots(Panel):
     bl_space_type = 'IMAGE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Image"
     bl_label = "Render Slots"
 
     @classmethod
@@ -1187,6 +1195,7 @@ class ImageScopesPanel:
 class IMAGE_PT_view_scopes(ImageScopesPanel, Panel):
     bl_space_type = 'IMAGE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Image"
     bl_label = "Scopes"
 
     def draw(self, layout):
@@ -1196,6 +1205,7 @@ class IMAGE_PT_view_scopes(ImageScopesPanel, Panel):
 class IMAGE_PT_view_histogram(ImageScopesPanel, Panel):
     bl_space_type = 'IMAGE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Image"
     bl_label = "Histogram"
     bl_parent_id = 'IMAGE_PT_view_scopes'
 
@@ -1215,6 +1225,7 @@ class IMAGE_PT_view_histogram(ImageScopesPanel, Panel):
 class IMAGE_PT_view_waveform(ImageScopesPanel, Panel):
     bl_space_type = 'IMAGE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Image"
     bl_label = "Waveform"
     bl_parent_id = 'IMAGE_PT_view_scopes'
     bl_options = {'DEFAULT_CLOSED'}
@@ -1233,6 +1244,7 @@ class IMAGE_PT_view_waveform(ImageScopesPanel, Panel):
 class IMAGE_PT_view_vectorscope(ImageScopesPanel, Panel):
     bl_space_type = 'IMAGE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Image"
     bl_label = "Vectorscope"
     bl_parent_id = 'IMAGE_PT_view_scopes'
     bl_options = {'DEFAULT_CLOSED'}
@@ -1248,6 +1260,7 @@ class IMAGE_PT_view_vectorscope(ImageScopesPanel, Panel):
 class IMAGE_PT_sample_line(ImageScopesPanel, Panel):
     bl_space_type = 'IMAGE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Image"
     bl_label = "Sample Line"
     bl_parent_id = 'IMAGE_PT_view_scopes'
     bl_options = {'DEFAULT_CLOSED'}
@@ -1269,6 +1282,7 @@ class IMAGE_PT_sample_line(ImageScopesPanel, Panel):
 class IMAGE_PT_scope_sample(ImageScopesPanel, Panel):
     bl_space_type = 'IMAGE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Image"
     bl_label = "Samples"
     bl_parent_id = 'IMAGE_PT_view_scopes'
     bl_options = {'DEFAULT_CLOSED'}
@@ -1292,6 +1306,7 @@ class IMAGE_PT_scope_sample(ImageScopesPanel, Panel):
 class IMAGE_PT_grease_pencil(AnnotationDataPanel, Panel):
     bl_space_type = 'IMAGE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Image"
 
     # NOTE: this is just a wrapper around the generic GP Panel.
 

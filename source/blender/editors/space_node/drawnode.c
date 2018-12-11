@@ -921,7 +921,7 @@ static void node_shader_buts_tex_pointdensity(uiLayout *layout, bContext *UNUSED
 static void node_shader_buts_tex_coord(uiLayout *layout, bContext *UNUSED(C), PointerRNA *ptr)
 {
 	uiItemR(layout, ptr, "object", 0, NULL, 0);
-	uiItemR(layout, ptr, "from_dupli", 0, NULL, 0);
+	uiItemR(layout, ptr, "from_instancer", 0, NULL, 0);
 }
 
 static void node_shader_buts_bump(uiLayout *layout, bContext *UNUSED(C), PointerRNA *ptr)
@@ -931,9 +931,9 @@ static void node_shader_buts_bump(uiLayout *layout, bContext *UNUSED(C), Pointer
 
 static void node_shader_buts_uvmap(uiLayout *layout, bContext *C, PointerRNA *ptr)
 {
-	uiItemR(layout, ptr, "from_dupli", 0, NULL, 0);
+	uiItemR(layout, ptr, "from_instancer", 0, NULL, 0);
 
-	if (!RNA_boolean_get(ptr, "from_dupli")) {
+	if (!RNA_boolean_get(ptr, "from_instancer")) {
 		PointerRNA obptr = CTX_data_pointer_get(C, "active_object");
 
 		if (obptr.data && RNA_enum_get(&obptr, "type") == OB_MESH) {
@@ -2986,7 +2986,7 @@ void ED_node_init_butfuncs(void)
 	NodeSocketTypeUndefined.interface_draw_color = node_socket_undefined_interface_draw_color;
 
 	/* node type ui functions */
-	NODE_TYPES_BEGIN(ntype)
+	NODE_TYPES_BEGIN(ntype) {
 		/* default ui functions */
 		ntype->draw_nodetype = node_draw_default;
 		ntype->draw_nodetype_prepare = node_update_default;
@@ -3004,7 +3004,7 @@ void ED_node_init_butfuncs(void)
 
 		/* define update callbacks for socket properties */
 		node_template_properties_update(ntype);
-	NODE_TYPES_END
+	} NODE_TYPES_END;
 
 	/* tree type icons */
 	ntreeType_Composite->ui_icon = ICON_NODE_COMPOSITING;

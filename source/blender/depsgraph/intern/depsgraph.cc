@@ -94,7 +94,8 @@ Depsgraph::Depsgraph(Scene *scene,
     mode(mode),
     ctime(BKE_scene_frame_get(scene)),
     scene_cow(NULL),
-    is_active(false)
+    is_active(false),
+    debug_is_evaluating(false)
 {
 	BLI_spin_init(&lock);
 	id_hash = BLI_ghash_ptr_new("Depsgraph id hash");
@@ -393,34 +394,43 @@ void Depsgraph::clear_id_nodes()
 DepsRelation *Depsgraph::add_new_relation(OperationDepsNode *from,
                                           OperationDepsNode *to,
                                           const char *description,
-                                          bool check_unique)
+                                          bool check_unique,
+                                          int flags)
 {
 	DepsRelation *rel = NULL;
 	if (check_unique) {
 		rel = check_nodes_connected(from, to, description);
 	}
 	if (rel != NULL) {
+		rel->flag |= flags;
 		return rel;
 	}
+	/* COW nodes can only depend on other COW nodes. */
+	BLI_assert(to->owner->type != DEG_NODE_TYPE_COPY_ON_WRITE ||
+	           from->owner->type == DEG_NODE_TYPE_COPY_ON_WRITE);
 	/* Create new relation, and add it to the graph. */
 	rel = OBJECT_GUARDED_NEW(DepsRelation, from, to, description);
+	rel->flag |= flags;
 	return rel;
 }
 
 /* Add new relation between two nodes */
 DepsRelation *Depsgraph::add_new_relation(DepsNode *from, DepsNode *to,
                                           const char *description,
-                                          bool check_unique)
+                                          bool check_unique,
+                                          int flags)
 {
 	DepsRelation *rel = NULL;
 	if (check_unique) {
 		rel = check_nodes_connected(from, to, description);
 	}
 	if (rel != NULL) {
+		rel->flag |= flags;
 		return rel;
 	}
 	/* Create new relation, and add it to the graph. */
 	rel = OBJECT_GUARDED_NEW(DepsRelation, from, to, description);
+	rel->flag |= flags;
 	return rel;
 }
 
@@ -638,6 +648,13 @@ void DEG_make_inactive(struct Depsgraph *depsgraph)
 }
 
 /* Evaluation and debug */
+
+bool DEG_debug_is_evaluating(struct Depsgraph *depsgraph)
+{
+	DEG::Depsgraph *deg_graph =
+	        reinterpret_cast<DEG::Depsgraph *>(depsgraph);
+	return deg_graph->debug_is_evaluating;
+}
 
 static DEG::string depsgraph_name_for_logging(struct Depsgraph *depsgraph)
 {

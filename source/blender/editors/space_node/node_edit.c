@@ -330,10 +330,10 @@ void snode_dag_update(bContext *C, SpaceNode *snode)
 
 	/* for groups, update all ID's using this */
 	if (snode->edittree != snode->nodetree) {
-		FOREACH_NODETREE(bmain, tntree, id) {
+		FOREACH_NODETREE_BEGIN(bmain, tntree, id) {
 			if (ntreeHasTree(tntree, snode->edittree))
 				DEG_id_tag_update(id, 0);
-		} FOREACH_NODETREE_END
+		} FOREACH_NODETREE_END;
 	}
 
 	DEG_id_tag_update(snode->id, 0);
@@ -1586,7 +1586,7 @@ static int node_delete_exec(bContext *C, wmOperator *UNUSED(op))
 			do_tag_update |= (do_tag_update || node_connected_to_output(bmain, snode->edittree, node));
 			if (node->id)
 				id_us_min(node->id);
-			nodeFreeNode(snode->edittree, node);
+			nodeDeleteNode(bmain, snode->edittree, node);
 		}
 	}
 
@@ -1666,6 +1666,7 @@ void NODE_OT_switch_view_update(wmOperatorType *ot)
 /* ****************** Delete with reconnect ******************* */
 static int node_delete_reconnect_exec(bContext *C, wmOperator *UNUSED(op))
 {
+	Main *bmain = CTX_data_main(C);
 	SpaceNode *snode = CTX_wm_space_node(C);
 	bNode *node, *next;
 
@@ -1679,7 +1680,7 @@ static int node_delete_reconnect_exec(bContext *C, wmOperator *UNUSED(op))
 			/* check id user here, nodeFreeNode is called for free dbase too */
 			if (node->id)
 				id_us_min(node->id);
-			nodeFreeNode(snode->edittree, node);
+			nodeDeleteNode(bmain, snode->edittree, node);
 		}
 	}
 
@@ -2389,17 +2390,17 @@ static int node_shader_script_update_exec(bContext *C, wmOperator *op)
 
 		if (text) {
 			/* clear flags for recursion check */
-			FOREACH_NODETREE(bmain, ntree, id) {
+			FOREACH_NODETREE_BEGIN(bmain, ntree, id) {
 				if (ntree->type == NTREE_SHADER)
 					ntree->done = false;
-			} FOREACH_NODETREE_END
+			} FOREACH_NODETREE_END;
 
-			FOREACH_NODETREE(bmain, ntree, id) {
+			FOREACH_NODETREE_BEGIN(bmain, ntree, id) {
 				if (ntree->type == NTREE_SHADER) {
 					if (!ntree->done)
 						found |= node_shader_script_update_text_recursive(engine, type, ntree, text);
 				}
-			} FOREACH_NODETREE_END
+			} FOREACH_NODETREE_END;
 
 			if (!found)
 				BKE_report(op->reports, RPT_INFO, "Text not used by any node, no update done");

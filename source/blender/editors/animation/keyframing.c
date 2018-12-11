@@ -165,7 +165,7 @@ bAction *verify_adt_action(Main *bmain, ID *id, short add)
 		DEG_relations_tag_update(bmain);
 	}
 
-	DEG_id_tag_update(&adt->action->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&adt->action->id, ID_RECALC_COPY_ON_WRITE);
 
 	/* return the action */
 	return adt->action;
@@ -1178,10 +1178,10 @@ short insert_keyframe(
 
 	if (ret) {
 		if (act != NULL) {
-			DEG_id_tag_update(&act->id, DEG_TAG_COPY_ON_WRITE);
+			DEG_id_tag_update(&act->id, ID_RECALC_COPY_ON_WRITE);
 		}
 		if (adt != NULL && adt->action != NULL && adt->action != act) {
-			DEG_id_tag_update(&adt->action->id, DEG_TAG_COPY_ON_WRITE);
+			DEG_id_tag_update(&adt->action->id, ID_RECALC_COPY_ON_WRITE);
 		}
 	}
 
@@ -1302,7 +1302,13 @@ short delete_keyframe(Main *bmain, ReportList *reports, ID *id, bAction *act,
 		ret += delete_keyframe_fcurve(adt, fcu, cfra);
 
 	}
-
+	/* In the case last f-curve wes removed need to inform dependency graph
+	 * about relations update, since it needs to get rid of animation operation
+	 * for this datablock. */
+	if (ret && adt->action == NULL) {
+		DEG_id_tag_update_ex(bmain, id, ID_RECALC_COPY_ON_WRITE);
+		DEG_relations_tag_update(bmain);
+	}
 	/* return success/failure */
 	return ret;
 }
@@ -1392,7 +1398,13 @@ static short clear_keyframe(Main *bmain, ReportList *reports, ID *id, bAction *a
 		/* return success */
 		ret++;
 	}
-
+	/* In the case last f-curve wes removed need to inform dependency graph
+	 * about relations update, since it needs to get rid of animation operation
+	 * for this datablock. */
+	if (ret && adt->action == NULL) {
+		DEG_id_tag_update_ex(bmain, id, ID_RECALC_COPY_ON_WRITE);
+		DEG_relations_tag_update(bmain);
+	}
 	/* return success/failure */
 	return ret;
 }
@@ -1719,7 +1731,7 @@ static int clear_anim_v3d_exec(bContext *C, wmOperator *UNUSED(op))
 				/* delete F-Curve completely */
 				if (can_delete) {
 					ANIM_fcurve_delete_from_animdata(NULL, adt, fcu);
-					DEG_id_tag_update(&ob->id, OB_RECALC_OB);
+					DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM);
 					changed = true;
 				}
 			}
@@ -1826,7 +1838,7 @@ static int delete_key_v3d_exec(bContext *C, wmOperator *op)
 		else
 			BKE_reportf(op->reports, RPT_ERROR, "No keyframes removed from Object '%s'", id->name + 2);
 
-		DEG_id_tag_update(&ob->id, OB_RECALC_OB);
+		DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM);
 	}
 	CTX_DATA_END;
 
@@ -2228,6 +2240,20 @@ bool fcurve_frame_has_keyframe(FCurve *fcu, float frame, short filter)
 	}
 
 	return false;
+}
+
+/* Returns whether the current value of a given property differs from the interpolated value. */
+bool fcurve_is_changed(PointerRNA ptr, PropertyRNA *prop, FCurve *fcu, float frame)
+{
+	PathResolvedRNA anim_rna;
+	anim_rna.ptr = ptr;
+	anim_rna.prop = prop;
+	anim_rna.prop_index = fcu->array_index;
+
+	float fcurve_val = calculate_fcurve(&anim_rna, fcu, frame);
+	float cur_val = setting_get_rna_value(NULL, &ptr, prop, fcu->array_index, false);
+
+	return !compare_ff_relative(fcurve_val, cur_val, FLT_EPSILON, 64);
 }
 
 /* Checks whether an Action has a keyframe for a given frame

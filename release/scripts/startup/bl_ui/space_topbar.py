@@ -301,7 +301,7 @@ class _draw_left_context_mode:
                 return
 
             is_paint = True
-            if (tool.name in {"Line", "Box", "Circle"}):
+            if (tool.name in {"Line", "Box", "Circle", "Arc"}):
                 is_paint = False
             elif (not tool.has_datablock):
                 return
@@ -384,7 +384,11 @@ class _draw_left_context_mode:
             tool = settings.sculpt_tool
             brush = settings.brush
 
-            layout.prop(brush, "size", slider=True)
+            row = layout.row(align=True)
+            row.prop(brush, "size", slider=True)
+            sub = row.row(align=True)
+            sub.enabled = tool not in {'GRAB', 'CLONE'}
+            sub.prop(brush, "use_pressure_radius", text="")
 
             row = layout.row(align=True)
             row.prop(brush, "strength", slider=True)
@@ -516,6 +520,16 @@ class TOPBAR_PT_gpencil_layers(Panel):
         col.template_list("GPENCIL_UL_layer", "", gpd, "layers", gpd.layers, "active_index",
                           rows=layer_rows, reverse=True)
 
+        gpl = context.active_gpencil_layer
+        if gpl:
+            srow = col.row(align=True)
+            srow.prop(gpl, "blend_mode", text="Blend")
+
+            srow = col.row(align=True)
+            srow.prop(gpl, "opacity", text="Opacity", slider=True)
+            srow.prop(gpl, "clamp_layer", text="",
+                     icon='MOD_MASK' if gpl.clamp_layer else 'LAYER_ACTIVE')
+
         col = row.column()
 
         sub = col.column(align=True)
@@ -538,10 +552,6 @@ class TOPBAR_PT_gpencil_layers(Panel):
                 sub = col.column(align=True)
                 sub.operator("gpencil.layer_isolate", icon='LOCKED', text="").affect_visibility = False
                 sub.operator("gpencil.layer_isolate", icon='HIDE_OFF', text="").affect_visibility = True
-
-        row = layout.row(align=True)
-        if gpl:
-            row.prop(gpl, "opacity", text="Opacity", slider=True)
 
 
 class TOPBAR_MT_editor_menus(Menu):
@@ -828,7 +838,7 @@ class TOPBAR_MT_edit(Menu):
 
         layout.separator()
 
-        layout.operator("screen.userpref_show", text="User Preferences...", icon='PREFERENCES')
+        layout.operator("screen.userpref_show", text="Preferences...", icon='PREFERENCES')
 
 
 class TOPBAR_MT_window(Menu):
@@ -981,7 +991,7 @@ class TOPBAR_MT_window_specials(Menu):
 
         layout.separator()
 
-        layout.operator("screen.userpref_show", text="User Preferences...", icon='PREFERENCES')
+        layout.operator("screen.userpref_show", text="Preferences...", icon='PREFERENCES')
 
 
 class TOPBAR_MT_workspace_menu(Menu):

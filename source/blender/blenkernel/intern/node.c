@@ -76,6 +76,7 @@
 #include "NOD_texture.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_build.h"
 
 #define NODE_DEFAULT_MAX_WIDTH 700
 
@@ -228,7 +229,7 @@ static void update_typeinfo(Main *bmain, const struct bContext *C, bNodeTreeType
 	if (!bmain)
 		return;
 
-	FOREACH_NODETREE(bmain, ntree, id) {
+	FOREACH_NODETREE_BEGIN(bmain, ntree, id) {
 		bNode *node;
 		bNodeSocket *sock;
 
@@ -259,7 +260,7 @@ static void update_typeinfo(Main *bmain, const struct bContext *C, bNodeTreeType
 			if (socktype && STREQ(sock->idname, socktype->idname))
 				node_socket_set_typeinfo(ntree, sock, unregister ? NULL : socktype);
 	}
-	FOREACH_NODETREE_END
+	FOREACH_NODETREE_END;
 }
 
 /* Try to initialize all typeinfo in a node tree.
@@ -920,7 +921,7 @@ bNode *nodeAddStaticNode(const struct bContext *C, bNodeTree *ntree, int type)
 {
 	const char *idname = NULL;
 
-	NODE_TYPES_BEGIN(ntype)
+	NODE_TYPES_BEGIN(ntype) {
 		/* do an extra poll here, because some int types are used
 		 * for multiple node types, this helps find the desired type
 		 */
@@ -928,7 +929,7 @@ bNode *nodeAddStaticNode(const struct bContext *C, bNodeTree *ntree, int type)
 			idname = ntype->idname;
 			break;
 		}
-	NODE_TYPES_END
+	} NODE_TYPES_END;
 	if (!idname) {
 		printf("Error: static node type %d undefined\n", type);
 		return NULL;
@@ -1688,7 +1689,9 @@ static void node_unlink_attached(bNodeTree *ntree, bNode *parent)
 }
 
 /** \note caller needs to manage node->id user */
-static void node_free_node_ex(bNodeTree *ntree, bNode *node, bool remove_animdata, bool use_api_free_cb)
+static void node_free_node_ex(
+        Main *bmain, bNodeTree *ntree, bNode *node,
+        bool remove_animdata, bool use_api_free_cb)
 {
 	bNodeSocket *sock, *nextsock;
 
@@ -1722,7 +1725,11 @@ static void node_free_node_ex(bNodeTree *ntree, bNode *node, bool remove_animdat
 			BLI_strescape(propname_esc, node->name, sizeof(propname_esc));
 			BLI_snprintf(prefix, sizeof(prefix), "nodes[\"%s\"]", propname_esc);
 
-			BKE_animdata_fix_paths_remove((ID *)ntree, prefix);
+			if (BKE_animdata_fix_paths_remove((ID *)ntree, prefix)) {
+				if (bmain != NULL) {
+					DEG_relations_tag_update(bmain);
+				}
+			}
 		}
 
 		if (ntree->typeinfo->free_node_cache)
@@ -1765,7 +1772,12 @@ static void node_free_node_ex(bNodeTree *ntree, bNode *node, bool remove_animdat
 
 void nodeFreeNode(bNodeTree *ntree, bNode *node)
 {
-	node_free_node_ex(ntree, node, true, true);
+	node_free_node_ex(NULL, ntree, node, false, true);
+}
+
+void nodeDeleteNode(Main *bmain, bNodeTree *ntree, bNode *node)
+{
+	node_free_node_ex(bmain, ntree, node, true, true);
 }
 
 static void node_socket_interface_free(bNodeTree *UNUSED(ntree), bNodeSocket *sock)
@@ -1835,7 +1847,7 @@ void ntreeFreeTree(bNodeTree *ntree)
 
 	for (node = ntree->nodes.first; node; node = next) {
 		next = node->next;
-		node_free_node_ex(ntree, node, false, false);
+		node_free_node_ex(NULL, ntree, node, false, false);
 	}
 
 	/* free interface sockets */
@@ -2577,7 +2589,7 @@ void BKE_node_clipboard_clear(void)
 
 	for (node = node_clipboard.nodes.first; node; node = node_next) {
 		node_next = node->next;
-		node_free_node_ex(NULL, node, false, false);
+		node_free_node_ex(NULL, NULL, node, false, false);
 	}
 	BLI_listbase_clear(&node_clipboard.nodes);
 
@@ -2979,13 +2991,13 @@ static void ntree_validate_links(bNodeTree *ntree)
 
 void ntreeVerifyNodes(struct Main *main, struct ID *id)
 {
-	FOREACH_NODETREE(main, ntree, owner_id) {
+	FOREACH_NODETREE_BEGIN(main, ntree, owner_id) {
 		bNode *node;
 
 		for (node = ntree->nodes.first; node; node = node->next)
 			if (node->typeinfo->verifyfunc)
 				node->typeinfo->verifyfunc(ntree, node, id);
-	} FOREACH_NODETREE_END
+	} FOREACH_NODETREE_END;
 }
 
 void ntreeUpdateTree(Main *bmain, bNodeTree *ntree)
@@ -3633,23 +3645,23 @@ void init_nodesystem(void)
 void free_nodesystem(void)
 {
 	if (nodetypes_hash) {
-		NODE_TYPES_BEGIN(nt)
+		NODE_TYPES_BEGIN(nt) {
 			if (nt->ext.free) {
 				nt->ext.free(nt->ext.data);
 			}
-		NODE_TYPES_END
+		} NODE_TYPES_END;
 
 		BLI_ghash_free(nodetypes_hash, NULL, node_free_type);
 		nodetypes_hash = NULL;
 	}
 
 	if (nodesockettypes_hash) {
-		NODE_SOCKET_TYPES_BEGIN(st)
+		NODE_SOCKET_TYPES_BEGIN(st) {
 			if (st->ext_socket.free)
 				st->ext_socket.free(st->ext_socket.data);
 			if (st->ext_interface.free)
 				st->ext_interface.free(st->ext_interface.data);
-		NODE_SOCKET_TYPES_END
+		} NODE_SOCKET_TYPES_END;
 
 		BLI_ghash_free(nodesockettypes_hash, NULL, node_free_socket_type);
 		nodesockettypes_hash = NULL;
@@ -3671,7 +3683,7 @@ void free_nodesystem(void)
 
 
 /* -------------------------------------------------------------------- */
-/* NodeTree Iterator Helpers (FOREACH_NODETREE) */
+/* NodeTree Iterator Helpers (FOREACH_NODETREE_BEGIN) */
 
 void BKE_node_tree_iter_init(struct NodeTreeIterStore *ntreeiter, struct Main *bmain)
 {

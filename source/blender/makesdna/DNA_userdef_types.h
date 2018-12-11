@@ -148,6 +148,8 @@ typedef struct uiWidgetStateColors {
 	char inner_driven_sel[4];
 	char inner_overridden[4];
 	char inner_overridden_sel[4];
+	char inner_changed[4];
+	char inner_changed_sel[4];
 	float blend, pad;
 } uiWidgetStateColors;
 
@@ -492,7 +494,9 @@ enum {
 };
 
 typedef struct SolidLight {
-	int flag, pad;
+	int flag;
+	float smooth;
+	float pad[2];
 	float col[4], spec[4], vec[4];
 } SolidLight;
 
@@ -585,9 +589,12 @@ typedef struct UserDef {
 	short gp_manhattendist, gp_euclideandist, gp_eraser;
 	short gp_settings;  /* eGP_UserdefSettings */
 	short tb_leftmouse, tb_rightmouse;
-	struct SolidLight light[3];
+	/* struct SolidLight light[3] DNA_DEPRECATED; */ /* Was using non-aligned struct! */
+	struct SolidLight light_param[4];
+	float light_ambient[3], pad7;
 	short gizmo_flag, gizmo_size;
-	short pad6[3];
+	short edit_studio_light;
+	short pad6[2];
 	short textimeout, texcollectrate;
 	short dragthreshold;
 	int memcachelimit;
@@ -677,16 +684,29 @@ extern UserDef U; /* from blenkernel blender.c */
 
 /* ***************** USERDEF ****************** */
 
+/* Toggles for unfinished 2.8 UserPref design. */
+//#define WITH_USERDEF_WORKSPACES
+//#define WITH_USERDEF_SYSTEM_SPLIT
+
 /* UserDef.userpref (UI active_section) */
 typedef enum eUserPref_Section {
-	USER_SECTION_INTERFACE	= 0,
-	USER_SECTION_EDIT		= 1,
-	USER_SECTION_FILE		= 2,
-	USER_SECTION_SYSTEM		= 3,
-	USER_SECTION_THEME		= 4,
-	USER_SECTION_INPUT		= 5,
-	USER_SECTION_ADDONS 	= 6,
-	USER_SECTION_LIGHT 	= 7,
+	USER_SECTION_INTERFACE         = 0,
+	USER_SECTION_EDIT              = 1,
+	USER_SECTION_SYSTEM_FILES      = 2,
+	USER_SECTION_SYSTEM_GENERAL    = 3,
+	USER_SECTION_THEME             = 4,
+	USER_SECTION_INPUT             = 5,
+	USER_SECTION_ADDONS            = 6,
+	USER_SECTION_LIGHT             = 7,
+#ifdef WITH_USERDEF_WORKSPACES
+	USER_SECTION_WORKSPACE_CONFIG  = 8,
+	USER_SECTION_WORKSPACE_ADDONS  = 9,
+	USER_SECTION_WORKSPACE_KEYMAPS = 10,
+#endif
+#ifdef WITH_USERDEF_SYSTEM_SPLIT
+	USER_SECTION_SYSTEM_DISPLAY    = 11,
+	USER_SECTION_SYSTEM_DEVICES    = 12,
+#endif
 } eUserPref_Section;
 
 /* UserDef.userpref_flag (State of the user preferences UI). */
@@ -803,7 +823,6 @@ typedef enum eUserpref_UI_Flag2 {
 /* UserDef.app_flag */
 typedef enum eUserpref_APP_Flag {
 	USER_APP_LOCK_UI_LAYOUT = (1 << 0),
-	USER_APP_VIEW3D_HIDE_CURSOR = (1 << 1),
 } eUserpref_APP_Flag;
 
 /* Auto-Keying mode.

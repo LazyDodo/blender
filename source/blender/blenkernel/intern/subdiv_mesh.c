@@ -53,6 +53,7 @@
  */
 
 typedef struct SubdivMeshContext {
+	const SubdivToMeshSettings *settings;
 	const Mesh *coarse_mesh;
 	Subdiv *subdiv;
 	Mesh *subdiv_mesh;
@@ -766,6 +767,9 @@ static void subdiv_copy_edge_data(
 		subdiv_edge->crease = 0;
 		subdiv_edge->bweight = 0;
 		subdiv_edge->flag = 0;
+		if (!ctx->settings->use_optimal_display) {
+			subdiv_edge->flag |= ME_EDGERENDER;
+		}
 		if (ctx->edge_origindex != NULL) {
 			ctx->edge_origindex[subdiv_edge_index] = ORIGINDEX_NONE;
 		}
@@ -777,6 +781,7 @@ static void subdiv_copy_edge_data(
 	                     coarse_edge_index,
 	                     subdiv_edge_index,
 	                     1);
+	subdiv_edge->flag |= ME_EDGERENDER;
 }
 
 static void subdiv_mesh_edge(
@@ -790,12 +795,13 @@ static void subdiv_mesh_edge(
 	Mesh *subdiv_mesh = ctx->subdiv_mesh;
 	MEdge *subdiv_medge = subdiv_mesh->medge;
 	MEdge *subdiv_edge = &subdiv_medge[subdiv_edge_index];
+	const MEdge *coarse_edge = NULL;
 	if (coarse_edge_index != ORIGINDEX_NONE) {
 		const Mesh *coarse_mesh = ctx->coarse_mesh;
 		const MEdge *coarse_medge = coarse_mesh->medge;
-		const MEdge *coarse_edge = &coarse_medge[coarse_edge_index];
-		subdiv_copy_edge_data(ctx, subdiv_edge, coarse_edge);
+		coarse_edge = &coarse_medge[coarse_edge_index];
 	}
+	subdiv_copy_edge_data(ctx, subdiv_edge, coarse_edge);
 	subdiv_edge->v1 = subdiv_v1;
 	subdiv_edge->v2 = subdiv_v2;
 }
@@ -1122,6 +1128,7 @@ Mesh *BKE_subdiv_to_mesh(
 	}
 	/* Initialize subdivion mesh creation context/ */
 	SubdivMeshContext subdiv_context = {0};
+	subdiv_context.settings = settings;
 	subdiv_context.coarse_mesh = coarse_mesh;
 	subdiv_context.subdiv = subdiv;
 	/* Multi-threaded traversal/evaluation. */

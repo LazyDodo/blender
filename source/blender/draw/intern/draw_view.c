@@ -165,7 +165,6 @@ static bool is_cursor_visible(const DRWContextState *draw_ctx, Scene *scene, Vie
 void DRW_draw_cursor(void)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
-	View3D *v3d = draw_ctx->v3d;
 	ARegion *ar = draw_ctx->ar;
 	Scene *scene = draw_ctx->scene;
 	ViewLayer *view_layer = draw_ctx->view_layer;
@@ -176,7 +175,7 @@ void DRW_draw_cursor(void)
 
 	if (is_cursor_visible(draw_ctx, scene, view_layer)) {
 		int co[2];
-		const View3DCursor *cursor = ED_view3d_cursor3d_get(scene, v3d);
+		const View3DCursor *cursor = &scene->cursor;
 		if (ED_view3d_project_int_global(
 		            ar, cursor->location, co, V3D_PROJ_TEST_NOP | V3D_PROJ_TEST_CLIP_NEAR) == V3D_PROJ_RET_OK)
 		{
@@ -228,6 +227,9 @@ void DRW_draw_cursor(void)
 				immUnbindProgram();
 			}
 
+			float original_proj[4][4];
+			GPU_matrix_projection_get(original_proj);
+			GPU_matrix_push();
 			ED_region_pixelspace(ar);
 			GPU_matrix_translate_2f(co[0] + 0.5f, co[1] + 0.5f);
 			GPU_matrix_scale_2f(U.widget_unit, U.widget_unit);
@@ -240,6 +242,8 @@ void DRW_draw_cursor(void)
 
 			glDisable(GL_BLEND);
 			glDisable(GL_LINE_SMOOTH);
+			GPU_matrix_pop();
+			GPU_matrix_projection_set(original_proj);
 		}
 	}
 }

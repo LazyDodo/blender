@@ -67,13 +67,17 @@ wmKeyMapItem *WM_keymap_verify_item(
 wmKeyMapItem *WM_keymap_add_item(
         struct wmKeyMap *keymap, const char *idname, int type,
         int val, int modifier, int keymodifier);
+wmKeyMapItem *WM_keymap_add_item_copy(
+        struct wmKeyMap *keymap, wmKeyMapItem *kmi_src);
 
 bool        WM_keymap_remove_item(struct wmKeyMap *keymap, struct wmKeyMapItem *kmi);
 int         WM_keymap_item_to_string(wmKeyMapItem *kmi, const bool compact, char *result, const int result_len);
 
 wmKeyMap	*WM_keymap_list_find(ListBase *lb, const char *idname, int spaceid, int regionid);
+wmKeyMap	*WM_keymap_list_find_spaceid_or_empty(ListBase *lb, const char *idname, int spaceid, int regionid);
 wmKeyMap	*WM_keymap_ensure(struct wmKeyConfig *keyconf, const char *idname, int spaceid, int regionid);
 wmKeyMap	*WM_keymap_find_all(const struct bContext *C, const char *idname, int spaceid, int regionid);
+wmKeyMap	*WM_keymap_find_all_spaceid_or_empty(const struct bContext *C, const char *idname, int spaceid, int regionid);
 wmKeyMap	*WM_keymap_active(struct wmWindowManager *wm, struct wmKeyMap *keymap);
 bool		 WM_keymap_remove(struct wmKeyConfig *keyconfig, struct wmKeyMap *keymap);
 bool         WM_keymap_poll(struct bContext *C, struct wmKeyMap *keymap);
