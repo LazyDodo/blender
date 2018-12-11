@@ -560,39 +560,6 @@ static DRWShadingGroup *DRW_gpencil_shgroup_point_create(
 	return grp;
 }
 
-/* create shading group for control points */
-static DRWShadingGroup *DRW_gpencil_shgroup_ctrlpoint_create(
-	GPENCIL_e_data *e_data, GPENCIL_Data *vedata, DRWPass *pass, GPUShader *shader, Object *ob,
-	bGPdata *gpd)
-{
-	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
-	const float *viewport_size = DRW_viewport_size_get();
-
-	/* e_data.gpencil_stroke_sh */
-	DRWShadingGroup *grp = DRW_shgroup_create(shader, pass);
-
-	DRW_shgroup_uniform_vec2(grp, "Viewport", viewport_size, 1);
-	DRW_shgroup_uniform_float(grp, "pixsize", stl->storage->pixsize, 1);
-
-	stl->storage->obj_scale = 1.0f;
-	stl->storage->keep_size = 0;
-	stl->storage->pixfactor = GP_DEFAULT_PIX_FACTOR;
-	stl->storage->mode = GP_STYLE_STROKE_STYLE_SOLID;
-	DRW_shgroup_uniform_float(grp, "objscale", &stl->storage->obj_scale, 1);
-	const int keep = 1;
-	DRW_shgroup_uniform_int(grp, "keep_size", &keep, 1);
-	DRW_shgroup_uniform_int(grp, "color_type", &stl->storage->color_type, 1);
-	DRW_shgroup_uniform_int(grp, "mode", &stl->storage->mode, 1);
-	DRW_shgroup_uniform_float(grp, "pixfactor", &stl->storage->pixfactor, 1);
-
-	/* for drawing always on on predefined z-depth */
-	DRW_shgroup_uniform_int(grp, "xraymode", &stl->storage->xray, 1);
-
-	DRW_shgroup_uniform_texture(grp, "myTexture", e_data->gpencil_blank_texture);
-
-	return grp;
-}
-
 /* add fill vertex info  */
 static void gpencil_add_fill_vertexdata(
         GpencilBatchCache *cache,
@@ -1295,8 +1262,8 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 		((gpd->runtime.sbuffer_sflag & GP_STROKE_ERASER) == 0))
 	{
 
-		DRWShadingGroup *shgrp = DRW_gpencil_shgroup_ctrlpoint_create(
-			e_data, vedata, psl->drawing_pass, e_data->gpencil_point_sh, NULL, gpd);
+		DRWShadingGroup *shgrp = DRW_shgroup_create(
+			e_data->gpencil_edit_point_sh, psl->drawing_pass);
 
 		/* clean previous version of the batch */
 		if (stl->storage->buffer_ctrlpoint) {

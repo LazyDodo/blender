@@ -391,12 +391,11 @@ GPUBatch *DRW_gpencil_get_buffer_ctrlpoint_geom(bGPdata *gpd)
 	int totpoints = gpd->runtime.tot_cp_points;
 
 	static GPUVertFormat format = { 0 };
-	static uint pos_id, color_id, thickness_id, uvdata_id;
+	static uint pos_id, color_id, size_id;
 	if (format.attr_len == 0) {
 		pos_id = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+		size_id = GPU_vertformat_attr_add(&format, "size", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
 		color_id = GPU_vertformat_attr_add(&format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
-		thickness_id = GPU_vertformat_attr_add(&format, "thickness", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
-		uvdata_id = GPU_vertformat_attr_add(&format, "uvdata", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 	}
 
 	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
@@ -410,13 +409,9 @@ GPUBatch *DRW_gpencil_get_buffer_ctrlpoint_geom(bGPdata *gpd)
 		color[3] = 0.8f;
 		GPU_vertbuf_attr_set(vbo, color_id, idx, color);
 
-		/* transfer both values using the same shader variable */
-		float uvdata[2] = { 0.0f, 0.0f };
-		GPU_vertbuf_attr_set(vbo, uvdata_id, idx, uvdata);
-
-		/* scale size to get more visible points */
-		float size = cp->size * 8.0f;
-		GPU_vertbuf_attr_set(vbo, thickness_id, idx, &size);
+		/* scale size */
+		float size = cp->size * 0.8f;
+		GPU_vertbuf_attr_set(vbo, size_id, idx, &size);
 
 		GPU_vertbuf_attr_set(vbo, pos_id, idx, &cp->x);
 		idx++;
