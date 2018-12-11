@@ -719,14 +719,13 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		}
 	}
 
-	/* store cps and convert coords, this is temporary code */
+	/* store cps and convert coords */
 	if (tgpi->gpd->runtime.tot_cp_points > 0) {
 		bGPDcontrolpoint *cps = tgpi->gpd->runtime.cp_points;
 		for (int i = 0; i < tgpi->gpd->runtime.tot_cp_points; i++) {
 			bGPDcontrolpoint *cp = &cps[i];
 			gp_stroke_convertcoords_tpoint(tgpi->scene, tgpi->ar, tgpi->ob, tgpi->gpl, (tGPspoint *)cp, NULL, &cp->x);
 		}
-		tgpi->draw_cp_points = true;
 	}
 
 	/* if axis locked, reproject to plane locked */

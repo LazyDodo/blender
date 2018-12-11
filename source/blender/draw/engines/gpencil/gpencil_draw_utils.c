@@ -560,6 +560,39 @@ static DRWShadingGroup *DRW_gpencil_shgroup_point_create(
 	return grp;
 }
 
+/* create shading group for control points */
+static DRWShadingGroup *DRW_gpencil_shgroup_ctrlpoint_create(
+	GPENCIL_e_data *e_data, GPENCIL_Data *vedata, DRWPass *pass, GPUShader *shader, Object *ob,
+	bGPdata *gpd)
+{
+	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
+	const float *viewport_size = DRW_viewport_size_get();
+
+	/* e_data.gpencil_stroke_sh */
+	DRWShadingGroup *grp = DRW_shgroup_create(shader, pass);
+
+	DRW_shgroup_uniform_vec2(grp, "Viewport", viewport_size, 1);
+	DRW_shgroup_uniform_float(grp, "pixsize", stl->storage->pixsize, 1);
+
+	stl->storage->obj_scale = 1.0f;
+	stl->storage->keep_size = 0;
+	stl->storage->pixfactor = GP_DEFAULT_PIX_FACTOR;
+	stl->storage->mode = GP_STYLE_STROKE_STYLE_SOLID;
+	DRW_shgroup_uniform_float(grp, "objscale", &stl->storage->obj_scale, 1);
+	const int keep = 1;
+	DRW_shgroup_uniform_int(grp, "keep_size", &keep, 1);
+	DRW_shgroup_uniform_int(grp, "color_type", &stl->storage->color_type, 1);
+	DRW_shgroup_uniform_int(grp, "mode", &stl->storage->mode, 1);
+	DRW_shgroup_uniform_float(grp, "pixfactor", &stl->storage->pixfactor, 1);
+
+	/* for drawing always on on predefined z-depth */
+	DRW_shgroup_uniform_int(grp, "xraymode", &stl->storage->xray, 1);
+
+	DRW_shgroup_uniform_texture(grp, "myTexture", e_data->gpencil_blank_texture);
+
+	return grp;
+}
+
 /* add fill vertex info  */
 static void gpencil_add_fill_vertexdata(
         GpencilBatchCache *cache,
@@ -1194,11 +1227,11 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 			if (gpd->runtime.sbuffer_size > 1) {
 				if ((gp_style) && (gp_style->mode == GP_STYLE_MODE_LINE)) {
 					stl->g_data->shgrps_drawing_stroke = DRW_gpencil_shgroup_stroke_create(
-					        e_data, vedata, psl->drawing_pass, e_data->gpencil_stroke_sh, NULL, gpd, gp_style, -1, false);
+						e_data, vedata, psl->drawing_pass, e_data->gpencil_stroke_sh, NULL, gpd, gp_style, -1, false);
 				}
 				else {
 					stl->g_data->shgrps_drawing_stroke = DRW_gpencil_shgroup_point_create(
-					        e_data, vedata, psl->drawing_pass, e_data->gpencil_point_sh, NULL, gpd, gp_style, -1, false);
+						e_data, vedata, psl->drawing_pass, e_data->gpencil_point_sh, NULL, gpd, gp_style, -1, false);
 				}
 
 				/* clean previous version of the batch */
@@ -1211,32 +1244,32 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 				/* use unit matrix because the buffer is in screen space and does not need conversion */
 				if (gpd->runtime.mode == GP_STYLE_MODE_LINE) {
 					e_data->batch_buffer_stroke = DRW_gpencil_get_buffer_stroke_geom(
-					        gpd, lthick);
+						gpd, lthick);
 				}
 				else {
 					e_data->batch_buffer_stroke = DRW_gpencil_get_buffer_point_geom(
-					        gpd, lthick);
+						gpd, lthick);
 				}
 
 				if (gp_style->flag & GP_STYLE_STROKE_SHOW) {
 					DRW_shgroup_call_add(
-					        stl->g_data->shgrps_drawing_stroke,
-					        e_data->batch_buffer_stroke,
-					        stl->storage->unit_matrix);
+						stl->g_data->shgrps_drawing_stroke,
+						e_data->batch_buffer_stroke,
+						stl->storage->unit_matrix);
 				}
 
 				if ((gpd->runtime.sbuffer_size >= 3) &&
-				    (gpd->runtime.sfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) &&
-				    ((gpd->runtime.sbuffer_sflag & GP_STROKE_NOFILL) == 0) &&
-				    ((brush->gpencil_settings->flag & GP_BRUSH_DISSABLE_LASSO) == 0) &&
-				    (gp_style->flag & GP_STYLE_FILL_SHOW))
+					(gpd->runtime.sfill[3] > GPENCIL_ALPHA_OPACITY_THRESH) &&
+					((gpd->runtime.sbuffer_sflag & GP_STROKE_NOFILL) == 0) &&
+					((brush->gpencil_settings->flag & GP_BRUSH_DISSABLE_LASSO) == 0) &&
+					(gp_style->flag & GP_STYLE_FILL_SHOW))
 				{
 					/* if not solid, fill is simulated with solid color */
 					if (gpd->runtime.bfill_style > 0) {
 						gpd->runtime.sfill[3] = 0.5f;
 					}
 					stl->g_data->shgrps_drawing_fill = DRW_shgroup_create(
-					        e_data->gpencil_drawing_fill_sh, psl->drawing_pass);
+						e_data->gpencil_drawing_fill_sh, psl->drawing_pass);
 
 					/* clean previous version of the batch */
 					if (stl->storage->buffer_fill) {
@@ -1247,14 +1280,39 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 
 					e_data->batch_buffer_fill = DRW_gpencil_get_buffer_fill_geom(gpd);
 					DRW_shgroup_call_add(
-					        stl->g_data->shgrps_drawing_fill,
-					        e_data->batch_buffer_fill,
-					        stl->storage->unit_matrix);
+						stl->g_data->shgrps_drawing_fill,
+						e_data->batch_buffer_fill,
+						stl->storage->unit_matrix);
 					stl->storage->buffer_fill = true;
 				}
 				stl->storage->buffer_stroke = true;
 			}
 		}
+	}
+
+	/* control points */
+	if ((gpd->runtime.tot_cp_points > 0) &&
+		((gpd->runtime.sbuffer_sflag & GP_STROKE_ERASER) == 0))
+	{
+
+		DRWShadingGroup *shgrp = DRW_gpencil_shgroup_ctrlpoint_create(
+			e_data, vedata, psl->drawing_pass, e_data->gpencil_point_sh, NULL, gpd);
+
+		/* clean previous version of the batch */
+		if (stl->storage->buffer_ctrlpoint) {
+			GPU_BATCH_DISCARD_SAFE(e_data->batch_buffer_ctrlpoint);
+			MEM_SAFE_FREE(e_data->batch_buffer_ctrlpoint);
+			stl->storage->buffer_ctrlpoint = false;
+		}
+
+		e_data->batch_buffer_ctrlpoint = DRW_gpencil_get_buffer_ctrlpoint_geom(gpd);
+
+		DRW_shgroup_call_add(
+			shgrp,
+			e_data->batch_buffer_ctrlpoint,
+			stl->storage->unit_matrix);
+
+		stl->storage->buffer_ctrlpoint = true;
 	}
 }
 
