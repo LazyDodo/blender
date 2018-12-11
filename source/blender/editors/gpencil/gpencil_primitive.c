@@ -719,6 +719,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		pt->strength = tgpi->brush->gpencil_settings->draw_strength;
 		pt->time = 0.0f;
 		pt->flag = 0;
+		pt->uv_fac = 1.0f;
 
 		if (gps->dvert != NULL) {
 			MDeformVert *dvert = &gps->dvert[i];
