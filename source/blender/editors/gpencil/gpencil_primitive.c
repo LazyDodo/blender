@@ -364,7 +364,7 @@ static void gpencil_primitive_status_indicators(bContext *C, tGPDprimitive *tgpi
 	else {
 		if (tgpi->flag == IN_PROGRESS) {
 			BLI_snprintf(
-				status_str, sizeof(status_str), "%s: (%d, %d) (%d, %d)", msg_str,
+				status_str, sizeof(status_str), "%s: %d (%d, %d) (%d, %d)", msg_str, (int)tgpi->tot_edges,
 				tgpi->start[0], tgpi->start[1], tgpi->end[0], tgpi->end[1]);
 		}
 		else {
