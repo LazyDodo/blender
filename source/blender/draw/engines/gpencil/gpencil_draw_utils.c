@@ -1264,6 +1264,8 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 
 		DRWShadingGroup *shgrp = DRW_shgroup_create(
 			e_data->gpencil_edit_point_sh, psl->drawing_pass);
+		const float *viewport_size = DRW_viewport_size_get();
+		DRW_shgroup_uniform_vec2(shgrp, "Viewport", viewport_size, 1);
 
 		/* clean previous version of the batch */
 		if (stl->storage->buffer_ctrlpoint) {
