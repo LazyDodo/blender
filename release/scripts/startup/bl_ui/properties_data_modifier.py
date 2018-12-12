@@ -651,7 +651,8 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
         col.prop(md, "levels", text="Preview")
         col.prop(md, "sculpt_levels", text="Sculpt")
         col.prop(md, "render_levels", text="Render")
-        col.prop(md, "quality")
+        if hasattr(md, "quality"):
+            col.prop(md, "quality")
 
         col = split.column()
 
@@ -1029,7 +1030,8 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
             col.label(text="Subdivisions:")
             col.prop(md, "levels", text="View")
             col.prop(md, "render_levels", text="Render")
-            col.prop(md, "quality")
+            if hasattr(md, "quality"):
+                col.prop(md, "quality")
 
         col = split.column()
         col.label(text="Options:")
