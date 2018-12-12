@@ -1,4 +1,4 @@
-﻿/*
+/*
  * ***** BEGIN GPL LICENSE BLOCK *****
  *
  * This program is free software; you can redistribute it and/or
@@ -894,8 +894,10 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 
 	/* set default edge count */
 	
-	if (tgpi->type == GP_STROKE_BOX)
-		RNA_int_set(op->ptr, "edges", 32);
+	if (tgpi->type == GP_STROKE_LINE)
+		RNA_int_set(op->ptr, "edges", 8);
+	else if (tgpi->type == GP_STROKE_BOX)
+		RNA_int_set(op->ptr, "edges", 8);
 	else if (tgpi->type == GP_STROKE_CIRCLE)
 		RNA_int_set(op->ptr, "edges", 96);
 	else
@@ -1401,7 +1403,9 @@ void GPENCIL_OT_primitive(wmOperatorType *ot)
 	/* properties */
 	PropertyRNA *prop;
 
-	RNA_def_int(ot->srna, "edges", 4, MIN_EDGES, MAX_EDGES, "Edges", "Number of polygon edges", MIN_EDGES, MAX_EDGES);
+	prop = RNA_def_int(ot->srna, "edges", 4, MIN_EDGES, MAX_EDGES, "Edges", "Number of polygon edges", MIN_EDGES, MAX_EDGES);
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+
 	RNA_def_enum(ot->srna, "type", primitive_type, GP_STROKE_BOX, "Type", "Type of shape");
 
 	prop = RNA_def_boolean(ot->srna, "wait_for_input", true, "Wait for Input", "");
