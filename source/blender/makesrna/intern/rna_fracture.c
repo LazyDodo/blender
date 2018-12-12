@@ -563,7 +563,7 @@ static void rna_FractureModifier_use_dupli_set(PointerRNA* ptr, int value)
 
 static void rna_Modifier_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *ptr)
 {
-	BKE_rigidbody_cache_reset(scene);
+	//BKE_rigidbody_cache_reset(scene);
 
 	DEG_id_tag_update(ptr->id.data, ID_RECALC_GEOMETRY | ID_RECALC_TRANSFORM | ID_RECALC_ANIMATION |
 									ID_RECALC_COPY_ON_WRITE | ID_RECALC_BASE_FLAGS);
