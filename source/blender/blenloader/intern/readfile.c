@@ -1363,7 +1363,7 @@ void blo_freefiledata(FileData *fd)
 /**
  * Check whether given path ends with a blend file compatible extension (.blend, .ble or .blend.gz).
  *
- * \param str The path to check.
+ * \param str: The path to check.
  * \return true is this path ends with a blender file extension.
  */
 bool BLO_has_bfile_extension(const char *str)
@@ -1375,11 +1375,11 @@ bool BLO_has_bfile_extension(const char *str)
 /**
  * Try to explode given path into its 'library components' (i.e. a .blend file, id type/group, and datablock itself).
  *
- * \param path the full path to explode.
- * \param r_dir the string that'll contain path up to blend file itself ('library' path).
+ * \param path: the full path to explode.
+ * \param r_dir: the string that'll contain path up to blend file itself ('library' path).
  *              WARNING! Must be FILE_MAX_LIBEXTRA long (it also stores group and name strings)!
- * \param r_group the string that'll contain 'group' part of the path, if any. May be NULL.
- * \param r_name the string that'll contain data's name part of the path, if any. May be NULL.
+ * \param r_group: the string that'll contain 'group' part of the path, if any. May be NULL.
+ * \param r_name: the string that'll contain data's name part of the path, if any. May be NULL.
  * \return true if path contains a blend file.
  */
 bool BLO_library_path_explode(const char *path, char *r_dir, char **r_group, char **r_name)
@@ -1444,7 +1444,7 @@ bool BLO_library_path_explode(const char *path, char *r_dir, char **r_group, cha
 /**
  * Does a very light reading of given .blend file to extract its stored thumbnail.
  *
- * \param filepath The path of the file to extract thumbnail from.
+ * \param filepath: The path of the file to extract thumbnail from.
  * \return The raw thumbnail
  *         (MEM-allocated, as stored in file, use BKE_main_thumbnail_to_imbuf() to convert it to ImBuf image).
  */
@@ -3608,7 +3608,7 @@ static void lib_link_pose(FileData *fd, Main *bmain, Object *ob, bPose *pose)
 
 
 	if (rebuild) {
-		DEG_id_tag_update_ex(bmain, &ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+		DEG_id_tag_update_ex(bmain, &ob->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION);
 		BKE_pose_tag_recalc(bmain, pose);
 	}
 }
@@ -6185,6 +6185,10 @@ static void lib_link_scene(FileData *fd, Main *main)
 				lib_link_view_layer(fd, sce->id.lib, view_layer);
 			}
 
+			if (sce->r.bake.cage_object) {
+				sce->r.bake.cage_object = newlibadr(fd, sce->id.lib, sce->r.bake.cage_object);
+			}
+
 #ifdef USE_SETSCENE_CHECK
 			if (sce->set != NULL) {
 				/* link flag for scenes with set would be reset later,
@@ -6835,7 +6839,7 @@ static void direct_link_area(FileData *fd, ScrArea *area)
 			SpaceIpo *sipo = (SpaceIpo *)sl;
 
 			sipo->ads = newdataadr(fd, sipo->ads);
-			BLI_listbase_clear(&sipo->ghostCurves);
+			BLI_listbase_clear(&sipo->runtime.ghost_curves);
 		}
 		else if (sl->spacetype == SPACE_NLA) {
 			SpaceNla *snla = (SpaceNla *)sl;
@@ -7518,7 +7522,7 @@ static void lib_link_workspace_layout_restore(struct IDNameLib_Map *id_map, Main
 					/* force recalc of list of channels (i.e. includes calculating F-Curve colors)
 					 * thus preventing the "black curves" problem post-undo
 					 */
-					sipo->flag |= SIPO_TEMP_NEEDCHANSYNC;
+					sipo->runtime.flag |= SIPO_RUNTIME_FLAG_NEED_CHAN_SYNC_COLOR;
 				}
 				else if (sl->spacetype == SPACE_BUTS) {
 					SpaceButs *sbuts = (SpaceButs *)sl;
@@ -7549,7 +7553,7 @@ static void lib_link_workspace_layout_restore(struct IDNameLib_Map *id_map, Main
 					/* force recalc of list of channels, potentially updating the active action
 					 * while we're at it (as it can only be updated that way) [#28962]
 					 */
-					saction->flag |= SACTION_TEMP_NEEDCHANSYNC;
+					saction->runtime.flag |= SACTION_RUNTIME_FLAG_NEED_CHAN_SYNC;
 				}
 				else if (sl->spacetype == SPACE_IMAGE) {
 					SpaceImage *sima = (SpaceImage *)sl;
@@ -10059,6 +10063,10 @@ static void expand_scene(FileData *fd, Main *mainvar, Scene *sce)
 	if (sce->master_collection) {
 		expand_collection(fd, mainvar, sce->master_collection);
 	}
+
+	if (sce->r.bake.cage_object) {
+		expand_doit(fd, mainvar, sce->r.bake.cage_object);
+	}
 }
 
 static void expand_camera(FileData *fd, Main *mainvar, Camera *ca)
@@ -10190,7 +10198,7 @@ static void expand_workspace(FileData *fd, Main *mainvar, WorkSpace *workspace)
 /**
  * Set the callback func used over all ID data found by \a BLO_expand_main func.
  *
- * \param expand_doit_func Called for each ID block it finds.
+ * \param expand_doit_func: Called for each ID block it finds.
  */
 void BLO_main_expander(BLOExpandDoitCallback expand_doit_func)
 {
@@ -10201,8 +10209,8 @@ void BLO_main_expander(BLOExpandDoitCallback expand_doit_func)
  * Loop over all ID data in Main to mark relations.
  * Set (id->tag & LIB_TAG_NEED_EXPAND) to mark expanding. Flags get cleared after expanding.
  *
- * \param fdhandle usually filedata, or own handle.
- * \param mainvar the Main database to expand.
+ * \param fdhandle: usually filedata, or own handle.
+ * \param mainvar: the Main database to expand.
  */
 void BLO_expand_main(void *fdhandle, Main *mainvar)
 {
@@ -10422,7 +10430,7 @@ static void add_collections_to_scene(
 				}
 
 				BKE_scene_object_base_flag_sync_from_base(base);
-				DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+				DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION);
 				view_layer->basact = base;
 
 				/* Assign the collection. */
@@ -10592,10 +10600,10 @@ static ID *link_named_part_ex(
 /**
  * Link a named datablock from an external blend file.
  *
- * \param mainl The main database to link from (not the active one).
- * \param bh The blender file handle.
- * \param idcode The kind of datablock to link.
- * \param name The name of the datablock (without the 2 char ID prefix).
+ * \param mainl: The main database to link from (not the active one).
+ * \param bh: The blender file handle.
+ * \param idcode: The kind of datablock to link.
+ * \param name: The name of the datablock (without the 2 char ID prefix).
  * \return the linked ID when found.
  */
 ID *BLO_library_link_named_part(Main *mainl, BlendHandle **bh, const short idcode, const char *name)
@@ -10608,13 +10616,13 @@ ID *BLO_library_link_named_part(Main *mainl, BlendHandle **bh, const short idcod
  * Link a named datablock from an external blend file.
  * Optionally instantiate the object/collection in the scene when the flags are set.
  *
- * \param mainl The main database to link from (not the active one).
- * \param bh The blender file handle.
- * \param idcode The kind of datablock to link.
- * \param name The name of the datablock (without the 2 char ID prefix).
- * \param flag Options for linking, used for instantiating.
- * \param scene The scene in which to instantiate objects/collections (if NULL, no instantiation is done).
- * \param v3d The active View3D (only to define active layers for instantiated objects & collections, can be NULL).
+ * \param mainl: The main database to link from (not the active one).
+ * \param bh: The blender file handle.
+ * \param idcode: The kind of datablock to link.
+ * \param name: The name of the datablock (without the 2 char ID prefix).
+ * \param flag: Options for linking, used for instantiating.
+ * \param scene: The scene in which to instantiate objects/collections (if NULL, no instantiation is done).
+ * \param v3d: The active View3D (only to define active layers for instantiated objects & collections, can be NULL).
  * \return the linked ID when found.
  */
 ID *BLO_library_link_named_part_ex(
@@ -10698,9 +10706,9 @@ static Main *library_link_begin(Main *mainvar, FileData **fd, const char *filepa
 /**
  * Initialize the BlendHandle for linking library data.
  *
- * \param mainvar The current main database, e.g. G_MAIN or CTX_data_main(C).
- * \param bh A blender file handle as returned by \a BLO_blendhandle_from_file or \a BLO_blendhandle_from_memory.
- * \param filepath Used for relative linking, copied to the \a lib->name.
+ * \param mainvar: The current main database, e.g. G_MAIN or CTX_data_main(C).
+ * \param bh: A blender file handle as returned by \a BLO_blendhandle_from_file or \a BLO_blendhandle_from_memory.
+ * \param filepath: Used for relative linking, copied to the \a lib->name.
  * \return the library Main, to be passed to \a BLO_library_append_named_part as \a mainl.
  */
 Main *BLO_library_link_begin(Main *mainvar, BlendHandle **bh, const char *filepath)
@@ -10816,12 +10824,12 @@ static void library_link_end(Main *mainl, FileData **fd, const short flag, Main 
  * Optionally instance the indirect object/collection in the scene when the flags are set.
  * \note Do not use \a bh after calling this function, it may frees it.
  *
- * \param mainl The main database to link from (not the active one).
- * \param bh The blender file handle (WARNING! may be freed by this function!).
- * \param flag Options for linking, used for instantiating.
- * \param bmain The main database in which to instantiate objects/collections
- * \param scene The scene in which to instantiate objects/collections (if NULL, no instantiation is done).
- * \param view_layer The scene layer in which to instantiate objects/collections (if NULL, no instantiation is done).
+ * \param mainl: The main database to link from (not the active one).
+ * \param bh: The blender file handle (WARNING! may be freed by this function!).
+ * \param flag: Options for linking, used for instantiating.
+ * \param bmain: The main database in which to instantiate objects/collections
+ * \param scene: The scene in which to instantiate objects/collections (if NULL, no instantiation is done).
+ * \param view_layer: The scene layer in which to instantiate objects/collections (if NULL, no instantiation is done).
  */
 void BLO_library_link_end(Main *mainl, BlendHandle **bh, int flag, Main *bmain, Scene *scene, ViewLayer *view_layer)
 {

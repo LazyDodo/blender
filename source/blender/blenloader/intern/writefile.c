@@ -413,8 +413,8 @@ static void mywrite_flush(WriteData *wd)
 
 /**
  * Low level WRITE(2) wrapper that buffers data
- * \param adr Pointer to new chunk of data
- * \param len Length of new chunk of data
+ * \param adr: Pointer to new chunk of data
+ * \param len: Length of new chunk of data
  */
 static void mywrite(WriteData *wd, const void *adr, int len)
 {
@@ -463,8 +463,8 @@ static void mywrite(WriteData *wd, const void *adr, int len)
 /**
  * BeGiN initializer for mywrite
  * \param ww: File write wrapper.
- * \param compare Previous memory file (can be NULL).
- * \param current The current memory file (can be NULL).
+ * \param compare: Previous memory file (can be NULL).
+ * \param current: The current memory file (can be NULL).
  * \warning Talks to other functions with global parameters
  */
 static WriteData *mywrite_begin(WriteWrap *ww, MemFile *compare, MemFile *current)
@@ -2887,10 +2887,10 @@ static void write_area_regions(WriteData *wd, ScrArea *area)
 		}
 		else if (sl->spacetype == SPACE_IPO) {
 			SpaceIpo *sipo = (SpaceIpo *)sl;
-			ListBase tmpGhosts = sipo->ghostCurves;
+			ListBase tmpGhosts = sipo->runtime.ghost_curves;
 
 			/* temporarily disable ghost curves when saving */
-			sipo->ghostCurves.first = sipo->ghostCurves.last = NULL;
+			BLI_listbase_clear(&sipo->runtime.ghost_curves);
 
 			writestruct(wd, DATA, SpaceIpo, 1, sl);
 			if (sipo->ads) {
@@ -2898,7 +2898,7 @@ static void write_area_regions(WriteData *wd, ScrArea *area)
 			}
 
 			/* reenable ghost curves */
-			sipo->ghostCurves = tmpGhosts;
+			sipo->runtime.ghost_curves = tmpGhosts;
 		}
 		else if (sl->spacetype == SPACE_BUTS) {
 			writestruct(wd, DATA, SpaceButs, 1, sl);

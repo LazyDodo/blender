@@ -582,7 +582,7 @@ static void viewRedrawForce(const bContext *C, TransInfo *t)
 	if (t->options & CTX_GPENCIL_STROKES) {
 		bGPdata *gpd = ED_gpencil_data_get_active(C);
 		if (gpd) {
-			DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+			DEG_id_tag_update(&gpd->id, ID_RECALC_GEOMETRY);
 		}
 		WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
 	}
@@ -6304,7 +6304,7 @@ static bool bm_loop_calc_opposite_co(BMLoop *l_tmp,
  * Given 2 edges and a loop, step over the loops
  * and calculate a direction to slide along.
  *
- * \param r_slide_vec the direction to slide,
+ * \param r_slide_vec: the direction to slide,
  * the length of the vector defines the slide distance.
  */
 static BMLoop *get_next_loop(BMVert *v, BMLoop *l,

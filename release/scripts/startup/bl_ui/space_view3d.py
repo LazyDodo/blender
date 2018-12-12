@@ -350,7 +350,7 @@ class VIEW3D_MT_editor_menus(Menu):
                 layout.menu("VIEW3D_MT_edit_mesh_edges")
                 layout.menu("VIEW3D_MT_edit_mesh_faces")
                 layout.menu("VIEW3D_MT_uv_map", text="UV")
-            elif mode_string == 'EDIT_CURVE':
+            elif mode_string in {'EDIT_CURVE', 'EDIT_SURFACE'}:
                 layout.menu("VIEW3D_MT_edit_curve_ctrlpoints")
                 layout.menu("VIEW3D_MT_edit_curve_segments")
 
@@ -1747,8 +1747,8 @@ class VIEW3D_MT_object_specials(Menu):
 
         if obj.type == 'MESH':
 
-            layout.operator("object.shade_smooth", text="Smooth Shading")
-            layout.operator("object.shade_flat", text="Flat Shading")
+            layout.operator("object.shade_smooth", text="Shade Smooth")
+            layout.operator("object.shade_flat", text="Shade Flat")
 
             layout.separator()
 
@@ -3320,7 +3320,7 @@ class VIEW3D_MT_edit_curve_ctrlpoints(Menu):
 
         edit_object = context.edit_object
 
-        if edit_object.type == 'CURVE':
+        if edit_object.type in {'CURVE', 'SURFACE'}:
             layout.operator("curve.extrude_move")
 
             layout.separator()
@@ -3329,20 +3329,22 @@ class VIEW3D_MT_edit_curve_ctrlpoints(Menu):
 
             layout.separator()
 
-            layout.operator("transform.tilt")
-            layout.operator("curve.tilt_clear")
+            if edit_object.type == 'CURVE':
+                layout.operator("transform.tilt")
+                layout.operator("curve.tilt_clear")
 
-            layout.separator()
+                layout.separator()
 
-            layout.operator_menu_enum("curve.handle_type_set", "type")
-            layout.operator("curve.normals_make_consistent")
+                layout.operator_menu_enum("curve.handle_type_set", "type")
+                layout.operator("curve.normals_make_consistent")
 
-            layout.separator()
+                layout.separator()
 
             layout.operator("curve.smooth")
-            layout.operator("curve.smooth_weight")
-            layout.operator("curve.smooth_radius")
-            layout.operator("curve.smooth_tilt")
+            if edit_object.type == 'CURVE':
+                layout.operator("curve.smooth_weight")
+                layout.operator("curve.smooth_radius")
+                layout.operator("curve.smooth_tilt")
 
             layout.separator()
 
