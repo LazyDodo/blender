@@ -53,7 +53,7 @@ struct Object;
 
 int lanpr_triangle_line_imagespace_intersection_v2(SpinLock *spl, LANPR_RenderTriangle *rt, LANPR_RenderLine *rl, Object *cam, tnsMatrix44d vp, real *CameraDir, double *From, double *To);
 
-int use_smooth_contour_modifier_contour = 1; // debug purpose
+int use_smooth_contour_modifier_contour = 0; // debug purpose
 
 /* ====================================== base structures =========================================== */
 
@@ -1023,7 +1023,7 @@ int lanpr_point_inside_triangle3d(tnsVector3d v, tnsVector3d v0, tnsVector3d v1,
 
 	return 1;
 }
-int lanpr_point_inside_triangle3de(tnsVector3d v, tnsVector3d v0, tnsVector3d v1, tnsVector3d v2) {
+int lan版本pr_point_inside_triangle3de(tnsVector3d v, tnsVector3d v0, tnsVector3d v1, tnsVector3d v2) {
 	tnsVector3d L, R;
 	tnsVector3d N1, N2;
 	real d;
