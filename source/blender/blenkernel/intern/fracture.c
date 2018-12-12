@@ -447,6 +447,9 @@ static void process_cells(FractureModifierData* fmd, Shard* mii, Object* ob, Sce
 	Mesh* me = NULL, *mesh = mii->mesh;
 	int count_new = count+1;
 	float frame = BKE_scene_frame_get(scene);
+	bool is_dependent = (fmd->frac_algorithm == MOD_FRACTURE_BISECT_FAST ||
+						 fmd->frac_algorithm == MOD_FRACTURE_BISECT_FAST_FILL ||
+						 fmd->frac_algorithm == MOD_FRACTURE_BOOLEAN_FRACTAL);
 
 	/*global preparations */
 	islands = MEM_callocN(sizeof(Shard*) * count, "islands");
@@ -461,7 +464,7 @@ static void process_cells(FractureModifierData* fmd, Shard* mii, Object* ob, Sce
 	mii->aves = MEM_reallocN(mii->aves, sizeof(float) * 3 * (mii->endframe - mii->startframe + 1));
 
 	/*for each cell...*/
-//#pragma omp parallel for
+#pragma omp parallel for ordered schedule(dynamic)
 	for (i = 0; i < count; i++)
 	{
 		/* parse to raw meshisland*/
@@ -476,67 +479,79 @@ static void process_cells(FractureModifierData* fmd, Shard* mii, Object* ob, Sce
 			/* meshB is for "halving" algorithms like fractal and bisectfast/bisectfastfill*/
 			Mesh *meshA = NULL, *meshB = NULL;
 
-			/* process according to algorithm */
-			switch (fmd->frac_algorithm) {
-				case MOD_FRACTURE_BOOLEAN:
-					prepare_boolean(fmd, ob, &boctx);
-					meshA = BKE_fracture_mesh_boolean(mesh, mi->mesh, ob, &boctx);
-					break;
-
-				case MOD_FRACTURE_BOOLEAN_FRACTAL:
-					me = get_mesh(temp_meshs, i, mesh);
-					if (me) {
-						prepare_boolean_fractal(fmd, ob, me, &boctx);
-						BKE_fracture_mesh_boolean_fractal(me, &meshA, &meshB, ob, &boctx);
-					}
-					break;
-
-				case MOD_FRACTURE_BISECT:
-					prepare_bisect(fmd, ob, &bictx);
-					meshA = BKE_fracture_mesh_bisect(mesh, mi, &bictx);
-					break;
-
-				case MOD_FRACTURE_BISECT_FILL:
-					prepare_bisect_fill(fmd, ob, &bictx);
-					meshA = BKE_fracture_mesh_bisect(mesh, mi, &bictx);
-					break;
-
-				case MOD_FRACTURE_BISECT_FAST:
-					me = get_mesh(temp_meshs, i, mesh);
-					prepare_fast_bisect(fmd, ob, me, &bictx);
-					BKE_fracture_mesh_bisect_fast(me, &meshA, &meshB, &bictx);
-					break;
-
-				case MOD_FRACTURE_BISECT_FAST_FILL:
-					me = get_mesh(temp_meshs, i, mesh);
-					prepare_fast_bisect_fill(fmd, ob, me, &bictx);
-					BKE_fracture_mesh_bisect_fast(me, &meshA, &meshB, &bictx);
-					break;
-			}
-
-			/* if successful, create processed meshisland in FM */
-			if (temp_meshs[i]) {
-				BKE_fracture_mesh_free(temp_meshs[i]);
-				temp_meshs[i] = NULL;
-			}
-			if (temp_meshs[i+1]) {
-				BKE_fracture_mesh_free(temp_meshs[i+1]);
-				temp_meshs[i+1] = NULL;
-			}
-
-			if (meshA != me) {
-				temp_meshs[i] = meshA;
-			}
-
-			if (meshB != me) {
-				temp_meshs[i+1] = meshB;
-			}
-
-			/*sort meshs by size*/
-			if(fmd->frac_algorithm == MOD_FRACTURE_BISECT_FAST ||
-			   fmd->frac_algorithm == MOD_FRACTURE_BISECT_FAST_FILL ||
-			   fmd->frac_algorithm == MOD_FRACTURE_BOOLEAN_FRACTAL)
+			if (!is_dependent)
 			{
+				/* process according to algorithm */
+				switch (fmd->frac_algorithm) {
+					case MOD_FRACTURE_BOOLEAN:
+						prepare_boolean(fmd, ob, &boctx);
+						meshA = BKE_fracture_mesh_boolean(mesh, mi->mesh, ob, &boctx);
+						break;
+
+					case MOD_FRACTURE_BISECT:
+						prepare_bisect(fmd, ob, &bictx);
+						meshA = BKE_fracture_mesh_bisect(mesh, mi, &bictx);
+						break;
+
+					case MOD_FRACTURE_BISECT_FILL:
+						prepare_bisect_fill(fmd, ob, &bictx);
+						meshA = BKE_fracture_mesh_bisect(mesh, mi, &bictx);
+						break;
+				}
+
+				if (temp_meshs[i]) {
+					BKE_fracture_mesh_free(temp_meshs[i]);
+					temp_meshs[i] = NULL;
+				}
+
+				if (meshA != me) {
+					temp_meshs[i] = meshA;
+				}
+			}
+
+			if (is_dependent)
+#pragma omp ordered
+			{
+				switch (fmd->frac_algorithm) {
+					case MOD_FRACTURE_BISECT_FAST:
+						me = get_mesh(temp_meshs, i, mesh);
+						prepare_fast_bisect(fmd, ob, me, &bictx);
+						BKE_fracture_mesh_bisect_fast(me, &meshA, &meshB, &bictx);
+						break;
+
+					case MOD_FRACTURE_BISECT_FAST_FILL:
+						me = get_mesh(temp_meshs, i, mesh);
+						prepare_fast_bisect_fill(fmd, ob, me, &bictx);
+						BKE_fracture_mesh_bisect_fast(me, &meshA, &meshB, &bictx);
+						break;
+
+					case MOD_FRACTURE_BOOLEAN_FRACTAL:
+						me = get_mesh(temp_meshs, i, mesh);
+						if (me) {
+							prepare_boolean_fractal(fmd, ob, me, &boctx);
+							BKE_fracture_mesh_boolean_fractal(me, &meshA, &meshB, ob, &boctx);
+						}
+						break;
+				}
+
+				/* if successful, create processed meshisland in FM */
+				if (temp_meshs[i]) {
+					BKE_fracture_mesh_free(temp_meshs[i]);
+					temp_meshs[i] = NULL;
+				}
+				if (temp_meshs[i+1]) {
+					BKE_fracture_mesh_free(temp_meshs[i+1]);
+					temp_meshs[i+1] = NULL;
+				}
+
+				if (meshA != me) {
+					temp_meshs[i] = meshA;
+				}
+
+				if (meshB != me) {
+					temp_meshs[i+1] = meshB;
+				}
+
 				BLI_qsort_r(temp_meshs, i+2, sizeof(Mesh *), mesh_sortsize, &i);
 			}
 		}
