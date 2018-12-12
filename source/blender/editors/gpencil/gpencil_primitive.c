@@ -290,9 +290,7 @@ static void gp_primitive_set_initdata(bContext *C, tGPDprimitive *tgpi)
 	gpencil_primitive_allocate_memory(tgpi);
 
 	/* Random generator, only init once. */
-	uint rng_seed = (uint)(PIL_check_seconds_timer_i() & UINT_MAX);
-	rng_seed ^= POINTER_AS_UINT(tgpi->origin);
-	tgpi->rng = BLI_rng_new(rng_seed);
+	tgpi->rng = BLI_rng_new((uint)0);
 
 }
 
@@ -491,7 +489,8 @@ static void gp_primitive_arc(tGPDprimitive *tgpi, tGPspoint *points2D)
 	gp_primitive_set_cp(tgpi, tgpi->end, color, BIG_SIZE_CTL);
 	/*UI_GetThemeColor4fv(TH_REDALERT, color);
 	gp_primitive_set_cp(tgpi, tgpi->midpoint, color, SMALL_SIZE_CTL);
-	gp_primitive_set_cp(tgpi, corner, color, SMALL_SIZE_CTL);*/
+	gp_primitive_set_cp(tgpi, corner, color, SMALL_SIZE_CTL);
+	gp_primitive_set_cp(tgpi, tgpi->cp2, color, SMALL_SIZE_CTL);*/
 	UI_GetThemeColor4fv(TH_GP_VERTEX_SELECT, color);
 	gp_primitive_set_cp(tgpi, tgpi->cp1, color, BIG_SIZE_CTL * 0.9f);
 	
@@ -703,13 +702,10 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 			}
 		}
 		/* normalize value to evaluate curve */
-		if (ELEM(tgpi->type, GP_STROKE_ARC, GP_STROKE_CURVE, GP_STROKE_LINE)) {
-			if (gset->flag & GP_SCULPT_SETT_FLAG_PRIMITIVE_CURVE) {
-				float value = (float)i / (gps->totpoints - 1);
-				float curvef = curvemapping_evaluateF(gset->cur_primitive, 0, value);
-				pressure *= curvef;
-			}
-			
+		if (gset->flag & GP_SCULPT_SETT_FLAG_PRIMITIVE_CURVE) {
+			float value = (float)i / (gps->totpoints - 1);
+			float curvef = curvemapping_evaluateF(gset->cur_primitive, 0, value);
+			pressure *= curvef;
 		}
 		CLAMP_MIN(pressure, 0.1f);
 
@@ -1026,15 +1022,37 @@ static void gpencil_primitive_to_square(tGPDprimitive *tgpi, const float x, cons
 	}
 }
 
+/* Helper to rotate point around origin */
+static void gp_rotate_v2_v2v2fl(float v[2], const float a[2], const float origin[2], const float angle)
+{
+	float p[2];
+	float r[2];
+	sub_v2_v2v2(p, a, origin);
+	rotate_v2_v2fl(r, p, angle);
+	add_v2_v2v2(v, r, origin);
+}
+
+/* Helper to rotate line around it's centre */
+static void gp_primitive_rotate_line(float va[2], float vb[2], const float a[2], const float b[2], const float angle)
+{
+	float midpoint[2];
+	mid_v2_v2v2(midpoint, a, b);
+	gp_rotate_v2_v2v2fl(va, a, midpoint, angle);
+	gp_rotate_v2_v2v2fl(vb, b, midpoint, angle);
+}
+
 /* Helper to update cps */
 static void gp_primitive_update_cps(tGPDprimitive *tgpi)
 {
 	if (tgpi->type == GP_STROKE_ARC) {
-		if (tgpi->flip)
-			copy_v2_fl2(tgpi->cp1, tgpi->start[0], tgpi->end[1]);
-		else
-			copy_v2_fl2(tgpi->cp1, tgpi->end[0], tgpi->start[1]);
 		mid_v2_v2v2(tgpi->midpoint, tgpi->start, tgpi->end);
+
+		if (tgpi->flip) {
+			gp_primitive_rotate_line(tgpi->cp1, tgpi->cp2, tgpi->start, tgpi->end, M_PI_2);
+		}
+		else {
+			gp_primitive_rotate_line(tgpi->cp1, tgpi->cp2, tgpi->end, tgpi->start, M_PI_2);
+		}
 	}
 	else if (tgpi->type == GP_STROKE_CURVE) {
 		mid_v2_v2v2(tgpi->midpoint, tgpi->start, tgpi->end);
@@ -1080,8 +1098,6 @@ static void gpencil_primitive_arc_event_handling(bContext *C, wmOperator *op, wm
 				float dy = (tgpi->mval[1] - tgpi->mvalo[1]);
 				tgpi->cp1[0] += dx;
 				tgpi->cp1[1] += dy;
-				if (event->ctrl)
-					copy_v2_v2(tgpi->cp2, tgpi->cp1);
 			}
 			copy_v2_v2(tgpi->mvalo, tgpi->mval);
 			
@@ -1132,7 +1148,6 @@ static void gpencil_primitive_arc_event_handling(bContext *C, wmOperator *op, wm
 		}
 		break;
 	}
-
 	case AKEY:
 		if (tgpi->flag == IN_CURVE_EDIT) {
 			tgpi->flag = IN_PROGRESS;
@@ -1181,7 +1196,7 @@ static void gpencil_primitive_bezier_event_handling(bContext *C, wmOperator *op,
 				float dy = (tgpi->mval[1] - tgpi->mvalo[1]);
 				tgpi->cp1[0] += dx;
 				tgpi->cp1[1] += dy;
-				if (event->ctrl)
+				if (event->shift)
 					copy_v2_v2(tgpi->cp2, tgpi->cp1);
 			}
 			else if (tgpi->sel_cp == SELECT_CP2) {
@@ -1189,7 +1204,7 @@ static void gpencil_primitive_bezier_event_handling(bContext *C, wmOperator *op,
 				float dy = (tgpi->mval[1] - tgpi->mvalo[1]);
 				tgpi->cp2[0] += dx;
 				tgpi->cp2[1] += dy;
-				if (event->ctrl)
+				if (event->shift)
 					copy_v2_v2(tgpi->cp1, tgpi->cp2);
 			}
 			copy_v2_v2(tgpi->mvalo, tgpi->mval);
