@@ -1212,7 +1212,7 @@ class DATA_PT_modifiers(ModifierButtonsPanel, Panel):
             col = row.column(align=True)
             col.prop(md, "mball_size")
             col = row.column(align=True)
-            col.label("Display Parameters:")
+            col.label(text="Display Parameters:")
             col.prop(md, "mball_threshold")
             col.prop(md, "mball_resolution")
             col.prop(md, "mball_render_resolution")

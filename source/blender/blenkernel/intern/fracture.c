@@ -1252,10 +1252,9 @@ static void do_marking(FractureModifierData *fmd, Mesh *result)
 	}
 }
 
-void BKE_fracture_copy_customdata(CustomData* src, CustomData* dst,CustomDataMask mask, int src_ofs, int dst_ofs,
-                              int copyelem, int totelem)
+void BKE_fracture_copy_customdata(CustomData* src, CustomData* dst,CustomDataMask mask,
+								  int src_ofs, int dst_ofs, int copyelem, int totelem)
 {
-
 	CustomDataLayer *layer;
 	int i;
 	for (i = 0; i < src->totlayer; i++)
@@ -1263,12 +1262,14 @@ void BKE_fracture_copy_customdata(CustomData* src, CustomData* dst,CustomDataMas
 		layer = src->layers + i;
 		if (mask & CD_TYPE_AS_MASK(layer->type))
 		{
-			if (!CustomData_has_layer(dst, layer->type))
+			if (!CustomData_get_layer_named(dst, layer->type, layer->name))
 			{
-				CustomData_add_layer(dst, layer->type, CD_CALLOC, NULL, totelem);
+				CustomData_add_layer_named(dst, layer->type, CD_CALLOC, NULL, totelem, layer->name);
 			}
 
-			CustomData_copy_data_layer(src, dst, i, CustomData_get_layer_index(dst, layer->type), src_ofs, dst_ofs, copyelem);
+			CustomData_copy_data_layer(src, dst, i,
+									   CustomData_get_named_layer_index(dst, layer->type, layer->name),
+									   src_ofs, dst_ofs, copyelem);
 		}
 	}
 }
@@ -1519,53 +1520,6 @@ void BKE_bm_mesh_hflag_flush_vert(BMesh *bm, const char hflag)
 		} while ((l_iter = l_iter->next) != l_first);
 
 		BM_elem_flag_set(f, hflag, ok);
-	}
-}
-
-void BKE_update_velocity_layer(FractureModifierData *fmd, Mesh *dm)
-{
-	float *velX=NULL, *velY=NULL, *velZ = NULL;
-	RigidBodyOb *rbo = NULL;
-	int i = 0;
-	Shard *mi;
-	int totvert;
-
-	if (!dm)
-		return;
-
-	if (dm->totvert == 0) {
-		return;
-	}
-
-	totvert = dm->totvert;
-
-	velX = CustomData_get_layer_named(&dm->vdata, CD_PROP_FLT, "velX");
-	velY = CustomData_get_layer_named(&dm->vdata, CD_PROP_FLT, "velY");
-	velZ = CustomData_get_layer_named(&dm->vdata, CD_PROP_FLT, "velZ");
-
-	if (!velX)
-		velX = CustomData_add_layer_named(&dm->vdata, CD_PROP_FLT, CD_CALLOC, NULL, totvert, "velX");
-
-	if (!velY)
-		velY = CustomData_add_layer_named(&dm->vdata, CD_PROP_FLT, CD_CALLOC, NULL, totvert, "velY");
-
-	if (!velZ)
-		velZ = CustomData_add_layer_named(&dm->vdata, CD_PROP_FLT, CD_CALLOC, NULL, totvert, "velZ");
-
-	for (i = 0; i < totvert; i++)
-	{
-		mi = BLI_ghash_lookup(fmd->shared->vertex_island_map, POINTER_FROM_INT(i));
-		if (!mi)
-			continue;
-
-		rbo = mi->rigidbody;
-		if (!rbo) {
-			continue;
-		}
-
-		velX[i] = rbo->lin_vel[0] + rbo->ang_vel[0];
-		velY[i] = rbo->lin_vel[1] + rbo->ang_vel[1];
-		velZ[i] = rbo->lin_vel[2] + rbo->ang_vel[2];
 	}
 }
 
@@ -3583,4 +3537,34 @@ void BKE_fracture_duplis_to_shards(FractureModifierData *fmd, Object *ob, Scene 
 #endif
 
 	//MEM_freeN(mi_tmp);
+}
+
+void BKE_fracture_shard_velocity_ensure(Shard *mi)
+{
+	RigidBodyOb *rbo = mi->rigidbody;
+	Mesh* dm = mi->mesh;
+	int i = 0;
+
+	float *velX = CustomData_get_layer_named(&dm->vdata, CD_PROP_FLT, "velX");
+	float *velY = CustomData_get_layer_named(&dm->vdata, CD_PROP_FLT, "velY");
+	float *velZ = CustomData_get_layer_named(&dm->vdata, CD_PROP_FLT, "velZ");
+
+	if (!rbo)
+		return;
+
+	if (!velX)
+		velX = CustomData_add_layer_named(&dm->vdata, CD_PROP_FLT, CD_CALLOC, NULL, dm->totvert, "velX");
+
+	if (!velY)
+		velY = CustomData_add_layer_named(&dm->vdata, CD_PROP_FLT, CD_CALLOC, NULL, dm->totvert, "velY");
+
+	if (!velZ)
+		velZ = CustomData_add_layer_named(&dm->vdata, CD_PROP_FLT, CD_CALLOC, NULL, dm->totvert, "velZ");
+
+	for (i = 0; i < dm->totvert; i++)
+	{
+		velX[i] = rbo->lin_vel[0] + rbo->ang_vel[0];
+		velY[i] = rbo->lin_vel[1] + rbo->ang_vel[1];
+		velZ[i] = rbo->lin_vel[2] + rbo->ang_vel[2];
+	}
 }

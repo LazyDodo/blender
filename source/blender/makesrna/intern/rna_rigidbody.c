@@ -1387,6 +1387,14 @@ static void rna_def_rigidbody_object(BlenderRNA *brna)
 	RNA_def_property_float_sdna(prop, NULL, "orn");
 	RNA_def_property_ui_text(prop, "Rotation", "Quaternion rotation of the rigidbody object");
 
+	prop = RNA_def_property(srna, "linear_velocity", PROP_FLOAT, PROP_VELOCITY);
+	RNA_def_property_float_sdna(prop, NULL, "lin_vel");
+	RNA_def_property_ui_text(prop, "Linear Velocity", "Linear Velocity of the rigidbody object");
+
+	prop = RNA_def_property(srna, "angular_velocity", PROP_FLOAT, PROP_VELOCITY);
+	RNA_def_property_float_sdna(prop, NULL, "ang_vel");
+	RNA_def_property_ui_text(prop, "Angular Velocity", "Angular Velocity of the rigidbody object");
+
 	//expose force and torque application as RNA functions
 	func = RNA_def_function(srna, "apply_force", "rna_RigidBodyOb_force_apply");
 	RNA_def_float_vector_xyz(func, "force", 3, NULL, -FLT_MAX, FLT_MAX,

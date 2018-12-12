@@ -1318,7 +1318,23 @@ typedef enum eRemeshModifierMode {
 	MOD_REMESH_MASS_POINT     = 1,
 	/* keeps sharp edges */
 	MOD_REMESH_SHARP_FEATURES = 2,
-} eRemeshModifierMode;
+	/* turns vertices into metaballs */
+	MOD_REMESH_MBALL          = 3,
+} RemeshModifierMode;
+
+
+typedef enum MetaballRemeshFlags {
+	MOD_REMESH_VERTICES = (1 << 0),
+	MOD_REMESH_PARTICLES = (1 << 1),
+} MetaballRemeshFlags;
+
+typedef enum {
+	eRemeshFlag_Alive    = (1 << 0),
+	eRemeshFlag_Dead     = (1 << 1),
+	eRemeshFlag_Unborn   = (1 << 2),
+	eRemeshFlag_Size     = (1 << 3),
+	eRemeshFlag_Verts    = (1 << 4),
+} MetaballRemeshPsysFlag;
 
 typedef struct RemeshModifierData {
 	ModifierData modifier;
@@ -1331,12 +1347,23 @@ typedef struct RemeshModifierData {
 
 	float hermite_num;
 
+	/*mball related params*/
+	float rendersize;
+	float wiresize;
+	float thresh;
+	float basesize[3];
+	int input;
+	int pflag;
+	int psys;
+	char size_defgrp_name[64];  /* MAX_VGROUP_NAME */
+
 	/* octree depth */
 	char depth;
 
 	char flag;
 	char mode;
 	char pad;
+	char pad2[4];
 } RemeshModifierData;
 
 /* Skin modifier */

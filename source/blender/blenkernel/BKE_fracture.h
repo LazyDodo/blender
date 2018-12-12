@@ -150,7 +150,6 @@ struct Mesh* BKE_fracture_mesh_copy(struct Mesh* source, struct Object* ob);
 struct BMesh* BKE_fracture_mesh_to_bmesh(struct Mesh* me);
 struct Mesh* BKE_fracture_bmesh_to_mesh(struct BMesh* bm);
 
-void BKE_update_velocity_layer(struct FractureModifierData *fmd, struct Mesh *dm);
 bool BKE_rigidbody_remove_modifier(struct RigidBodyWorld* rbw, struct ModifierData *md, struct Object *ob);
 void BKE_fracture_external_constraints_setup(struct FractureModifierData *fmd, struct Scene *scene, struct Object *ob, int frame);
 
@@ -189,5 +188,7 @@ bool BKE_fracture_handle_initial_shards(struct FractureModifierData* fmd, struct
 
 void BKE_fracture_meshislands_connect(struct Scene* scene, struct FractureModifierData* fmd,
                                       struct Shard* mi, struct Shard* mi2, short con_type, float thresh);
+
+void BKE_fracture_shard_velocity_ensure(struct Shard* mi);
 
 #endif /* BKE_FRACTURE_H */

@@ -975,6 +975,87 @@ static void sync_mesh_fluid_motion(BL::Object& b_ob, Scene *scene, Mesh *mesh)
 	}
 }
 
+static bool sync_mesh_precalculated_motion(BL::Mesh& b_mesh, BL::Object& b_ob, BL::Scene& b_scene, Scene *scene, Mesh *mesh)
+{
+	if(scene->need_motion() == Scene::MOTION_NONE)
+		return false;
+
+	/* can have both modifiers, if we have a remesher, we take its data first (TODO, pass data from FM
+	 * to remesher in the future, too) */
+
+	BL::RemeshModifier b_remesher = object_metaball_remesher_find(b_ob);
+	BL::FractureModifier b_fracture = object_fracture_modifier_find(b_ob);
+
+	if (!(b_remesher || b_fracture))
+		return false;
+
+	/* Find or add attribute */
+	float3 *P = &mesh->verts[0];
+	Attribute *attr_mP = mesh->attributes.find(ATTR_STD_MOTION_VERTEX_POSITION);
+
+	if(!attr_mP) {
+		attr_mP = mesh->attributes.add(ATTR_STD_MOTION_VERTEX_POSITION);
+	}
+
+	/* Only export previous and next frame, we don't have any in between data. */
+	float motion_times[2] = {-1.0f, 1.0f};
+	for(int step = 0; step < 2; step++) {
+		/* those are TIMES, but treated like Frames ? makes too high values, so take fps into account*/
+		float relative_time = motion_times[step] * scene->motion_shutter_time() * 0.5f / b_scene.render().fps();
+		float3 *mP = attr_mP->data_float3() + step*mesh->verts.size();
+
+		int i = 0;
+
+		{
+			BL::MeshVertexFloatPropertyLayer vlX = b_mesh.vertex_layers_float[std::string("velX")];
+			BL::MeshVertexFloatPropertyLayer vlY = b_mesh.vertex_layers_float[std::string("velY")];
+			BL::MeshVertexFloatPropertyLayer vlZ = b_mesh.vertex_layers_float[std::string("velZ")];
+
+			BL::Pointer ptrX = (BL::Pointer)vlX;
+			BL::Pointer ptrY = (BL::Pointer)vlY;
+			BL::Pointer ptrZ = (BL::Pointer)vlZ;
+
+			if (!ptrX || !ptrY || !ptrZ || vlX.data.length() != mesh->verts.size())
+			{
+				return false;
+			}
+
+			for(i = 0; i < mesh->verts.size(); i++)
+			{
+				float x = vlX.data[i].value();
+				float y = vlY.data[i].value();
+				float z = vlZ.data[i].value();
+
+				//printf("Vel %f %f %f\n", (double)x, (double)y, (double)z);
+				mP[i] = P[i] + make_float3(x, y, z) * relative_time;
+			}
+		}
+#if 0
+		else if (b_fracture)
+		{
+			/*directly access rigidbody data here, take lin+angvel */
+			//iterate over shard's verts, each vert moves "same" as shard does, well we need to calculate
+			BL::FractureModifierShared::shards_iterator si;
+			int j = 0;
+
+			for(b_fracture.shared().shards.begin(si); si != b_fracture.shared().shards.end(); ++si, ++i)
+			{
+				BL::Mesh::vertices_iterator vi;
+				for(si->mesh().vertices.begin(vi); vi != si->mesh().vertices.end(); ++vi, ++j) {
+					BL::RigidBodyObject rbo = si->rigidbody();
+
+					if (j < mesh->verts.size())
+						mP[j] = P[j] + (get_float3(rbo.linear_velocity()) + get_float3(rbo.angular_velocity())) * relative_time;
+				}
+			}
+		}
+#endif
+	}
+
+	return true;
+}
+
+
 Mesh *BlenderSync::sync_mesh(BL::Depsgraph& b_depsgraph,
                              BL::Object& b_ob,
                              BL::Object& b_ob_instance,
@@ -1099,6 +1180,8 @@ Mesh *BlenderSync::sync_mesh(BL::Depsgraph& b_depsgraph,
 			if(view_layer.use_hair && mesh->subdivision_type == Mesh::SUBDIVISION_NONE)
 				sync_curves(mesh, b_mesh, b_ob, false);
 
+			sync_mesh_precalculated_motion(b_mesh, b_ob, b_scene, scene, mesh);
+
 			/* free derived mesh */
 			b_data.meshes.remove(b_mesh, false, true, false);
 		}
@@ -1158,6 +1241,12 @@ void BlenderSync::sync_mesh_motion(BL::Depsgraph& b_depsgraph,
 	/* fluid motion is exported immediate with mesh, skip here */
 	BL::DomainFluidSettings b_fluid_domain = object_fluid_domain_find(b_ob);
 	if(b_fluid_domain)
+		return;
+
+	/* other precalculated motion (remesher / FM for now only) */
+	BL::RemeshModifier b_remesher = object_metaball_remesher_find(b_ob);
+	BL::FractureModifier b_fracture = object_fracture_modifier_find(b_ob);
+	if(b_remesher || b_fracture)
 		return;
 
 	if(ccl::BKE_object_is_deform_modified(b_ob, b_scene, preview)) {

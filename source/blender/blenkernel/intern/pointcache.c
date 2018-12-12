@@ -1383,6 +1383,8 @@ static int  ptcache_rigidbody_write(int index, void *rb_v, void **data, int cfra
 				copy_to_4(mi->rots, rbo->orn, frame);
 				copy_to_3(mi->vels, rbo->lin_vel, frame);
 				copy_to_3(mi->aves, rbo->ang_vel, frame);
+
+				BKE_fracture_shard_velocity_ensure(mi);
 			}
 		}
 
@@ -1440,6 +1442,8 @@ static void ptcache_rigidbody_read(int index, void *rb_v, void **data, float cfr
 			copy_from_4(rbo->orn, mi->rots, frame);
 			copy_from_3(rbo->lin_vel, mi->vels, frame);
 			copy_from_3(rbo->ang_vel, mi->aves, frame);
+
+			BKE_fracture_shard_velocity_ensure(mi);
 		}
 	}
 }
@@ -1532,6 +1536,8 @@ static void ptcache_rigidbody_interpolate(int index, void *rb_v, void **data, fl
 
 				copy_v3_v3(rbo->pos, result.co);
 				copy_qt_qt(rbo->orn, result.rot);
+
+				BKE_fracture_shard_velocity_ensure(mi);
 			}
 		}
 	}
