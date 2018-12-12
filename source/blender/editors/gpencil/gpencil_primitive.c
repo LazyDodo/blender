@@ -1,4 +1,4 @@
-/*
+﻿/*
  * ***** BEGIN GPL LICENSE BLOCK *****
  *
  * This program is free software; you can redistribute it and/or
@@ -332,7 +332,7 @@ static void gpencil_primitive_status_indicators(bContext *C, tGPDprimitive *tgpi
 		BLI_strncpy(msg_str, IFACE_("Line: ESC/RMB to cancel, LMB set origin, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to align, Alt to center"), UI_MAX_DRAW_STR);
 	}
 	else if (tgpi->type == GP_STROKE_ARC) {
-		BLI_strncpy(msg_str, IFACE_("Arc: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center, F to flip"), UI_MAX_DRAW_STR);
+		BLI_strncpy(msg_str, IFACE_("Arc: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center"), UI_MAX_DRAW_STR);
 	}
 	else if (tgpi->type == GP_STROKE_CURVE) {
 		BLI_strncpy(msg_str, IFACE_("Curve: ESC/RMB to cancel, Enter/LMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center"), UI_MAX_DRAW_STR);
@@ -458,28 +458,25 @@ static void gp_primitive_arc(tGPDprimitive *tgpi, tGPspoint *points2D)
 {
 	const int totpoints = (tgpi->tot_edges + tgpi->tot_stored_edges);
 	const float step = M_PI_2 / (float)(tgpi->tot_edges - 1);
-	float length[2];
 	float start[2];
 	float end[2];
-	float origin[2];
+	float cp1[2];
+	float corner[2];
+	float midpoint[2];
 	float a = 0.0f;
-
+	
 	copy_v2_v2(start, tgpi->start);
 	copy_v2_v2(end, tgpi->end);
-	copy_v2_v2(origin, tgpi->origin);
+	copy_v2_v2(cp1, tgpi->cp1);
+	copy_v2_v2(midpoint, tgpi->midpoint);
 
-	if (tgpi->flip) {
-		SWAP(int, end[0], start[0]);
-		SWAP(int, end[1], start[1]);
-	}
-
-	length[0] = end[0] - start[0];
-	length[1] = end[1] - start[1];
-
+	corner[0] = midpoint[0] - (cp1[0] - midpoint[0]);
+	corner[1] = midpoint[1] - (cp1[1] - midpoint[1]);
+	
 	for (int i = tgpi->tot_stored_edges; i < totpoints; i++) {
 		tGPspoint *p2d = &points2D[i];
-		p2d->x = (start[0] + sinf(a) * length[0]);
-		p2d->y = (end[1] - cosf(a) * length[1]);
+		p2d->x = corner[0] + (end[0] - corner[0]) * sinf(a) + (start[0] - corner[0]) * cosf(a);
+		p2d->y = corner[1] + (end[1] - corner[1]) * sinf(a) + (start[1] - corner[1]) * cosf(a);
 		a += step;
 	}
 	float color[4];
@@ -489,6 +486,8 @@ static void gp_primitive_arc(tGPDprimitive *tgpi, tGPspoint *points2D)
 	/* origin point follows start control point */
 	UI_GetThemeColor4fv(TH_REDALERT, color);
 	gp_primitive_set_cp(tgpi, tgpi->start, color, SMALL_SIZE_CTL);
+	UI_GetThemeColor4fv(TH_GP_VERTEX_SELECT, color);
+	gp_primitive_set_cp(tgpi, tgpi->cp1, color, BIG_SIZE_CTL * 0.9f);
 }
 
 /* create a bezier */
@@ -519,7 +518,6 @@ static void gp_primitive_bezier(tGPDprimitive *tgpi, tGPspoint *points2D)
 	/* origin point follows start control point */
 	UI_GetThemeColor4fv(TH_REDALERT, color);
 	gp_primitive_set_cp(tgpi, tgpi->start, color, SMALL_SIZE_CTL);
-
 	UI_GetThemeColor4fv(TH_GP_VERTEX_SELECT, color);
 	gp_primitive_set_cp(tgpi, tgpi->cp1, color, BIG_SIZE_CTL * 0.9f);
 	gp_primitive_set_cp(tgpi, tgpi->cp2, color, BIG_SIZE_CTL * 0.9f);
@@ -1006,9 +1004,8 @@ static void gpencil_primitive_interaction_end(bContext *C, wmOperator *op, wmWin
 /* Helper to set bezier cp */
 static void gpencil_primitive_set_midpoint(tGPDprimitive *tgpi)
 {
-	float midpoint[2];
-	mid_v2_v2v2(midpoint, tgpi->start, tgpi->end);
-	copy_v2_v2(tgpi->cp1, midpoint);
+	mid_v2_v2v2(tgpi->midpoint, tgpi->start, tgpi->end);
+	copy_v2_v2(tgpi->cp1, tgpi->midpoint);
 	copy_v2_v2(tgpi->cp2, tgpi->cp1);
 }
 
@@ -1275,16 +1272,6 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 
 			/* canceled! */
 			return OPERATOR_CANCELLED;
-		}
-		case FKEY:
-		{
-			if ((event->val == KM_RELEASE) && tgpi->type == GP_STROKE_ARC) {
-				tgpi->flip ^= 1;
-
-				/* update screen */
-				gpencil_primitive_update(C, op, tgpi);
-			}
-			break;
 		}
 		case PADPLUSKEY:
 		case WHEELUPMOUSE:
