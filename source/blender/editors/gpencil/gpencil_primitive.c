@@ -751,18 +751,13 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		}
 	}
 
-	/* if axis locked, reproject to plane locked */
-	if ((!is_depth) && (tgpi->lock_axis > GP_LOCKAXIS_VIEW)) {
-		bGPDspoint *tpt = gps->points;
+	/* reproject to plane */
+	if (!is_depth) {
 		float origin[3];
 		ED_gp_get_drawing_reference(tgpi->scene, tgpi->ob, tgpi->gpl,
 			ts->gpencil_v3d_align, origin);
-
-		for (int i = 0; i < gps->totpoints; i++, tpt++) {
-			ED_gp_project_point_to_plane(tgpi->ob, tgpi->rv3d, origin,
-				ts->gp_sculpt.lock_axis - 1,
-				tpt);
-		}
+		ED_gp_project_stroke_to_plane(
+			tgpi->ob, tgpi->rv3d, gps, origin, ts->gp_sculpt.lock_axis - 1);
 	}
 
 	/* if parented change position relative to parent object */
