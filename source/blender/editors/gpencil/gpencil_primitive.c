@@ -299,7 +299,10 @@ static void gp_primitive_set_initdata(bContext *C, tGPDprimitive *tgpi)
 /* add new segment to curve */
 static void gpencil_primitive_add_segment(tGPDprimitive *tgpi)
 {
-	tgpi->tot_stored_edges += tgpi->tot_edges;
+	if(tgpi->tot_stored_edges)
+		tgpi->tot_stored_edges += (tgpi->tot_edges - 1);
+	else
+		tgpi->tot_stored_edges += tgpi->tot_edges;
 	gpencil_primitive_allocate_memory(tgpi);
 }
 
@@ -429,7 +432,7 @@ static void gp_primitive_line(tGPDprimitive *tgpi, tGPspoint *points2D)
 	else {
 		const int totpoints = (tgpi->tot_edges + tgpi->tot_stored_edges);
 		const float step = 1.0f / (float)(tgpi->tot_edges - 1);
-		float a = 0.0f;
+		float a = tgpi->tot_stored_edges ? step : 0.0f;
 
 		for (int i = tgpi->tot_stored_edges; i < totpoints; i++) {
 			tGPspoint *p2d = &points2D[i];
@@ -465,7 +468,7 @@ static void gp_primitive_arc(tGPDprimitive *tgpi, tGPspoint *points2D)
 	float cp1[2];
 	float corner[2];
 	float midpoint[2];
-	float a = 0.0f;
+	float a = tgpi->tot_stored_edges ? step : 0.0f;
 
 	mid_v2_v2v2(tgpi->midpoint, tgpi->start, tgpi->end);
 	copy_v2_v2(start, tgpi->start);
@@ -503,7 +506,7 @@ static void gp_primitive_bezier(tGPDprimitive *tgpi, tGPspoint *points2D)
 	float bcp2[2];
 	float bcp3[2];
 	float bcp4[2];
-	float a = 0.0f;
+	float a = tgpi->tot_stored_edges ? step : 0.0f;
 
 	copy_v2_v2(bcp1, tgpi->start);
 	copy_v2_v2(bcp2, tgpi->cp1);
