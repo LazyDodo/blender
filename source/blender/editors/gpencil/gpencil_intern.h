@@ -156,6 +156,7 @@ typedef struct tGPDprimitive {
 	struct bGPDframe *gpf;            /* frame */
 	int type;                         /* type of primitive */
 	bool curve;                       /* type of primitive is a curve */
+	short flip;                       /* flip option */
 	tGPspoint *points;                /* array of data-points for stroke */
 	int point_count;                  /* number of edges allocated */
 	int tot_stored_edges;             /* stored number of polygon edges */

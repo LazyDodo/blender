@@ -466,7 +466,8 @@ static void gp_primitive_arc(tGPDprimitive *tgpi, tGPspoint *points2D)
 	float corner[2];
 	float midpoint[2];
 	float a = 0.0f;
-	
+
+	mid_v2_v2v2(tgpi->midpoint, tgpi->start, tgpi->end);
 	copy_v2_v2(start, tgpi->start);
 	copy_v2_v2(end, tgpi->end);
 	copy_v2_v2(cp1, tgpi->cp1);
@@ -485,8 +486,12 @@ static void gp_primitive_arc(tGPDprimitive *tgpi, tGPspoint *points2D)
 	UI_GetThemeColor4fv(TH_ACTIVE_VERT, color);
 	gp_primitive_set_cp(tgpi, tgpi->start, color, BIG_SIZE_CTL);
 	gp_primitive_set_cp(tgpi, tgpi->end, color, BIG_SIZE_CTL);
+	/*UI_GetThemeColor4fv(TH_REDALERT, color);
+	gp_primitive_set_cp(tgpi, tgpi->midpoint, color, SMALL_SIZE_CTL);
+	gp_primitive_set_cp(tgpi, corner, color, SMALL_SIZE_CTL);*/
 	UI_GetThemeColor4fv(TH_GP_VERTEX_SELECT, color);
 	gp_primitive_set_cp(tgpi, tgpi->cp1, color, BIG_SIZE_CTL * 0.9f);
+	
 }
 
 /* create a bezier */
@@ -569,6 +574,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 
 	/* compute screen-space coordinates for points */
 	tGPspoint *points2D = tgpi->points;
+	
 	switch (tgpi->type) {
 		case GP_STROKE_BOX:
 			gp_primitive_rectangle(tgpi, points2D);
@@ -998,14 +1004,6 @@ static void gpencil_primitive_interaction_end(bContext *C, wmOperator *op, wmWin
 	gpencil_primitive_exit(C, op);
 }
 
-/* Helper to set bezier cp */
-static void gpencil_primitive_set_midpoint(tGPDprimitive *tgpi)
-{
-	mid_v2_v2v2(tgpi->midpoint, tgpi->start, tgpi->end);
-	copy_v2_v2(tgpi->cp1, tgpi->midpoint);
-	copy_v2_v2(tgpi->cp2, tgpi->cp1);
-}
-
 /* Helper to square a primitive */
 static void gpencil_primitive_to_square(tGPDprimitive *tgpi, const float x, const float y)
 {
@@ -1022,6 +1020,23 @@ static void gpencil_primitive_to_square(tGPDprimitive *tgpi, const float x, cons
 			tgpi->end[1] = tgpi->origin[1] - x;
 		else
 			tgpi->end[0] = tgpi->origin[0] - y;
+	}
+}
+
+/* Helper to update cps */
+static void gp_primitive_update_cps(tGPDprimitive *tgpi)
+{
+	if (tgpi->type == GP_STROKE_ARC) {
+		if (tgpi->flip)
+			copy_v2_fl2(tgpi->cp1, tgpi->start[0], tgpi->end[1]);
+		else
+			copy_v2_fl2(tgpi->cp1, tgpi->end[0], tgpi->start[1]);
+		mid_v2_v2v2(tgpi->midpoint, tgpi->start, tgpi->end);
+	}
+	else if (tgpi->type == GP_STROKE_CURVE) {
+		mid_v2_v2v2(tgpi->midpoint, tgpi->start, tgpi->end);
+		copy_v2_v2(tgpi->cp1, tgpi->midpoint);
+		copy_v2_v2(tgpi->cp2, tgpi->cp1);
 	}
 }
 
@@ -1066,12 +1081,12 @@ static void gpencil_primitive_arc_event_handling(bContext *C, wmOperator *op, wm
 					copy_v2_v2(tgpi->cp2, tgpi->cp1);
 			}
 			copy_v2_v2(tgpi->mvalo, tgpi->mval);
-
+			
 			/* update screen */
 			gpencil_primitive_update(C, op, tgpi);
 		}
-		else if ((event->val == KM_PRESS)) {
-			gpencil_primitive_set_midpoint(tgpi);
+		else if ((tgpi->flag == IN_PROGRESS)) {		
+			gp_primitive_update_cps(tgpi);
 			gpencil_primitive_update(C, op, tgpi);
 		}
 		break;
@@ -1090,21 +1105,38 @@ static void gpencil_primitive_arc_event_handling(bContext *C, wmOperator *op, wm
 		else if ((event->val == KM_RELEASE) && (tgpi->flag == IN_PROGRESS)) {
 			/* set control points and enter edit mode */
 			tgpi->flag = IN_CURVE_EDIT;
-			gpencil_primitive_set_midpoint(tgpi);
-			copy_v2_v2(tgpi->mvalo, tgpi->mval);
+			gp_primitive_update_cps(tgpi);
 			gpencil_primitive_update(C, op, tgpi);
 		}
 		else {
 			tgpi->sel_cp = SELECT_NONE;
 		}
 		break;
+	case FKEY:
+	{
+		if ((event->val == KM_RELEASE)) {
+			tgpi->flip ^= 1;
+			
+			if ((tgpi->flag == IN_PROGRESS)) {
+				gp_primitive_update_cps(tgpi);
+			}
+			else if ((tgpi->flag == IN_CURVE_EDIT)) {
+				mid_v2_v2v2(tgpi->midpoint, tgpi->start, tgpi->end);
+				tgpi->cp1[0] = tgpi->midpoint[0] - (tgpi->cp1[0] - tgpi->midpoint[0]);
+				tgpi->cp1[1] = tgpi->midpoint[1] - (tgpi->cp1[1] - tgpi->midpoint[1]);
+			}
+			gpencil_primitive_update(C, op, tgpi);
+		}
+		break;
+	}
+
 	case AKEY:
 		if (tgpi->flag == IN_CURVE_EDIT) {
 			tgpi->flag = IN_PROGRESS;
 			gpencil_primitive_add_segment(tgpi);
 			copy_v2_v2(tgpi->start, tgpi->end);
 			copy_v2_v2(tgpi->origin, tgpi->start);
-			gpencil_primitive_set_midpoint(tgpi);
+			gp_primitive_update_cps(tgpi);
 			copy_v2_v2(tgpi->mvalo, tgpi->mval);
 		}
 		break;
@@ -1163,7 +1195,7 @@ static void gpencil_primitive_bezier_event_handling(bContext *C, wmOperator *op,
 			gpencil_primitive_update(C, op, tgpi);
 		}
 		else if ((event->val == KM_PRESS)) {
-			gpencil_primitive_set_midpoint(tgpi);
+			gp_primitive_update_cps(tgpi);
 			gpencil_primitive_update(C, op, tgpi);
 		}
 		break;
@@ -1182,7 +1214,7 @@ static void gpencil_primitive_bezier_event_handling(bContext *C, wmOperator *op,
 		else if ((event->val == KM_RELEASE) && (tgpi->flag == IN_PROGRESS)) {
 			/* set control points and enter edit mode */
 			tgpi->flag = IN_CURVE_EDIT;
-			gpencil_primitive_set_midpoint(tgpi);
+			gp_primitive_update_cps(tgpi);
 			copy_v2_v2(tgpi->mvalo, tgpi->mval);
 			gpencil_primitive_update(C, op, tgpi);
 		}
@@ -1196,7 +1228,7 @@ static void gpencil_primitive_bezier_event_handling(bContext *C, wmOperator *op,
 			gpencil_primitive_add_segment(tgpi);
 			copy_v2_v2(tgpi->start, tgpi->end);
 			copy_v2_v2(tgpi->origin, tgpi->start);
-			gpencil_primitive_set_midpoint(tgpi);
+			gp_primitive_update_cps(tgpi);
 			copy_v2_v2(tgpi->mvalo, tgpi->mval);
 		}
 		break;
