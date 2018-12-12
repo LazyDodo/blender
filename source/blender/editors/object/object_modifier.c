@@ -2610,8 +2610,8 @@ void OBJECT_OT_fracture_refresh(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO | OPTYPE_INTERNAL;
 	edit_modifier_properties(ot);
 
-	RNA_def_boolean(ot->srna, "reset", false, "Reset Shards",
-					"Reset all shards in next refracture, instead of keeping similar ones");
+	//RNA_def_boolean(ot->srna, "reset", false, "Reset Shards",
+	//				"Reset all shards in next refracture, instead of keeping similar ones");
 }
 
 static void do_add_group_unchecked(Main *bmain, Collection* group, Object *ob)

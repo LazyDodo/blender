@@ -135,7 +135,7 @@ class PHYSICS_PT_fracture(PhysicButtonsPanel, Panel):
 
         layout.context_pointer_set("modifier", md)
         row = layout.row()
-        row.operator("object.fracture_refresh", text="Execute Fracture", icon='MOD_EXPLODE').reset = True
+        row.operator("object.fracture_refresh", text="Execute Fracture", icon='MOD_EXPLODE')
 
 class PHYSICS_PT_fracture_basic(PhysicButtonsPanel, Panel):
     bl_label = "Basic"

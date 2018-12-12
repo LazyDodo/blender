@@ -664,6 +664,8 @@ static BMesh *limit_geometry(Mesh* geometry, Shard *shard, KDTree *preselect_tre
 #undef MY_TAG
 	BM_mesh_elem_index_ensure(bm_new, BM_VERT | BM_EDGE | BM_FACE);
 
+	BM_mesh_free(bm_orig);
+
 	return bm_new;
 }
 
@@ -680,10 +682,14 @@ Mesh* BKE_fracture_mesh_bisect(Mesh* geometry, Shard* raw_shard, BisectContext *
 
 		/* if we detected what shards did change and built a limitation tree, we use it here to chop away unneeded
 		 * geometry from the original geometry. So less geometry has to be processed and the bisect should be faster */
+#if 0
+		//doesnt work for some reason
 		if (ctx->geometry_limitation_tree != NULL) {
 			bm_geometry = limit_geometry(geometry, raw_shard, ctx->geometry_limitation_tree);
 		}
-		else {
+		else
+#endif
+		{
 			/* without limitation tree, just use the full geometry */
 			bm_geometry = BKE_fracture_mesh_to_bmesh(geometry);
 		}

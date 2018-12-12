@@ -159,6 +159,15 @@ static void do_initial_prefracture(FractureModifierData* fmd, Object* ob, Depsgr
 		//BLI_addtail(&fmd->shared->shards, mi);
 
 		if (fmd->shared->last_islands) {
+			//actually free the not linked, unprocessed! shards here as well, too !
+			int k = 0;
+			for (k = 0; k < fmd->shared->last_islands_count; k++)
+			{
+				if (fmd->shared->last_islands[k])
+				{
+					BKE_fracture_mesh_island_free(fmd, fmd->shared->last_islands[k], scene);
+				}
+			}
 			MEM_freeN(fmd->shared->last_islands);
 			fmd->shared->last_islands = NULL;
 			fmd->shared->last_islands_count = 0;
