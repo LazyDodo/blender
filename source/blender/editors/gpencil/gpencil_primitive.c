@@ -545,12 +545,11 @@ static void gp_primitive_circle(tGPDprimitive *tgpi, tGPspoint *points2D)
 		a += step;
 	}
 	float color[4];
-	UI_GetThemeColor4fv(TH_ACTIVE_VERT, color);
-	gp_primitive_set_cp(tgpi, tgpi->start, color, BIG_SIZE_CTL);
-	gp_primitive_set_cp(tgpi, tgpi->end, color, BIG_SIZE_CTL);
 	UI_GetThemeColor4fv(TH_REDALERT, color);
+	gp_primitive_set_cp(tgpi, tgpi->start, color, SMALL_SIZE_CTL);
+	gp_primitive_set_cp(tgpi, tgpi->end, color, SMALL_SIZE_CTL);
 	gp_primitive_set_cp(tgpi, tgpi->origin, color, SMALL_SIZE_CTL);
-	gp_primitive_set_cp(tgpi, center, color, MID_SIZE_CTL);
+	gp_primitive_set_cp(tgpi, center, color, SMALL_SIZE_CTL);
 }
 
 /* Helper: Update shape of the stroke */
