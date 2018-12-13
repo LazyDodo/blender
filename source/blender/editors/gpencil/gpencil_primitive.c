@@ -1101,6 +1101,7 @@ static void gpencil_primitive_arc_event_handling(bContext *C, wmOperator *op, wm
 		}
 		else if ((tgpi->flag == IN_PROGRESS)) {		
 			gp_primitive_update_cps(tgpi);
+			copy_v2_v2(tgpi->mvalo, tgpi->mval);
 			gpencil_primitive_update(C, op, tgpi);
 		}
 		break;
@@ -1202,6 +1203,7 @@ static void gpencil_primitive_bezier_event_handling(bContext *C, wmOperator *op,
 				if (event->shift)
 					copy_v2_v2(tgpi->cp1, tgpi->cp2);
 			}
+			
 			copy_v2_v2(tgpi->mvalo, tgpi->mval);
 
 			/* update screen */
@@ -1341,12 +1343,21 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 			}
 			break;
 		}
+		case TABKEY:
+		{
+			if (tgpi->flag == IN_CURVE_EDIT) {
+				tgpi->flag = IN_PROGRESS;
+				gp_primitive_update_cps(tgpi);
+				copy_v2_v2(tgpi->mvalo, tgpi->mval);
+				gpencil_primitive_update(C, op, tgpi);				
+			}
+			break;
+		}
 		case MOUSEMOVE: /* calculate new position */
 		{
 			if (tgpi->flag == IN_CURVE_EDIT) {
 				break;
 			}
-
 			/* only handle mousemove if not doing numinput */
 			if (has_numinput == false) {
 				/* update position of mouse */
@@ -1380,6 +1391,7 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 					tgpi->start[0] = tgpi->origin[0] - (tgpi->end[0] - tgpi->origin[0]);
 					tgpi->start[1] = tgpi->origin[1] - (tgpi->end[1] - tgpi->origin[1]);
 				}
+				gp_primitive_update_cps(tgpi);
 				/* update screen */
 				gpencil_primitive_update(C, op, tgpi);
 			}
