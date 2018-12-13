@@ -636,43 +636,57 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 			}
 		}
 		else {
-			if ((ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE_ENDPOINTS) ||
-				(ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE_FIRST))
-			{
-				int first_valid = 0;
-				int last_valid = 0;
-
-				/* find first valid contact point */
-				for (i = 0; i < gps->totpoints; i++) {
-					if (depth_arr[i] != FLT_MAX)
-						break;
+			/* if all depth are too high disable */
+			bool valid_depth = false;
+			for (i = gps->totpoints - 1; i >= 0; i--) {
+				if (depth_arr[i] < 0.9999f) {
+					valid_depth = true;
+					break;
 				}
-				first_valid = i;
+			}
+			if (!valid_depth) {
+				MEM_SAFE_FREE(depth_arr);
+				is_depth = false;
+			}
+			else {
+				if ((ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE_ENDPOINTS) ||
+					(ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE_FIRST))
+				{
+					int first_valid = 0;
+					int last_valid = 0;
 
-				/* find last valid contact point */
-				if (ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE_FIRST) {
-					last_valid = first_valid;
-				}
-				else {
-					for (i = gps->totpoints - 1; i >= 0; i--) {
+					/* find first valid contact point */
+					for (i = 0; i < gps->totpoints; i++) {
 						if (depth_arr[i] != FLT_MAX)
 							break;
 					}
-					last_valid = i;
-				}
+					first_valid = i;
 
-				/* invalidate any other point, to interpolate between
-				 * first and last contact in an imaginary line between them */
-				for (i = 0; i < gps->totpoints; i++) {
-					if ((i != first_valid) && (i != last_valid)) {
-						depth_arr[i] = FLT_MAX;
+					/* find last valid contact point */
+					if (ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE_FIRST) {
+						last_valid = first_valid;
 					}
-				}
-				interp_depth = true;
-			}
+					else {
+						for (i = gps->totpoints - 1; i >= 0; i--) {
+							if (depth_arr[i] != FLT_MAX)
+								break;
+						}
+						last_valid = i;
+					}
 
-			if (interp_depth) {
-				interp_sparse_array(depth_arr, gps->totpoints, FLT_MAX);
+					/* invalidate any other point, to interpolate between
+					 * first and last contact in an imaginary line between them */
+					for (i = 0; i < gps->totpoints; i++) {
+						if ((i != first_valid) && (i != last_valid)) {
+							depth_arr[i] = FLT_MAX;
+						}
+					}
+					interp_depth = true;
+				}
+
+				if (interp_depth) {
+					interp_sparse_array(depth_arr, gps->totpoints, FLT_MAX);
+				}
 			}
 		}
 	}
