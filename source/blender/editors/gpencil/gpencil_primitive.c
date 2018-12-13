@@ -297,7 +297,7 @@ static void gp_primitive_set_initdata(bContext *C, tGPDprimitive *tgpi)
 /* add new segment to curve */
 static void gpencil_primitive_add_segment(tGPDprimitive *tgpi)
 {
-	if(tgpi->tot_stored_edges)
+	if(tgpi->tot_stored_edges > 0)
 		tgpi->tot_stored_edges += (tgpi->tot_edges - 1);
 	else
 		tgpi->tot_stored_edges += tgpi->tot_edges;
@@ -572,10 +572,14 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	else
 		gps->totpoints = (tgpi->tot_edges + tgpi->tot_stored_edges);
 
+	if (tgpi->tot_stored_edges)
+		gps->totpoints--;
+
 	tgpi->gpd->runtime.tot_cp_points = 0;
 
 	/* compute screen-space coordinates for points */
 	tGPspoint *points2D = tgpi->points;
+	
 	
 	switch (tgpi->type) {
 		case GP_STROKE_BOX:
@@ -602,6 +606,10 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	if (gset->flag & GP_SCULPT_SETT_FLAG_PRIMITIVE_CURVE) {
 		curvemapping_initialize(ts->gp_sculpt.cur_primitive);
 	}
+	if(tgpi->brush->gpencil_settings->flag & GP_BRUSH_USE_JITTER_PRESSURE)
+		curvemapping_initialize(tgpi->brush->gpencil_settings->curve_jitter);
+	if(tgpi->brush->gpencil_settings->flag & GP_BRUSH_USE_STENGTH_PRESSURE)
+		curvemapping_initialize(tgpi->brush->gpencil_settings->curve_strength);
 
 	/* get an array of depths, far depths are blended */
 	float *depth_arr = NULL;
@@ -698,14 +706,53 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 
 		/* Copy points to buffer */
 		tGPspoint *tpt = ((tGPspoint *)(gpd->runtime.sbuffer) + gpd->runtime.sbuffer_size);
-		tpt->x = p2d->x;
-		tpt->y = p2d->y;
+
+		/* Store original points */
+		float tmp_xyp[2];
+		copy_v2_v2(tmp_xyp, &p2d->x);
 
 		/* calc pressure */
+		float curve_pressure = 1.0;
 		float pressure = 1.0;
+		float strength = brush->gpencil_settings->draw_strength;
+
+		/* normalize value to evaluate curve */
+		if (gset->flag & GP_SCULPT_SETT_FLAG_PRIMITIVE_CURVE) {
+			float value = (float)i / (gps->totpoints - 1);
+			curve_pressure = curvemapping_evaluateF(gset->cur_primitive, 0, value);
+			pressure = curve_pressure;
+		}
+
+		/* apply jitter to position */
+		if ((brush->gpencil_settings->flag & GP_BRUSH_GROUP_RANDOM) &&
+			(brush->gpencil_settings->draw_jitter > 0.0f))
+		{
+			float jitter;
+
+			if (brush->gpencil_settings->flag & GP_BRUSH_USE_JITTER_PRESSURE) {
+				jitter = curvemapping_evaluateF(brush->gpencil_settings->curve_jitter, 0, curve_pressure);
+				jitter *= brush->gpencil_settings->draw_sensitivity;
+			}
+			else {
+				jitter = brush->gpencil_settings->draw_jitter;
+			}
+
+			const float exfactor = (brush->gpencil_settings->draw_jitter + 2.0f) * (brush->gpencil_settings->draw_jitter + 2.0f); /* exponential value */
+			const float rnd = BLI_rng_get_float(tgpi->rng);
+			const float fac = rnd * exfactor * jitter;
+			if (rnd > 0.5f) {
+				add_v2_fl(&p2d->x, -fac);
+			}
+			else {
+				add_v2_fl(&p2d->x, fac);
+			}
+
+			
+		}
 
 		/* apply randomness to pressure */
-		if ((brush->gpencil_settings->flag & GP_BRUSH_GROUP_RANDOM))
+		if ((brush->gpencil_settings->flag & GP_BRUSH_GROUP_RANDOM) &&
+			(brush->gpencil_settings->draw_random_press > 0.0f))
 		{
 			float rnd = BLI_rng_get_float(tgpi->rng);
 			if (rnd > 0.5f) {
@@ -715,17 +762,36 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 				pressure += brush->gpencil_settings->draw_random_press * rnd;
 			}
 		}
-		/* normalize value to evaluate curve */
-		if (gset->flag & GP_SCULPT_SETT_FLAG_PRIMITIVE_CURVE) {
-			float value = (float)i / (gps->totpoints - 1);
-			float curvef = curvemapping_evaluateF(gset->cur_primitive, 0, value);
-			pressure *= curvef;
+
+		/* color strength */
+		if (brush->gpencil_settings->flag & GP_BRUSH_USE_STENGTH_PRESSURE) {
+			float curvef = curvemapping_evaluateF(brush->gpencil_settings->curve_strength, 0, curve_pressure);
+			strength *= curvef * brush->gpencil_settings->draw_sensitivity;
+			strength *= brush->gpencil_settings->draw_strength;
 		}
+		
+		CLAMP(strength, GPENCIL_STRENGTH_MIN, 1.0f);
+
+		/* apply randomness to color strength */
+		if ((brush->gpencil_settings->flag & GP_BRUSH_GROUP_RANDOM) &&
+			(brush->gpencil_settings->draw_random_strength > 0.0f))
+		{
+			const float rnd = BLI_rng_get_float(tgpi->rng);
+			if (rnd > 0.5f) {
+				strength -= strength * brush->gpencil_settings->draw_random_strength * rnd;
+			}
+			else {
+				strength += strength * brush->gpencil_settings->draw_random_strength * rnd;
+			}
+			CLAMP(strength, GPENCIL_STRENGTH_MIN, 1.0f);
+		}
+
+		copy_v2_v2(&tpt->x, &p2d->x);
+
 		CLAMP_MIN(pressure, 0.1f);
 
 		tpt->pressure = pressure;
-		tpt->strength = tgpi->brush->gpencil_settings->draw_strength;
-		
+		tpt->strength = strength;
 		tpt->time = p2d->time;
 		tpt->uv_fac = 1.0f;
 		tpt->uv_rot = p2d->uv_rot;
@@ -744,7 +810,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 			&pt->x);
 
 		pt->pressure = pressure;
-		pt->strength = tgpi->brush->gpencil_settings->draw_strength;
+		pt->strength = strength;
 		pt->time = 0.0f;
 		pt->flag = 0;
 		pt->uv_fac = 1.0f;
@@ -754,6 +820,9 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 			dvert->totweight = 0;
 			dvert->dw = NULL;
 		}
+
+		/* Restore original points */
+		copy_v2_v2(&p2d->x, tmp_xyp);
 	}
 
 	/* store cps and convert coords */
