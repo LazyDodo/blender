@@ -1163,6 +1163,7 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	View3D *v3d = draw_ctx->v3d;
+	const bool overlay = v3d != NULL ? (bool)((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) : true;
 	Brush *brush = BKE_paint_brush(&ts->gp_paint->paint);
 	bGPdata *gpd_eval = ob->data;
 	/* need the original to avoid cow overhead while drawing */
@@ -1260,7 +1261,7 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 	}
 
 	/* control points */
-	if ((gpd->runtime.tot_cp_points > 0) &&
+	if ((overlay) && (gpd->runtime.tot_cp_points > 0) &&
 		((gpd->runtime.sbuffer_sflag & GP_STROKE_ERASER) == 0) &&
 		((v3d->gizmo_flag & V3D_GIZMO_HIDE) == 0) &&
 		((v3d->gizmo_flag & V3D_GIZMO_HIDE_TOOL) == 0))
