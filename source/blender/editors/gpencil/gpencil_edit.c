@@ -3672,9 +3672,9 @@ void GPENCIL_OT_stroke_smooth(wmOperatorType *ot)
 	prop = RNA_def_float(ot->srna, "factor", 0.5f, 0.0f, 2.0f, "Factor", "", 0.0f, 2.0f);
 	prop = RNA_def_boolean(ot->srna, "only_selected", true, "Only Selected",
 		"Smooth only selected points in the stroke");
-	prop = RNA_def_boolean(ot->srna, "smooth_position", true, "Smooth Position", "");
-	prop = RNA_def_boolean(ot->srna, "smooth_thickness", true, "Smooth Thickness", "");
-	prop = RNA_def_boolean(ot->srna, "smooth_strength", false, "Smooth Strength", "");
-	prop = RNA_def_boolean(ot->srna, "smooth_uv", false, "Smooth UV data", "");
+	prop = RNA_def_boolean(ot->srna, "smooth_position", true, "Position", "");
+	prop = RNA_def_boolean(ot->srna, "smooth_thickness", true, "Thickness", "");
+	prop = RNA_def_boolean(ot->srna, "smooth_strength", false, "Strength", "");
+	prop = RNA_def_boolean(ot->srna, "smooth_uv", false, "UV", "");
 
 }
