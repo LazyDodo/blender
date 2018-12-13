@@ -631,14 +631,14 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		}
 
 		if (!found_depth) {
-			for (i = gps->totpoints - 1; i >= 0; i--) {
+			for (i = 0; i < gps->totpoints; i++) {
 				depth_arr[i] = 0.9999f;
 			}
 		}
 		else {
 			/* if all depth are too high disable */
 			bool valid_depth = false;
-			for (i = gps->totpoints - 1; i >= 0; i--) {
+			for (i = 0; i < gps->totpoints; i++) {
 				if (depth_arr[i] < 0.9999f) {
 					valid_depth = true;
 					break;
