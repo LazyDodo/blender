@@ -876,6 +876,8 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 
 	/* set GP datablock */
 	tgpi->gpd = gpd;
+	/* region where paint was originated */
+	tgpi->gpd->runtime.ar = tgpi->ar;
 
 	/* control points */
 	tgpi->gpd->runtime.cp_points = MEM_callocN(sizeof(bGPDcontrolpoint) * MAX_CP, "gp primitive cpoint");
