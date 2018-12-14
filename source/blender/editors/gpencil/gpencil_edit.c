@@ -2335,7 +2335,7 @@ static int gp_snap_cursor_to_sel(bContext *C, wmOperator *UNUSED(op))
 		}
 	}
 
-	if (scene->toolsettings->transform_pivot_point == V3D_AROUND_CENTER_MEAN && count) {
+	if (scene->toolsettings->transform_pivot_point == V3D_AROUND_CENTER_MEDIAN && count) {
 		mul_v3_fl(centroid, 1.0f / (float)count);
 		copy_v3_v3(cursor, centroid);
 	}
@@ -3016,7 +3016,6 @@ void GPENCIL_OT_reproject(wmOperatorType *ot)
 /* helper to smooth */
 static void gp_smooth_stroke(bContext *C, wmOperator *op)
 {
-	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	const int repeat = RNA_int_get(op->ptr, "repeat");
 	float factor = RNA_float_get(op->ptr, "factor");
 	const bool only_selected = RNA_boolean_get(op->ptr, "only_selected");
