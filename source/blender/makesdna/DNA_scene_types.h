@@ -917,8 +917,28 @@ typedef enum HairEditFollicleDrawMode {
 	HAIR_FOLLICLE_DRAW_AXES,
 } HairEditFollicleDrawMode;
 
+/* HairEditSettings.brushtype */
+typedef enum eHairBrushTypes {
+	HAIR_BRUSH_ADD           = 0,
+
+	/* !!! Update HairEditSettings brush[###]; below !!! */
+	HAIR_BRUSH_TYPE_MAX,
+} eHairBrushTypes;
+
+/* Settings for a hair brush */
+typedef struct HairBrushData {
+	short flag;
+	short size;             /* radius of brush */
+	float strength;         /* strength of effect */
+} HairBrushData;
+
 /* Hair Edit Mode Settings */
 typedef struct HairEditSettings {
+	HairBrushData brush[12];    /* HAIR_BRUSH_TYPE_MAX */
+	void *paintcursor;          /* runtime */
+
+	int brushtype;              /* eHairBrushTypes */
+
 	int flag;
 	short select_mode;
 	short follicle_draw_mode;

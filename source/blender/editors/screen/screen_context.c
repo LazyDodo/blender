@@ -82,7 +82,7 @@ const char *screen_context_dir[] = {
 	"active_bone", "active_pose_bone",
 	"active_base", "active_object", "object", "edit_object",
 	"sculpt_object", "vertex_paint_object", "weight_paint_object",
-	"image_paint_object", "particle_edit_object", "uv_sculpt_object",
+	"image_paint_object", "particle_edit_object", "hair_edit_object", "uv_sculpt_object",
 	"sequences", "selected_sequences", "selected_editable_sequences", /* sequencer */
 	"gpencil_data", "gpencil_data_owner", /* grease pencil data */
 	"visible_gpencil_layers", "editable_gpencil_layers", "editable_gpencil_strokes",
@@ -445,6 +445,12 @@ int ed_screen_context(const bContext *C, const char *member, bContextDataResult 
 		if (obact && (obact->mode & OB_MODE_PARTICLE_EDIT))
 			CTX_data_id_pointer_set(result, &obact->id);
 
+		return 1;
+	}
+	else if (CTX_data_equals(member, "hair_edit_object")) {
+		if (obact && (obact->mode & OB_MODE_EDIT) && obact->type == OB_HAIR) {
+			CTX_data_id_pointer_set(result, &obact->id);
+		}
 		return 1;
 	}
 	else if (CTX_data_equals(member, "uv_sculpt_object")) {

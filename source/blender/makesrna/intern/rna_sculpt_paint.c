@@ -288,6 +288,18 @@ static void rna_HairEditSettings_update(bContext *C, PointerRNA *UNUSED(ptr))
 	}
 }
 
+static PointerRNA rna_HairEditSettings_brush_get(PointerRNA *ptr)
+{
+	HairEditSettings *hset = (HairEditSettings *)ptr->data;
+	HairBrushData *brush = NULL;
+
+	if (hset->brushtype >= 0 && hset->brushtype < HAIR_BRUSH_TYPE_MAX) {
+		brush = &hset->brush[hset->brushtype];
+	}
+
+	return rna_pointer_inherit_refine(ptr, &RNA_HairBrush, brush);
+}
+
 static bool rna_Brush_mode_poll(PointerRNA *ptr, PointerRNA value)
 {
 	const Paint *paint = ptr->data;
@@ -1233,6 +1245,12 @@ static void rna_def_hair_edit_settings(BlenderRNA *brna)
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, "rna_HairEditSettings_update");
+
+	prop = RNA_def_property(srna, "brush", PROP_POINTER, PROP_NONE);
+	RNA_def_property_struct_type(prop, "HairBrush");
+	RNA_def_property_pointer_funcs(prop, "rna_HairEditSettings_brush_get", NULL, NULL, NULL);
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+	RNA_def_property_ui_text(prop, "Brush", "");
 }
 
 static void rna_def_gpencil_sculpt(BlenderRNA *brna)
