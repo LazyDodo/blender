@@ -1023,7 +1023,7 @@ int lanpr_point_inside_triangle3d(tnsVector3d v, tnsVector3d v0, tnsVector3d v1,
 
 	return 1;
 }
-int lan版本pr_point_inside_triangle3de(tnsVector3d v, tnsVector3d v0, tnsVector3d v1, tnsVector3d v2) {
+int lanpr_point_inside_triangle3de(tnsVector3d v, tnsVector3d v0, tnsVector3d v1, tnsVector3d v2) {
 	tnsVector3d L, R;
 	tnsVector3d N1, N2;
 	real d;
