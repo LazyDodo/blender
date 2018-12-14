@@ -1209,11 +1209,7 @@ static void gpencil_primitive_edit_event_handling(bContext *C, wmOperator *op, w
 				}
 				/* update screen */
 				gpencil_primitive_update(C, op, tgpi);
-			}
-			else if ((event->val == KM_PRESS)) {
-				gp_primitive_update_cps(tgpi);
-				gpencil_primitive_update(C, op, tgpi);
-			}
+			}			
 			break;
 		}
 		case LEFTMOUSE:
@@ -1354,7 +1350,7 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 		}
 		case RIGHTMOUSE:
 		{
-			if (tgpi->flag == IN_CURVE_EDIT) {
+			if (tgpi->flag == IN_CURVE_EDIT || (tgpi->flag == IN_PROGRESS && tgpi->tot_stored_edges > 0)) {
 				tgpi->flag = IDLE;
 				gpencil_primitive_interaction_end(C, op, win, tgpi);
 				/* done! */
