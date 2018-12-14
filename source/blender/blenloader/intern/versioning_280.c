@@ -918,7 +918,7 @@ void do_versions_after_linking_280(Main *bmain)
 		BKE_paint_toolslots_init_from_main(bmain);
 	}
 
-	if (!MAIN_VERSION_ATLEAST(bmain, 280, 36)) {
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 38)) {
 		/* Ensure we get valid rigidbody object/constraint data in relevant collections' objects. */
 		for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
 			RigidBodyWorld *rbw = scene->rigidbody_world;
@@ -1407,7 +1407,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 
 		if (!DNA_struct_elem_find(fd->filesdna, "ToolSettings", "char", "transform_pivot_point")) {
 			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
-				scene->toolsettings->transform_pivot_point = V3D_AROUND_CENTER_MEAN;
+				scene->toolsettings->transform_pivot_point = V3D_AROUND_CENTER_MEDIAN;
 			}
 		}
 
