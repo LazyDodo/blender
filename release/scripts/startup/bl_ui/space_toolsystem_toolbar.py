@@ -1585,7 +1585,7 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             None,
             _defs_weight_paint.gradient,
         ],
-        'GPENCIL_PAINT': [
+        'PAINT_GPENCIL': [
             _defs_view3d_generic.cursor,
             None,
             _defs_gpencil_paint.generate_from_brushes,
@@ -1596,7 +1596,7 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             _defs_gpencil_paint.arc,
             _defs_gpencil_paint.curve,
         ],
-        'GPENCIL_EDIT': [
+        'EDIT_GPENCIL': [
             *_tools_gpencil_select,
             _defs_view3d_generic.cursor,
             None,
@@ -1606,12 +1606,12 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             _defs_gpencil_edit.shear,
             _defs_gpencil_edit.tosphere,
         ],
-        'GPENCIL_SCULPT': [
+        'SCULPT_GPENCIL': [
             *_tools_gpencil_select,
             None,
             _defs_gpencil_sculpt.generate_from_brushes,
         ],
-        'GPENCIL_WEIGHT': [
+        'WEIGHT_GPENCIL': [
             _defs_gpencil_weight.generate_from_brushes,
         ],
     }
