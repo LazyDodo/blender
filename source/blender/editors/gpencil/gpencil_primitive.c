@@ -1243,7 +1243,10 @@ static void gpencil_primitive_edit_event_handling(bContext *C, wmOperator *op, w
 		}
 		case MKEY:
 		{
-			if ((event->val == KM_PRESS) && tgpi->curve) {
+			if ((event->val == KM_PRESS) &&
+				(tgpi->curve) &&
+				(tgpi->orign_type == GP_STROKE_ARC))
+			{
 				tgpi->flip ^= 1;
 				gp_primitive_update_cps(tgpi);
 				gpencil_primitive_update(C, op, tgpi);
