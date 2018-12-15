@@ -1410,16 +1410,6 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 			}
 			break;
 		}
-		case LKEY: /* line mode */
-		{
-			if ((event->val == KM_PRESS) && !ELEM(tgpi->type, GP_STROKE_BOX, GP_STROKE_CIRCLE)) {
-				tgpi->type = GP_STROKE_LINE;
-				RNA_enum_set(op->ptr, "type", tgpi->type);
-				gp_primitive_update_cps(tgpi);
-				gpencil_primitive_update(C, op, tgpi);
-			}
-			break;
-		}
 		case CKEY: /* curve mode */
 		{
 			if ((event->val == KM_PRESS) &&
