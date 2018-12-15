@@ -399,7 +399,7 @@ static void gpencil_primitive_status_indicators(bContext *C, tGPDprimitive *tgpi
 		BLI_strncpy(msg_str, IFACE_("Circle: ESC to cancel, Enter/RMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center"), UI_MAX_DRAW_STR);
 	}
 	else if (tgpi->type == GP_STROKE_ARC) {
-		BLI_strncpy(msg_str, IFACE_("Arc: ESC to cancel, Enter/RMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center"), UI_MAX_DRAW_STR);
+		BLI_strncpy(msg_str, IFACE_("Arc: ESC to cancel, Enter/RMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center, M: Flip"), UI_MAX_DRAW_STR);
 	}
 	else if (tgpi->type == GP_STROKE_CURVE) {
 		BLI_strncpy(msg_str, IFACE_("Curve: ESC to cancel, Enter/RMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center, E: extrude"), UI_MAX_DRAW_STR);
@@ -1238,7 +1238,7 @@ static void gpencil_primitive_edit_event_handling(bContext *C, wmOperator *op, w
 			}
 			break;
 		}
-		case FKEY:
+		case MKEY:
 		{
 			if ((event->val == KM_PRESS) && tgpi->curve) {
 				tgpi->flip ^= 1;
