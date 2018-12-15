@@ -105,7 +105,7 @@ static const EnumPropertyItem rna_enum_layer_blend_modes_items[] = {
 
 static void rna_GPencil_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
-	DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA);
+	DEG_id_tag_update(ptr->id.data, ID_RECALC_GEOMETRY);
 	WM_main_add_notifier(NC_GPENCIL | NA_EDITED, NULL);
 }
 
@@ -144,7 +144,7 @@ static void rna_GPencil_autolock(Main *bmain, Scene *scene, PointerRNA *ptr)
 static void rna_GPencil_editmode_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
 	bGPdata *gpd = (bGPdata *)ptr->id.data;
-	DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 
 	/* Notify all places where GPencil data lives that the editing state is different */
 	WM_main_add_notifier(NC_GPENCIL | NA_EDITED, NULL);
@@ -382,7 +382,7 @@ static void rna_GPencil_active_layer_index_set(PointerRNA *ptr, int value)
 	BKE_gpencil_layer_setactive(gpd, gpl);
 
 	/* Now do standard updates... */
-	DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_GEOMETRY);
 	WM_main_add_notifier(NC_GPENCIL | ND_DATA | NA_EDITED | ND_SPACE_PROPERTIES, NULL);
 }
 
@@ -698,7 +698,7 @@ static void rna_GPencil_layer_move(bGPdata *gpd, ReportList *reports, PointerRNA
 	const int direction = type * -1;
 
 	if (BLI_listbase_link_move(&gpd->layers, gpl, direction)) {
-		DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+		DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	}
 
 	WM_main_add_notifier(NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
@@ -1487,6 +1487,7 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "use_onion_skinning", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_DATA_SHOW_ONIONSKINS);
+	RNA_def_property_boolean_default(prop, true);
 	RNA_def_property_ui_text(prop, "Onion Skins", "Show ghosts of the keyframes before and after the current frame");
 	RNA_def_property_update(prop, NC_SCREEN | NC_SCENE | ND_TOOLSETTINGS | ND_DATA | NC_GPENCIL, "rna_GPencil_update");
 
