@@ -155,6 +155,7 @@ typedef struct tGPDprimitive {
 	struct bGPDlayer *gpl;            /* layer */
 	struct bGPDframe *gpf;            /* frame */
 	int type;                         /* type of primitive */
+	int orign_type;                   /* original type of primitive */
 	bool curve;                       /* type of primitive is a curve */
 	short flip;                       /* flip option */
 	tGPspoint *points;                /* array of data-points for stroke */

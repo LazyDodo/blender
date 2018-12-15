@@ -1015,6 +1015,9 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 	tgpi->depsgraph = CTX_data_depsgraph(C);
 	tgpi->win = CTX_wm_window(C);
 
+	/* save original type */
+	tgpi->orign_type = RNA_enum_get(op->ptr, "type");
+
 	/* set current frame number */
 	tgpi->cframe = cfra_eval;
 
@@ -1420,7 +1423,7 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 		case CKEY: /* curve mode */
 		{
 			if ((event->val == KM_PRESS) &&
-				!ELEM(tgpi->type, GP_STROKE_LINE, GP_STROKE_BOX, GP_STROKE_CIRCLE))
+				(tgpi->orign_type == GP_STROKE_CURVE))
 			{
 				switch (tgpi->type) {
 					case GP_STROKE_CURVE:
