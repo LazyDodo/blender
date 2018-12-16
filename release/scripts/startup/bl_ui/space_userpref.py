@@ -754,8 +754,27 @@ class USERPREF_PT_theme_user_interface(PreferencePanel):
         userpref = context.user_preferences
         return (userpref.active_section == 'THEMES')
 
+    def draw_header(self, context):
+        layout = self.layout
+
+        layout.label(icon='WORKSPACE')
+
+    def draw(self, context):
+        pass
+
+
+# Base class for dynamically defined widget color panels.
+class PreferenceThemeWidgetColorPanel(Panel):
+    bl_space_type = 'USER_PREFERENCES'
+    bl_region_type = 'WINDOW'
+    bl_parent_id = "USERPREF_PT_theme_user_interface"
+
     @staticmethod
-    def _theme_widget_style(layout, widget_style):
+    def draw(self, context):
+        theme = context.user_preferences.themes[0]
+        ui = theme.user_interface
+        widget_style = getattr(ui, self.wcol)
+        layout = self.layout
 
         col = layout.column()
 
@@ -780,82 +799,23 @@ class USERPREF_PT_theme_user_interface(PreferencePanel):
         rowsub.prop(widget_style, "shadetop")
         rowsub.prop(widget_style, "shadedown")
 
-    def draw_header(self, context):
-        layout = self.layout
+    @classmethod
+    def poll(cls, context):
+        userpref = context.user_preferences
+        return (userpref.active_section == 'THEMES')
 
-        layout.label(icon='WORKSPACE')
 
-    def draw(self, context):
-        layout = self.layout
+class USERPREF_PT_theme_interface_state(PreferencePanel):
+    bl_label = "State"
+    bl_options = {'DEFAULT_CLOSED'}
+    bl_parent_id = "USERPREF_PT_theme_user_interface"
+
+    def draw_props(self, context, layout):
         theme = context.user_preferences.themes[0]
         ui = theme.user_interface
-
-        col = layout.column()
-
-        col.label(text="Regular:")
-        self._theme_widget_style(col, ui.wcol_regular)
-
-        col.label(text="Tool:")
-        self._theme_widget_style(col, ui.wcol_tool)
-
-        col.label(text="Toolbar Item:")
-        self._theme_widget_style(col, ui.wcol_toolbar_item)
-
-        col.label(text="Radio Buttons:")
-        self._theme_widget_style(col, ui.wcol_radio)
-
-        col.label(text="Text:")
-        self._theme_widget_style(col, ui.wcol_text)
-
-        col.label(text="Option:")
-        self._theme_widget_style(col, ui.wcol_option)
-
-        col.label(text="Toggle:")
-        self._theme_widget_style(col, ui.wcol_toggle)
-
-        col.label(text="Number Field:")
-        self._theme_widget_style(col, ui.wcol_num)
-
-        col.label(text="Value Slider:")
-        self._theme_widget_style(col, ui.wcol_numslider)
-
-        col.label(text="Box:")
-        self._theme_widget_style(col, ui.wcol_box)
-
-        col.label(text="Menu:")
-        self._theme_widget_style(col, ui.wcol_menu)
-
-        col.label(text="Pie Menu:")
-        self._theme_widget_style(col, ui.wcol_pie_menu)
-
-        col.label(text="Pulldown:")
-        self._theme_widget_style(col, ui.wcol_pulldown)
-
-        col.label(text="Menu Back:")
-        self._theme_widget_style(col, ui.wcol_menu_back)
-
-        col.label(text="Tooltip:")
-        self._theme_widget_style(col, ui.wcol_tooltip)
-
-        col.label(text="Menu Item:")
-        self._theme_widget_style(col, ui.wcol_menu_item)
-
-        col.label(text="Scroll Bar:")
-        self._theme_widget_style(col, ui.wcol_scroll)
-
-        col.label(text="Progress Bar:")
-        self._theme_widget_style(col, ui.wcol_progress)
-
-        col.label(text="List Item:")
-        self._theme_widget_style(col, ui.wcol_list_item)
-
-        col.label(text="Tab:")
-        self._theme_widget_style(col, ui.wcol_tab)
-
         ui_state = theme.user_interface.wcol_state
-        col.label(text="State:")
 
-        row = col.row()
+        row = layout.row()
 
         subsplit = row.split(factor=0.95)
 
@@ -880,12 +840,17 @@ class USERPREF_PT_theme_user_interface(PreferencePanel):
         colsub.row().prop(ui_state, "inner_changed")
         colsub.row().prop(ui_state, "inner_changed_sel")
 
-        col.separator()
-        col.separator()
 
-        col.label(text="Styles:")
+class USERPREF_PT_theme_interface_styles(PreferencePanel):
+    bl_label = "Styles"
+    bl_options = {'DEFAULT_CLOSED'}
+    bl_parent_id = "USERPREF_PT_theme_user_interface"
 
-        row = col.row()
+    def draw_props(self, context, layout):
+        theme = context.user_preferences.themes[0]
+        ui = theme.user_interface
+
+        row = layout.row()
 
         subsplit = row.split(factor=0.95)
 
@@ -905,12 +870,17 @@ class USERPREF_PT_theme_user_interface(PreferencePanel):
         colsub.row().prop(ui, "menu_shadow_width")
         colsub.row().prop(ui, "widget_emboss")
 
-        col.separator()
-        col.separator()
 
-        col.label(text="Axis & Gizmo Colors:")
+class USERPREF_PT_theme_interface_gizmos(PreferencePanel):
+    bl_label = "Axis & Gizmo Colors"
+    bl_options = {'DEFAULT_CLOSED'}
+    bl_parent_id = "USERPREF_PT_theme_user_interface"
 
-        row = col.row()
+    def draw_props(self, context, layout):
+        theme = context.user_preferences.themes[0]
+        ui = theme.user_interface
+
+        row = layout.row()
 
         subsplit = row.split(factor=0.95)
 
@@ -931,12 +901,17 @@ class USERPREF_PT_theme_user_interface(PreferencePanel):
         colsub.row().prop(ui, "gizmo_a")
         colsub.row().prop(ui, "gizmo_b")
 
-        col.separator()
-        col.separator()
 
-        col.label(text="Icon Colors:")
+class USERPREF_PT_theme_interface_icons(PreferencePanel):
+    bl_label = "Icon Colors"
+    bl_options = {'DEFAULT_CLOSED'}
+    bl_parent_id = "USERPREF_PT_theme_user_interface"
 
-        row = col.row()
+    def draw_props(self, context, layout):
+        theme = context.user_preferences.themes[0]
+        ui = theme.user_interface
+
+        row = layout.row()
 
         subsplit = row.split(factor=0.95)
 
@@ -954,9 +929,6 @@ class USERPREF_PT_theme_user_interface(PreferencePanel):
         colsub = padding.column()
         colsub.row().prop(ui, "icon_modifier")
         colsub.row().prop(ui, "icon_shading")
-
-        col.separator()
-        col.separator()
 
 
 class USERPREF_PT_theme_text_style(PreferencePanel):
@@ -1052,6 +1024,7 @@ class USERPREF_PT_theme_bone_color_sets(PreferencePanel):
             colsub.row().prop(ui, "show_colored_constraints")
 
 
+# Base class for dynamically defined theme-space panels.
 class PreferenceThemeSpacePanel(Panel):
     bl_space_type = 'USER_PREFERENCES'
     bl_region_type = 'WINDOW'
@@ -1131,7 +1104,7 @@ class PreferenceThemeSpacePanel(Panel):
 
     @staticmethod
     def draw_header(self, context):
-        if hasattr(self, "icon"):
+        if hasattr(self, "icon") and self.icon != 'NONE':
             layout = self.layout
             layout.label(icon=self.icon)
 
@@ -1153,6 +1126,44 @@ class PreferenceThemeSpacePanel(Panel):
 
 
 class ThemeGenericClassGenerator():
+    generated_classes = []
+
+    @staticmethod
+    def generate_panel_classes_for_wcols():
+        wcols = [
+            ("Regular", "wcol_regular"),
+            ("Tool", "wcol_tool"),
+            ("Toolbar Item", "wcol_toolbar_item"),
+            ("Radio Buttons", "wcol_radio"),
+            ("Text", "wcol_text"),
+            ("Option", "wcol_option"),
+            ("Toggle", "wcol_toggle"),
+            ("Number Field", "wcol_num"),
+            ("Value Slider", "wcol_numslider"),
+            ("Box", "wcol_box"),
+            ("Menu", "wcol_menu"),
+            ("Pie Menu", "wcol_pie_menu"),
+            ("Pulldown", "wcol_pulldown"),
+            ("Menu Back", "wcol_menu_back"),
+            ("Tooltip", "wcol_tooltip"),
+            ("Menu Item", "wcol_menu_item"),
+            ("Scroll Bar", "wcol_scroll"),
+            ("Progress Bar", "wcol_progress"),
+            ("List Item", "wcol_list_item"),
+            ("Tab", "wcol_tab"),
+        ]
+
+        for (name, wcol) in wcols:
+            panel_id = "USERPREF_PT_theme_interface_" + wcol
+            paneltype = type(panel_id, (PreferenceThemeWidgetColorPanel,), {
+                "bl_label": name,
+                "bl_options": {'DEFAULT_CLOSED'},
+                "draw": PreferenceThemeWidgetColorPanel.draw,
+                "wcol": wcol,
+                })
+
+            ThemeGenericClassGenerator.generated_classes.append(paneltype)
+
     @staticmethod
     def generate_theme_area_child_panel_classes(parent_id, rna_type, theme_area, datapath):
         def generate_child_panel_classes_recurse(parent_id, rna_type, theme_area, datapath):
@@ -1178,7 +1189,7 @@ class ThemeGenericClassGenerator():
                             "datapath": new_datapath,
                             })
 
-                        bpy.utils.register_class(paneltype)
+                        ThemeGenericClassGenerator.generated_classes.append(paneltype)
                         generate_child_panel_classes_recurse(panel_id, prop.fixed_type, theme_area, new_datapath)
 
         generate_child_panel_classes_recurse(parent_id, rna_type, theme_area, datapath)
@@ -1202,7 +1213,8 @@ class ThemeGenericClassGenerator():
                 "icon": theme_area.icon,
                 "datapath": theme_area.identifier.lower(),
                 })
-            bpy.utils.register_class(paneltype)
+
+            ThemeGenericClassGenerator.generated_classes.append(paneltype)
             ThemeGenericClassGenerator.generate_theme_area_child_panel_classes(
                     panel_id, Theme.bl_rna.properties[theme_area.identifier.lower()].fixed_type,
                     theme_area, theme_area.identifier.lower())
@@ -1982,7 +1994,12 @@ class USERPREF_PT_studiolight_light_editor(Panel):
         layout.prop(system, "light_ambient")
 
 
-classes = (
+ThemeGenericClassGenerator.generate_panel_classes_for_wcols()
+
+# Order of registration defines order in UI, so dynamically generated classes are 'injected' in the intended order.
+classes = (USERPREF_PT_theme_user_interface,) + tuple(ThemeGenericClassGenerator.generated_classes)
+
+classes += (
     USERPREF_HT_header,
     USERPREF_PT_navigation,
 
@@ -2020,7 +2037,10 @@ classes = (
 
     USERPREF_MT_interface_theme_presets,
     USERPREF_PT_theme,
-    USERPREF_PT_theme_user_interface,
+    USERPREF_PT_theme_interface_state,
+    USERPREF_PT_theme_interface_styles,
+    USERPREF_PT_theme_interface_gizmos,
+    USERPREF_PT_theme_interface_icons,
     USERPREF_PT_theme_text_style,
     USERPREF_PT_theme_bone_color_sets,
 
@@ -2051,10 +2071,12 @@ classes = (
     USERPREF_PT_studiolight_world,
 )
 
+# Add dynamically generated editor theme panels last, so they show up last in the theme section.
+ThemeGenericClassGenerator.generated_classes.clear()
+ThemeGenericClassGenerator.generate_panel_classes_from_theme_areas()
+classes += tuple(ThemeGenericClassGenerator.generated_classes)
+
 if __name__ == "__main__":  # only for live edit.
     from bpy.utils import register_class
     for cls in classes:
         register_class(cls)
-
-# After registering above's classes, so they are ordered first in UI.
-ThemeGenericClassGenerator.generate_panel_classes_from_theme_areas()
