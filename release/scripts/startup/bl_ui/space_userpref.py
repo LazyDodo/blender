@@ -127,6 +127,7 @@ class USERPREF_PT_interface_display_info(PreferencePanel):
         layout.prop(view, "show_view_name", text="View Name")
         layout.prop(view, "show_playback_fps", text="Playback FPS")
 
+
 class USERPREF_PT_interface_develop(PreferencePanel):
     bl_label = "Develop"
     bl_options = {'DEFAULT_CLOSED'}
@@ -371,6 +372,7 @@ class USERPREF_PT_edit_gpencil(PreferencePanel):
         layout.prop(edit, "grease_pencil_manhattan_distance", text="Manhattan Distance")
         layout.prop(edit, "grease_pencil_euclidean_distance", text="Euclidean Distance")
 
+
 class USERPREF_PT_edit_annotations(PreferencePanel):
     bl_label = "Annotations"
     bl_options = {'DEFAULT_CLOSED'}
@@ -406,6 +408,7 @@ class USERPREF_PT_edit_animation(PreferencePanel):
         layout.prop(edit, "use_visual_keying")
         layout.prop(edit, "use_keyframe_insert_needed", text="Only Insert Needed")
 
+
 class USERPREF_PT_edit_animation_autokey(PreferencePanel):
     bl_label = "Auto-Keyframing"
     bl_options = {'DEFAULT_CLOSED'}
@@ -423,6 +426,7 @@ class USERPREF_PT_edit_animation_autokey(PreferencePanel):
 
         layout.prop(edit, "use_auto_keying_warning")
         layout.prop(edit, "use_keyframe_insert_available", text="Only Insert Available")
+
 
 class USERPREF_PT_edit_animation_fcurves(PreferencePanel):
     bl_label = "F-Curves"
@@ -587,6 +591,7 @@ class USERPREF_PT_interface_system_opengl(PreferencePanel):
         layout.prop(system, "use_gpu_mipmap")
         layout.prop(system, "use_16bit_textures")
 
+
 class USERPREF_PT_interface_system_opengl_selection(PreferencePanel):
     bl_label = "Selection"
     bl_parent_id = "USERPREF_PT_interface_system_opengl"
@@ -714,85 +719,40 @@ class USERPREF_PT_theme(Panel):
     bl_region_type = 'WINDOW'
     bl_options = {'HIDE_HEADER'}
 
-    # not essential, hard-coded UI delimiters for the theme layout
-    ui_delimiters = {
-        'VIEW_3D': {
-            "text_grease_pencil",
-            "text_keyframe",
-            "speaker",
-            "freestyle_face_mark",
-            "split_normal",
-            "bone_solid",
-            "paint_curve_pivot",
-        },
-        'GRAPH_EDITOR': {
-            "handle_vertex_select",
-        },
-        'IMAGE_EDITOR': {
-            "paint_curve_pivot",
-        },
-        'NODE_EDITOR': {
-            "layout_node",
-        },
-        'CLIP_EDITOR': {
-            "handle_vertex_select",
-        }
-    }
+    @classmethod
+    def poll(cls, context):
+        userpref = context.user_preferences
+        return (userpref.active_section == 'THEMES')
 
-    @staticmethod
-    def _theme_generic(layout, themedata, theme_area):
+    def draw(self, context):
+        layout = self.layout
 
-        col = layout.column()
+        theme = context.user_preferences.themes[0]
 
-        def theme_generic_recurse(data):
-            col.label(text=data.rna_type.name)
-            row = col.row()
-            subsplit = row.split(factor=0.95)
+        row = layout.row()
 
-            padding1 = subsplit.split(factor=0.15)
-            padding1.column()
+        row.operator("wm.theme_install", text="Install", icon='FILEBROWSER')
+        row.operator("ui.reset_default_theme", text="Reset", icon='LOOP_BACK')
 
-            subsplit = row.split(factor=0.85)
+        subrow = row.row(align=True)
+        subrow.menu("USERPREF_MT_interface_theme_presets", text=USERPREF_MT_interface_theme_presets.bl_label)
+        subrow.operator("wm.interface_theme_preset_add", text="", icon='ADD')
+        subrow.operator("wm.interface_theme_preset_add", text="", icon='REMOVE').remove_active = True
 
-            padding2 = subsplit.split(factor=0.15)
-            padding2.column()
+        # TODO theme_area should be deprecated
+        row.prop(theme, "theme_area", text="")
 
-            colsub_pair = padding1.column(), padding2.column()
 
-            props_type = {}
+class USERPREF_PT_theme_user_interface(PreferencePanel):
+    bl_space_type = 'USER_PREFERENCES'
+    bl_region_type = 'WINDOW'
+    bl_label = "User Interface"
+    bl_options = {'DEFAULT_CLOSED'}
 
-            for i, prop in enumerate(data.rna_type.properties):
-                if prop.identifier == "rna_type":
-                    continue
-
-                props_type.setdefault((prop.type, prop.subtype), []).append(prop)
-
-            th_delimiters = USERPREF_PT_theme.ui_delimiters.get(theme_area)
-            for props_type, props_ls in sorted(props_type.items()):
-                if props_type[0] == 'POINTER':
-                    for i, prop in enumerate(props_ls):
-                        theme_generic_recurse(getattr(data, prop.identifier))
-                else:
-                    if th_delimiters is None:
-                        # simple, no delimiters
-                        for i, prop in enumerate(props_ls):
-                            colsub_pair[i % 2].row().prop(data, prop.identifier)
-                    else:
-                        # add hard coded delimiters
-                        i = 0
-                        for prop in props_ls:
-                            colsub = colsub_pair[i]
-                            colsub.row().prop(data, prop.identifier)
-                            i = (i + 1) % 2
-                            if prop.identifier in th_delimiters:
-                                if i:
-                                    colsub = colsub_pair[1]
-                                    colsub.row().label(text="")
-                                colsub_pair[0].row().label(text="")
-                                colsub_pair[1].row().label(text="")
-                                i = 0
-
-        theme_generic_recurse(themedata)
+    @classmethod
+    def poll(cls, context):
+        userpref = context.user_preferences
+        return (userpref.active_section == 'THEMES')
 
     @staticmethod
     def _theme_widget_style(layout, widget_style):
@@ -820,10 +780,196 @@ class USERPREF_PT_theme(Panel):
         rowsub.prop(widget_style, "shadetop")
         rowsub.prop(widget_style, "shadedown")
 
+    def draw_header(self, context):
+        layout = self.layout
+
+        layout.label(icon='WORKSPACE')
+
+    def draw(self, context):
+        layout = self.layout
+        theme = context.user_preferences.themes[0]
+        ui = theme.user_interface
+
+        col = layout.column()
+
+        col.label(text="Regular:")
+        self._theme_widget_style(col, ui.wcol_regular)
+
+        col.label(text="Tool:")
+        self._theme_widget_style(col, ui.wcol_tool)
+
+        col.label(text="Toolbar Item:")
+        self._theme_widget_style(col, ui.wcol_toolbar_item)
+
+        col.label(text="Radio Buttons:")
+        self._theme_widget_style(col, ui.wcol_radio)
+
+        col.label(text="Text:")
+        self._theme_widget_style(col, ui.wcol_text)
+
+        col.label(text="Option:")
+        self._theme_widget_style(col, ui.wcol_option)
+
+        col.label(text="Toggle:")
+        self._theme_widget_style(col, ui.wcol_toggle)
+
+        col.label(text="Number Field:")
+        self._theme_widget_style(col, ui.wcol_num)
+
+        col.label(text="Value Slider:")
+        self._theme_widget_style(col, ui.wcol_numslider)
+
+        col.label(text="Box:")
+        self._theme_widget_style(col, ui.wcol_box)
+
+        col.label(text="Menu:")
+        self._theme_widget_style(col, ui.wcol_menu)
+
+        col.label(text="Pie Menu:")
+        self._theme_widget_style(col, ui.wcol_pie_menu)
+
+        col.label(text="Pulldown:")
+        self._theme_widget_style(col, ui.wcol_pulldown)
+
+        col.label(text="Menu Back:")
+        self._theme_widget_style(col, ui.wcol_menu_back)
+
+        col.label(text="Tooltip:")
+        self._theme_widget_style(col, ui.wcol_tooltip)
+
+        col.label(text="Menu Item:")
+        self._theme_widget_style(col, ui.wcol_menu_item)
+
+        col.label(text="Scroll Bar:")
+        self._theme_widget_style(col, ui.wcol_scroll)
+
+        col.label(text="Progress Bar:")
+        self._theme_widget_style(col, ui.wcol_progress)
+
+        col.label(text="List Item:")
+        self._theme_widget_style(col, ui.wcol_list_item)
+
+        col.label(text="Tab:")
+        self._theme_widget_style(col, ui.wcol_tab)
+
+        ui_state = theme.user_interface.wcol_state
+        col.label(text="State:")
+
+        row = col.row()
+
+        subsplit = row.split(factor=0.95)
+
+        padding = subsplit.split(factor=0.15)
+        colsub = padding.column()
+        colsub = padding.column()
+        colsub.row().prop(ui_state, "inner_anim")
+        colsub.row().prop(ui_state, "inner_anim_sel")
+        colsub.row().prop(ui_state, "inner_driven")
+        colsub.row().prop(ui_state, "inner_driven_sel")
+        colsub.row().prop(ui_state, "blend")
+
+        subsplit = row.split(factor=0.85)
+
+        padding = subsplit.split(factor=0.15)
+        colsub = padding.column()
+        colsub = padding.column()
+        colsub.row().prop(ui_state, "inner_key")
+        colsub.row().prop(ui_state, "inner_key_sel")
+        colsub.row().prop(ui_state, "inner_overridden")
+        colsub.row().prop(ui_state, "inner_overridden_sel")
+        colsub.row().prop(ui_state, "inner_changed")
+        colsub.row().prop(ui_state, "inner_changed_sel")
+
+        col.separator()
+        col.separator()
+
+        col.label(text="Styles:")
+
+        row = col.row()
+
+        subsplit = row.split(factor=0.95)
+
+        padding = subsplit.split(factor=0.15)
+        colsub = padding.column()
+        colsub = padding.column()
+        colsub.row().prop(ui, "menu_shadow_fac")
+        colsub.row().prop(ui, "icon_alpha")
+        colsub.row().prop(ui, "icon_saturation")
+        colsub.row().prop(ui, "editor_outline")
+
+        subsplit = row.split(factor=0.85)
+
+        padding = subsplit.split(factor=0.15)
+        colsub = padding.column()
+        colsub = padding.column()
+        colsub.row().prop(ui, "menu_shadow_width")
+        colsub.row().prop(ui, "widget_emboss")
+
+        col.separator()
+        col.separator()
+
+        col.label(text="Axis & Gizmo Colors:")
+
+        row = col.row()
+
+        subsplit = row.split(factor=0.95)
+
+        padding = subsplit.split(factor=0.15)
+        colsub = padding.column()
+        colsub = padding.column()
+        colsub.row().prop(ui, "axis_x")
+        colsub.row().prop(ui, "axis_y")
+        colsub.row().prop(ui, "axis_z")
+
+        subsplit = row.split(factor=0.85)
+
+        padding = subsplit.split(factor=0.15)
+        colsub = padding.column()
+        colsub = padding.column()
+        colsub.row().prop(ui, "gizmo_primary")
+        colsub.row().prop(ui, "gizmo_secondary")
+        colsub.row().prop(ui, "gizmo_a")
+        colsub.row().prop(ui, "gizmo_b")
+
+        col.separator()
+        col.separator()
+
+        col.label(text="Icon Colors:")
+
+        row = col.row()
+
+        subsplit = row.split(factor=0.95)
+
+        padding = subsplit.split(factor=0.15)
+        colsub = padding.column()
+        colsub = padding.column()
+        colsub.row().prop(ui, "icon_collection")
+        colsub.row().prop(ui, "icon_object")
+        colsub.row().prop(ui, "icon_object_data")
+
+        subsplit = row.split(factor=0.85)
+
+        padding = subsplit.split(factor=0.15)
+        colsub = padding.column()
+        colsub = padding.column()
+        colsub.row().prop(ui, "icon_modifier")
+        colsub.row().prop(ui, "icon_shading")
+
+        col.separator()
+        col.separator()
+
+
+class USERPREF_PT_theme_text_style(PreferencePanel):
+    bl_label = "Text Style"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        userpref = context.user_preferences
+        return (userpref.active_section == 'THEMES')
 
     @staticmethod
     def _ui_font_style(layout, font_style):
-
         split = layout.split()
 
         col = split.column()
@@ -843,240 +989,223 @@ class USERPREF_PT_theme(Panel):
 
         layout.separator()
 
+    def draw_header(self, context):
+        layout = self.layout
+
+        layout.label(icon='FONTPREVIEW')
+
+    def draw_props(self, context, layout):
+        style = context.user_preferences.ui_styles[0]
+
+        layout.label(text="Panel Title:")
+        self._ui_font_style(layout, style.panel_title)
+
+        layout.separator()
+
+        layout.label(text="Widget:")
+        self._ui_font_style(layout, style.widget)
+
+        layout.separator()
+
+        layout.label(text="Widget Label:")
+        self._ui_font_style(layout, style.widget_label)
+
+
+class USERPREF_PT_theme_bone_color_sets(PreferencePanel):
+    bl_label = "Bone Color Sets"
+    bl_options = {'DEFAULT_CLOSED'}
+
     @classmethod
     def poll(cls, context):
         userpref = context.user_preferences
         return (userpref.active_section == 'THEMES')
 
-    def draw(self, context):
+    def draw_header(self, context):
         layout = self.layout
 
+        layout.label(icon='COLOR')
+
+    def draw_props(self, context, layout):
         theme = context.user_preferences.themes[0]
 
+        col = layout.column()
+
+        for i, ui in enumerate(theme.bone_color_sets, 1):
+            col.label(text=iface_(f"Color Set {i:d}"), translate=False)
+
+            row = col.row()
+
+            subsplit = row.split(factor=0.95)
+
+            padding = subsplit.split(factor=0.15)
+            colsub = padding.column()
+            colsub = padding.column()
+            colsub.row().prop(ui, "normal")
+            colsub.row().prop(ui, "select")
+            colsub.row().prop(ui, "active")
+
+            subsplit = row.split(factor=0.85)
+
+            padding = subsplit.split(factor=0.15)
+            colsub = padding.column()
+            colsub = padding.column()
+            colsub.row().prop(ui, "show_colored_constraints")
+
+
+class PreferenceThemeSpacePanel(Panel):
+    bl_space_type = 'USER_PREFERENCES'
+    bl_region_type = 'WINDOW'
+
+    # not essential, hard-coded UI delimiters for the theme layout
+    ui_delimiters = {
+        'VIEW_3D': {
+            "text_grease_pencil",
+            "text_keyframe",
+            "speaker",
+            "freestyle_face_mark",
+            "split_normal",
+            "bone_solid",
+            "paint_curve_pivot",
+        },
+        'GRAPH_EDITOR': {
+            "handle_vertex_select",
+        },
+        'IMAGE_EDITOR': {
+            "paint_curve_pivot",
+        },
+        'NODE_EDITOR': {
+            "layout_node",
+        },
+        'CLIP_EDITOR': {
+            "handle_vertex_select",
+        }
+    }
+
+    # TODO theme_area should be deprecated
+    @staticmethod
+    def _theme_generic(layout, themedata, theme_area):
         row = layout.row()
-
-        row.operator("wm.theme_install", text="Install", icon='FILEBROWSER')
-        row.operator("ui.reset_default_theme", text="Reset", icon='LOOP_BACK')
-
-        subrow = row.row(align=True)
-        subrow.menu("USERPREF_MT_interface_theme_presets", text=USERPREF_MT_interface_theme_presets.bl_label)
-        subrow.operator("wm.interface_theme_preset_add", text="", icon='ADD')
-        subrow.operator("wm.interface_theme_preset_add", text="", icon='REMOVE').remove_active = True
-
-        row.prop(theme, "theme_area", text="")
-
-
-        if theme.theme_area == 'USER_INTERFACE':
-            col = layout.column()
-            ui = theme.user_interface
-
-            col.label(text="Regular:")
-            self._theme_widget_style(col, ui.wcol_regular)
-
-            col.label(text="Tool:")
-            self._theme_widget_style(col, ui.wcol_tool)
-
-            col.label(text="Toolbar Item:")
-            self._theme_widget_style(col, ui.wcol_toolbar_item)
-
-            col.label(text="Radio Buttons:")
-            self._theme_widget_style(col, ui.wcol_radio)
-
-            col.label(text="Text:")
-            self._theme_widget_style(col, ui.wcol_text)
-
-            col.label(text="Option:")
-            self._theme_widget_style(col, ui.wcol_option)
-
-            col.label(text="Toggle:")
-            self._theme_widget_style(col, ui.wcol_toggle)
-
-            col.label(text="Number Field:")
-            self._theme_widget_style(col, ui.wcol_num)
-
-            col.label(text="Value Slider:")
-            self._theme_widget_style(col, ui.wcol_numslider)
-
-            col.label(text="Box:")
-            self._theme_widget_style(col, ui.wcol_box)
-
-            col.label(text="Menu:")
-            self._theme_widget_style(col, ui.wcol_menu)
-
-            col.label(text="Pie Menu:")
-            self._theme_widget_style(col, ui.wcol_pie_menu)
-
-            col.label(text="Pulldown:")
-            self._theme_widget_style(col, ui.wcol_pulldown)
-
-            col.label(text="Menu Back:")
-            self._theme_widget_style(col, ui.wcol_menu_back)
-
-            col.label(text="Tooltip:")
-            self._theme_widget_style(col, ui.wcol_tooltip)
-
-            col.label(text="Menu Item:")
-            self._theme_widget_style(col, ui.wcol_menu_item)
-
-            col.label(text="Scroll Bar:")
-            self._theme_widget_style(col, ui.wcol_scroll)
-
-            col.label(text="Progress Bar:")
-            self._theme_widget_style(col, ui.wcol_progress)
-
-            col.label(text="List Item:")
-            self._theme_widget_style(col, ui.wcol_list_item)
-
-            col.label(text="Tab:")
-            self._theme_widget_style(col, ui.wcol_tab)
-
-            ui_state = theme.user_interface.wcol_state
-            col.label(text="State:")
-
-            row = col.row()
-
-            subsplit = row.split(factor=0.95)
-
-            padding = subsplit.split(factor=0.15)
-            colsub = padding.column()
-            colsub = padding.column()
-            colsub.row().prop(ui_state, "inner_anim")
-            colsub.row().prop(ui_state, "inner_anim_sel")
-            colsub.row().prop(ui_state, "inner_driven")
-            colsub.row().prop(ui_state, "inner_driven_sel")
-            colsub.row().prop(ui_state, "blend")
-
-            subsplit = row.split(factor=0.85)
-
-            padding = subsplit.split(factor=0.15)
-            colsub = padding.column()
-            colsub = padding.column()
-            colsub.row().prop(ui_state, "inner_key")
-            colsub.row().prop(ui_state, "inner_key_sel")
-            colsub.row().prop(ui_state, "inner_overridden")
-            colsub.row().prop(ui_state, "inner_overridden_sel")
-            colsub.row().prop(ui_state, "inner_changed")
-            colsub.row().prop(ui_state, "inner_changed_sel")
-
-            col.separator()
-            col.separator()
-
-            col.label(text="Styles:")
-
-            row = col.row()
-
-            subsplit = row.split(factor=0.95)
-
-            padding = subsplit.split(factor=0.15)
-            colsub = padding.column()
-            colsub = padding.column()
-            colsub.row().prop(ui, "menu_shadow_fac")
-            colsub.row().prop(ui, "icon_alpha")
-            colsub.row().prop(ui, "icon_saturation")
-            colsub.row().prop(ui, "editor_outline")
-
-            subsplit = row.split(factor=0.85)
-
-            padding = subsplit.split(factor=0.15)
-            colsub = padding.column()
-            colsub = padding.column()
-            colsub.row().prop(ui, "menu_shadow_width")
-            colsub.row().prop(ui, "widget_emboss")
-
-            col.separator()
-            col.separator()
-
-            col.label(text="Axis & Gizmo Colors:")
-
-            row = col.row()
-
-            subsplit = row.split(factor=0.95)
-
-            padding = subsplit.split(factor=0.15)
-            colsub = padding.column()
-            colsub = padding.column()
-            colsub.row().prop(ui, "axis_x")
-            colsub.row().prop(ui, "axis_y")
-            colsub.row().prop(ui, "axis_z")
-
-            subsplit = row.split(factor=0.85)
-
-            padding = subsplit.split(factor=0.15)
-            colsub = padding.column()
-            colsub = padding.column()
-            colsub.row().prop(ui, "gizmo_primary")
-            colsub.row().prop(ui, "gizmo_secondary")
-            colsub.row().prop(ui, "gizmo_a")
-            colsub.row().prop(ui, "gizmo_b")
-
-            col.separator()
-            col.separator()
-
-            col.label(text="Icon Colors:")
-
-            row = col.row()
-
-            subsplit = row.split(factor=0.95)
-
-            padding = subsplit.split(factor=0.15)
-            colsub = padding.column()
-            colsub = padding.column()
-            colsub.row().prop(ui, "icon_collection")
-            colsub.row().prop(ui, "icon_object")
-            colsub.row().prop(ui, "icon_object_data")
-
-            subsplit = row.split(factor=0.85)
-
-            padding = subsplit.split(factor=0.15)
-            colsub = padding.column()
-            colsub = padding.column()
-            colsub.row().prop(ui, "icon_modifier")
-            colsub.row().prop(ui, "icon_shading")
-
-            col.separator()
-            col.separator()
-        elif theme.theme_area == 'BONE_COLOR_SETS':
-            col = layout.column()
-
-            for i, ui in enumerate(theme.bone_color_sets, 1):
-                col.label(text=iface_(f"Color Set {i:d}"), translate=False)
-
-                row = col.row()
-
-                subsplit = row.split(factor=0.95)
-
-                padding = subsplit.split(factor=0.15)
-                colsub = padding.column()
-                colsub = padding.column()
-                colsub.row().prop(ui, "normal")
-                colsub.row().prop(ui, "select")
-                colsub.row().prop(ui, "active")
-
-                subsplit = row.split(factor=0.85)
-
-                padding = subsplit.split(factor=0.15)
-                colsub = padding.column()
-                colsub = padding.column()
-                colsub.row().prop(ui, "show_colored_constraints")
-        elif theme.theme_area == 'STYLE':
-            col = layout.column()
-
-            style = context.user_preferences.ui_styles[0]
-
-            col.label(text="Panel Title:")
-            self._ui_font_style(col, style.panel_title)
-
-            col.separator()
-
-            col.label(text="Widget:")
-            self._ui_font_style(col, style.widget)
-
-            col.separator()
-
-            col.label(text="Widget Label:")
-            self._ui_font_style(col, style.widget_label)
-        else:
-            self._theme_generic(layout, getattr(theme, theme.theme_area.lower()), theme.theme_area)
+        subsplit = row.split(factor=0.95)
+
+        padding1 = subsplit.split(factor=0.15)
+        padding1.column()
+
+        subsplit = row.split(factor=0.85)
+
+        padding2 = subsplit.split(factor=0.15)
+        padding2.column()
+
+        colsub_pair = padding1.column(), padding2.column()
+
+        props_type = {}
+
+        for i, prop in enumerate(themedata.rna_type.properties):
+            if prop.identifier == "rna_type":
+                continue
+
+            props_type.setdefault((prop.type, prop.subtype), []).append(prop)
+
+        th_delimiters = PreferenceThemeSpacePanel.ui_delimiters.get(theme_area)
+        for props_type, props_ls in sorted(props_type.items()):
+            if props_type[0] == 'POINTER':
+                continue
+
+            if th_delimiters is None:
+                # simple, no delimiters
+                for i, prop in enumerate(props_ls):
+                    colsub_pair[i % 2].row().prop(themedata, prop.identifier)
+            else:
+                # add hard coded delimiters
+                i = 0
+                for prop in props_ls:
+                    colsub = colsub_pair[i]
+                    colsub.row().prop(themedata, prop.identifier)
+                    i = (i + 1) % 2
+                    if prop.identifier in th_delimiters:
+                        if i:
+                            colsub = colsub_pair[1]
+                            colsub.row().label(text="")
+                        colsub_pair[0].row().label(text="")
+                        colsub_pair[1].row().label(text="")
+                        i = 0
+
+    @staticmethod
+    def draw_header(self, context):
+        if hasattr(self, "icon"):
+            layout = self.layout
+            layout.label(icon=self.icon)
+
+    @staticmethod
+    def draw(self, context):
+        layout = self.layout
+        theme = context.user_preferences.themes[0]
+
+        datapath_list = self.datapath.split(".")
+        data = theme
+        for datapath_item in datapath_list:
+            data = getattr(data, datapath_item)
+        PreferenceThemeSpacePanel._theme_generic(layout, data, self.theme_area)
+
+    @classmethod
+    def poll(cls, context):
+        userpref = context.user_preferences
+        return (userpref.active_section == 'THEMES')
+
+
+class ThemeGenericClassGenerator():
+    @staticmethod
+    def generate_theme_area_child_panel_classes(parent_id, rna_type, theme_area, datapath):
+        def generate_child_panel_classes_recurse(parent_id, rna_type, theme_area, datapath):
+            props_type = {}
+
+            for i, prop in enumerate(rna_type.properties):
+                if prop.identifier == "rna_type":
+                    continue
+
+                props_type.setdefault((prop.type, prop.subtype), []).append(prop)
+
+            for props_type, props_ls in sorted(props_type.items()):
+                if props_type[0] == 'POINTER':
+                    for i, prop in enumerate(props_ls):
+                        new_datapath = datapath + "." + prop.identifier if datapath else prop.identifier
+                        panel_id = parent_id + "_" + prop.identifier
+                        paneltype = type(panel_id, (PreferenceThemeSpacePanel,), {
+                            "bl_label": rna_type.properties[prop.identifier].name,
+                            "bl_parent_id": parent_id,
+                            "bl_options": {'DEFAULT_CLOSED'},
+                            "draw": PreferenceThemeSpacePanel.draw,
+                            "theme_area": theme_area.identifier,
+                            "datapath": new_datapath,
+                            })
+
+                        bpy.utils.register_class(paneltype)
+                        generate_child_panel_classes_recurse(panel_id, prop.fixed_type, theme_area, new_datapath)
+
+        generate_child_panel_classes_recurse(parent_id, rna_type, theme_area, datapath)
+
+    @staticmethod
+    def generate_panel_classes_from_theme_areas():
+        from bpy.types import Theme
+
+        for theme_area in Theme.bl_rna.properties['theme_area'].enum_items_static:
+            if theme_area.identifier in {'USER_INTERFACE', 'STYLE', 'BONE_COLOR_SETS'}:
+                continue
+
+            panel_id = "USERPREF_PT_theme_" + theme_area.identifier.lower()
+            # Generate panel-class from theme_area
+            paneltype = type(panel_id, (PreferenceThemeSpacePanel,), {
+                "bl_label": theme_area.name,
+                "bl_options": {'DEFAULT_CLOSED'},
+                "draw_header": PreferenceThemeSpacePanel.draw_header,
+                "draw": PreferenceThemeSpacePanel.draw,
+                "theme_area": theme_area.identifier,
+                "icon": theme_area.icon,
+                "datapath": theme_area.identifier.lower(),
+                })
+            bpy.utils.register_class(paneltype)
+            ThemeGenericClassGenerator.generate_theme_area_child_panel_classes(
+                    panel_id, Theme.bl_rna.properties[theme_area.identifier.lower()].fixed_type,
+                    theme_area, theme_area.identifier.lower())
 
 
 class USERPREF_PT_file_paths(PreferencePanel):
@@ -1890,8 +2019,10 @@ classes = (
     USERPREF_PT_interface_system_text_translate,
 
     USERPREF_MT_interface_theme_presets,
-
     USERPREF_PT_theme,
+    USERPREF_PT_theme_user_interface,
+    USERPREF_PT_theme_text_style,
+    USERPREF_PT_theme_bone_color_sets,
 
     USERPREF_PT_file_paths,
     USERPREF_PT_file_autorun,
@@ -1924,3 +2055,6 @@ if __name__ == "__main__":  # only for live edit.
     from bpy.utils import register_class
     for cls in classes:
         register_class(cls)
+
+# After registering above's classes, so they are ordered first in UI.
+ThemeGenericClassGenerator.generate_panel_classes_from_theme_areas()
