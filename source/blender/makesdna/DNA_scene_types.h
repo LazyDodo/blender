@@ -938,10 +938,12 @@ typedef struct HairEditSettings {
 	void *paintcursor;          /* runtime */
 
 	int brushtype;              /* eHairBrushTypes */
-
 	int flag;
+
 	short select_mode;
 	short follicle_draw_mode;
+
+	int pad;
 } HairEditSettings;
 
 /* ------------------------------------------- */
