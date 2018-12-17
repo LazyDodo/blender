@@ -464,6 +464,11 @@ static char *rna_ParticleBrush_path(PointerRNA *UNUSED(ptr))
 	return BLI_strdup("tool_settings.particle_edit.brush");
 }
 
+static char *rna_HairBrush_path(PointerRNA *UNUSED(ptr))
+{
+	return BLI_strdup("tool_settings.hair_edit.brush");
+}
+
 static void rna_Paint_brush_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
 	Paint *paint = ptr->data;
@@ -1251,6 +1256,22 @@ static void rna_def_hair_edit_settings(BlenderRNA *brna)
 	RNA_def_property_pointer_funcs(prop, "rna_HairEditSettings_brush_get", NULL, NULL, NULL);
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_ui_text(prop, "Brush", "");
+
+	/* brush */
+
+	srna = RNA_def_struct(brna, "HairBrush", NULL);
+	RNA_def_struct_sdna(srna, "HairBrushData");
+	RNA_def_struct_path_func(srna, "rna_HairBrush_path");
+	RNA_def_struct_ui_text(srna, "Hair Brush", "Hair editing brush");
+
+	prop = RNA_def_property(srna, "size", PROP_INT, PROP_PIXEL);
+	RNA_def_property_range(prop, 1, SHRT_MAX);
+	RNA_def_property_ui_range(prop, 1, MAX_BRUSH_PIXEL_RADIUS, 10, 3);
+	RNA_def_property_ui_text(prop, "Radius", "Radius of the brush in pixels");
+
+	prop = RNA_def_property(srna, "strength", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_range(prop, 0.001, 1.0);
+	RNA_def_property_ui_text(prop, "Strength", "Brush strength");
 }
 
 static void rna_def_gpencil_sculpt(BlenderRNA *brna)
