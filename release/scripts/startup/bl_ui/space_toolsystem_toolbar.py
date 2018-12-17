@@ -1078,6 +1078,16 @@ class _defs_gpencil_paint:
         )
 
     @ToolDef.from_fn
+    def chord():
+        return dict(
+            text="Chord",
+            icon="ops.gpencil.primitive_chord",
+            cursor='CROSSHAIR',
+            widget=None,
+            keymap=(),
+        )
+
+    @ToolDef.from_fn
     def curve():
         return dict(
             text="Curve",
@@ -1594,6 +1604,7 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             _defs_gpencil_paint.circle,
             _defs_gpencil_paint.arc,
             _defs_gpencil_paint.curve,
+            _defs_gpencil_paint.chord,
         ],
         'EDIT_GPENCIL': [
             *_tools_gpencil_select,
