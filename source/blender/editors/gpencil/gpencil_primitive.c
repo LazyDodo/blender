@@ -390,6 +390,7 @@ static void gp_primitive_set_cp(tGPDprimitive *tgpi, float p[2], float color[4],
 		bGPDcontrolpoint *cp = &cp_points[tgpi->gpd->runtime.tot_cp_points];
 		copy_v2_v2(&cp->x, p);
 		copy_v4_v4(cp->color, color);
+		color[3] = 0.8f;
 		cp->size = size;
 		tgpi->gpd->runtime.tot_cp_points += 1;
 	}
@@ -487,14 +488,15 @@ static void gp_primitive_rectangle(tGPDprimitive *tgpi, tGPspoint *points2D)
 
 	mid_v2_v2v2(tgpi->midpoint, tgpi->start, tgpi->end);
 	float color[4];
-	UI_GetThemeColor4fv(TH_ACTIVE_VERT, color);
+	UI_GetThemeColor4fv(TH_GIZMO_PRIMARY, color);
 	gp_primitive_set_cp(tgpi, tgpi->end, color, BIG_SIZE_CTL);
 	if (tgpi->tot_stored_edges) {
 		UI_GetThemeColor4fv(TH_REDALERT, color);
 		gp_primitive_set_cp(tgpi, tgpi->start, color, SMALL_SIZE_CTL);
 	}
-	else
+	else {
 		gp_primitive_set_cp(tgpi, tgpi->start, color, BIG_SIZE_CTL);
+	}
 	UI_GetThemeColor4fv(TH_REDALERT, color);
 	gp_primitive_set_cp(tgpi, tgpi->midpoint, color, SMALL_SIZE_CTL);
 }
@@ -523,14 +525,15 @@ static void gp_primitive_line(tGPDprimitive *tgpi, tGPspoint *points2D)
 		}
 	}
 	float color[4];
-	UI_GetThemeColor4fv(TH_ACTIVE_VERT, color);
+	UI_GetThemeColor4fv(TH_GIZMO_PRIMARY, color);
 	gp_primitive_set_cp(tgpi, tgpi->end, color, BIG_SIZE_CTL);
 	if (tgpi->tot_stored_edges) {
 		UI_GetThemeColor4fv(TH_REDALERT, color);
 		gp_primitive_set_cp(tgpi, tgpi->start, color, SMALL_SIZE_CTL);
 	}
-	else
+	else {
 		gp_primitive_set_cp(tgpi, tgpi->start, color, BIG_SIZE_CTL);
+	}
 }
 
 /* create a chord */
@@ -618,15 +621,16 @@ static void gp_primitive_arc(tGPDprimitive *tgpi, tGPspoint *points2D)
 		a += step;
 	}
 	float color[4];
-	UI_GetThemeColor4fv(TH_ACTIVE_VERT, color);
+	UI_GetThemeColor4fv(TH_GIZMO_PRIMARY, color);
 	gp_primitive_set_cp(tgpi, tgpi->end, color, BIG_SIZE_CTL);
 	if (tgpi->tot_stored_edges) {
 		UI_GetThemeColor4fv(TH_REDALERT, color);
 		gp_primitive_set_cp(tgpi, tgpi->start, color, SMALL_SIZE_CTL);
 	}
-	else
+	else {
 		gp_primitive_set_cp(tgpi, tgpi->start, color, BIG_SIZE_CTL);
-	UI_GetThemeColor4fv(TH_GP_VERTEX_SELECT, color);
+	}
+	UI_GetThemeColor4fv(TH_GIZMO_SECONDARY, color);
 	gp_primitive_set_cp(tgpi, tgpi->cp1, color, BIG_SIZE_CTL * 0.9f);
 }
 
@@ -652,15 +656,16 @@ static void gp_primitive_bezier(tGPDprimitive *tgpi, tGPspoint *points2D)
 		a += step;
 	}
 	float color[4];
-	UI_GetThemeColor4fv(TH_ACTIVE_VERT, color);
+	UI_GetThemeColor4fv(TH_GIZMO_PRIMARY, color);
 	gp_primitive_set_cp(tgpi, tgpi->end, color, BIG_SIZE_CTL);
 	if (tgpi->tot_stored_edges) {
 		UI_GetThemeColor4fv(TH_REDALERT, color);
 		gp_primitive_set_cp(tgpi, tgpi->start, color, SMALL_SIZE_CTL);
 	}
-	else
+	else {
 		gp_primitive_set_cp(tgpi, tgpi->start, color, BIG_SIZE_CTL);
-	UI_GetThemeColor4fv(TH_GP_VERTEX_SELECT, color);
+	}
+	UI_GetThemeColor4fv(TH_GIZMO_SECONDARY, color);
 	gp_primitive_set_cp(tgpi, tgpi->cp1, color, BIG_SIZE_CTL * 0.9f);
 	gp_primitive_set_cp(tgpi, tgpi->cp2, color, BIG_SIZE_CTL * 0.9f);
 }
@@ -686,7 +691,7 @@ static void gp_primitive_circle(tGPDprimitive *tgpi, tGPspoint *points2D)
 		a += step;
 	}
 	float color[4];
-	UI_GetThemeColor4fv(TH_ACTIVE_VERT, color);
+	UI_GetThemeColor4fv(TH_GIZMO_PRIMARY, color);
 	gp_primitive_set_cp(tgpi, tgpi->end, color, BIG_SIZE_CTL);
 	gp_primitive_set_cp(tgpi, tgpi->start, color, BIG_SIZE_CTL);
 	UI_GetThemeColor4fv(TH_REDALERT, color);
