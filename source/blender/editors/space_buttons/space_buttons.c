@@ -237,6 +237,9 @@ static void buttons_main_region_layout_tool(const bContext *C, ARegion *ar)
 			case CTX_MODE_EDIT_LATTICE:
 				ARRAY_SET_ITEMS(contexts, ".lattice_edit");
 				break;
+			case CTX_MODE_EDIT_HAIR:
+				ARRAY_SET_ITEMS(contexts, ".hair_edit");
+				break;
 			case CTX_MODE_POSE:
 				ARRAY_SET_ITEMS(contexts, ".posemode");
 				break;

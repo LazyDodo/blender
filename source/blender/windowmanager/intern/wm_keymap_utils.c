@@ -116,6 +116,7 @@ wmKeyMap *WM_keymap_guess_from_context(const bContext *C)
 			case CTX_MODE_EDIT_ARMATURE:        km_id = "Armature"; break;
 			case CTX_MODE_EDIT_METABALL:        km_id = "Metaball"; break;
 			case CTX_MODE_EDIT_LATTICE:         km_id = "Lattice"; break;
+			case CTX_MODE_EDIT_HAIR:            km_id = "Hair"; break;
 			case CTX_MODE_POSE:                 km_id = "Pose"; break;
 			case CTX_MODE_SCULPT:               km_id = "Sculpt"; break;
 			case CTX_MODE_PAINT_WEIGHT:         km_id = "Weight Paint"; break;
