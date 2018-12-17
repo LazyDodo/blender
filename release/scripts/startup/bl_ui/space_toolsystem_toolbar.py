@@ -806,6 +806,18 @@ class _defs_particle:
         )
 
 
+class _defs_hair:
+
+    @staticmethod
+    def generate_from_brushes(context):
+        return generate_from_enum_ex(
+            context,
+            icon_prefix="brush.hair.",
+            type=bpy.types.HairEditSettings,
+            attr="tool",
+        )
+
+
 class _defs_sculpt:
 
     @staticmethod
@@ -1455,6 +1467,10 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             None,
             *_tools_annotate,
             None,
+        ],
+        'EDIT_HAIR': [
+            _defs_view3d_generic.cursor,
+            _defs_hair.generate_from_brushes,
         ],
         'PARTICLE': [
             _defs_view3d_generic.cursor,

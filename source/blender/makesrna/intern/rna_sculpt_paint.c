@@ -1216,6 +1216,11 @@ static void rna_def_hair_edit_settings(BlenderRNA *brna)
 	StructRNA *srna;
 	PropertyRNA *prop;
 
+	static const EnumPropertyItem hair_brush_items[] = {
+		{HAIR_BRUSH_ADD, "ADD", 0, "Add", "Add hairs"},
+		{0, NULL, 0, NULL, NULL}
+	};
+
 	static const EnumPropertyItem select_mode_items[] = {
 	    {HAIR_SELECT_FOLLICLES, "FOLLICLES", ICON_NONE, "Follicles", "Select hair follicles"},
 	    {HAIR_SELECT_VERTICES, "VERTICES", ICON_NONE, "Vertices", "Select hair curve vertices"},
@@ -1234,6 +1239,11 @@ static void rna_def_hair_edit_settings(BlenderRNA *brna)
 	srna = RNA_def_struct(brna, "HairEditSettings", NULL);
 	RNA_def_struct_path_func(srna, "rna_HairEditSettings_path");
 	RNA_def_struct_ui_text(srna, "Hair Edit", "Properties of hair editing mode");
+
+	prop = RNA_def_property(srna, "tool", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "brushtype");
+	RNA_def_property_enum_items(prop, hair_brush_items);
+	RNA_def_property_ui_text(prop, "Tool", "");
 
 	prop = RNA_def_property(srna, "select_mode", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "select_mode");
