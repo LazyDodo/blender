@@ -110,7 +110,7 @@ class TOPBAR_HT_lower_bar(Header):
         # Object Mode Options
         # -------------------
 
-        # Example of how toolsettings can be accessed as pop-overs.
+        # Example of how tool_settings can be accessed as pop-overs.
 
         # TODO(campbell): editing options should be after active tool options
         # (obviously separated for from the users POV)
@@ -339,14 +339,15 @@ class _draw_left_context_mode:
                 row.prop(gp_settings, "use_material_pin", text="")
 
             row = layout.row(align=True)
-            ts = context.scene.tool_settings
-            settings = ts.gpencil_paint
+            tool_settings = context.scene.tool_settings
+            settings = tool_settings.gpencil_paint
             row.template_ID_preview(settings, "brush", rows=3, cols=8, hide_buttons=True)
 
             if brush.gpencil_tool == 'ERASE':
                 row = layout.row(align=True)
                 row.prop(brush, "size", text="Radius")
                 row.prop(gp_settings, "use_pressure", text="", icon='STYLUS_PRESSURE')
+                row.prop(gp_settings, "use_occlude_eraser", text="", icon='XRAY')
                 if gp_settings.eraser_mode == 'SOFT':
                     row = layout.row(align=True)
                     row.prop(gp_settings, "pen_strength", slider=True)
