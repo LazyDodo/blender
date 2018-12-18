@@ -724,7 +724,8 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 	/* compute screen-space coordinates for points */
 	tGPspoint *points2D = tgpi->points;
 
-	switch (tgpi->type) {
+	if (tgpi->tot_edges > 1) {
+		switch (tgpi->type) {
 		case GP_STROKE_BOX:
 			gp_primitive_rectangle(tgpi, points2D);
 			break;
@@ -744,6 +745,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 			gp_primitive_bezier(tgpi, points2D);
 		default:
 			break;
+		}
 	}
 
 	/* convert screen-coordinates to 3D coordinates */
@@ -914,7 +916,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 				pressure -= brush->gpencil_settings->draw_random_press * p2d->rnd[0];
 			}
 			else {
-				pressure -= brush->gpencil_settings->draw_random_press * p2d->rnd[0];
+				pressure += brush->gpencil_settings->draw_random_press * p2d->rnd[0];
 			}
 		}
 
@@ -1460,8 +1462,11 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 		}
 		case RIGHTMOUSE:
 		{
-			if (tgpi->flag == IN_CURVE_EDIT || (tgpi->flag == IN_PROGRESS && tgpi->tot_stored_edges > 0)) {
+			/* exception to cancel current stroke when we have previous strokes in buffer */
+			if (tgpi->tot_stored_edges > 0) {
 				tgpi->flag = IDLE;
+				tgpi->tot_edges = 0;
+				gp_primitive_update_strokes(C, tgpi);
 				gpencil_primitive_interaction_end(C, op, win, tgpi);
 				/* done! */
 				return OPERATOR_FINISHED;
