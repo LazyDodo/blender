@@ -58,7 +58,7 @@
 
 static void UNUSED_FUNCTION(rna_HairSystem_update)(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
-	DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA);
+	DEG_id_tag_update(ptr->id.data, ID_RECALC_GEOMETRY);
 }
 
 static void rna_HairDrawSettings_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
@@ -70,7 +70,7 @@ static void rna_HairDrawSettings_update(Main *UNUSED(bmain), Scene *UNUSED(scene
 	 */
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
 #else
-	DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA);
+	DEG_id_tag_update(ptr->id.data, ID_RECALC_GEOMETRY);
 #endif
 	WM_main_add_notifier(NC_OBJECT | ND_DRAW, ptr->id.data);
 }

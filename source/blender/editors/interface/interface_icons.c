@@ -1719,7 +1719,7 @@ static int ui_id_brush_get_icon(const bContext *C, ID *id)
 
 		/* reset the icon */
 		if ((ob != NULL) &&
-		    (ob->mode & OB_MODE_GPENCIL_PAINT) &&
+		    (ob->mode & OB_MODE_PAINT_GPENCIL) &&
 		    (br->gpencil_settings != NULL))
 		{
 			switch (br->gpencil_settings->icon_id) {
@@ -1842,12 +1842,12 @@ int UI_rnaptr_icon_get(bContext *C, PointerRNA *ptr, int rnaicon, const bool big
 	else if (RNA_struct_is_a(ptr->type, &RNA_StudioLight)) {
 		StudioLight *sl = ptr->data;
 		switch (sl->flag & STUDIOLIGHT_FLAG_ORIENTATIONS) {
-			case STUDIOLIGHT_ORIENTATION_CAMERA:
+			case STUDIOLIGHT_TYPE_STUDIO:
 				return sl->icon_id_irradiance;
-			case STUDIOLIGHT_ORIENTATION_WORLD:
+			case STUDIOLIGHT_TYPE_WORLD:
 			default:
 				return sl->icon_id_radiance;
-			case STUDIOLIGHT_ORIENTATION_VIEWNORMAL:
+			case STUDIOLIGHT_TYPE_MATCAP:
 				return sl->icon_id_matcap;
 		}
 	}

@@ -132,13 +132,23 @@ void nested_id_hack_discard_pointers(ID *id_cow)
 		SPECIAL_CASE(ID_LS, FreestyleLineStyle, nodetree)
 		SPECIAL_CASE(ID_LA, Lamp, nodetree)
 		SPECIAL_CASE(ID_MA, Material, nodetree)
-		SPECIAL_CASE(ID_SCE, Scene, nodetree)
 		SPECIAL_CASE(ID_TE, Tex, nodetree)
 		SPECIAL_CASE(ID_WO, World, nodetree)
 
 		SPECIAL_CASE(ID_CU, Curve, key)
 		SPECIAL_CASE(ID_LT, Lattice, key)
 		SPECIAL_CASE(ID_ME, Mesh, key)
+
+		case ID_SCE:
+		{
+			Scene *scene_cow = (Scene *)id_cow;
+			/* Node trees always have their own ID node in the graph, and are
+			 * being copied as part of their copy-on-write process. */
+			scene_cow->nodetree = NULL;
+			/* Tool settings pointer is shared with the original scene. */
+			scene_cow->toolsettings = NULL;
+			break;
+		}
 
 		case ID_OB:
 		{
@@ -175,13 +185,20 @@ const ID *nested_id_hack_get_discarded_pointers(NestedIDHackTempStorage *storage
 		SPECIAL_CASE(ID_LS, FreestyleLineStyle, nodetree, linestyle)
 		SPECIAL_CASE(ID_LA, Lamp, nodetree, lamp)
 		SPECIAL_CASE(ID_MA, Material, nodetree, material)
-		SPECIAL_CASE(ID_SCE, Scene, nodetree, scene)
 		SPECIAL_CASE(ID_TE, Tex, nodetree, tex)
 		SPECIAL_CASE(ID_WO, World, nodetree, world)
 
 		SPECIAL_CASE(ID_CU, Curve, key, curve)
 		SPECIAL_CASE(ID_LT, Lattice, key, lattice)
 		SPECIAL_CASE(ID_ME, Mesh, key, mesh)
+
+		case ID_SCE:
+		{
+			storage->scene = *(Scene *)id;
+			storage->scene.toolsettings = NULL;
+			storage->scene.nodetree = NULL;
+			return &storage->scene.id;
+		}
 
 #  undef SPECIAL_CASE
 
@@ -641,6 +658,7 @@ void update_special_pointers(const Depsgraph *depsgraph,
 		{
 			Scene *scene_cow = (Scene *)id_cow;
 			const Scene *scene_orig = (const Scene *)id_orig;
+			scene_cow->toolsettings = scene_orig->toolsettings;
 			scene_cow->eevee.light_cache = scene_orig->eevee.light_cache;
 			break;
 		}
@@ -806,7 +824,7 @@ static void deg_update_copy_on_write_animation(const Depsgraph *depsgraph,
 typedef struct ObjectRuntimeBackup {
 	Object_Runtime runtime;
 	short base_flag;
-	CustomDataMask lastDataMask;
+	unsigned short base_local_view_bits;
 } ObjectRuntimeBackup;
 
 /* Make a backup of object's evaluation runtime data, additionally
@@ -830,7 +848,7 @@ static void deg_backup_object_runtime(
 	}
 	/* Make a backup of base flags. */
 	object_runtime_backup->base_flag = object->base_flag;
-	object_runtime_backup->lastDataMask = object->lastDataMask;
+	object_runtime_backup->base_local_view_bits = object->base_local_view_bits;
 }
 
 static void deg_restore_object_runtime(
@@ -850,6 +868,9 @@ static void deg_restore_object_runtime(
 			 * that datablock.
 			 */
 			object->data = mesh_orig;
+
+			/* After that, immediately free the invalidated caches. */
+			BKE_object_free_derived_caches(object);
 		}
 		else {
 			Mesh *mesh_eval = object->runtime.mesh_eval;
@@ -865,7 +886,7 @@ static void deg_restore_object_runtime(
 		}
 	}
 	object->base_flag = object_runtime_backup->base_flag;
-	object->lastDataMask = object_runtime_backup->lastDataMask;
+	object->base_local_view_bits = object_runtime_backup->base_local_view_bits;
 }
 
 ID *deg_update_copy_on_write_datablock(const Depsgraph *depsgraph,
@@ -921,7 +942,7 @@ ID *deg_update_copy_on_write_datablock(const Depsgraph *depsgraph,
 				 * everything is done by node tree update function which
 				 * only copies socket values.
 				 */
-				const int ignore_flag = (ID_RECALC_DRAW |
+				const int ignore_flag = (ID_RECALC_SHADING |
 				                         ID_RECALC_ANIMATION |
 				                         ID_RECALC_COPY_ON_WRITE);
 				if ((id_cow->recalc & ~ignore_flag) == 0) {
@@ -1021,6 +1042,7 @@ void discard_hair_edit_mode_pointers(ID *id_cow)
 void discard_scene_pointers(ID *id_cow)
 {
 	Scene *scene_cow = (Scene *)id_cow;
+	scene_cow->toolsettings = NULL;
 	scene_cow->eevee.light_cache = NULL;
 }
 

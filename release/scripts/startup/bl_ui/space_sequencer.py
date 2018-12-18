@@ -22,6 +22,7 @@ from bpy.types import Header, Menu, Panel
 from rna_prop_ui import PropertyPanel
 from .properties_grease_pencil_common import (
     AnnotationDataPanel,
+    AnnotationOnionSkin,
     GreasePencilToolsPanel,
 )
 from bpy.app.translations import pgettext_iface as iface_
@@ -120,14 +121,14 @@ class SEQUENCER_HT_header(Header):
 
         if st.view_type in {'PREVIEW', 'SEQUENCER_PREVIEW'}:
             gpd = context.gpencil_data
-            toolsettings = context.tool_settings
+            tool_settings = context.tool_settings
 
             # Proportional editing
             if gpd and gpd.use_stroke_edit_mode:
                 row = layout.row(align=True)
-                row.prop(toolsettings, "proportional_edit", icon_only=True)
-                if toolsettings.proportional_edit != 'DISABLED':
-                    row.prop(toolsettings, "proportional_edit_falloff", icon_only=True)
+                row.prop(tool_settings, "proportional_edit", icon_only=True)
+                if tool_settings.proportional_edit != 'DISABLED':
+                    row.prop(tool_settings, "proportional_edit_falloff", icon_only=True)
 
 
 class SEQUENCER_MT_editor_menus(Menu):
@@ -1335,6 +1336,16 @@ class SEQUENCER_PT_grease_pencil(AnnotationDataPanel, SequencerButtonsPanel_Outp
     # But, it should only show up when there are images in the preview region
 
 
+class SEQUENCER_PT_annotation_onion(AnnotationOnionSkin, SequencerButtonsPanel_Output, Panel):
+    bl_space_type = 'SEQUENCE_EDITOR'
+    bl_region_type = 'UI'
+    bl_category = "Strip"
+    bl_parent_id = 'SEQUENCER_PT_grease_pencil'
+
+    # NOTE: this is just a wrapper around the generic GP Panel
+    # But, it should only show up when there are images in the preview region
+
+
 class SEQUENCER_PT_grease_pencil_tools(GreasePencilToolsPanel, SequencerButtonsPanel_Output, Panel):
     bl_space_type = 'SEQUENCE_EDITOR'
     bl_region_type = 'UI'
@@ -1346,7 +1357,7 @@ class SEQUENCER_PT_grease_pencil_tools(GreasePencilToolsPanel, SequencerButtonsP
 
 
 class SEQUENCER_PT_custom_props(SequencerButtonsPanel, PropertyPanel, Panel):
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_WORKBENCH'}
     _context_path = "scene.sequence_editor.active_strip"
     _property_type = (bpy.types.Sequence,)
     bl_category = "Strip"
@@ -1381,6 +1392,7 @@ classes = (
     SEQUENCER_PT_view_safe_areas,
     SEQUENCER_PT_modifiers,
     SEQUENCER_PT_grease_pencil,
+    SEQUENCER_PT_annotation_onion,
     SEQUENCER_PT_grease_pencil_tools,
     SEQUENCER_PT_custom_props,
 )

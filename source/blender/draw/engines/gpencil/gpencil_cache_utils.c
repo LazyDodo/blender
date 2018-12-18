@@ -83,8 +83,12 @@ tGPencilObjectCache *gpencil_object_cache_add(
 	cache_elem->pixfactor = cache_elem->gpd->pixfactor;
 	cache_elem->shader_fx = ob_orig->shader_fx;
 
-	cache_elem->init_grp = NULL;
-	cache_elem->end_grp = NULL;
+	/* shgrp array */
+	cache_elem->tot_layers = 0;
+	int totgpl = BLI_listbase_count(&cache_elem->gpd->layers);
+	if (totgpl > 0) {
+		cache_elem->shgrp_array = MEM_callocN(sizeof(tGPencilObjectCache_shgrp) * totgpl, __func__);
+	}
 
 	/* calculate zdepth from point of view */
 	float zdepth = 0.0;
@@ -182,7 +186,7 @@ static bool gpencil_batch_cache_valid(GpencilBatchCache *cache, bGPdata *gpd, in
 	else if (gpd->flag & GP_DATA_CACHE_IS_DIRTY) {
 		valid = false;
 	}
-	else if (gpd->flag & GP_DATA_SHOW_ONIONSKINS) {
+	else if (DRW_gpencil_onion_active(gpd)) {
 		/* if onion, set as dirty always
 		 * This reduces performance, but avoid any crash in the multiple
 		 * overlay and multiwindow options and keep all windows working

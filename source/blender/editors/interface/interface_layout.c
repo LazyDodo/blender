@@ -655,6 +655,7 @@ static void ui_item_enum_expand_exec(
 	uiLayout *layout_radial = NULL;
 	const EnumPropertyItem *item, *item_array;
 	const char *name;
+	char group_name[UI_MAX_NAME_STR];
 	int itemw, icon, value;
 	bool free;
 	bool radial = (layout->root->type == UI_LAYOUT_PIEMENU);
@@ -687,10 +688,22 @@ static void ui_item_enum_expand_exec(
 	}
 
 	for (item = item_array; item->identifier; item++) {
+		const bool is_first = item == item_array;
+
 		if (!item->identifier[0]) {
 			const EnumPropertyItem *next_item = item + 1;
+
+			/* Separate items, potentially with a label. */
 			if (next_item->identifier) {
-				if (radial && layout_radial) {
+				/* Item without identifier but with name: Add group label for the following items. */
+				if (item->name) {
+					if (!is_first) {
+						uiItemS(block->curlayout);
+					}
+					BLI_snprintf(group_name, sizeof(group_name), "%s:", item->name);
+					uiItemL(block->curlayout, group_name, item->icon);
+				}
+				else if (radial && layout_radial) {
 					uiItemS(layout_radial);
 				}
 				else {
@@ -708,11 +721,13 @@ static void ui_item_enum_expand_exec(
 		if (icon && name[0] && !icon_only)
 			but = uiDefIconTextButR_prop(block, but_type, 0, icon, name, 0, 0, itemw, h, ptr, prop, -1, 0, value, -1, -1, NULL);
 		else if (icon)
-			but = uiDefIconButR_prop(block, but_type, 0, icon, 0, 0, itemw, h, ptr, prop, -1, 0, value, -1, -1, NULL);
+			but = uiDefIconButR_prop(block, but_type, 0, icon, 0, 0, (is_first) ? itemw : itemw - UI_DPI_FAC, h, ptr, prop, -1, 0, value, -1, -1, NULL);
 		else
 			but = uiDefButR_prop(block, but_type, 0, name, 0, 0, itemw, h, ptr, prop, -1, 0, value, -1, -1, NULL);
 
 		if (RNA_property_flag(prop) & PROP_ENUM_FLAG) {
+			/* If this is set, assert since we're clobbering someone elses callback. */
+			BLI_assert(but->func == NULL);
 			UI_but_func_set(but, ui_item_enum_expand_handle, but, POINTER_FROM_INT(value));
 		}
 

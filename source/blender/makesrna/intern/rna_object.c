@@ -74,10 +74,10 @@ const EnumPropertyItem rna_enum_object_mode_items[] = {
 	{OB_MODE_WEIGHT_PAINT, "WEIGHT_PAINT", ICON_WPAINT_HLT, "Weight Paint", ""},
 	{OB_MODE_TEXTURE_PAINT, "TEXTURE_PAINT", ICON_TPAINT_HLT, "Texture Paint", ""},
 	{OB_MODE_PARTICLE_EDIT, "PARTICLE_EDIT", ICON_PARTICLEMODE, "Particle Edit", ""},
-	{OB_MODE_GPENCIL_EDIT, "GPENCIL_EDIT", ICON_EDITMODE_HLT, "Edit Mode", "Edit Grease Pencil Strokes"},
-	{OB_MODE_GPENCIL_SCULPT, "GPENCIL_SCULPT", ICON_SCULPTMODE_HLT, "Sculpt Mode", "Sculpt Grease Pencil Strokes"},
-	{OB_MODE_GPENCIL_PAINT, "GPENCIL_PAINT", ICON_GREASEPENCIL, "Draw", "Paint Grease Pencil Strokes"},
-	{OB_MODE_GPENCIL_WEIGHT, "GPENCIL_WEIGHT", ICON_WPAINT_HLT, "Weight Paint", "Grease Pencil Weight Paint Strokes" },
+	{OB_MODE_EDIT_GPENCIL, "EDIT_GPENCIL", ICON_EDITMODE_HLT, "Edit Mode", "Edit Grease Pencil Strokes"},
+	{OB_MODE_SCULPT_GPENCIL, "SCULPT_GPENCIL", ICON_SCULPTMODE_HLT, "Sculpt Mode", "Sculpt Grease Pencil Strokes"},
+	{OB_MODE_PAINT_GPENCIL, "PAINT_GPENCIL", ICON_GREASEPENCIL, "Draw", "Paint Grease Pencil Strokes"},
+	{OB_MODE_WEIGHT_GPENCIL, "WEIGHT_GPENCIL", ICON_WPAINT_HLT, "Weight Paint", "Grease Pencil Weight Paint Strokes" },
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -91,10 +91,10 @@ const EnumPropertyItem rna_enum_workspace_object_mode_items[] = {
 	{OB_MODE_WEIGHT_PAINT, "WEIGHT_PAINT", ICON_WPAINT_HLT, "Weight Paint", ""},
 	{OB_MODE_TEXTURE_PAINT, "TEXTURE_PAINT", ICON_TPAINT_HLT, "Texture Paint", ""},
 	{OB_MODE_PARTICLE_EDIT, "PARTICLE_EDIT", ICON_PARTICLEMODE, "Particle Edit", ""},
-	{OB_MODE_GPENCIL_EDIT, "GPENCIL_EDIT", ICON_EDITMODE_HLT, "Grease Pencil Edit Mode", "Edit Grease Pencil Strokes"},
-	{OB_MODE_GPENCIL_SCULPT, "GPENCIL_SCULPT", ICON_SCULPTMODE_HLT, "Grease Pencil Sculpt Mode", "Sculpt Grease Pencil Strokes"},
-	{OB_MODE_GPENCIL_PAINT, "GPENCIL_PAINT", ICON_GREASEPENCIL, "Grease Pencil Draw", "Paint Grease Pencil Strokes"},
-	{OB_MODE_GPENCIL_WEIGHT, "GPENCIL_WEIGHT", ICON_WPAINT_HLT, "Grease Pencil Weight Paint", "Grease Pencil Weight Paint Strokes" },
+	{OB_MODE_EDIT_GPENCIL, "EDIT_GPENCIL", ICON_EDITMODE_HLT, "Grease Pencil Edit Mode", "Edit Grease Pencil Strokes"},
+	{OB_MODE_SCULPT_GPENCIL, "SCULPT_GPENCIL", ICON_SCULPTMODE_HLT, "Grease Pencil Sculpt Mode", "Sculpt Grease Pencil Strokes"},
+	{OB_MODE_PAINT_GPENCIL, "PAINT_GPENCIL", ICON_GREASEPENCIL, "Grease Pencil Draw", "Paint Grease Pencil Strokes"},
+	{OB_MODE_WEIGHT_GPENCIL, "WEIGHT_GPENCIL", ICON_WPAINT_HLT, "Grease Pencil Weight Paint", "Grease Pencil Weight Paint Strokes" },
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -134,27 +134,27 @@ static const EnumPropertyItem parent_type_items[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
-#define DUPLI_ITEMS_SHARED \
+#define INSTANCE_ITEMS_SHARED \
 	{0, "NONE", 0, "None", ""}, \
-	{OB_DUPLIFRAMES, "FRAMES", 0, "Frames", "Make copy of object for every frame"}, \
-	{OB_DUPLIVERTS, "VERTS", 0, "Verts", "Duplicate child objects on all vertices"}, \
-	{OB_DUPLIFACES, "FACES", 0, "Faces", "Duplicate child objects on all faces"}
+	{OB_DUPLIFRAMES, "FRAMES", 0, "Frames", "Make instance of object for every frame"}, \
+	{OB_DUPLIVERTS, "VERTS", 0, "Verts", "Instantiate child objects on all vertices"}, \
+	{OB_DUPLIFACES, "FACES", 0, "Faces", "Instantiate child objects on all faces"}
 
-#define DUPLI_ITEM_COLLECTION \
+#define INSTANCE_ITEM_COLLECTION \
 	{OB_DUPLICOLLECTION, "COLLECTION", 0, "Collection", "Enable collection instancing"}
-static const EnumPropertyItem dupli_items[] = {
-	DUPLI_ITEMS_SHARED,
-	DUPLI_ITEM_COLLECTION,
+static const EnumPropertyItem instance_items[] = {
+	INSTANCE_ITEMS_SHARED,
+	INSTANCE_ITEM_COLLECTION,
 	{0, NULL, 0, NULL, NULL}
 };
 #ifdef RNA_RUNTIME
-static EnumPropertyItem dupli_items_nogroup[] = {
-	DUPLI_ITEMS_SHARED,
+static EnumPropertyItem instance_items_nogroup[] = {
+	INSTANCE_ITEMS_SHARED,
 	{0, NULL, 0, NULL, NULL}
 };
 #endif
-#undef DUPLI_ITEMS_SHARED
-#undef DUPLI_ITEM_COLLECTION
+#undef INSTANCE_ITEMS_SHARED
+#undef INSTANCE_ITEM_COLLECTION
 
 const EnumPropertyItem rna_enum_metaelem_type_items[] = {
 	{MB_BALL, "BALL", ICON_META_BALL, "Ball", ""},
@@ -244,12 +244,12 @@ const EnumPropertyItem rna_enum_object_axis_items[] = {
 
 static void rna_Object_internal_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
-	DEG_id_tag_update(ptr->id.data, OB_RECALC_OB);
+	DEG_id_tag_update(ptr->id.data, ID_RECALC_TRANSFORM);
 }
 
 static void rna_Object_internal_update_draw(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
-	DEG_id_tag_update(ptr->id.data, OB_RECALC_OB);
+	DEG_id_tag_update(ptr->id.data, ID_RECALC_TRANSFORM);
 	WM_main_add_notifier(NC_OBJECT | ND_DRAW, ptr->id.data);
 }
 
@@ -264,7 +264,7 @@ static void rna_Object_hide_update(Main *bmain, Scene *UNUSED(scene), PointerRNA
 {
 	Object *ob = ptr->id.data;
 	BKE_main_collection_sync(bmain);
-	DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&ob->id, ID_RECALC_COPY_ON_WRITE);
 	DEG_relations_tag_update(bmain);
 	WM_main_add_notifier(NC_OBJECT | ND_DRAW, &ob->id);
 }
@@ -323,7 +323,7 @@ static void rna_Object_matrix_basis_set(PointerRNA *ptr, const float values[16])
 
 void rna_Object_internal_update_data(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
-	DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA);
+	DEG_id_tag_update(ptr->id.data, ID_RECALC_GEOMETRY);
 	WM_main_add_notifier(NC_OBJECT | ND_DRAW, ptr->id.data);
 }
 
@@ -362,7 +362,7 @@ static void rna_Object_active_shape_update(bContext *C, PointerRNA *ptr)
 
 static void rna_Object_dependency_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *ptr)
 {
-	DEG_id_tag_update(ptr->id.data, OB_RECALC_OB);
+	DEG_id_tag_update(ptr->id.data, ID_RECALC_TRANSFORM);
 	DEG_relations_tag_update(bmain);
 	WM_main_add_notifier(NC_OBJECT | ND_PARENT, ptr->id.data);
 }
@@ -521,7 +521,7 @@ static void rna_Object_parent_bone_set(PointerRNA *ptr, const char *value)
 	ED_object_parent(ob, ob->parent, ob->partype, value);
 }
 
-static const EnumPropertyItem *rna_Object_dupli_type_itemf(
+static const EnumPropertyItem *rna_Object_instance_type_itemf(
         bContext *UNUSED(C), PointerRNA *ptr,
         PropertyRNA *UNUSED(prop), bool *UNUSED(r_free))
 {
@@ -529,16 +529,16 @@ static const EnumPropertyItem *rna_Object_dupli_type_itemf(
 	const EnumPropertyItem *item;
 
 	if (ob->type == OB_EMPTY) {
-		item = dupli_items;
+		item = instance_items;
 	}
 	else {
-		item = dupli_items_nogroup;
+		item = instance_items_nogroup;
 	}
 
 	return item;
 }
 
-static void rna_Object_dup_group_set(PointerRNA *ptr, PointerRNA value)
+static void rna_Object_dup_collection_set(PointerRNA *ptr, PointerRNA value)
 {
 	Object *ob = (Object *)ptr->data;
 	Collection *grp = (Collection *)value.data;
@@ -559,7 +559,7 @@ static void rna_Object_dup_group_set(PointerRNA *ptr, PointerRNA value)
 	}
 	else {
 		BKE_report(NULL, RPT_ERROR,
-		           "Cannot set dupli-group as object belongs in group being instanced, thus causing a cycle");
+		           "Cannot set instance-collection as object belongs in group being instanced, thus causing a cycle");
 	}
 }
 
@@ -1163,7 +1163,7 @@ static PointerRNA rna_Object_field_get(PointerRNA *ptr)
 
 	/* weak */
 	if (!ob->pd)
-		ob->pd = object_add_collision_fields(0);
+		ob->pd = BKE_partdeflect_new(0);
 
 	return rna_pointer_inherit_refine(ptr, &RNA_FieldSettings, ob->pd);
 }
@@ -1177,7 +1177,7 @@ static PointerRNA rna_Object_collision_get(PointerRNA *ptr)
 
 	/* weak */
 	if (!ob->pd)
-		ob->pd = object_add_collision_fields(0);
+		ob->pd = BKE_partdeflect_new(0);
 
 	return rna_pointer_inherit_refine(ptr, &RNA_CollisionSettings, ob->pd);
 }
@@ -2205,7 +2205,7 @@ static void rna_def_object(BlenderRNA *brna)
 	RNA_def_property_enum_sdna(prop, NULL, "trackflag");
 	RNA_def_property_enum_items(prop, rna_enum_object_axis_items);
 	RNA_def_property_ui_text(prop, "Track Axis",
-	                         "Axis that points in 'forward' direction (applies to DupliFrame when "
+	                         "Axis that points in 'forward' direction (applies to InstanceFrame when "
 	                         "parent 'Follow' is enabled)");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_Object_internal_update");
 
@@ -2213,7 +2213,7 @@ static void rna_def_object(BlenderRNA *brna)
 	RNA_def_property_enum_sdna(prop, NULL, "upflag");
 	RNA_def_property_enum_items(prop, up_items);
 	RNA_def_property_ui_text(prop, "Up Axis",
-	                         "Axis that points in the upward direction (applies to DupliFrame when "
+	                         "Axis that points in the upward direction (applies to InstanceFrame when "
 	                         "parent 'Follow' is enabled)");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_Object_internal_update");
 
@@ -2221,7 +2221,8 @@ static void rna_def_object(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "proxy", PROP_POINTER, PROP_NONE);
 	RNA_def_property_ui_text(prop, "Proxy", "Library object this proxy object controls");
 
-	prop = RNA_def_property(srna, "proxy_group", PROP_POINTER, PROP_NONE);
+	prop = RNA_def_property(srna, "proxy_collection", PROP_POINTER, PROP_NONE);
+	RNA_def_property_pointer_sdna(prop, NULL, "proxy_group");
 	RNA_def_property_ui_text(prop, "Proxy Collection", "Library collection duplicator object this proxy object controls");
 
 	/* materials */
@@ -2405,7 +2406,7 @@ static void rna_def_object(BlenderRNA *brna)
 	                         "WARNING: Only takes into account 'Object' parenting, so e.g. in case of bone parenting "
 	                         "you get a matrix relative to the Armature object, not to the actual parent bone");
 	RNA_def_property_float_funcs(prop, "rna_Object_matrix_local_get", "rna_Object_matrix_local_set", NULL);
-	RNA_def_property_update(prop, NC_OBJECT | ND_TRANSFORM, NULL);
+	RNA_def_property_update(prop, NC_OBJECT | ND_TRANSFORM, "rna_Object_internal_update");
 
 	prop = RNA_def_property(srna, "matrix_basis", PROP_FLOAT, PROP_MATRIX);
 	RNA_def_property_multi_array(prop, 2, rna_matrix_dimsize_4x4);
@@ -2503,18 +2504,25 @@ static void rna_def_object(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
 
 	prop = RNA_def_property(srna, "show_empty_image_perspective", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "empty_image_visibility_flag", OB_EMPTY_IMAGE_VISIBLE_PERSPECTIVE);
+	RNA_def_property_boolean_negative_sdna(prop, NULL, "empty_image_visibility_flag", OB_EMPTY_IMAGE_HIDE_PERSPECTIVE);
 	RNA_def_property_ui_text(prop, "Display in Perspective Mode", "Display image in perspective mode");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
 
 	prop = RNA_def_property(srna, "show_empty_image_orthographic", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "empty_image_visibility_flag", OB_EMPTY_IMAGE_VISIBLE_ORTHOGRAPHIC);
+	RNA_def_property_boolean_negative_sdna(prop, NULL, "empty_image_visibility_flag", OB_EMPTY_IMAGE_HIDE_ORTHOGRAPHIC);
 	RNA_def_property_ui_text(prop, "Display in Orthographic Mode", "Display image in orthographic mode");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
 
-	prop = RNA_def_property(srna, "show_empty_image_backside", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "empty_image_visibility_flag", OB_EMPTY_IMAGE_VISIBLE_BACKSIDE);
-	RNA_def_property_ui_text(prop, "Display Back Side", "Display empty image even when viewed from the back");
+	static EnumPropertyItem prop_empty_image_side_items[] = {
+		{0, "DOUBLE_SIDED", 0, "Both", ""},
+		{OB_EMPTY_IMAGE_HIDE_BACK, "FRONT", 0, "Front", ""},
+		{OB_EMPTY_IMAGE_HIDE_FRONT, "BACK", 0, "Back", ""},
+		{0, NULL, 0, NULL, NULL}
+	};
+	prop = RNA_def_property(srna, "empty_image_side", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_bitflag_sdna(prop, NULL, "empty_image_visibility_flag");
+	RNA_def_property_enum_items(prop, prop_empty_image_side_items);
+	RNA_def_property_ui_text(prop, "Empty Image Side", "Show front/back side");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
 
 	/* render */
@@ -2586,13 +2594,13 @@ static void rna_def_object(BlenderRNA *brna)
 	RNA_def_property_ui_icon(prop, ICON_RESTRICT_RENDER_OFF, -1);
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_Object_hide_update");
 
-	prop = RNA_def_property(srna, "show_duplicator_for_render", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "show_instancer_for_render", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "duplicator_visibility_flag", OB_DUPLI_FLAG_RENDER);
-	RNA_def_property_ui_text(prop, "Render Duplicator", "Make duplicator visible when rendering");
+	RNA_def_property_ui_text(prop, "Render Instancer", "Make instancer visible when rendering");
 
-	prop = RNA_def_property(srna, "show_duplicator_for_viewport", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "show_instancer_for_viewport", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "duplicator_visibility_flag", OB_DUPLI_FLAG_VIEWPORT);
-	RNA_def_property_ui_text(prop, "Display Duplicator", "Make duplicator visible in the viewport");
+	RNA_def_property_ui_text(prop, "Display Instancer", "Make instancer visible in the viewport");
 
 	/* anim */
 	rna_def_animdata_common(srna);
@@ -2615,71 +2623,71 @@ static void rna_def_object(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Slow Parent Offset", "Delay in the parent relationship");
 	RNA_def_property_update(prop, NC_OBJECT | ND_TRANSFORM, "rna_Object_internal_update");
 
-	/* duplicates */
-	prop = RNA_def_property(srna, "dupli_type", PROP_ENUM, PROP_NONE);
+	/* instancing */
+	prop = RNA_def_property(srna, "instance_type", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_bitflag_sdna(prop, NULL, "transflag");
-	RNA_def_property_enum_items(prop, dupli_items);
-	RNA_def_property_enum_funcs(prop, NULL, NULL, "rna_Object_dupli_type_itemf");
-	RNA_def_property_ui_text(prop, "Dupli Type", "If not None, object duplication method to use");
+	RNA_def_property_enum_items(prop, instance_items);
+	RNA_def_property_enum_funcs(prop, NULL, NULL, "rna_Object_instance_type_itemf");
+	RNA_def_property_ui_text(prop, "Instance Type", "If not None, object instancing method to use");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_Object_dependency_update");
 
-	prop = RNA_def_property(srna, "use_dupli_frames_speed", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "use_instance_frames_speed", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "transflag", OB_DUPLINOSPEED);
-	RNA_def_property_ui_text(prop, "Dupli Frames Speed",
-	                         "Set dupliframes to use the current frame instead of parent curve's evaluation time");
+	RNA_def_property_ui_text(prop, "Instance Frames Speed",
+	                         "Set frames instancing to use the current frame instead of parent curve's evaluation time");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_Object_internal_update");
 
-	prop = RNA_def_property(srna, "use_dupli_vertices_rotation", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "use_instance_vertices_rotation", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "transflag", OB_DUPLIROT);
-	RNA_def_property_ui_text(prop, "Dupli Verts Rotation", "Rotate dupli according to vertex normal");
+	RNA_def_property_ui_text(prop, "Instance Verts Rotation", "Rotate instance according to vertex normal");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
 
-	prop = RNA_def_property(srna, "use_dupli_faces_scale", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "use_instance_faces_scale", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "transflag", OB_DUPLIFACES_SCALE);
-	RNA_def_property_ui_text(prop, "Dupli Faces Inherit Scale", "Scale dupli based on face size");
+	RNA_def_property_ui_text(prop, "Instance Faces Inherit Scale", "Scale instance based on face size");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_Object_internal_update");
 
-	prop = RNA_def_property(srna, "dupli_faces_scale", PROP_FLOAT, PROP_NONE);
+	prop = RNA_def_property(srna, "instance_faces_scale", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "dupfacesca");
 	RNA_def_property_range(prop, 0.001f, 10000.0f);
-	RNA_def_property_ui_text(prop, "Dupli Faces Scale", "Scale the DupliFace objects");
+	RNA_def_property_ui_text(prop, "Instance Faces Scale", "Scale the face instance objects");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_Object_internal_update");
 
-	prop = RNA_def_property(srna, "dupli_group", PROP_POINTER, PROP_NONE);
+	prop = RNA_def_property(srna, "instance_collection", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "Collection");
 	RNA_def_property_pointer_sdna(prop, NULL, "dup_group");
 	RNA_def_property_flag(prop, PROP_EDITABLE);
-	RNA_def_property_pointer_funcs(prop, NULL, "rna_Object_dup_group_set", NULL, NULL);
-	RNA_def_property_ui_text(prop, "Dupli Collection", "Instance an existing collection");
+	RNA_def_property_pointer_funcs(prop, NULL, "rna_Object_dup_collection_set", NULL, NULL);
+	RNA_def_property_ui_text(prop, "Instance Collection", "Instance an existing collection");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_Object_dependency_update");
 
-	prop = RNA_def_property(srna, "dupli_frames_start", PROP_INT, PROP_NONE | PROP_UNIT_TIME);
+	prop = RNA_def_property(srna, "instance_frames_start", PROP_INT, PROP_NONE | PROP_UNIT_TIME);
 	RNA_def_property_int_sdna(prop, NULL, "dupsta");
 	RNA_def_property_range(prop, MINAFRAME, MAXFRAME);
-	RNA_def_property_ui_text(prop, "Dupli Frames Start", "Start frame for DupliFrames");
+	RNA_def_property_ui_text(prop, "Instance Frames Start", "Start frame for frame instances");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_Object_internal_update");
 
-	prop = RNA_def_property(srna, "dupli_frames_end", PROP_INT, PROP_NONE | PROP_UNIT_TIME);
+	prop = RNA_def_property(srna, "instance_frames_end", PROP_INT, PROP_NONE | PROP_UNIT_TIME);
 	RNA_def_property_int_sdna(prop, NULL, "dupend");
 	RNA_def_property_range(prop, MINAFRAME, MAXFRAME);
-	RNA_def_property_ui_text(prop, "Dupli Frames End", "End frame for DupliFrames");
+	RNA_def_property_ui_text(prop, "Instance Frames End", "End frame for frame instances");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_Object_internal_update");
 
-	prop = RNA_def_property(srna, "dupli_frames_on", PROP_INT, PROP_NONE | PROP_UNIT_TIME);
+	prop = RNA_def_property(srna, "instance_frames_on", PROP_INT, PROP_NONE | PROP_UNIT_TIME);
 	RNA_def_property_int_sdna(prop, NULL, "dupon");
 	RNA_def_property_range(prop, 1, MAXFRAME);
 	RNA_def_property_ui_range(prop, 1, 1500, 1, -1);
-	RNA_def_property_ui_text(prop, "Dupli Frames On", "Number of frames to use between DupOff frames");
+	RNA_def_property_ui_text(prop, "Instance Frames On", "Number of frames to use between DupOff frames");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_Object_internal_update");
 
-	prop = RNA_def_property(srna, "dupli_frames_off", PROP_INT, PROP_NONE | PROP_UNIT_TIME);
+	prop = RNA_def_property(srna, "instance_frames_off", PROP_INT, PROP_NONE | PROP_UNIT_TIME);
 	RNA_def_property_int_sdna(prop, NULL, "dupoff");
 	RNA_def_property_range(prop, 0, MAXFRAME);
 	RNA_def_property_ui_range(prop, 0, 1500, 1, -1);
-	RNA_def_property_ui_text(prop, "Dupli Frames Off", "Recurring frames to exclude from the Dupliframes");
+	RNA_def_property_ui_text(prop, "Instance Frames Off", "Recurring frames to exclude from the frame instances");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, "rna_Object_internal_update");
 
-	prop = RNA_def_property(srna, "is_duplicator", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "is_instancer", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "transflag", OB_DUPLI);
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 
@@ -2796,9 +2804,9 @@ static void rna_def_object(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Dynamic Topology Sculpting", NULL);
 
 	/* Base Settings */
-	prop = RNA_def_property(srna, "is_from_duplicator", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "is_from_instancer", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "base_flag", BASE_FROMDUPLI);
-	RNA_def_property_ui_text(prop, "Base from Duplicator", "Object comes from a duplicator");
+	RNA_def_property_ui_text(prop, "Base from Instancer", "Object comes from a instancer");
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 
 	prop = RNA_def_property(srna, "is_from_set", PROP_BOOLEAN, PROP_NONE);

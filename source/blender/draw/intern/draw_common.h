@@ -84,6 +84,7 @@ typedef struct GlobalsUboStorage {
 	float colorLampNoAlpha[4];
 
 	float colorBackground[4];
+	float colorEditMeshMiddle[4];
 
 	float colorHandleFree[4];
 	float colorHandleAuto[4];

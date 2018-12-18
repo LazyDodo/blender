@@ -123,7 +123,10 @@ void meshobject_foreachScreenVert(
 	foreachScreenObjectVert_userData data;
 	Mesh *me;
 
-	me = mesh_get_eval_deform(vc->depsgraph, vc->scene, vc->obact, CD_MASK_BAREMESH);
+	Scene *scene_eval = DEG_get_evaluated_scene(vc->depsgraph);
+	Object *ob_eval = DEG_get_evaluated_object(vc->depsgraph, vc->obact);
+
+	me = mesh_get_eval_deform(vc->depsgraph, scene_eval, ob_eval, CD_MASK_BAREMESH);
 
 	ED_view3d_check_mats_rv3d(vc->rv3d);
 
@@ -163,7 +166,7 @@ void mesh_foreachScreenVert(
 {
 	foreachScreenVert_userData data;
 
-	Mesh *me = editbmesh_get_eval_cage(vc->depsgraph, vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
+	Mesh *me = editbmesh_get_eval_cage_from_orig(vc->depsgraph, vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
 
 	ED_view3d_check_mats_rv3d(vc->rv3d);
 
@@ -216,7 +219,7 @@ void mesh_foreachScreenEdge(
 {
 	foreachScreenEdge_userData data;
 
-	Mesh *me = editbmesh_get_eval_cage(vc->depsgraph, vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
+	Mesh *me = editbmesh_get_eval_cage_from_orig(vc->depsgraph, vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
 
 	ED_view3d_check_mats_rv3d(vc->rv3d);
 
@@ -261,7 +264,7 @@ void mesh_foreachScreenFace(
 {
 	foreachScreenFace_userData data;
 
-	Mesh *me = editbmesh_get_eval_cage(vc->depsgraph, vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
+	Mesh *me = editbmesh_get_eval_cage_from_orig(vc->depsgraph, vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
 	ED_view3d_check_mats_rv3d(vc->rv3d);
 
 	data.vc = *vc;

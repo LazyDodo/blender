@@ -582,7 +582,7 @@ static void viewRedrawForce(const bContext *C, TransInfo *t)
 	if (t->options & CTX_GPENCIL_STROKES) {
 		bGPdata *gpd = ED_gpencil_data_get_active(C);
 		if (gpd) {
-			DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+			DEG_id_tag_update(&gpd->id, ID_RECALC_GEOMETRY);
 		}
 		WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
 	}
@@ -830,6 +830,13 @@ static bool transform_modal_item_poll(const wmOperator *op, int value)
 {
 	const TransInfo *t = op->customdata;
 	switch (value) {
+		case TFM_MODAL_CANCEL:
+		{
+			if ((t->flag & T_RELEASE_CONFIRM) && ISMOUSE(t->launch_event)) {
+				return false;
+			}
+			break;
+		}
 		case TFM_MODAL_PROPSIZE:
 		case TFM_MODAL_PROPSIZE_UP:
 		case TFM_MODAL_PROPSIZE_DOWN:
@@ -992,27 +999,34 @@ static void transform_event_xyz_constraint(TransInfo *t, short key_type, char cm
 			}
 		}
 		else if (!edit_2d) {
-			if (cmode == axis) {
-				if (t->con.orientation != V3D_MANIP_GLOBAL) {
+			if (cmode != axis) {
+				/* First press, constraint to an axis. */
+				t->orientation.index = 0;
+				const short *orientation_ptr = t->orientation.types[t->orientation.index];
+				const short  orientation = orientation_ptr ? *orientation_ptr : V3D_MANIP_GLOBAL;
+				if (is_plane == false) {
+					setUserConstraint(t, orientation, constraint_axis, msg2);
+				}
+				else {
+					setUserConstraint(t, orientation, constraint_plane, msg3);
+				}
+			}
+			else {
+				/* Successive presses on existing axis, cycle orientation modes. */
+				t->orientation.index = (t->orientation.index + 1) % ARRAY_SIZE(t->orientation.types);
+
+				if (t->orientation.index == 0) {
 					stopConstraint(t);
 				}
 				else {
-					short orientation = (t->current_orientation != V3D_MANIP_GLOBAL ?
-					                     t->current_orientation : V3D_MANIP_LOCAL);
+					const short *orientation_ptr = t->orientation.types[t->orientation.index];
+					const short  orientation = orientation_ptr ? *orientation_ptr : V3D_MANIP_GLOBAL;
 					if (is_plane == false) {
 						setUserConstraint(t, orientation, constraint_axis, msg2);
 					}
 					else {
 						setUserConstraint(t, orientation, constraint_plane, msg3);
 					}
-				}
-			}
-			else {
-				if (is_plane == false) {
-					setUserConstraint(t, V3D_MANIP_GLOBAL, constraint_axis, msg2);
-				}
-				else {
-					setUserConstraint(t, V3D_MANIP_GLOBAL, constraint_plane, msg3);
 				}
 			}
 		}
@@ -1753,7 +1767,7 @@ static bool helpline_poll(bContext *C)
 	return 0;
 }
 
-static void drawHelpline(bContext *C, int x, int y, void *customdata)
+static void drawHelpline(bContext *UNUSED(C), int x, int y, void *customdata)
 {
 	TransInfo *t = (TransInfo *)customdata;
 
@@ -1769,32 +1783,7 @@ static void drawHelpline(bContext *C, int x, int y, void *customdata)
 		    (float)t->mval[1],
 		};
 
-		/* grease pencil only can edit one object at time because GP has
-		 * multiframe edition that replaces multiobject edition.
-		 * If multiobject edition is added, maybe this code will need
-		 * an update
-		 */
-		if ((t->flag & T_POINTS) && (t->options & CTX_GPENCIL_STROKES) &&
-		    (t->around != V3D_AROUND_ACTIVE))
-		{
-			Object *ob = CTX_data_active_object(C);
-			if ((ob) && (ob->type == OB_GPENCIL)) {
-				FOREACH_TRANS_DATA_CONTAINER(t, tc) {
-					float vecrot[3];
-					copy_v3_v3(vecrot, t->center_global);
-					mul_m4_v3(ob->obmat, vecrot);
-					projectFloatViewEx(t, vecrot, cent, V3D_PROJ_TEST_CLIP_ZERO);
-				}
-			}
-			else {
-				/* normally, never must be used */
-				projectFloatViewEx(t, t->center_global, cent, V3D_PROJ_TEST_CLIP_ZERO);
-			}
-		}
-		else {
-			projectFloatViewEx(t, t->center_global, cent, V3D_PROJ_TEST_CLIP_ZERO);
-		}
-
+		projectFloatViewEx(t, t->center_global, cent, V3D_PROJ_TEST_CLIP_ZERO);
 		/* Offset the values for the area region. */
 		const float offset[2] = {
 		    t->ar->winrct.xmin,
@@ -2122,12 +2111,12 @@ void saveTransform(bContext *C, TransInfo *t, wmOperator *op)
 		if (t->spacetype == SPACE_VIEW3D) {
 			if ((prop = RNA_struct_find_property(op->ptr, "constraint_orientation")) &&
 			    !RNA_property_is_set(op->ptr, prop) &&
-			    (t->current_orientation != V3D_MANIP_CUSTOM_MATRIX))
+			    (t->orientation.user != V3D_MANIP_CUSTOM_MATRIX))
 			{
-				t->scene->orientation_type = t->current_orientation;
-				BLI_assert(((t->scene->orientation_index_custom == -1) && (t->custom_orientation == NULL)) ||
+				t->scene->orientation_type = t->orientation.user;
+				BLI_assert(((t->scene->orientation_index_custom == -1) && (t->orientation.custom == NULL)) ||
 				           (BKE_scene_transform_orientation_get_index(
-				                    t->scene, t->custom_orientation) == t->scene->orientation_index_custom));
+				                    t->scene, t->orientation.custom) == t->scene->orientation_index_custom));
 			}
 		}
 	}
@@ -2153,13 +2142,13 @@ void saveTransform(bContext *C, TransInfo *t, wmOperator *op)
 	if ((prop = RNA_struct_find_property(op->ptr, "constraint_axis"))) {
 		/* constraint orientation can be global, even if user selects something else
 		 * so use the orientation in the constraint if set */
-		short orientation = (t->con.mode & CON_APPLY) ? t->con.orientation : t->current_orientation;
+		short orientation = (t->con.mode & CON_APPLY) ? t->con.orientation : t->orientation.user;
 
 		if (orientation == V3D_MANIP_CUSTOM) {
 			const int orientation_index_custom = BKE_scene_transform_orientation_get_index(
-			        t->scene, t->custom_orientation);
+			        t->scene, t->orientation.custom);
 
-			/* Maybe we need a t->con.custom_orientation? Seems like it would always match t->custom_orientation. */
+			/* Maybe we need a t->con.custom_orientation? Seems like it would always match t->orientation.custom. */
 			orientation = V3D_MANIP_CUSTOM + orientation_index_custom;
 			BLI_assert(orientation >= V3D_MANIP_CUSTOM);
 		}
@@ -2420,7 +2409,7 @@ bool initTransform(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 				t->con.mode |= CON_AXIS2;
 			}
 
-			setUserConstraint(t, t->current_orientation, t->con.mode, "%s");
+			setUserConstraint(t, t->orientation.user, t->con.mode, "%s");
 		}
 	}
 
@@ -3134,7 +3123,7 @@ static void initBend(TransInfo *t)
 
 	data = MEM_callocN(sizeof(*data), __func__);
 
-	curs = ED_view3d_cursor3d_get(t->scene, t->view)->location;
+	curs = t->scene->cursor.location;
 	copy_v3_v3(data->warp_sta, curs);
 	ED_view3d_win_to_3d(t->sa->spacedata.first, t->ar, curs, mval_fl, data->warp_end);
 
@@ -6064,7 +6053,7 @@ static void slide_origdata_interp_data_vert(
 		BM_loop_interp_from_face(bm, l, f_copy, false, false);
 
 		/* make sure face-attributes are correct (e.g. MTexPoly) */
-		BM_elem_attrs_copy(sod->bm_origfaces, bm, f_copy, l->f);
+		BM_elem_attrs_copy_ex(sod->bm_origfaces, bm, f_copy, l->f, 0x0, CD_MASK_NORMAL);
 
 		/* weight the loop */
 		if (do_loop_weight) {
@@ -6132,7 +6121,7 @@ static void slide_origdata_interp_data_vert(
 		BMLoop *l;
 
 		BM_ITER_ELEM_INDEX (l, &liter, sv->v, BM_LOOPS_OF_VERT, j) {
-			BM_face_calc_center_mean(l->f, faces_center[j]);
+			BM_face_calc_center_median(l->f, faces_center[j]);
 		}
 
 		BM_ITER_ELEM_INDEX (l, &liter, sv->v, BM_LOOPS_OF_VERT, j) {
@@ -6142,7 +6131,7 @@ static void slide_origdata_interp_data_vert(
 			BMLoop *l_other;
 			int j_other;
 
-			BM_face_calc_center_mean(f_copy, f_copy_center);
+			BM_face_calc_center_median(f_copy, f_copy_center);
 
 			BM_ITER_ELEM_INDEX (l_other, &liter_other, sv->v, BM_LOOPS_OF_VERT, j_other) {
 				BM_face_interp_multires_ex(
@@ -6322,7 +6311,7 @@ static bool bm_loop_calc_opposite_co(BMLoop *l_tmp,
  * Given 2 edges and a loop, step over the loops
  * and calculate a direction to slide along.
  *
- * \param r_slide_vec the direction to slide,
+ * \param r_slide_vec: the direction to slide,
  * the length of the vector defines the slide distance.
  */
 static BMLoop *get_next_loop(BMVert *v, BMLoop *l,

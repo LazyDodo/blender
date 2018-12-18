@@ -503,7 +503,6 @@ void BKE_mesh_init(Mesh *me)
 	me->size[0] = me->size[1] = me->size[2] = 1.0;
 	me->smoothresh = DEG2RADF(30);
 	me->texflag = ME_AUTOSPACE;
-	me->drawflag = 0;
 
 	CustomData_reset(&me->vdata);
 	CustomData_reset(&me->edata);
@@ -529,7 +528,7 @@ Mesh *BKE_mesh_add(Main *bmain, const char *name)
  *
  * WARNING! This function will not handle ID user count!
  *
- * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
+ * \param flag: Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
  */
 void BKE_mesh_copy_data(Main *bmain, Mesh *me_dst, const Mesh *me_src, const int flag)
 {
@@ -661,6 +660,8 @@ static Mesh *mesh_new_nomain_from_template_ex(
 	me_dst->totface = tessface_len;
 	me_dst->totloop = loops_len;
 	me_dst->totpoly = polys_len;
+
+	me_dst->cd_flag = me_src->cd_flag;
 
 	CustomData_copy(&me_src->vdata, &me_dst->vdata, mask, CD_CALLOC, verts_len);
 	CustomData_copy(&me_src->edata, &me_dst->edata, mask, CD_CALLOC, edges_len);
@@ -914,16 +915,25 @@ void BKE_mesh_texspace_calc(Mesh *me)
 
 BoundBox *BKE_mesh_boundbox_get(Object *ob)
 {
-	Mesh *me = ob->data;
+	/* This is Object-level data access, DO NOT touch to Mesh's bb, would be totally thread-unsafe. */
+	if (ob->bb == NULL || ob->bb->flag & BOUNDBOX_DIRTY) {
+		Mesh *me = ob->data;
+		float min[3], max[3];
 
-	if (ob->bb)
-		return ob->bb;
+		INIT_MINMAX(min, max);
+		if (!BKE_mesh_minmax(me, min, max)) {
+			min[0] = min[1] = min[2] = -1.0f;
+			max[0] = max[1] = max[2] = 1.0f;
+		}
 
-	if (me->bb == NULL || (me->bb->flag & BOUNDBOX_DIRTY)) {
-		BKE_mesh_texspace_calc(me);
+		if (ob->bb == NULL) {
+			ob->bb = MEM_mallocN(sizeof(*ob->bb), __func__);
+		}
+		BKE_boundbox_init_from_minmax(ob->bb, min, max);
+		ob->bb->flag &= ~BOUNDBOX_DIRTY;
 	}
 
-	return me->bb;
+	return ob->bb;
 }
 
 BoundBox *BKE_mesh_texspace_get(Mesh *me, float r_loc[3], float r_rot[3], float r_size[3])
@@ -1553,6 +1563,18 @@ void BKE_mesh_mselect_active_set(Mesh *me, int index, int type)
 	           (me->mselect[me->totselect - 1].type  == type));
 }
 
+void BKE_mesh_count_selected_items(const Mesh *mesh, int r_count[3])
+{
+	r_count[0] = r_count[1] = r_count[2] = 0;
+	if (mesh->edit_btmesh) {
+		BMesh *bm = mesh->edit_btmesh->bm;
+		r_count[0] = bm->totvertsel;
+		r_count[1] = bm->totedgesel;
+		r_count[2] = bm->totfacesel;
+	}
+	/* We could support faces in paint modes. */
+
+}
 
 void BKE_mesh_apply_vert_coords(Mesh *mesh, float (*vertCoords)[3])
 {
@@ -1587,7 +1609,7 @@ void BKE_mesh_apply_vert_normals(Mesh *mesh, short (*vertNormals)[3])
 /**
  * Compute 'split' (aka loop, or per face corner's) normals.
  *
- * \param r_lnors_spacearr Allows to get computed loop normal space array. That data, among other things,
+ * \param r_lnors_spacearr: Allows to get computed loop normal space array. That data, among other things,
  *                         contains 'smooth fan' info, useful e.g. to split geometry along sharp edges...
  */
 void BKE_mesh_calc_normals_split_ex(Mesh *mesh, MLoopNorSpaceArray *r_lnors_spacearr)
@@ -1910,5 +1932,8 @@ void BKE_mesh_eval_geometry(
 	DEG_debug_print_eval(depsgraph, __func__, mesh->id.name, mesh);
 	if (mesh->bb == NULL || (mesh->bb->flag & BOUNDBOX_DIRTY)) {
 		BKE_mesh_texspace_calc(mesh);
+		/* Clear autospace flag in evaluated mesh, so that texspace does not get recomputed when bbox is
+		 * (e.g. after modifiers, etc.) */
+		mesh->texflag &= ~ME_AUTOSPACE;
 	}
 }

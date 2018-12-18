@@ -42,8 +42,10 @@
 #include "DNA_windowmanager_types.h"
 #include "DNA_workspace_types.h"
 
+#include "BKE_appdir.h"
 #include "BKE_brush.h"
 #include "BKE_colortools.h"
+#include "BKE_keyconfig.h"
 #include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
@@ -71,6 +73,9 @@ void BLO_update_defaults_userpref_blend(void)
 	U.flag &= ~USER_SCRIPT_AUTOEXEC_DISABLE;
 #endif
 
+	/* Transform tweak with single click and drag. */
+	U.flag |= USER_RELEASECONFIRM;
+
 	/* Ignore the theme saved in the blend file,
 	 * instead use the theme from 'userdef_default_theme.c' */
 	{
@@ -84,6 +89,9 @@ void BLO_update_defaults_userpref_blend(void)
 	/* Only enable tooltips translation by default, without actually enabling translation itself, for now. */
 	U.transopts = USER_TR_TOOLTIPS;
 	U.memcachelimit = 4096;
+
+	/* Default to left click select. */
+	BKE_keyconfig_pref_set_select_mouse(&U, 0, true);
 }
 
 /**
@@ -114,6 +122,18 @@ void BLO_update_defaults_startup_blend(Main *bmain, const char *app_template)
 						/* grease pencil settings */
 						v3d->vertex_opacity = 1.0f;
 						v3d->gp_flag |= V3D_GP_SHOW_EDIT_LINES;
+						break;
+					}
+					case SPACE_FILE:
+					{
+						SpaceFile *sfile = (SpaceFile *)sl;
+						if (sfile->params) {
+							const char *dir_default = BKE_appdir_folder_default();
+							if (dir_default) {
+								STRNCPY(sfile->params->dir, dir_default);
+							}
+						}
+						break;
 					}
 				}
 			}
@@ -154,20 +174,20 @@ void BLO_update_defaults_startup_blend(Main *bmain, const char *app_template)
 			const char *name = workspace->id.name + 2;
 
 			if (STREQ(name, "Drawing")) {
-				workspace->object_mode = OB_MODE_GPENCIL_PAINT;
+				workspace->object_mode = OB_MODE_PAINT_GPENCIL;
 			}
 		}
 		/* set object in drawing mode */
 		for (Object *object = bmain->object.first; object; object = object->id.next) {
 			if (object->type == OB_GPENCIL) {
 				bGPdata *gpd = (bGPdata *)object->data;
-				object->mode = OB_MODE_GPENCIL_PAINT;
+				object->mode = OB_MODE_PAINT_GPENCIL;
 				gpd->flag |= GP_DATA_STROKE_PAINTMODE;
 				break;
 			}
 		}
 
-		/* Be sure curfalloff is initializated */
+		/* Be sure curfalloff and primitive are initializated */
 		for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
 			ToolSettings *ts = scene->toolsettings;
 			if (ts->gp_sculpt.cur_falloff == NULL) {
@@ -175,8 +195,17 @@ void BLO_update_defaults_startup_blend(Main *bmain, const char *app_template)
 				CurveMapping *gp_falloff_curve = ts->gp_sculpt.cur_falloff;
 				curvemapping_initialize(gp_falloff_curve);
 				curvemap_reset(gp_falloff_curve->cm,
-					&gp_falloff_curve->clipr,
-					CURVE_PRESET_GAUSS,
+				               &gp_falloff_curve->clipr,
+				               CURVE_PRESET_GAUSS,
+				               CURVEMAP_SLOPE_POSITIVE);
+			}
+			if (ts->gp_sculpt.cur_primitive == NULL) {
+				ts->gp_sculpt.cur_primitive = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
+				CurveMapping *gp_primitive_curve = ts->gp_sculpt.cur_primitive;
+				curvemapping_initialize(gp_primitive_curve);
+				curvemap_reset(gp_primitive_curve->cm,
+					&gp_primitive_curve->clipr,
+					CURVE_PRESET_BELL,
 					CURVEMAP_SLOPE_POSITIVE);
 			}
 		}
@@ -226,7 +255,7 @@ void BLO_update_defaults_startup_blend(Main *bmain, const char *app_template)
 
 			/* Don't enable compositing nodes. */
 			if (scene->nodetree) {
-				ntreeFreeTree(scene->nodetree);
+				ntreeFreeNestedTree(scene->nodetree);
 				MEM_freeN(scene->nodetree);
 				scene->nodetree = NULL;
 				scene->use_nodes = false;
@@ -236,14 +265,24 @@ void BLO_update_defaults_startup_blend(Main *bmain, const char *app_template)
 			BKE_view_layer_rename(bmain, scene, scene->view_layers.first, "View Layer");
 		}
 
+		/* Rename lamp objects. */
+		for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+			if (STREQ(ob->id.name, "OBLamp")) {
+				STRNCPY(ob->id.name, "OBLight");
+			}
+		}
+		for (Lamp *lamp = bmain->lamp.first; lamp; lamp = lamp->id.next) {
+			if (STREQ(lamp->id.name, "LALamp")) {
+				STRNCPY(lamp->id.name, "LALight");
+			}
+		}
+
 		for (Mesh *mesh = bmain->mesh.first; mesh; mesh = mesh->id.next) {
 			/* Match default for new meshes. */
 			mesh->smoothresh = DEG2RADF(30);
 		}
-	}
 
-	/* Grease Pencil New Eraser Brush */
-	if (builtin_template) {
+		/* Grease Pencil New Eraser Brush */
 		Brush *br;
 		/* Rename old Hard Eraser */
 		br = (Brush *)BKE_libblock_find_name(bmain, ID_BR, "Eraser Hard");
@@ -272,5 +311,20 @@ void BLO_update_defaults_startup_blend(Main *bmain, const char *app_template)
 				BKE_paint_brush_set(paint, old_brush);
 			}
 		}
+	}
+
+	for (bScreen *sc = bmain->screen.first; sc; sc = sc->id.next) {
+		for (ScrArea *sa = sc->areabase.first; sa; sa = sa->next) {
+			for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+				if (sl->spacetype == SPACE_VIEW3D) {
+					View3D *v3d = (View3D *)sl;
+					v3d->shading.flag |= V3D_SHADING_SPECULAR_HIGHLIGHT;
+				}
+			}
+		}
+	}
+
+	for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+		copy_v3_v3(scene->display.light_direction, (float[3]){M_SQRT1_3, M_SQRT1_3, M_SQRT1_3});
 	}
 }

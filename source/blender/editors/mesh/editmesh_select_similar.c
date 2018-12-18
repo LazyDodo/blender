@@ -159,7 +159,7 @@ static void face_pos_direction_worldspace_scaled_get(Object *ob, BMFace *face, f
 	copy_v3_v3(r_dir, face->no);
 	normalize_v3(r_dir);
 
-	BM_face_calc_center_mean(face, center);
+	BM_face_calc_center_median(face, center);
 	mul_m4_v3(ob->obmat, center);
 
 	distance = dot_v3v3(r_dir, center);
@@ -197,7 +197,7 @@ static int similar_face_select_exec(bContext *C, wmOperator *op)
 
 	int tot_faces_selected_all = 0;
 	uint objects_len = 0;
-	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, CTX_wm_view3d(C), &objects_len);
 
 	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 		Object *ob = objects[ob_index];
@@ -306,7 +306,6 @@ static int similar_face_select_exec(bContext *C, wmOperator *op)
 						float perimeter = BM_face_calc_perimeter_with_mat3(face, ob_m3);
 						float dummy[3] = {perimeter, 0.0f, 0.0f};
 						BLI_kdtree_insert(tree, tree_index++, dummy);
-						break;
 						break;
 					}
 					case SIMFACE_NORMAL:
@@ -683,7 +682,7 @@ static int similar_edge_select_exec(bContext *C, wmOperator *op)
 
 	int tot_edges_selected_all = 0;
 	uint objects_len = 0;
-	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, CTX_wm_view3d(C), &objects_len);
 
 	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 		Object *ob = objects[ob_index];
@@ -1038,7 +1037,7 @@ static int similar_vert_select_exec(bContext *C, wmOperator *op)
 
 	int tot_verts_selected_all = 0;
 	uint objects_len = 0;
-	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, CTX_wm_view3d(C), &objects_len);
 
 	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 		Object *ob = objects[ob_index];

@@ -83,6 +83,7 @@
 #include "BKE_paint.h"
 #include "BKE_pointcache.h"
 #include "BKE_report.h"
+#include "BKE_rigidbody.h"
 #include "BKE_scene.h"
 #include "BKE_screen.h"
 #include "BKE_sequencer.h"
@@ -723,24 +724,12 @@ void do_versions_after_linking_280(Main *bmain)
 
 	if (!MAIN_VERSION_ATLEAST(bmain, 280, 4)) {
 		for (Object *object = bmain->object.first; object; object = object->id.next) {
-#ifndef VERSION_280_SUBVERSION_4
-			/* If any object already has an initialized value for
-			 * duplicator_visibility_flag it means we've already doversioned it.
-			 * TODO(all) remove the VERSION_280_SUBVERSION_4 code once the subversion was bumped. */
-			if (object->duplicator_visibility_flag != 0) {
-				break;
-			}
-#endif
 			if (object->particlesystem.first) {
 				object->duplicator_visibility_flag = OB_DUPLI_FLAG_VIEWPORT;
 				for (ParticleSystem *psys = object->particlesystem.first; psys; psys = psys->next) {
 					if (psys->part->draw & PART_DRAW_EMITTER) {
 						object->duplicator_visibility_flag |= OB_DUPLI_FLAG_RENDER;
-#ifndef VERSION_280_SUBVERSION_4
-						psys->part->draw &= ~PART_DRAW_EMITTER;
-#else
 						break;
-#endif
 					}
 				}
 			}
@@ -750,6 +739,11 @@ void do_versions_after_linking_280(Main *bmain)
 			else {
 				object->duplicator_visibility_flag = OB_DUPLI_FLAG_VIEWPORT | OB_DUPLI_FLAG_RENDER;
 			}
+		}
+
+		/* Cleanup deprecated flag from particlesettings data-blocks. */
+		for (ParticleSettings *part = bmain->particle.first; part; part = part->id.next) {
+			part->draw &= ~PART_DRAW_EMITTER;
 		}
 	}
 
@@ -923,6 +917,20 @@ void do_versions_after_linking_280(Main *bmain)
 		}
 		BKE_paint_toolslots_init_from_main(bmain);
 	}
+
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 38)) {
+		/* Ensure we get valid rigidbody object/constraint data in relevant collections' objects. */
+		for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+			RigidBodyWorld *rbw = scene->rigidbody_world;
+
+			if (rbw == NULL) {
+				continue;
+			}
+
+			BKE_rigidbody_objects_collection_validate(scene, rbw);
+			BKE_rigidbody_constraints_collection_validate(scene, rbw);
+		}
+	}
 }
 
 /* NOTE: this version patch is intended for versions < 2.52.2, but was initially introduced in 2.27 already.
@@ -1015,7 +1023,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 		 * Also, metallic node is now unified into the principled node. */
 		eNTreeDoVersionErrors error = NTREE_DOVERSION_NO_ERROR;
 
-		FOREACH_NODETREE(bmain, ntree, id) {
+		FOREACH_NODETREE_BEGIN(bmain, ntree, id) {
 			if (ntree->type == NTREE_SHADER) {
 				for (bNode *node = ntree->nodes.first; node; node = node->next) {
 					if (node->type == 194 /* SH_NODE_EEVEE_METALLIC */ &&
@@ -1047,12 +1055,12 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 					}
 				}
 			}
-		} FOREACH_NODETREE_END
+		} FOREACH_NODETREE_END;
 
-			if (error & NTREE_DOVERSION_NEED_OUTPUT) {
-				BKE_report(fd->reports, RPT_ERROR, "Eevee material conversion problem. Error in console");
-				printf("You need to connect Principled and Eevee Specular shader nodes to new material output nodes.\n");
-			}
+		if (error & NTREE_DOVERSION_NEED_OUTPUT) {
+			BKE_report(fd->reports, RPT_ERROR, "Eevee material conversion problem. Error in console");
+			printf("You need to connect Principled and Eevee Specular shader nodes to new material output nodes.\n");
+		}
 
 		if (error & NTREE_DOVERSION_TRANSPARENCY_EMISSION) {
 			BKE_report(fd->reports, RPT_ERROR, "Eevee material conversion problem. Error in console");
@@ -1116,7 +1124,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 			}
 
 			/* Init grease pencil pixel size factor */
-			if (!DNA_struct_elem_find(fd->filesdna, "bGPDdata", "int", "pixfactor")) {
+			if (!DNA_struct_elem_find(fd->filesdna, "bGPdata", "int", "pixfactor")) {
 				for (bGPdata *gpd = bmain->gpencil.first; gpd; gpd = gpd->id.next) {
 					gpd->pixfactor = GP_DEFAULT_PIX_FACTOR;
 				}
@@ -1131,9 +1139,9 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 						gset->cur_falloff = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
 						curvemapping_initialize(gset->cur_falloff);
 						curvemap_reset(gset->cur_falloff->cm,
-							&gset->cur_falloff->clipr,
-							CURVE_PRESET_GAUSS,
-							CURVEMAP_SLOPE_POSITIVE);
+						               &gset->cur_falloff->clipr,
+						               CURVE_PRESET_GAUSS,
+						               CURVEMAP_SLOPE_POSITIVE);
 					}
 				}
 			}
@@ -1374,16 +1382,6 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
 				unit_qt(scene->cursor.rotation);
 			}
-			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
-				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
-					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
-						if (sl->spacetype == SPACE_VIEW3D) {
-							View3D *v3d = (View3D *)sl;
-							unit_qt(v3d->cursor.rotation);
-						}
-					}
-				}
-			}
 		}
 	}
 
@@ -1409,7 +1407,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 
 		if (!DNA_struct_elem_find(fd->filesdna, "ToolSettings", "char", "transform_pivot_point")) {
 			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
-				scene->toolsettings->transform_pivot_point = V3D_AROUND_CENTER_MEAN;
+				scene->toolsettings->transform_pivot_point = V3D_AROUND_CENTER_MEDIAN;
 			}
 		}
 
@@ -1687,7 +1685,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 			}
 		}
 		if (!DNA_struct_elem_find(fd->filesdna, "View3DShading", "char", "matcap[256]")) {
-			StudioLight *default_matcap = BKE_studiolight_find_first(STUDIOLIGHT_ORIENTATION_VIEWNORMAL);
+			StudioLight *default_matcap = BKE_studiolight_find_first(STUDIOLIGHT_TYPE_MATCAP);
 			/* when loading the internal file is loaded before the matcaps */
 			if (default_matcap) {
 				for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
@@ -1798,6 +1796,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
 					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
 						if (sl->spacetype == SPACE_VIEW3D) {
+							enum { V3D_SHOW_MODE_SHADE_OVERRIDE = (1 << 15), };
 							View3D *v3d = (View3D *)sl;
 							float alpha = v3d->flag2 & V3D_SHOW_MODE_SHADE_OVERRIDE ? 0.0f : 0.8f;
 							float alpha_full = v3d->flag2 & V3D_SHOW_MODE_SHADE_OVERRIDE ? 0.0f : 1.0f;
@@ -2183,6 +2182,7 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 			for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
 				for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
 					if (sl->spacetype == SPACE_VIEW3D) {
+						enum { V3D_OCCLUDE_WIRE = (1 << 14) };
 						View3D *v3d = (View3D *)sl;
 						if (v3d->flag2 & V3D_OCCLUDE_WIRE) {
 							v3d->overlay.edit_flag |= V3D_OVERLAY_EDIT_OCCLUDE_WIRE;
@@ -2232,15 +2232,6 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 				}
 			}
 		}
-
-		for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
-			ob->empty_image_visibility_flag = (
-			        OB_EMPTY_IMAGE_VISIBLE_PERSPECTIVE |
-			        OB_EMPTY_IMAGE_VISIBLE_ORTHOGRAPHIC |
-			        OB_EMPTY_IMAGE_VISIBLE_BACKSIDE);
-		}
-
-
 	}
 
 	if (!MAIN_VERSION_ATLEAST(bmain, 280, 30)) {
@@ -2424,11 +2415,333 @@ void blo_do_versions_280(FileData *fd, Library *UNUSED(lib), Main *bmain)
 #undef PAINT_BLEND_HUE
 #undef PAINT_BLEND_ALPHA_SUB
 #undef PAINT_BLEND_ALPHA_ADD
+		}
+	}
 
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 34)) {
+		for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
+			for (ScrArea *area = screen->areabase.first; area; area = area->next) {
+				for (SpaceLink *slink = area->spacedata.first; slink; slink = slink->next) {
+					if (slink->spacetype == SPACE_USERPREF) {
+						ARegion *navigation_region = BKE_spacedata_find_region_type(slink, area, RGN_TYPE_NAV_BAR);
+
+						if (!navigation_region) {
+							ListBase *regionbase = (slink == area->spacedata.first) ?
+							                       &area->regionbase : &slink->regionbase;
+
+							navigation_region = MEM_callocN(sizeof(ARegion), "userpref navigation-region do_versions");
+
+							BLI_addhead(regionbase, navigation_region); /* order matters, addhead not addtail! */
+							navigation_region->regiontype = RGN_TYPE_NAV_BAR;
+							navigation_region->alignment = RGN_ALIGN_LEFT;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 36)) {
+		if (!DNA_struct_elem_find(fd->filesdna, "View3DShading", "float", "curvature_ridge_factor")) {
+			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
+				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+						if (sl->spacetype == SPACE_VIEW3D) {
+							View3D *v3d = (View3D *)sl;
+							v3d->shading.curvature_ridge_factor = 1.0f;
+							v3d->shading.curvature_valley_factor = 1.0f;
+						}
+					}
+				}
+			}
+		}
+
+		/* Rename OpenGL to Workbench. */
+		for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+			if (STREQ(scene->r.engine, "BLENDER_OPENGL")) {
+				STRNCPY(scene->r.engine, RE_engine_id_BLENDER_WORKBENCH);
+			}
+		}
+
+		/* init Annotations onion skin */
+		if (!DNA_struct_elem_find(fd->filesdna, "bGPDlayer", "int", "gstep")) {
+			for (bGPdata *gpd = bmain->gpencil.first; gpd; gpd = gpd->id.next) {
+				for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+					ARRAY_SET_ITEMS(gpl->gcolor_prev, 0.302f, 0.851f, 0.302f);
+					ARRAY_SET_ITEMS(gpl->gcolor_next, 0.250f, 0.1f, 1.0f);
+				}
+			}
+		}
+
+		/* Move studio_light selection to lookdev_light. */
+		if (!DNA_struct_elem_find(fd->filesdna, "View3DShading", "char", "lookdev_light[256]")) {
+			for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
+				for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
+					for (SpaceLink *sl = sa->spacedata.first; sl; sl = sl->next) {
+						if (sl->spacetype == SPACE_VIEW3D) {
+							View3D *v3d = (View3D *)sl;
+							memcpy(v3d->shading.lookdev_light, v3d->shading.studio_light, sizeof(char) * 256);
+						}
+					}
+				}
+			}
+		}
+
+		/* Change Solid mode shadow orientation. */
+		if (!DNA_struct_elem_find(fd->filesdna, "SceneDisplay", "float", "shadow_focus")) {
+			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+				float *dir = scene->display.light_direction;
+				SWAP(float, dir[2], dir[1]);
+				dir[2] = -dir[2];
+				dir[0] = -dir[0];
+			}
+		}
+	}
+
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 37)) {
+		for (Camera *ca = bmain->camera.first; ca; ca = ca->id.next) {
+			ca->drawsize *= 2.0f;
+		}
+		for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+			if (ob->type != OB_EMPTY) {
+				if (UNLIKELY(ob->transflag & OB_DUPLICOLLECTION)) {
+					BKE_object_type_set_empty_for_versioning(ob);
+				}
+			}
+		}
+
+		/* Grease pencil primitive curve */
+		if (!DNA_struct_elem_find(fd->filesdna, "GP_Sculpt_Settings", "CurveMapping", "cur_primitive")) {
+			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+				GP_Sculpt_Settings *gset = &scene->toolsettings->gp_sculpt;
+				if ((gset) && (gset->cur_primitive == NULL)) {
+					gset->cur_primitive = curvemapping_add(1, 0.0f, 0.0f, 1.0f, 1.0f);
+					curvemapping_initialize(gset->cur_primitive);
+					curvemap_reset(gset->cur_primitive->cm,
+						&gset->cur_primitive->clipr,
+						CURVE_PRESET_BELL,
+						CURVEMAP_SLOPE_POSITIVE);
+				}
+			}
+		}
+	}
+
+
+	if (!MAIN_VERSION_ATLEAST(bmain, 280, 38)) {
+		if (DNA_struct_elem_find(fd->filesdna, "Object", "char", "empty_image_visibility_flag")) {
+			for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+				ob->empty_image_visibility_flag ^= (
+				        OB_EMPTY_IMAGE_HIDE_PERSPECTIVE |
+				        OB_EMPTY_IMAGE_HIDE_ORTHOGRAPHIC |
+				        OB_EMPTY_IMAGE_HIDE_BACK);
+			}
+		}
+
+		for (bScreen *screen = bmain->screen.first; screen; screen = screen->id.next) {
+			for (ScrArea *area = screen->areabase.first; area; area = area->next) {
+				for (SpaceLink *sl = area->spacedata.first; sl; sl = sl->next) {
+					switch (sl->spacetype) {
+						case SPACE_IMAGE:
+						{
+							SpaceImage *sima = (SpaceImage *)sl;
+							sima->flag &= ~(
+							        SI_FLAG_DEPRECATED_0 |
+							        SI_FLAG_DEPRECATED_1 |
+							        SI_FLAG_DEPRECATED_3 |
+							        SI_FLAG_DEPRECATED_6 |
+							        SI_FLAG_DEPRECATED_7 |
+							        SI_FLAG_DEPRECATED_8 |
+							        SI_FLAG_DEPRECATED_17 |
+							        SI_FLAG_DEPRECATED_18 |
+							        SI_FLAG_DEPRECATED_23 |
+							        SI_FLAG_DEPRECATED_24);
+							break;
+						}
+						case SPACE_VIEW3D:
+						{
+							View3D *v3d = (View3D *)sl;
+							v3d->flag &= ~(
+							        V3D_FLAG_DEPRECATED_0 |
+							        V3D_FLAG_DEPRECATED_1 |
+							        V3D_FLAG_DEPRECATED_10 |
+							        V3D_FLAG_DEPRECATED_12);
+							v3d->flag2 &= ~(
+							        V3D_FLAG2_DEPRECATED_3 |
+							        V3D_FLAG2_DEPRECATED_6 |
+							        V3D_FLAG2_DEPRECATED_12 |
+							        V3D_FLAG2_DEPRECATED_13 |
+							        V3D_FLAG2_DEPRECATED_14 |
+							        V3D_FLAG2_DEPRECATED_15);
+							break;
+						}
+						case SPACE_OUTLINER:
+						{
+							SpaceOops *so = (SpaceOops *)sl;
+							so->filter &= ~(
+							        SO_FILTER_DEPRECATED_1 |
+							        SO_FILTER_DEPRECATED_5 |
+							        SO_FILTER_DEPRECATED_12);
+							so->storeflag &= ~(
+							        SO_TREESTORE_DEPRECATED_1);
+							break;
+						}
+						case SPACE_FILE:
+						{
+							SpaceFile *sfile = (SpaceFile *)sl;
+							if (sfile->params) {
+								sfile->params->flag &= ~(
+								        FILE_PARAMS_FLAG_DEPRECATED_1 |
+								        FILE_PARAMS_FLAG_DEPRECATED_6 |
+								        FILE_PARAMS_FLAG_DEPRECATED_9);
+							}
+							break;
+						}
+						case SPACE_NODE:
+						{
+							SpaceNode *snode = (SpaceNode *)sl;
+							snode->flag &= ~(
+							        SNODE_FLAG_DEPRECATED_6 |
+							        SNODE_FLAG_DEPRECATED_10 |
+							        SNODE_FLAG_DEPRECATED_11);
+							break;
+						}
+						case SPACE_BUTS:
+						{
+							SpaceButs *sbuts = (SpaceButs *)sl;
+							sbuts->flag &= ~(
+							        SB_FLAG_DEPRECATED_2 |
+							        SB_FLAG_DEPRECATED_3);
+							break;
+						}
+						case SPACE_NLA:
+						{
+							SpaceNla *snla = (SpaceNla *)sl;
+							snla->flag &= ~(
+							        SNLA_FLAG_DEPRECATED_0 |
+							        SNLA_FLAG_DEPRECATED_1 |
+							        SNLA_FLAG_DEPRECATED_3);
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+			scene->r.mode &= ~(
+			        R_MODE_DEPRECATED_1 |
+			        R_MODE_DEPRECATED_2 |
+			        R_MODE_DEPRECATED_3 |
+			        R_MODE_DEPRECATED_4 |
+			        R_MODE_DEPRECATED_5 |
+			        R_MODE_DEPRECATED_6 |
+			        R_MODE_DEPRECATED_7 |
+			        R_MODE_DEPRECATED_8 |
+			        R_MODE_DEPRECATED_10 |
+			        R_MODE_DEPRECATED_13 |
+			        R_MODE_DEPRECATED_16 |
+			        R_MODE_DEPRECATED_17 |
+			        R_MODE_DEPRECATED_18 |
+			        R_MODE_DEPRECATED_19 |
+			        R_MODE_DEPRECATED_20 |
+			        R_MODE_DEPRECATED_21 |
+			        R_MODE_DEPRECATED_27);
+
+			scene->r.scemode &= ~(
+			        R_SCEMODE_DEPRECATED_8 |
+			        R_SCEMODE_DEPRECATED_11 |
+			        R_SCEMODE_DEPRECATED_13 |
+			        R_SCEMODE_DEPRECATED_16 |
+			        R_SCEMODE_DEPRECATED_17 |
+			        R_SCEMODE_DEPRECATED_19);
+
+			if (scene->toolsettings->sculpt) {
+				scene->toolsettings->sculpt->flags &= ~(
+				        SCULPT_FLAG_DEPRECATED_0 |
+				        SCULPT_FLAG_DEPRECATED_1 |
+				        SCULPT_FLAG_DEPRECATED_2);
+			}
+
+			if (scene->ed) {
+				Sequence *seq;
+				SEQ_BEGIN (scene->ed, seq)
+				{
+					seq->flag &= ~(
+					        SEQ_FLAG_DEPRECATED_6 |
+					        SEQ_FLAG_DEPRECATED_18 |
+					        SEQ_FLAG_DEPRECATED_19 |
+					        SEQ_FLAG_DEPRECATED_21);
+					if (seq->type == SEQ_TYPE_SPEED) {
+						SpeedControlVars *s = (SpeedControlVars *)seq->effectdata;
+						s->flags &= ~(
+						        SEQ_SPEED_DEPRECATED_1);
+					}
+				} SEQ_END;
+			}
+		}
+
+		for (World *world = bmain->world.first; world; world = world->id.next) {
+			world->flag &= ~(
+			        WO_MODE_DEPRECATED_1 |
+			        WO_MODE_DEPRECATED_2 |
+			        WO_MODE_DEPRECATED_3 |
+			        WO_MODE_DEPRECATED_4 |
+			        WO_MODE_DEPRECATED_5 |
+			        WO_MODE_DEPRECATED_7);
+		}
+
+		for (Image *image = bmain->image.first; image; image = image->id.next) {
+			image->flag &= ~(
+			        IMA_FLAG_DEPRECATED_0 |
+			        IMA_FLAG_DEPRECATED_1 |
+			        IMA_FLAG_DEPRECATED_4 |
+			        IMA_FLAG_DEPRECATED_6 |
+			        IMA_FLAG_DEPRECATED_8 |
+			        IMA_FLAG_DEPRECATED_15 |
+			        IMA_FLAG_DEPRECATED_16);
+			image->tpageflag &= ~(
+			        IMA_TPAGEFLAG_DEPRECATED_0 |
+			        IMA_TPAGEFLAG_DEPRECATED_1 |
+			        IMA_TPAGEFLAG_DEPRECATED_2 |
+			        IMA_TPAGEFLAG_DEPRECATED_4 |
+			        IMA_TPAGEFLAG_DEPRECATED_5);
+		}
+
+		for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+			ob->flag &= ~(
+			        OB_FLAG_DEPRECATED_11 |
+			        OB_FLAG_DEPRECATED_12);
+			ob->transflag &= ~(
+			        OB_TRANSFLAG_DEPRECATED_0 |
+			        OB_TRANSFLAG_DEPRECATED_1);
+			ob->shapeflag &= ~OB_SHAPE_FLAG_DEPRECATED_1;
+		}
+
+		for (Mesh *me = bmain->mesh.first; me; me = me->id.next) {
+			me->flag &= ~(
+			        ME_FLAG_DEPRECATED_0 |
+			        ME_FLAG_DEPRECATED_1 |
+			        ME_FLAG_DEPRECATED_3 |
+			        ME_FLAG_DEPRECATED_4 |
+			        ME_FLAG_DEPRECATED_6 |
+			        ME_FLAG_DEPRECATED_7 |
+			        ME_FLAG_DEPRECATED_8);
+		}
+
+		for (Material *mat = bmain->mat.first; mat; mat = mat->id.next) {
+			mat->blend_flag &= ~(
+			        MA_BL_FLAG_DEPRECATED_2);
 		}
 	}
 
 	{
 		/* Versioning code until next subversion bump goes here. */
+
+		if (!DNA_struct_elem_find(fd->filesdna, "ToolSettings", "char", "snap_force_increment_flag")) {
+			for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
+				scene->toolsettings->snap_force_increment_flag =
+					SCE_SNAP_FORCE_INCREMENT_ROTATE | SCE_SNAP_FORCE_INCREMENT_SCALE;
+			}
+		}
 	}
 }

@@ -706,7 +706,7 @@ static bool mesh_undosys_step_encode(struct bContext *C, UndoStep *us_p)
 
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	uint objects_len = 0;
-	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, CTX_wm_view3d(C), &objects_len);
 
 	us->elems = MEM_callocN(sizeof(*us->elems) * objects_len, __func__);
 	us->elems_len = objects_len;
@@ -744,7 +744,7 @@ static void mesh_undosys_step_decode(struct bContext *C, UndoStep *us_p, int UNU
 		}
 		BMEditMesh *em = me->edit_btmesh;
 		undomesh_to_editmesh(&elem->data, em, obedit->data);
-		DEG_id_tag_update(&obedit->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&obedit->id, ID_RECALC_GEOMETRY);
 	}
 
 	/* The first element is always active */

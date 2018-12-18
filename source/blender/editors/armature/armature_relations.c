@@ -166,7 +166,7 @@ static void joined_armature_fix_animdata_cb(ID *id, FCurve *fcu, void *user_data
 		/* Fix driver references to invalid ID's */
 		for (dvar = driver->variables.first; dvar; dvar = dvar->next) {
 			/* only change the used targets, since the others will need fixing manually anyway */
-			DRIVER_TARGETS_USED_LOOPER(dvar)
+			DRIVER_TARGETS_USED_LOOPER_BEGIN(dvar)
 			{
 				/* change the ID's used... */
 				if (dtar->id == src_id) {
@@ -199,7 +199,7 @@ static void joined_armature_fix_animdata_cb(ID *id, FCurve *fcu, void *user_data
 					}
 				}
 			}
-			DRIVER_TARGETS_LOOPER_END
+			DRIVER_TARGETS_LOOPER_END;
 		}
 	}
 }
@@ -403,7 +403,7 @@ int join_armature_exec(bContext *C, wmOperator *op)
 	ED_armature_from_edit(bmain, arm);
 	ED_armature_edit_free(arm);
 
-	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+	DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 
 	return OPERATOR_FINISHED;
@@ -587,7 +587,7 @@ static int separate_armature_exec(bContext *C, wmOperator *op)
 	WM_cursor_wait(1);
 
 	uint bases_len = 0;
-	Base **bases = BKE_view_layer_array_from_bases_in_edit_mode_unique_data(view_layer, &bases_len);
+	Base **bases = BKE_view_layer_array_from_bases_in_edit_mode_unique_data(view_layer, CTX_wm_view3d(C), &bases_len);
 
 	CTX_DATA_BEGIN(C, Base *, base, visible_bases)
 	{
@@ -638,8 +638,8 @@ static int separate_armature_exec(bContext *C, wmOperator *op)
 		/* 4) fix links before depsgraph flushes */ // err... or after?
 		separated_armature_fix_links(bmain, oldob, newob);
 
-		DEG_id_tag_update(&oldob->id, OB_RECALC_DATA);  /* this is the original one */
-		DEG_id_tag_update(&newob->id, OB_RECALC_DATA);  /* this is the separated one */
+		DEG_id_tag_update(&oldob->id, ID_RECALC_GEOMETRY);  /* this is the original one */
+		DEG_id_tag_update(&newob->id, ID_RECALC_GEOMETRY);  /* this is the separated one */
 
 
 		/* 5) restore original conditions */
@@ -897,7 +897,7 @@ static int armature_parent_clear_exec(bContext *C, wmOperator *op)
 	CTX_DATA_END;
 
 	uint objects_len = 0;
-	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, CTX_wm_view3d(C), &objects_len);
 	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 		Object *ob = objects[ob_index];
 		bArmature *arm = ob->data;

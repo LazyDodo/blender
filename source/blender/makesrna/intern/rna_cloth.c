@@ -55,7 +55,7 @@ static void rna_cloth_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerR
 {
 	Object *ob = (Object *)ptr->id.data;
 
-	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+	DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 	WM_main_add_notifier(NC_OBJECT | ND_MODIFIER, ob);
 }
 
@@ -73,7 +73,7 @@ static void rna_cloth_pinning_changed(Main *UNUSED(bmain), Scene *UNUSED(scene),
 
 	cloth_free_modifier(clmd);
 
-	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+	DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 	WM_main_add_notifier(NC_OBJECT | ND_MODIFIER, ob);
 }
 
@@ -825,9 +825,10 @@ static void rna_def_cloth_collision_settings(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Self Friction", "Friction with self contact");
 	RNA_def_property_update(prop, 0, "rna_cloth_update");
 
-	prop = RNA_def_property(srna, "group", PROP_POINTER, PROP_NONE);
+	prop = RNA_def_property(srna, "collection", PROP_POINTER, PROP_NONE);
+	RNA_def_property_pointer_sdna(prop, NULL, "group");
 	RNA_def_property_flag(prop, PROP_EDITABLE);
-	RNA_def_property_ui_text(prop, "Collision Group", "Limit colliders to this Group");
+	RNA_def_property_ui_text(prop, "Collision Collection", "Limit colliders to this Collection");
 	RNA_def_property_update(prop, 0, "rna_cloth_dependency_update");
 
 	prop = RNA_def_property(srna, "vertex_group_self_collisions", PROP_STRING, PROP_NONE);

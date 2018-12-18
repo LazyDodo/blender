@@ -60,6 +60,8 @@
 #include "BKE_subsurf.h"
 #include "BKE_mesh_runtime.h"
 
+#include "DEG_depsgraph_query.h"
+
 #include "MEM_guardedalloc.h"
 
 #include "BLI_strict_flags.h"
@@ -91,8 +93,9 @@ typedef struct ShrinkwrapCalcData {
 	struct SpaceTransform local2target;    //transform to move between local and target space
 	struct ShrinkwrapTreeData *tree; // mesh BVH tree data
 
-	float keepDist;                 //Distance to keep above target surface (units are in local space)
+	struct Object *aux_target;
 
+	float keepDist;                 //Distance to keep above target surface (units are in local space)
 } ShrinkwrapCalcData;
 
 typedef struct ShrinkwrapCalcCBData {
@@ -141,6 +144,7 @@ bool BKE_shrinkwrap_init_tree(ShrinkwrapTreeData *data, Mesh *mesh, int shrinkTy
 		}
 
 		if (force_normals || BKE_shrinkwrap_needs_normals(shrinkType, shrinkMode)) {
+			data->pnors = CustomData_get_layer(&mesh->pdata, CD_NORMAL);
 			if ((mesh->flag & ME_AUTOSMOOTH) != 0) {
 				data->clnors = CustomData_get_layer(&mesh->ldata, CD_NORMAL);
 			}
@@ -527,24 +531,17 @@ static void shrinkwrap_calc_normal_projection_cb_ex(
 		return;
 	}
 
-	if (calc->vert) {
+	if (calc->vert != NULL && calc->smd->projAxis == MOD_SHRINKWRAP_PROJECT_OVER_NORMAL) {
 		/* calc->vert contains verts from evaluated mesh.  */
-		/* this coordinated are deformed by vertexCos only for normal projection (to get correct normals) */
-		/* for other cases calc->varts contains undeformed coordinates and vertexCos should be used */
-		if (calc->smd->projAxis == MOD_SHRINKWRAP_PROJECT_OVER_NORMAL) {
-			copy_v3_v3(tmp_co, calc->vert[i].co);
-			normal_short_to_float_v3(tmp_no, calc->vert[i].no);
-		}
-		else {
-			copy_v3_v3(tmp_co, co);
-			copy_v3_v3(tmp_no, proj_axis);
-		}
+		/* These coordinates are deformed by vertexCos only for normal projection (to get correct normals) */
+		/* for other cases calc->verts contains undeformed coordinates and vertexCos should be used */
+		copy_v3_v3(tmp_co, calc->vert[i].co);
+		normal_short_to_float_v3(tmp_no, calc->vert[i].no);
 	}
 	else {
 		copy_v3_v3(tmp_co, co);
 		copy_v3_v3(tmp_no, proj_axis);
 	}
-
 
 	hit->index = -1;
 	hit->dist = BVH_RAYCAST_DIST_MAX; /* TODO: we should use FLT_MAX here, but sweepsphere code isn't prepared for that */
@@ -665,11 +662,11 @@ static void shrinkwrap_calc_normal_projection(ShrinkwrapCalcData *calc)
 		}
 	}
 
-	if (calc->smd->auxTarget) {
-		auxMesh = BKE_modifier_get_evaluated_mesh_from_evaluated_object(calc->smd->auxTarget, &auxMesh_free);
+	if (calc->aux_target) {
+		auxMesh = BKE_modifier_get_evaluated_mesh_from_evaluated_object(calc->aux_target, &auxMesh_free);
 		if (!auxMesh)
 			return;
-		BLI_SPACE_TRANSFORM_SETUP(&local2aux, calc->ob, calc->smd->auxTarget);
+		BLI_SPACE_TRANSFORM_SETUP(&local2aux, calc->ob, calc->aux_target);
 	}
 
 	if (BKE_shrinkwrap_init_tree(&aux_tree_stack, auxMesh, calc->smd->shrinkType, calc->smd->shrinkMode, false)) {
@@ -1168,7 +1165,11 @@ void BKE_shrinkwrap_compute_smooth_normal(
 			normalize_v3(r_no);
 		}
 	}
-	/* Use the looptri normal if flat. */
+	/* Use the polygon normal if flat. */
+	else if (tree->pnors != NULL) {
+		copy_v3_v3(r_no, tree->pnors[tri->poly]);
+	}
+	/* Finally fallback to the looptri normal. */
 	else {
 		copy_v3_v3(r_no, hit_no);
 	}
@@ -1280,8 +1281,10 @@ static void shrinkwrap_calc_nearest_surface_point(ShrinkwrapCalcData *calc)
 }
 
 /* Main shrinkwrap function */
-void shrinkwrapModifier_deform(ShrinkwrapModifierData *smd, struct Scene *scene, Object *ob, Mesh *mesh,
-                               float (*vertexCos)[3], int numVerts)
+void shrinkwrapModifier_deform(
+        ShrinkwrapModifierData *smd, const ModifierEvalContext *ctx,
+        struct Scene *scene, Object *ob, Mesh *mesh,
+        MDeformVert *dvert, const int defgrp_index, float (*vertexCos)[3], int numVerts)
 {
 
 	DerivedMesh *ss_mesh    = NULL;
@@ -1298,38 +1301,27 @@ void shrinkwrapModifier_deform(ShrinkwrapModifierData *smd, struct Scene *scene,
 	calc.ob = ob;
 	calc.numVerts = numVerts;
 	calc.vertexCos = vertexCos;
+	calc.dvert = dvert;
+	calc.vgroup = defgrp_index;
 	calc.invert_vgroup = (smd->shrinkOpts & MOD_SHRINKWRAP_INVERT_VGROUP) != 0;
 
-	/* DeformVertex */
-	calc.vgroup = defgroup_name_index(calc.ob, calc.smd->vgroup_name);
-	if (mesh) {
-		calc.dvert = mesh->dvert;
-	}
-	else if (calc.ob->type == OB_LATTICE) {
-		calc.dvert = BKE_lattice_deform_verts_get(calc.ob);
-	}
-
-
-	if (smd->target) {
-		calc.target = BKE_modifier_get_evaluated_mesh_from_evaluated_object(smd->target, &target_free);
+	if (smd->target != NULL) {
+		Object *ob_target = DEG_get_evaluated_object(ctx->depsgraph, smd->target);
+		calc.target = BKE_modifier_get_evaluated_mesh_from_evaluated_object(ob_target, &target_free);
 
 		/* TODO there might be several "bugs" on non-uniform scales matrixs
 		 * because it will no longer be nearest surface, not sphere projection
 		 * because space has been deformed */
-		BLI_SPACE_TRANSFORM_SETUP(&calc.local2target, ob, smd->target);
+		BLI_SPACE_TRANSFORM_SETUP(&calc.local2target, ob, ob_target);
 
 		/* TODO: smd->keepDist is in global units.. must change to local */
 		calc.keepDist = smd->keepDist;
 	}
-
-
-
-	calc.vgroup = defgroup_name_index(calc.ob, smd->vgroup_name);
+	calc.aux_target = DEG_get_evaluated_object(ctx->depsgraph, smd->auxTarget);
 
 	if (mesh != NULL && smd->shrinkType == MOD_SHRINKWRAP_PROJECT) {
 		/* Setup arrays to get vertexs positions, normals and deform weights */
-		calc.vert   = mesh->mvert;
-		calc.dvert  = mesh->dvert;
+		calc.vert = mesh->mvert;
 
 		/* Using vertexs positions/normals as if a subsurface was applied */
 		if (smd->subsurfLevels) {

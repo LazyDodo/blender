@@ -99,7 +99,7 @@ static int outliner_highlight_update(bContext *C, wmOperator *UNUSED(op), const 
 	/* Drag and drop does own highlighting. */
 	wmWindowManager *wm = CTX_wm_manager(C);
 	if (wm->drags.first) {
-		return (OPERATOR_CANCELLED | OPERATOR_PASS_THROUGH);
+		return OPERATOR_PASS_THROUGH;
 	}
 
 	ARegion *ar = CTX_wm_region(C);
@@ -121,7 +121,7 @@ static int outliner_highlight_update(bContext *C, wmOperator *UNUSED(op), const 
 		ED_region_tag_redraw_no_rebuild(ar);
 	}
 
-	return (OPERATOR_FINISHED | OPERATOR_PASS_THROUGH);
+	return OPERATOR_PASS_THROUGH;
 }
 
 void OUTLINER_OT_highlight_update(wmOperatorType *ot)
@@ -921,7 +921,7 @@ static int outliner_select_all_exec(bContext *C, wmOperator *op)
 			break;
 	}
 
-	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+	DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 	ED_region_tag_redraw_no_rebuild(ar);
 

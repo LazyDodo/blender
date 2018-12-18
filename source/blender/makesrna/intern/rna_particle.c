@@ -589,16 +589,16 @@ static void particle_recalc(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRN
 
 		psys->recalc = flag;
 
-		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 	}
 	else
-		DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA | flag);
+		DEG_id_tag_update(ptr->id.data, ID_RECALC_GEOMETRY | flag);
 
 	WM_main_add_notifier(NC_OBJECT | ND_PARTICLE | NA_EDITED, NULL);
 }
 static void rna_Particle_redo(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
-	particle_recalc(bmain, scene, ptr, PSYS_RECALC_REDO);
+	particle_recalc(bmain, scene, ptr, ID_RECALC_PSYS_REDO);
 }
 
 static void rna_Particle_redo_dependency(Main *bmain, Scene *scene, PointerRNA *ptr)
@@ -612,12 +612,12 @@ static void rna_Particle_redo_count(Main *bmain, Scene *scene, PointerRNA *ptr)
 	ParticleSettings *part = (ParticleSettings *)ptr->data;
 	DEG_relations_tag_update(bmain);
 	psys_check_group_weights(part);
-	particle_recalc(bmain, scene, ptr, PSYS_RECALC_REDO);
+	particle_recalc(bmain, scene, ptr, ID_RECALC_PSYS_REDO);
 }
 
 static void rna_Particle_reset(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
-	particle_recalc(bmain, scene, ptr, PSYS_RECALC_RESET);
+	particle_recalc(bmain, scene, ptr, ID_RECALC_PSYS_RESET);
 }
 
 static void rna_Particle_reset_dependency(Main *bmain, Scene *scene, PointerRNA *ptr)
@@ -635,8 +635,8 @@ static void rna_Particle_change_type(Main *bmain, Scene *UNUSED(scene), PointerR
 		for (ParticleSystem *psys = ob->particlesystem.first; psys; psys = psys->next) {
 			if (psys->part == part) {
 				psys_changed_type(ob, psys);
-				psys->recalc |= PSYS_RECALC_RESET;
-				DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+				psys->recalc |= ID_RECALC_PSYS_RESET;
+				DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 			}
 		}
 	}
@@ -647,7 +647,7 @@ static void rna_Particle_change_type(Main *bmain, Scene *UNUSED(scene), PointerR
 
 static void rna_Particle_change_physics_type(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
-	particle_recalc(bmain, scene, ptr, PSYS_RECALC_RESET | PSYS_RECALC_PHYS);
+	particle_recalc(bmain, scene, ptr, ID_RECALC_PSYS_RESET | ID_RECALC_PSYS_PHYS);
 
 	ParticleSettings *part = (ParticleSettings *)ptr->data;
 
@@ -674,14 +674,14 @@ static void rna_Particle_change_physics_type(Main *bmain, Scene *scene, PointerR
 
 static void rna_Particle_redo_child(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
-	particle_recalc(bmain, scene, ptr, PSYS_RECALC_CHILD);
+	particle_recalc(bmain, scene, ptr, ID_RECALC_PSYS_CHILD);
 }
 
 static void rna_Particle_cloth_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
 	Object *ob = (Object *)ptr->id.data;
 
-	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+	DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 	WM_main_add_notifier(NC_OBJECT | ND_MODIFIER, ob);
 }
 
@@ -724,9 +724,9 @@ static void rna_Particle_target_reset(Main *bmain, Scene *UNUSED(scene), Pointer
 				pt->flag &= ~PTARGET_VALID;
 		}
 
-		psys->recalc = PSYS_RECALC_RESET;
+		psys->recalc = ID_RECALC_PSYS_RESET;
 
-		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 		DEG_relations_tag_update(bmain);
 	}
 
@@ -740,9 +740,9 @@ static void rna_Particle_target_redo(Main *UNUSED(bmain), Scene *UNUSED(scene), 
 		ParticleTarget *pt = (ParticleTarget *)ptr->data;
 		ParticleSystem *psys = rna_particle_system_for_target(ob, pt);
 
-		psys->recalc = PSYS_RECALC_REDO;
+		psys->recalc = ID_RECALC_PSYS_REDO;
 
-		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 		WM_main_add_notifier(NC_OBJECT | ND_PARTICLE | NA_EDITED, NULL);
 	}
 }
@@ -763,7 +763,7 @@ static void rna_Particle_hair_dynamics_update(Main *bmain, Scene *scene, Pointer
 		WM_main_add_notifier(NC_OBJECT | ND_PARTICLE | NA_EDITED, NULL);
 	}
 
-	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+	DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 	DEG_relations_tag_update(bmain);
 }
 
@@ -1200,7 +1200,7 @@ static PointerRNA rna_Particle_field1_get(PointerRNA *ptr)
 
 	/* weak */
 	if (!part->pd)
-		part->pd = object_add_collision_fields(0);
+		part->pd = BKE_partdeflect_new(0);
 
 	return rna_pointer_inherit_refine(ptr, &RNA_FieldSettings, part->pd);
 }
@@ -1211,7 +1211,7 @@ static PointerRNA rna_Particle_field2_get(PointerRNA *ptr)
 
 	/* weak */
 	if (!part->pd2)
-		part->pd2 = object_add_collision_fields(0);
+		part->pd2 = BKE_partdeflect_new(0);
 
 	return rna_pointer_inherit_refine(ptr, &RNA_FieldSettings, part->pd2);
 }
@@ -1562,7 +1562,7 @@ static void rna_def_particle_dupliweight(BlenderRNA *brna)
 	PropertyRNA *prop;
 
 	srna = RNA_def_struct(brna, "ParticleDupliWeight", NULL);
-	RNA_def_struct_ui_text(srna, "Particle Dupliobject Weight", "Weight of a particle dupliobject in a group");
+	RNA_def_struct_ui_text(srna, "Particle Dupliobject Weight", "Weight of a particle dupliobject in a collection");
 	RNA_def_struct_sdna(srna, "ParticleDupliWeight");
 
 	prop = RNA_def_property(srna, "name", PROP_STRING, PROP_NONE);
@@ -2324,29 +2324,29 @@ static void rna_def_particle_settings(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Number", "Show particle number");
 	RNA_def_property_update(prop, 0, "rna_Particle_redo");
 
-	prop = RNA_def_property(srna, "use_group_pick_random", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "use_collection_pick_random", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "draw", PART_DRAW_RAND_GR);
-	RNA_def_property_ui_text(prop, "Pick Random", "Pick objects from group randomly");
+	RNA_def_property_ui_text(prop, "Pick Random", "Pick objects from collection randomly");
 	RNA_def_property_update(prop, 0, "rna_Particle_redo");
 
-	prop = RNA_def_property(srna, "use_group_count", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "use_collection_count", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "draw", PART_DRAW_COUNT_GR);
 	RNA_def_property_ui_text(prop, "Use Count", "Use object multiple times in the same collection");
 	RNA_def_property_update(prop, 0, "rna_Particle_redo_count");
 
-	prop = RNA_def_property(srna, "use_global_dupli", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "use_global_instance", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "draw", PART_DRAW_GLOBAL_OB);
 	RNA_def_property_ui_text(prop, "Global", "Use object's global coordinates for duplication");
 	RNA_def_property_update(prop, 0, "rna_Particle_redo");
 
-	prop = RNA_def_property(srna, "use_rotation_dupli", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "use_rotation_instance", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "draw", PART_DRAW_ROTATE_OB);
 	RNA_def_property_ui_text(prop, "Rotation",
 	                         "Use object's rotation for duplication (global x-axis is aligned "
 	                         "particle rotation axis)");
 	RNA_def_property_update(prop, 0, "rna_Particle_redo");
 
-	prop = RNA_def_property(srna, "use_scale_dupli", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "use_scale_instance", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "draw", PART_DRAW_NO_SCALE_OB);
 	RNA_def_property_ui_text(prop, "Scale", "Use object's scale for duplication");
 	RNA_def_property_update(prop, 0, "rna_Particle_redo");
@@ -2361,9 +2361,9 @@ static void rna_def_particle_settings(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Speed", "Multiply line length by particle speed");
 	RNA_def_property_update(prop, 0, "rna_Particle_redo");
 
-	prop = RNA_def_property(srna, "use_whole_group", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "use_whole_collection", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "draw", PART_DRAW_WHOLE_GR);
-	RNA_def_property_ui_text(prop, "Whole Group", "Use whole group at once");
+	RNA_def_property_ui_text(prop, "Whole Collection", "Use whole collection at once");
 	RNA_def_property_update(prop, 0, "rna_Particle_redo");
 
 	prop = RNA_def_property(srna, "use_strand_primitive", PROP_BOOLEAN, PROP_NONE);
@@ -2780,8 +2780,9 @@ static void rna_def_particle_settings(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Random Size", "Give the particle size a random variation");
 	RNA_def_property_update(prop, 0, "rna_Particle_reset");
 
-	prop = RNA_def_property(srna, "collision_group", PROP_POINTER, PROP_NONE);
+	prop = RNA_def_property(srna, "collision_collection", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "Collection");
+	RNA_def_property_pointer_sdna(prop, NULL, "collision_group");
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Collision Collection", "Limit colliders to this collection");
 	RNA_def_property_update(prop, 0, "rna_Particle_reset_dependency");
@@ -3092,35 +3093,35 @@ static void rna_def_particle_settings(BlenderRNA *brna)
 	                               "(must use same subsurf level for viewport and render for correct results)");
 	RNA_def_property_update(prop, 0, "rna_Particle_change_type");
 
-	/* draw objects & groups */
-	prop = RNA_def_property(srna, "dupli_group", PROP_POINTER, PROP_NONE);
+	/* draw objects & collections */
+	prop = RNA_def_property(srna, "instance_collection", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "dup_group");
 	RNA_def_property_struct_type(prop, "Collection");
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Dupli Collection", "Show Objects in this collection in place of particles");
 	RNA_def_property_update(prop, 0, "rna_Particle_redo_count");
 
-	prop = RNA_def_property(srna, "dupli_weights", PROP_COLLECTION, PROP_NONE);
+	prop = RNA_def_property(srna, "instance_weights", PROP_COLLECTION, PROP_NONE);
 	RNA_def_property_collection_sdna(prop, NULL, "dupliweights", NULL);
 	RNA_def_property_struct_type(prop, "ParticleDupliWeight");
-	RNA_def_property_ui_text(prop, "Dupli Group Weights", "Weights for all of the objects in the dupli group");
+	RNA_def_property_ui_text(prop, "Dupli Collection Weights", "Weights for all of the objects in the dupli collection");
 
-	prop = RNA_def_property(srna, "active_dupliweight", PROP_POINTER, PROP_NONE);
+	prop = RNA_def_property(srna, "active_instanceweight", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "ParticleDupliWeight");
 	RNA_def_property_pointer_funcs(prop, "rna_ParticleDupliWeight_active_get", NULL, NULL, NULL);
 	RNA_def_property_ui_text(prop, "Active Dupli Object", "");
 
-	prop = RNA_def_property(srna, "active_dupliweight_index", PROP_INT, PROP_UNSIGNED);
+	prop = RNA_def_property(srna, "active_instanceweight_index", PROP_INT, PROP_UNSIGNED);
 	RNA_def_property_int_funcs(prop, "rna_ParticleDupliWeight_active_index_get",
 	                           "rna_ParticleDupliWeight_active_index_set",
 	                           "rna_ParticleDupliWeight_active_index_range");
 	RNA_def_property_ui_text(prop, "Active Dupli Object Index", "");
 
-	prop = RNA_def_property(srna, "dupli_object", PROP_POINTER, PROP_NONE);
+	prop = RNA_def_property(srna, "instance_object", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "dup_ob");
 	RNA_def_property_struct_type(prop, "Object");
 	RNA_def_property_flag(prop, PROP_EDITABLE);
-	RNA_def_property_ui_text(prop, "Dupli Object", "Show this Object in place of particles");
+	RNA_def_property_ui_text(prop, "Instance Object", "Show this Object in place of particles");
 	RNA_def_property_update(prop, 0, "rna_Particle_redo_dependency");
 
 	prop = RNA_def_property(srna, "billboard_object", PROP_POINTER, PROP_NONE);

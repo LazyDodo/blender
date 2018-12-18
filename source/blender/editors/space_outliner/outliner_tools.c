@@ -236,14 +236,14 @@ static void unlink_collection_cb(
 		if (GS(tsep->id->name) == ID_OB) {
 			Object *ob = (Object *)tsep->id;
 			ob->dup_group = NULL;
-			DEG_id_tag_update(&ob->id, OB_RECALC_OB);
+			DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM);
 			DEG_relations_tag_update(bmain);
 		}
 		else if (GS(tsep->id->name) == ID_GR) {
 			Collection *parent = (Collection *)tsep->id;
 			id_fake_user_set(&collection->id);
 			BKE_collection_child_remove(bmain, parent, collection);
-			DEG_id_tag_update(&parent->id, DEG_TAG_COPY_ON_WRITE);
+			DEG_id_tag_update(&parent->id, ID_RECALC_COPY_ON_WRITE);
 			DEG_relations_tag_update(bmain);
 		}
 		else if (GS(tsep->id->name) == ID_SCE) {
@@ -251,7 +251,7 @@ static void unlink_collection_cb(
 			Collection *parent = BKE_collection_master(scene);
 			id_fake_user_set(&collection->id);
 			BKE_collection_child_remove(bmain, parent, collection);
-			DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+			DEG_id_tag_update(&scene->id, ID_RECALC_COPY_ON_WRITE);
 			DEG_relations_tag_update(bmain);
 		}
 	}
@@ -268,14 +268,14 @@ static void unlink_object_cb(
 		if (GS(tsep->id->name) == ID_GR) {
 			Collection *parent = (Collection *)tsep->id;
 			BKE_collection_object_remove(bmain, parent, ob, true);
-			DEG_id_tag_update(&parent->id, DEG_TAG_COPY_ON_WRITE);
+			DEG_id_tag_update(&parent->id, ID_RECALC_COPY_ON_WRITE);
 			DEG_relations_tag_update(bmain);
 		}
 		else if (GS(tsep->id->name) == ID_SCE) {
 			Scene *scene = (Scene *)tsep->id;
 			Collection *parent = BKE_collection_master(scene);
 			BKE_collection_object_remove(bmain, parent, ob, true);
-			DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+			DEG_id_tag_update(&scene->id, ID_RECALC_COPY_ON_WRITE);
 			DEG_relations_tag_update(bmain);
 		}
 	}
@@ -802,12 +802,12 @@ static void modifier_cb(int event, TreeElement *te, TreeStoreElem *UNUSED(tselem
 
 	if (event == OL_MODIFIER_OP_TOGVIS) {
 		md->mode ^= eModifierMode_Realtime;
-		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 		WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, ob);
 	}
 	else if (event == OL_MODIFIER_OP_TOGREN) {
 		md->mode ^= eModifierMode_Render;
-		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 		WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, ob);
 	}
 	else if (event == OL_MODIFIER_OP_DELETE) {
@@ -900,7 +900,7 @@ static void object_delete_hierarchy_cb(
 #endif
 	}
 
-	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+	DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 }
 
@@ -959,7 +959,7 @@ static int outliner_object_operation_exec(bContext *C, wmOperator *op)
 		}
 
 		str = "Select Objects";
-		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 	}
 	else if (event == OL_OP_SELECT_HIERARCHY) {
@@ -969,13 +969,13 @@ static int outliner_object_operation_exec(bContext *C, wmOperator *op)
 			WM_window_set_active_scene(bmain, C, win, sce);
 		}
 		str = "Select Object Hierarchy";
-		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 	}
 	else if (event == OL_OP_DESELECT) {
 		outliner_do_object_operation(C, op->reports, scene, soops, &soops->tree, object_deselect_cb);
 		str = "Deselect Objects";
-		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 	}
 	else if (event == OL_OP_DELETE) {
@@ -990,7 +990,7 @@ static int outliner_object_operation_exec(bContext *C, wmOperator *op)
 
 		DEG_relations_tag_update(bmain);
 		str = "Delete Objects";
-		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 	}
 	else if (event == OL_OP_DELETE_HIERARCHY) {
@@ -1001,7 +1001,7 @@ static int outliner_object_operation_exec(bContext *C, wmOperator *op)
 
 		DEG_relations_tag_update(bmain);
 		str = "Delete Object Hierarchy";
-		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 	}
 	else if (event == OL_OP_REMAP) {

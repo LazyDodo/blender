@@ -969,7 +969,7 @@ static void recalcData_objects(TransInfo *t)
 
 			/* old optimize trick... this enforces to bypass the depgraph */
 			if (!(arm->flag & ARM_DELAYDEFORM)) {
-				DEG_id_tag_update(&ob->id, OB_RECALC_DATA);  /* sets recalc flags */
+				DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);  /* sets recalc flags */
 				/* transformation of pose may affect IK tree, make sure it is rebuilt */
 				BIK_clear_data(ob->pose);
 			}
@@ -1028,10 +1028,10 @@ static void recalcData_objects(TransInfo *t)
 				/* sets recalc flags fully, instead of flushing existing ones
 				 * otherwise proxies don't function correctly
 				 */
-				DEG_id_tag_update(&ob->id, OB_RECALC_OB);
+				DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM);
 
 				if (t->flag & T_TEXTURE)
-					DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+					DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 			}
 		}
 
@@ -1044,7 +1044,7 @@ static void recalcData_objects(TransInfo *t)
 
 static void recalcData_cursor(TransInfo *t)
 {
-	DEG_id_tag_update(&t->scene->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&t->scene->id, ID_RECALC_COPY_ON_WRITE);
 }
 
 /* helper for recalcData() - for sequencer transforms */
@@ -1210,7 +1210,7 @@ void initTransDataContainers_FromObjectData(TransInfo *t, Object *obact, Object 
 	const eObjectMode object_mode = obact ? obact->mode : OB_MODE_OBJECT;
 	const short object_type = obact ? obact->type : -1;
 
-	if ((object_mode & OB_MODE_EDIT) ||
+	if ((object_mode & OB_MODE_EDIT) || (t->options & CTX_GPENCIL_STROKES) ||
 	    ((object_mode & OB_MODE_POSE) && (object_type == OB_ARMATURE)))
 	{
 		if (t->data_container) {
@@ -1220,9 +1220,12 @@ void initTransDataContainers_FromObjectData(TransInfo *t, Object *obact, Object 
 		bool free_objects = false;
 		if (objects == NULL) {
 			objects = BKE_view_layer_array_from_objects_in_mode(
-			        t->view_layer, &objects_len, {
+			        t->view_layer,
+			        (t->spacetype == SPACE_VIEW3D) ? t->view : NULL,
+			        &objects_len, {
 			            .object_mode = object_mode,
-			            .no_dup_data = true});
+			            .no_dup_data = true,
+			        });
 			free_objects = true;
 		}
 
@@ -1240,6 +1243,9 @@ void initTransDataContainers_FromObjectData(TransInfo *t, Object *obact, Object 
 			}
 			else if (object_mode & OB_MODE_POSE) {
 				tc->poseobj = objects[i];
+				tc->use_local_mat = true;
+			}
+			else if (t->options & CTX_GPENCIL_STROKES) {
 				tc->use_local_mat = true;
 			}
 
@@ -1375,7 +1381,7 @@ void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 		}
 
 		if (prop_id && (prop = RNA_struct_find_property(op->ptr, prop_id))) {
-			SET_FLAG_FROM_TEST(t->flag, RNA_property_boolean_get(op->ptr, prop), T_ALT_TRANSFORM);
+			SET_FLAG_FROM_TEST(t->flag, !RNA_property_boolean_get(op->ptr, prop), T_ALT_TRANSFORM);
 		}
 	}
 
@@ -1402,9 +1408,21 @@ void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 			t->around = V3D_AROUND_CURSOR;
 		}
 
-		t->current_orientation = t->scene->orientation_type;
-		t->custom_orientation = BKE_scene_transform_orientation_find(
+		t->orientation.user = t->scene->orientation_type;
+		t->orientation.custom = BKE_scene_transform_orientation_find(
 		        t->scene, t->scene->orientation_index_custom);
+
+		t->orientation.index = 0;
+		ARRAY_SET_ITEMS(
+		        t->orientation.types,
+		        NULL,
+		        &t->orientation.user);
+
+		/* Make second orientation local if both are global. */
+		if (t->orientation.user == V3D_MANIP_GLOBAL) {
+			t->orientation.user_alt = V3D_MANIP_LOCAL;
+			t->orientation.types[1] = &t->orientation.user_alt;
+		}
 
 		/* exceptional case */
 		if (t->around == V3D_AROUND_LOCAL_ORIGINS) {
@@ -1496,8 +1514,8 @@ void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 	           RNA_property_is_set(op->ptr, prop)))
 	{
 		RNA_property_float_get_array(op->ptr, prop, &t->spacemtx[0][0]);
-		t->current_orientation = V3D_MANIP_CUSTOM_MATRIX;
-		t->custom_orientation = 0;
+		t->orientation.user = V3D_MANIP_CUSTOM_MATRIX;
+		t->orientation.custom = 0;
 	}
 	else if (op && ((prop = RNA_struct_find_property(op->ptr, "constraint_orientation")) &&
 	                RNA_property_is_set(op->ptr, prop)))
@@ -1516,8 +1534,8 @@ void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 			}
 		}
 
-		t->current_orientation = orientation;
-		t->custom_orientation = custom_orientation;
+		t->orientation.user = orientation;
+		t->orientation.custom = custom_orientation;
 	}
 
 	if (op && ((prop = RNA_struct_find_property(op->ptr, "release_confirm")) &&
@@ -1855,9 +1873,7 @@ void calculateCenterLocal(
 
 void calculateCenterCursor(TransInfo *t, float r_center[3])
 {
-	const float *cursor;
-
-	cursor = ED_view3d_cursor3d_get(t->scene, t->view)->location;
+	const float *cursor = t->scene->cursor.location;
 	copy_v3_v3(r_center, cursor);
 
 	/* If edit or pose mode, move cursor in local space */
@@ -1867,22 +1883,6 @@ void calculateCenterCursor(TransInfo *t, float r_center[3])
 			r_center[1] = t->ar->winy / 2.0f;
 		}
 		r_center[2] = 0.0f;
-	}
-	else if (t->options & CTX_GPENCIL_STROKES) {
-		 /* move cursor in local space */
-		TransData *td = NULL;
-		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
-			float mat[3][3], imat[3][3];
-
-			td = tc->data;
-			Object *ob = td->ob;
-			if (ob) {
-				sub_v3_v3v3(r_center, r_center, ob->obmat[3]);
-				copy_m3_m4(mat, ob->obmat);
-				invert_m3_m3(imat, mat);
-				mul_m3_v3(imat, r_center);
-			}
-		}
 	}
 }
 
@@ -2003,7 +2003,7 @@ void calculateCenterBound(TransInfo *t, float r_center[3])
 }
 
 /**
- * \param select_only only get active center from data being transformed.
+ * \param select_only: only get active center from data being transformed.
  */
 bool calculateCenterActive(TransInfo *t, bool select_only, float r_center[3])
 {
@@ -2012,21 +2012,17 @@ bool calculateCenterActive(TransInfo *t, bool select_only, float r_center[3])
 	bool ok = false;
 
 	if (tc->obedit) {
-		if (ED_object_editmode_calc_active_center(tc->obedit, select_only, r_center)) {
+		if (ED_object_calc_active_center_for_editmode(tc->obedit, select_only, r_center)) {
 			mul_m4_v3(tc->obedit->obmat, r_center);
 			ok = true;
 		}
 	}
 	else if (t->flag & T_POSE) {
 		ViewLayer *view_layer = t->view_layer;
-		Object *ob = OBACT(view_layer);
-		if (ob) {
-			bPoseChannel *pchan = BKE_pose_channel_active(ob);
-			if (pchan && (!select_only || (pchan->bone->flag & BONE_SELECTED))) {
-				copy_v3_v3(r_center, pchan->pose_head);
-				mul_m4_v3(ob->obmat, r_center);
-				ok = true;
-			}
+		Object *ob = OBACT(view_layer) ;
+		if (ED_object_calc_active_center_for_posemode(ob, select_only, r_center)) {
+			mul_m4_v3(ob->obmat, r_center);
+			ok = true;
 		}
 	}
 	else if (t->options & CTX_PAINT_CURVE) {
@@ -2057,7 +2053,7 @@ static void calculateCenter_FromAround(TransInfo *t, int around, float r_center[
 		case V3D_AROUND_CENTER_BOUNDS:
 			calculateCenterBound(t, r_center);
 			break;
-		case V3D_AROUND_CENTER_MEAN:
+		case V3D_AROUND_CENTER_MEDIAN:
 			calculateCenterMedian(t, r_center);
 			break;
 		case V3D_AROUND_CURSOR:

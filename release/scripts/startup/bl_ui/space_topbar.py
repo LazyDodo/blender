@@ -110,7 +110,7 @@ class TOPBAR_HT_lower_bar(Header):
         # Object Mode Options
         # -------------------
 
-        # Example of how toolsettings can be accessed as pop-overs.
+        # Example of how tool_settings can be accessed as pop-overs.
 
         # TODO(campbell): editing options should be after active tool options
         # (obviously separated for from the users POV)
@@ -145,12 +145,12 @@ class TOPBAR_HT_lower_bar(Header):
                 # if tool.has_datablock:
                 #     layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".paint_common", category="")
                 pass
-            elif tool_mode == 'GPENCIL_PAINT':
+            elif tool_mode == 'PAINT_GPENCIL':
                 if (tool is not None) and tool.has_datablock:
                     layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_paint", category="")
-            elif tool_mode == 'GPENCIL_SCULPT':
+            elif tool_mode == 'SCULPT_GPENCIL':
                 layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_sculpt", category="")
-            elif tool_mode == 'GPENCIL_WEIGHT':
+            elif tool_mode == 'WEIGHT_GPENCIL':
                 layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".greasepencil_weight", category="")
         elif tool_space_type == 'IMAGE_EDITOR':
             if tool_mode == 'PAINT':
@@ -199,7 +199,7 @@ class TOPBAR_HT_lower_bar(Header):
                 layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".particlemode", category="")
             elif tool_mode == 'OBJECT':
                 layout.popover_group(space_type='PROPERTIES', region_type='WINDOW', context=".objectmode", category="")
-            elif tool_mode in {'GPENCIL_PAINT', 'GPENCIL_EDIT', 'GPENCIL_SCULPT', 'GPENCIL_WEIGHT'}:
+            elif tool_mode in {'PAINT_GPENCIL', 'EDIT_GPENCIL', 'SCULPT_GPENCIL', 'WEIGHT_GPENCIL'}:
                 # Grease pencil layer.
                 gpl = context.active_gpencil_layer
                 if gpl and gpl.info is not None:
@@ -296,12 +296,12 @@ class _draw_left_context_mode:
             UnifiedPaintPanel.prop_unified_strength(layout, context, brush, "strength", slider=True, text="Strength")
 
         @staticmethod
-        def GPENCIL_PAINT(context, layout, tool):
+        def PAINT_GPENCIL(context, layout, tool):
             if tool is None:
                 return
 
             is_paint = True
-            if (tool.name in {"Line", "Box", "Circle"}):
+            if (tool.name in {"Line", "Box", "Circle", "Arc", "Curve"}):
                 is_paint = False
             elif (not tool.has_datablock):
                 return
@@ -339,14 +339,15 @@ class _draw_left_context_mode:
                 row.prop(gp_settings, "use_material_pin", text="")
 
             row = layout.row(align=True)
-            ts = context.scene.tool_settings
-            settings = ts.gpencil_paint
+            tool_settings = context.scene.tool_settings
+            settings = tool_settings.gpencil_paint
             row.template_ID_preview(settings, "brush", rows=3, cols=8, hide_buttons=True)
 
             if brush.gpencil_tool == 'ERASE':
                 row = layout.row(align=True)
                 row.prop(brush, "size", text="Radius")
                 row.prop(gp_settings, "use_pressure", text="", icon='STYLUS_PRESSURE')
+                row.prop(gp_settings, "use_occlude_eraser", text="", icon='XRAY')
                 if gp_settings.eraser_mode == 'SOFT':
                     row = layout.row(align=True)
                     row.prop(gp_settings, "pen_strength", slider=True)
@@ -375,8 +376,19 @@ class _draw_left_context_mode:
 
                 draw_color_selector()
 
+                if tool.name in {"Arc", "Curve", "Line", "Box", "Circle"}:
+                    settings = context.tool_settings.gpencil_sculpt
+                    row = layout.row(align=True)
+                    row.prop(settings, "use_thickness_curve", text="", icon='CURVE_DATA')
+                    sub = row.row(align=True)
+                    sub.active = settings.use_thickness_curve
+                    sub.popover(
+                        panel="TOPBAR_PT_gpencil_primitive",
+                        text="Thickness Profile"
+                    )
+
         @staticmethod
-        def GPENCIL_SCULPT(context, layout, tool):
+        def SCULPT_GPENCIL(context, layout, tool):
             if (tool is None) or (not tool.has_datablock):
                 return
             tool_settings = context.tool_settings
@@ -384,7 +396,11 @@ class _draw_left_context_mode:
             tool = settings.sculpt_tool
             brush = settings.brush
 
-            layout.prop(brush, "size", slider=True)
+            row = layout.row(align=True)
+            row.prop(brush, "size", slider=True)
+            sub = row.row(align=True)
+            sub.enabled = tool not in {'GRAB', 'CLONE'}
+            sub.prop(brush, "use_pressure_radius", text="")
 
             row = layout.row(align=True)
             row.prop(brush, "strength", slider=True)
@@ -395,7 +411,7 @@ class _draw_left_context_mode:
                 row.prop(brush, "direction", expand=True, text="")
 
         @staticmethod
-        def GPENCIL_WEIGHT(context, layout, tool):
+        def WEIGHT_GPENCIL(context, layout, tool):
             if (tool is None) or (not tool.has_datablock):
                 return
             tool_settings = context.tool_settings
@@ -516,6 +532,16 @@ class TOPBAR_PT_gpencil_layers(Panel):
         col.template_list("GPENCIL_UL_layer", "", gpd, "layers", gpd.layers, "active_index",
                           rows=layer_rows, reverse=True)
 
+        gpl = context.active_gpencil_layer
+        if gpl:
+            srow = col.row(align=True)
+            srow.prop(gpl, "blend_mode", text="Blend")
+
+            srow = col.row(align=True)
+            srow.prop(gpl, "opacity", text="Opacity", slider=True)
+            srow.prop(gpl, "clamp_layer", text="",
+                     icon='MOD_MASK' if gpl.clamp_layer else 'LAYER_ACTIVE')
+
         col = row.column()
 
         sub = col.column(align=True)
@@ -538,10 +564,6 @@ class TOPBAR_PT_gpencil_layers(Panel):
                 sub = col.column(align=True)
                 sub.operator("gpencil.layer_isolate", icon='LOCKED', text="").affect_visibility = False
                 sub.operator("gpencil.layer_isolate", icon='HIDE_OFF', text="").affect_visibility = True
-
-        row = layout.row(align=True)
-        if gpl:
-            row.prop(gpl, "opacity", text="Opacity", slider=True)
 
 
 class TOPBAR_MT_editor_menus(Menu):
@@ -828,7 +850,7 @@ class TOPBAR_MT_edit(Menu):
 
         layout.separator()
 
-        layout.operator("screen.userpref_show", text="User Preferences...", icon='PREFERENCES')
+        layout.operator("screen.userpref_show", text="Preferences...", icon='PREFERENCES')
 
 
 class TOPBAR_MT_window(Menu):
@@ -981,7 +1003,7 @@ class TOPBAR_MT_window_specials(Menu):
 
         layout.separator()
 
-        layout.operator("screen.userpref_show", text="User Preferences...", icon='PREFERENCES')
+        layout.operator("screen.userpref_show", text="Preferences...", icon='PREFERENCES')
 
 
 class TOPBAR_MT_workspace_menu(Menu):
@@ -998,6 +1020,14 @@ class TOPBAR_MT_workspace_menu(Menu):
 
         layout.operator("workspace.reorder_to_front", text="Reorder to Front", icon='TRIA_LEFT_BAR')
         layout.operator("workspace.reorder_to_back", text="Reorder to Back", icon='TRIA_RIGHT_BAR')
+
+        layout.separator()
+
+        # For key binding discoverability.
+        props = layout.operator("screen.workspace_cycle", text="Previous Workspace")
+        props.direction = 'PREV'
+        props = layout.operator("screen.workspace_cycle", text="Next Workspace")
+        props.direction = 'NEXT'
 
 
 class TOPBAR_PT_active_tool(Panel):
@@ -1021,6 +1051,21 @@ class TOPBAR_PT_active_tool(Panel):
         ToolSelectPanelHelper.draw_active_tool_header(context, layout, show_tool_name=True)
 
 
+# Grease Pencil Object - Primitive curve
+class TOPBAR_PT_gpencil_primitive(Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'HEADER'
+    bl_label = "Primitives"
+
+    @staticmethod
+    def draw(self, context):
+        settings = context.tool_settings.gpencil_sculpt
+
+        layout = self.layout
+        # Curve
+        layout.template_curve_mapping(settings, "thickness_primitive_curve", brush=True)
+
+
 classes = (
     TOPBAR_HT_upper_bar,
     TOPBAR_HT_lower_bar,
@@ -1041,6 +1086,7 @@ classes = (
     TOPBAR_MT_help,
     TOPBAR_PT_active_tool,
     TOPBAR_PT_gpencil_layers,
+    TOPBAR_PT_gpencil_primitive,
 )
 
 if __name__ == "__main__":  # only for live edit.

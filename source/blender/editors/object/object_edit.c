@@ -184,7 +184,7 @@ static int object_hide_view_clear_exec(bContext *C, wmOperator *op)
 	}
 
 	BKE_layer_collection_sync(scene, view_layer);
-	DEG_id_tag_update(&scene->id, DEG_TAG_BASE_FLAGS_UPDATE);
+	DEG_id_tag_update(&scene->id, ID_RECALC_BASE_FLAGS);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 
 	return OPERATOR_FINISHED;
@@ -204,7 +204,7 @@ void OBJECT_OT_hide_view_clear(wmOperatorType *ot)
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
-	PropertyRNA *prop = RNA_def_boolean(ot->srna, "select", false, "Select", "");
+	PropertyRNA *prop = RNA_def_boolean(ot->srna, "select", true, "Select", "");
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE | PROP_HIDDEN);
 }
 
@@ -250,7 +250,7 @@ static int object_hide_view_set_exec(bContext *C, wmOperator *op)
 	}
 
 	BKE_layer_collection_sync(scene, view_layer);
-	DEG_id_tag_update(&scene->id, DEG_TAG_BASE_FLAGS_UPDATE);
+	DEG_id_tag_update(&scene->id, ID_RECALC_BASE_FLAGS);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 
 	return OPERATOR_FINISHED;
@@ -297,7 +297,7 @@ static int object_hide_collection_exec(bContext *C, wmOperator *op)
 
 	BKE_layer_collection_set_visible(scene, view_layer, lc, extend);
 
-	DEG_id_tag_update(&scene->id, DEG_TAG_BASE_FLAGS_UPDATE);
+	DEG_id_tag_update(&scene->id, ID_RECALC_BASE_FLAGS);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 
 	return OPERATOR_FINISHED;
@@ -305,7 +305,7 @@ static int object_hide_collection_exec(bContext *C, wmOperator *op)
 
 #define COLLECTION_INVALID_INDEX -1
 
-void ED_hide_collections_menu_draw(const bContext *C, uiLayout *layout)
+void ED_collection_hide_menu_draw(const bContext *C, uiLayout *layout)
 {
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	LayerCollection *lc_scene = view_layer->layer_collections.first;
@@ -360,7 +360,7 @@ static int object_hide_collection_invoke(bContext *C, wmOperator *op, const wmEv
 	uiPopupMenu *pup = UI_popup_menu_begin(C, title, ICON_GROUP);
 	uiLayout *layout = UI_popup_menu_layout(pup);
 
-	ED_hide_collections_menu_draw(C, layout);
+	ED_collection_hide_menu_draw(C, layout);
 
 	UI_popup_menu_end(C, pup);
 
@@ -556,7 +556,7 @@ bool ED_object_editmode_exit_ex(Main *bmain, Scene *scene, Object *obedit, int f
 		BKE_ptcache_object_reset(scene, obedit, PTCACHE_RESET_OUTDATED);
 
 		/* also flush ob recalc, doesn't take much overhead, but used for particles */
-		DEG_id_tag_update(&obedit->id, OB_RECALC_OB | OB_RECALC_DATA);
+		DEG_id_tag_update(&obedit->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 
 		WM_main_add_notifier(NC_SCENE | ND_MODE | NS_MODE_OBJECT, scene);
 
@@ -621,7 +621,7 @@ bool ED_object_editmode_enter_ex(Main *bmain, Scene *scene, Object *ob, int flag
 		ok = 1;
 		ED_armature_to_edit(ob->data);
 		/* to ensure all goes in restposition and without striding */
-		DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME); /* XXX: should this be OB_RECALC_DATA? */
+		DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION); /* XXX: should this be ID_RECALC_GEOMETRY? */
 
 		WM_main_add_notifier(NC_SCENE | ND_MODE | NS_EDITMODE_ARMATURE, scene);
 	}
@@ -657,7 +657,7 @@ bool ED_object_editmode_enter_ex(Main *bmain, Scene *scene, Object *ob, int flag
 	}
 
 	if (ok) {
-		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 	}
 	else {
 		if ((flag & EM_NO_CONTEXT) == 0) {
@@ -698,6 +698,7 @@ static int editmode_toggle_exec(bContext *C, wmOperator *op)
 	Main *bmain = CTX_data_main(C);
 	Scene *scene =  CTX_data_scene(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
+	View3D *v3d = CTX_wm_view3d(C);
 	Object *obact = OBACT(view_layer);
 
 	if (!is_mode_set) {
@@ -709,7 +710,7 @@ static int editmode_toggle_exec(bContext *C, wmOperator *op)
 	if (!is_mode_set) {
 		ED_object_editmode_enter(C, EM_WAITCURSOR);
 		if (obact->mode & mode_flag) {
-			FOREACH_SELECTED_OBJECT_BEGIN(view_layer, ob)
+			FOREACH_SELECTED_OBJECT_BEGIN(view_layer, v3d, ob)
 			{
 				if ((ob != obact) && (ob->type == obact->type)) {
 					ED_object_editmode_enter_ex(bmain, scene, ob, EM_WAITCURSOR | EM_NO_CONTEXT);
@@ -821,7 +822,8 @@ static int posemode_exec(bContext *C, wmOperator *op)
 		if (ok) {
 			struct Main *bmain = CTX_data_main(C);
 			ViewLayer *view_layer = CTX_data_view_layer(C);
-			FOREACH_SELECTED_OBJECT_BEGIN(view_layer, ob)
+			View3D *v3d = CTX_wm_view3d(C);
+			FOREACH_SELECTED_OBJECT_BEGIN(view_layer, v3d, ob)
 			{
 				if ((ob != obact) &&
 				    (ob->type == OB_ARMATURE) &&
@@ -935,7 +937,7 @@ static void copy_attr(Main *bmain, Scene *scene, ViewLayer *view_layer, View3D *
 	for (base = FIRSTBASE(view_layer); base; base = base->next) {
 		if (base != BASACT(view_layer)) {
 			if (TESTBASELIB(v3d, base)) {
-				DEG_id_tag_update(&base->object->id, OB_RECALC_DATA);
+				DEG_id_tag_update(&base->object->id, ID_RECALC_GEOMETRY);
 
 				if (event == 1) {  /* loc */
 					copy_v3_v3(base->object->loc, ob->loc);
@@ -1014,7 +1016,7 @@ static void copy_attr(Main *bmain, Scene *scene, ViewLayer *view_layer, View3D *
 
 						BLI_strncpy(cu1->family, cu->family, sizeof(cu1->family));
 
-						DEG_id_tag_update(&base->object->id, OB_RECALC_DATA);
+						DEG_id_tag_update(&base->object->id, ID_RECALC_GEOMETRY);
 					}
 				}
 				else if (event == 19) {   /* bevel settings */
@@ -1030,7 +1032,7 @@ static void copy_attr(Main *bmain, Scene *scene, ViewLayer *view_layer, View3D *
 						cu1->ext1 = cu->ext1;
 						cu1->ext2 = cu->ext2;
 
-						DEG_id_tag_update(&base->object->id, OB_RECALC_DATA);
+						DEG_id_tag_update(&base->object->id, ID_RECALC_GEOMETRY);
 					}
 				}
 				else if (event == 25) {   /* curve resolution */
@@ -1049,7 +1051,7 @@ static void copy_attr(Main *bmain, Scene *scene, ViewLayer *view_layer, View3D *
 							nu = nu->next;
 						}
 
-						DEG_id_tag_update(&base->object->id, OB_RECALC_DATA);
+						DEG_id_tag_update(&base->object->id, ID_RECALC_GEOMETRY);
 					}
 				}
 				else if (event == 21) {
@@ -1065,14 +1067,14 @@ static void copy_attr(Main *bmain, Scene *scene, ViewLayer *view_layer, View3D *
 							}
 
 							modifier_copyData(md, tmd);
-							DEG_id_tag_update(&base->object->id, OB_RECALC_DATA);
+							DEG_id_tag_update(&base->object->id, ID_RECALC_GEOMETRY);
 						}
 					}
 				}
 				else if (event == 22) {
 					/* Copy the constraint channels over */
 					BKE_constraints_copy(&base->object->constraints, &ob->constraints, true);
-					DEG_id_tag_update(&base->object->id, DEG_TAG_COPY_ON_WRITE);
+					DEG_id_tag_update(&base->object->id, ID_RECALC_COPY_ON_WRITE);
 					DEG_relations_tag_update(bmain);
 				}
 				else if (event == 23) {
@@ -1083,7 +1085,7 @@ static void copy_attr(Main *bmain, Scene *scene, ViewLayer *view_layer, View3D *
 						BLI_addhead(&base->object->modifiers, modifier_new(eModifierType_Softbody));
 					}
 
-					DEG_id_tag_update(&base->object->id, DEG_TAG_COPY_ON_WRITE);
+					DEG_id_tag_update(&base->object->id, ID_RECALC_COPY_ON_WRITE);
 					DEG_relations_tag_update(bmain);
 				}
 				else if (event == 26) {
@@ -1211,7 +1213,7 @@ static int forcefield_toggle_exec(bContext *C, wmOperator *UNUSED(op))
 	Object *ob = CTX_data_active_object(C);
 
 	if (ob->pd == NULL)
-		ob->pd = object_add_collision_fields(PFIELD_FORCE);
+		ob->pd = BKE_partdeflect_new(PFIELD_FORCE);
 	else if (ob->pd->forcefield == 0)
 		ob->pd->forcefield = PFIELD_FORCE;
 	else
@@ -1278,7 +1280,7 @@ void ED_objects_recalculate_paths(bContext *C, Scene *scene, bool current_frame_
 		CTX_DATA_BEGIN(C, Object *, ob, selected_editable_objects)
 		{
 			if (ob->mpath) {
-				DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
+				DEG_id_tag_update(&ob->id, ID_RECALC_COPY_ON_WRITE);
 			}
 		}
 		CTX_DATA_END;
@@ -1413,7 +1415,7 @@ static void object_clear_mpath(Object *ob)
 		ob->avs.path_bakeflag &= ~MOTIONPATH_BAKE_HAS_PATHS;
 
 		/* tag object for copy on write - so removed paths don't still show */
-		DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
+		DEG_id_tag_update(&ob->id, ID_RECALC_COPY_ON_WRITE);
 	}
 }
 
@@ -1496,7 +1498,7 @@ static int object_update_paths_range_exec(bContext *C, wmOperator *UNUSED(op))
 		ob->avs.path_ef = PEFRA;
 
 		/* tag for updates */
-		DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
+		DEG_id_tag_update(&ob->id, ID_RECALC_COPY_ON_WRITE);
 		WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, NULL);
 	}
 	CTX_DATA_END;
@@ -1543,7 +1545,7 @@ static int shade_smooth_exec(bContext *C, wmOperator *op)
 			BKE_mesh_smooth_flag_set(ob, !clear);
 
 			BKE_mesh_batch_cache_dirty_tag(ob->data, BKE_MESH_BATCH_DIRTY_ALL);
-			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+			DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 			WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, ob);
 
 			done = true;
@@ -1556,7 +1558,7 @@ static int shade_smooth_exec(bContext *C, wmOperator *op)
 				else nu->flag &= ~ME_SMOOTH;
 			}
 
-			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+			DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 			WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, ob);
 
 			done = true;
@@ -1629,8 +1631,8 @@ static const EnumPropertyItem *object_mode_set_itemsf(
 			    (input->value == OB_MODE_PARTICLE_EDIT && use_mode_particle_edit) ||
 			    (ELEM(input->value, OB_MODE_SCULPT, OB_MODE_VERTEX_PAINT,
 			          OB_MODE_WEIGHT_PAINT, OB_MODE_TEXTURE_PAINT) && (ob->type == OB_MESH)) ||
-			    (ELEM(input->value, OB_MODE_GPENCIL_EDIT, OB_MODE_GPENCIL_PAINT,
-			          OB_MODE_GPENCIL_SCULPT, OB_MODE_GPENCIL_WEIGHT) && (ob->type == OB_GPENCIL)) ||
+			    (ELEM(input->value, OB_MODE_EDIT_GPENCIL, OB_MODE_PAINT_GPENCIL,
+			          OB_MODE_SCULPT_GPENCIL, OB_MODE_WEIGHT_GPENCIL) && (ob->type == OB_GPENCIL)) ||
 			    (input->value == OB_MODE_OBJECT))
 			{
 				RNA_enum_item_add(&item, &totitem, input);
@@ -1688,7 +1690,7 @@ static int object_mode_set_exec(bContext *C, wmOperator *op)
 
 	/* by default the operator assume is a mesh, but if gp object change mode */
 	if ((ob != NULL) && (ob->type == OB_GPENCIL) && (mode == OB_MODE_EDIT)) {
-		mode = OB_MODE_GPENCIL_EDIT;
+		mode = OB_MODE_EDIT_GPENCIL;
 	}
 
 	if (!ob || !ED_object_mode_compat_test(ob, mode))
@@ -1780,74 +1782,18 @@ void OBJECT_OT_mode_set_or_submode(wmOperatorType *ot)
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
 }
 
-bool ED_object_editmode_calc_active_center(Object *obedit, const bool select_only, float r_center[3])
-{
-	switch (obedit->type) {
-		case OB_MESH:
-		{
-			BMEditMesh *em = BKE_editmesh_from_object(obedit);
-			BMEditSelection ese;
-
-			if (BM_select_history_active_get(em->bm, &ese)) {
-				BM_editselection_center(&ese, r_center);
-				return true;
-			}
-			break;
-		}
-		case OB_ARMATURE:
-		{
-			bArmature *arm = obedit->data;
-			EditBone *ebo = arm->act_edbone;
-
-			if (ebo && (!select_only || (ebo->flag & (BONE_SELECTED | BONE_ROOTSEL)))) {
-				copy_v3_v3(r_center, ebo->head);
-				return true;
-			}
-
-			break;
-		}
-		case OB_CURVE:
-		case OB_SURF:
-		{
-			Curve *cu = obedit->data;
-
-			if (ED_curve_active_center(cu, r_center)) {
-				return true;
-			}
-			break;
-		}
-		case OB_MBALL:
-		{
-			MetaBall *mb = obedit->data;
-			MetaElem *ml_act = mb->lastelem;
-
-			if (ml_act && (!select_only || (ml_act->flag & SELECT))) {
-				copy_v3_v3(r_center, &ml_act->x);
-				return true;
-			}
-			break;
-		}
-		case OB_LATTICE:
-		{
-			BPoint *actbp = BKE_lattice_active_point_get(obedit->data);
-
-			if (actbp) {
-				copy_v3_v3(r_center, actbp->vec);
-				return true;
-			}
-			break;
-		}
-	}
-
-	return false;
-}
-
 static bool move_to_collection_poll(bContext *C)
 {
 	if (CTX_wm_space_outliner(C) != NULL) {
 		return ED_outliner_collections_editor_poll(C);
 	}
 	else {
+		View3D *v3d = CTX_wm_view3d(C);
+
+		if (v3d && v3d->localvd) {
+			return false;
+		}
+
 		return ED_operator_object_active_editable(C);
 	}
 }
@@ -1923,7 +1869,7 @@ static int move_to_collection_exec(bContext *C, wmOperator *op)
 	            collection->id.name + 2);
 
 	DEG_relations_tag_update(bmain);
-	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE | DEG_TAG_SELECT_UPDATE);
+	DEG_id_tag_update(&scene->id, ID_RECALC_COPY_ON_WRITE | ID_RECALC_SELECT);
 
 	WM_event_add_notifier(C, NC_SCENE | ND_LAYER, scene);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);

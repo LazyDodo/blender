@@ -778,20 +778,20 @@ static void area_azone_initialize(wmWindow *win, const bScreen *screen, ScrArea 
 	     sa->totrct.xmin + (AZONESPOT - 1),
 	     sa->totrct.ymin + (AZONESPOT - 1)},
 	    /* Bottom-right. */
-	    {sa->totrct.xmax,
+	    {sa->totrct.xmax - (AZONESPOT - 1),
 	     sa->totrct.ymin,
-	     sa->totrct.xmax - (AZONESPOT - 1),
+	     sa->totrct.xmax,
 	     sa->totrct.ymin + (AZONESPOT - 1)},
 	    /* Top-left. */
 	    {sa->totrct.xmin,
-	     sa->totrct.ymax,
+	     sa->totrct.ymax - (AZONESPOT - 1),
 	     sa->totrct.xmin + (AZONESPOT - 1),
-	     sa->totrct.ymax - (AZONESPOT - 1)},
+	     sa->totrct.ymax},
 	    /* Top-right. */
-	    {sa->totrct.xmax,
-	     sa->totrct.ymax,
-	     sa->totrct.xmax - (AZONESPOT - 1),
-	     sa->totrct.ymax - (AZONESPOT - 1)}};
+	    {sa->totrct.xmax - (AZONESPOT - 1),
+	     sa->totrct.ymax - (AZONESPOT - 1),
+	     sa->totrct.xmax,
+	     sa->totrct.ymax}};
 
 	for (int i = 0; i < 4; i++) {
 		/* can't click on bottom corners on OS X, already used for resizing */
@@ -1104,21 +1104,28 @@ static void region_overlap_fix(ScrArea *sa, ARegion *ar)
 bool ED_region_is_overlap(int spacetype, int regiontype)
 {
 	if (regiontype == RGN_TYPE_HUD) {
-		return 1;
+		return true;
 	}
 	if (U.uiflag2 & USER_REGION_OVERLAP) {
-		if (ELEM(spacetype, SPACE_VIEW3D, SPACE_SEQ, SPACE_IMAGE)) {
-			if (ELEM(regiontype, RGN_TYPE_TOOLS, RGN_TYPE_UI, RGN_TYPE_TOOL_PROPS))
-				return 1;
+		if (spacetype == SPACE_NODE) {
+			if (regiontype == RGN_TYPE_TOOLS) {
+				return true;
+			}
+		}
+		else if (ELEM(spacetype, SPACE_VIEW3D, SPACE_SEQ, SPACE_IMAGE)) {
+			if (ELEM(regiontype, RGN_TYPE_TOOLS, RGN_TYPE_UI, RGN_TYPE_TOOL_PROPS)) {
+				return true;
+			}
 
 			if (ELEM(spacetype, SPACE_VIEW3D, SPACE_IMAGE)) {
-				if (regiontype == RGN_TYPE_HEADER)
-					return 1;
+				if (regiontype == RGN_TYPE_HEADER) {
+					return true;
+				}
 			}
 		}
 	}
 
-	return 0;
+	return false;
 }
 
 static void region_rect_recursive(ScrArea *sa, ARegion *ar, rcti *remainder, rcti *overlap_remainder, int quad)
@@ -1347,7 +1354,7 @@ static void region_rect_recursive(ScrArea *sa, ARegion *ar, rcti *remainder, rct
 	if (ar->winy > 1) ar->sizey = (ar->winy + 0.5f) /  UI_DPI_FAC;
 
 	/* exception for multiple overlapping regions on same spot */
-	if (ar->overlap & (alignment != RGN_ALIGN_FLOAT)) {
+	if (ar->overlap && (alignment != RGN_ALIGN_FLOAT)) {
 		region_overlap_fix(sa, ar);
 	}
 
@@ -1632,7 +1639,18 @@ void ED_area_initialize(wmWindowManager *wm, wmWindow *win, ScrArea *sa)
 		region_azones_add(screen, sa, ar, ar->alignment & ~RGN_SPLIT_PREV);
 	}
 
-	WM_toolsystem_refresh_screen_area(workspace, view_layer, sa);
+
+	/* Avoid re-initializing tools while resizing the window. */
+	if ((G.moving & G_TRANSFORM_WM) == 0) {
+		if ((1 << sa->spacetype) & WM_TOOLSYSTEM_SPACE_MASK) {
+			WM_toolsystem_refresh_screen_area(workspace, view_layer, sa);
+			sa->flag |= AREA_FLAG_ACTIVE_TOOL_UPDATE;
+		}
+		else {
+			sa->runtime.tool = NULL;
+			sa->runtime.is_tool_set = true;
+		}
+	}
 }
 
 static void region_update_rect(ARegion *ar)
@@ -1783,7 +1801,7 @@ void ED_area_swapspace(bContext *C, ScrArea *sa1, ScrArea *sa2)
 }
 
 /**
- * \param skip_ar_exit  Skip calling area exit callback. Set for opening temp spaces.
+ * \param skip_ar_exit: Skip calling area exit callback. Set for opening temp spaces.
  */
 void ED_area_newspace(bContext *C, ScrArea *sa, int type, const bool skip_ar_exit)
 {
@@ -1795,7 +1813,20 @@ void ED_area_newspace(bContext *C, ScrArea *sa, int type, const bool skip_ar_exi
 		SpaceLink *sl;
 		/* store sa->type->exit callback */
 		void *sa_exit = sa->type ? sa->type->exit : NULL;
-		int header_alignment = ED_area_header_alignment(sa);
+		/* When the user switches between space-types from the type-selector,
+		 * changing the header-type is jarring (especially when using Ctrl-MouseWheel).
+		 *
+		 * However, add-on install for example, forces the header to the top which shouldn't
+		 * be applied back to the previous space type when closing - see: T57724
+		 *
+		 * Newly created windows wont have any space data, use the alignment
+		 * the space type defaults to in this case instead
+		 * (needed for preferences to have space-type on bottom).
+		 */
+		int header_alignment = ED_area_header_alignment_or_fallback(sa, -1);
+		const bool sync_header_alignment = (
+		        (header_alignment != -1) &&
+		        (sa->flag & AREA_FLAG_TEMP_TYPE) == 0);
 
 		/* in some cases (opening temp space) we don't want to
 		 * call area exit callback, so we temporarily unset it */
@@ -1844,15 +1875,6 @@ void ED_area_newspace(bContext *C, ScrArea *sa, int type, const bool skip_ar_exi
 			/* put in front of list */
 			BLI_remlink(&sa->spacedata, sl);
 			BLI_addhead(&sa->spacedata, sl);
-
-
-			/* Sync header alignment. */
-			for (ARegion *ar = sa->regionbase.first; ar; ar = ar->next) {
-				if (ar->regiontype == RGN_TYPE_HEADER) {
-					ar->alignment = header_alignment;
-					break;
-				}
-			}
 		}
 		else {
 			/* new space */
@@ -1867,6 +1889,16 @@ void ED_area_newspace(bContext *C, ScrArea *sa, int type, const bool skip_ar_exi
 					slold->regionbase = sa->regionbase;
 				sa->regionbase = sl->regionbase;
 				BLI_listbase_clear(&sl->regionbase);
+			}
+		}
+
+		/* Sync header alignment. */
+		if (sync_header_alignment) {
+			for (ARegion *ar = sa->regionbase.first; ar; ar = ar->next) {
+				if (ar->regiontype == RGN_TYPE_HEADER) {
+					ar->alignment = header_alignment;
+					break;
+				}
 			}
 		}
 
@@ -2099,7 +2131,9 @@ void ED_region_panels_layout_ex(
 	int scroll;
 
 	/* XXX, should use some better check? */
-	bool use_category_tabs = (1 << ar->regiontype) & RGN_TYPE_HAS_CATEGORY_MASK;
+	/* For now also has hardcoded check for clip editor until it supports actual toolbar. */
+	bool use_category_tabs = ((1 << ar->regiontype) & RGN_TYPE_HAS_CATEGORY_MASK) ||
+	                         (ar->regiontype == RGN_TYPE_TOOLS && sa->spacetype == SPACE_CLIP);
 	/* offset panels for small vertical tab area */
 	const char *category = NULL;
 	const int category_tabs_width = UI_PANEL_CATEGORY_MARGIN_WIDTH;
@@ -2469,16 +2503,20 @@ int ED_area_headersize(void)
 	return (int)(HEADERY * UI_DPI_FAC);
 }
 
-
-int ED_area_header_alignment(const ScrArea *area)
+int ED_area_header_alignment_or_fallback(const ScrArea *area, int fallback)
 {
 	for (ARegion *ar = area->regionbase.first; ar; ar = ar->next) {
 		if (ar->regiontype == RGN_TYPE_HEADER) {
 			return ar->alignment;
 		}
 	}
+	return fallback;
+}
 
-	return RGN_ALIGN_TOP;
+int ED_area_header_alignment(const ScrArea *area)
+{
+	return ED_area_header_alignment_or_fallback(
+	        area, (U.uiflag & USER_HEADER_BOTTOM) ? RGN_ALIGN_BOTTOM : RGN_ALIGN_TOP);
 }
 
 /**

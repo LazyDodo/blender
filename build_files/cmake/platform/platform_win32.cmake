@@ -225,7 +225,7 @@ if(NOT JPEG_FOUND)
 endif()
 
 set(PTHREADS_INCLUDE_DIRS ${LIBDIR}/pthreads/include)
-set(PTHREADS_LIBRARIES ${LIBDIR}/pthreads/lib/pthreadVC2.lib)
+set(PTHREADS_LIBRARIES ${LIBDIR}/pthreads/lib/pthreadVC3.lib)
 
 set(FREETYPE ${LIBDIR}/freetype)
 set(FREETYPE_INCLUDE_DIRS
@@ -502,7 +502,7 @@ if(WITH_IMAGE_OPENJPEG)
 	set(OPENJPEG_LIBRARIES ${OPENJPEG}/lib/openjp2.lib)
 endif()
 
-if(WITH_OPENSUBDIV OR WITH_CYCLES_OPENSUBDIV)
+if(WITH_OPENSUBDIV)
 	set(OPENSUBDIV_INCLUDE_DIR ${LIBDIR}/opensubdiv/include)
 	set(OPENSUBDIV_LIBPATH ${LIBDIR}/opensubdiv/lib)
 	set(OPENSUBDIV_LIBRARIES

@@ -162,42 +162,6 @@ def module_filesystem_remove(path_base, module_name):
                 os.remove(f_full)
 
 
-class BRUSH_OT_active_index_set(Operator):
-    """Set active sculpt/paint brush from it's number"""
-    bl_idname = "brush.active_index_set"
-    bl_label = "Set Brush Number"
-
-    mode: StringProperty(
-        name="Mode",
-        description="Paint mode to set brush for",
-        maxlen=1024,
-    )
-    index: IntProperty(
-        name="Number",
-        description="Brush number",
-    )
-
-    _attr_dict = {
-        "sculpt": "use_paint_sculpt",
-        "vertex_paint": "use_paint_vertex",
-        "weight_paint": "use_paint_weight",
-        "image_paint": "use_paint_image",
-    }
-
-    def execute(self, context):
-        attr = self._attr_dict.get(self.mode)
-        if attr is None:
-            return {'CANCELLED'}
-
-        toolsettings = context.tool_settings
-        for i, brush in enumerate((cur for cur in bpy.data.brushes if getattr(cur, attr))):
-            if i == self.index:
-                getattr(toolsettings, self.mode).brush = brush
-                return {'FINISHED'}
-
-        return {'CANCELLED'}
-
-
 class WM_OT_context_set_boolean(Operator):
     """Set a context value"""
     bl_idname = "wm.context_set_boolean"
@@ -1060,9 +1024,9 @@ class WM_OT_doc_view(Operator):
 
     doc_id: doc_id
     if bpy.app.version_cycle == "release":
-        _prefix = ("https://docs.blender.org/api/blender_python_api_current")
+        _prefix = ("https://docs.blender.org/api/current")
     else:
-        _prefix = ("https://docs.blender.org/api/blender_python_api_master")
+        _prefix = ("https://docs.blender.org/api/blender2.8")
 
     def execute(self, context):
         url = _wm_doc_get_id(self.doc_id, do_url=True, url_prefix=self._prefix)
@@ -1254,6 +1218,10 @@ class WM_OT_properties_edit(Operator):
         self._last_prop = [self.property]
 
         item = eval("context.%s" % data_path)
+
+        # retrieve overridable static
+        exec_str = "item.is_property_overridable_static('[\"%s\"]')" % (self.property)
+        self.is_overridable_static = bool(eval(exec_str))
 
         # setup defaults
         prop_ui = rna_idprop_ui_prop_get(item, self.property, False)  # don't create
@@ -2212,7 +2180,7 @@ class WM_OT_addon_userpref_show(Operator):
 
         module_name = self.module
 
-        modules = addon_utils.modules(refresh=False)
+        _modules = addon_utils.modules(refresh=False)
         mod = addon_utils.addons_fake_modules.get(module_name)
         if mod is not None:
             info = addon_utils.module_bl_info(mod)
@@ -2432,11 +2400,11 @@ class WM_OT_studiolight_install(Operator):
         default="*.png;*.jpg;*.hdr;*.exr",
         options={'HIDDEN'},
     )
-    orientation: EnumProperty(
+    type: EnumProperty(
         items=(
             ('MATCAP', "MatCap", ""),
             ('WORLD', "World", ""),
-            ('CAMERA', "Camera", ""),
+            ('STUDIO', "Studio", ""),
         )
     )
 
@@ -2453,7 +2421,7 @@ class WM_OT_studiolight_install(Operator):
             self.report({'ERROR'}, "Failed to get Studio Light path")
             return {'CANCELLED'}
 
-        path_studiolights = pathlib.Path(path_studiolights, "studiolights", self.orientation.lower())
+        path_studiolights = pathlib.Path(path_studiolights, "studiolights", self.type.lower())
         if not path_studiolights.exists():
             try:
                 path_studiolights.mkdir(parents=True, exist_ok=True)
@@ -2462,7 +2430,7 @@ class WM_OT_studiolight_install(Operator):
 
         for filepath in filepaths:
             shutil.copy(str(filepath), str(path_studiolights))
-            userpref.studio_lights.new(str(path_studiolights.joinpath(filepath.name)), self.orientation)
+            userpref.studio_lights.load(str(path_studiolights.joinpath(filepath.name)), self.type)
 
         # print message
         msg = (
@@ -2479,7 +2447,71 @@ class WM_OT_studiolight_install(Operator):
         return {'RUNNING_MODAL'}
 
 
+class WM_OT_studiolight_new(Operator):
+    """Save custom studio light from the studio light editor settings"""
+    bl_idname = 'wm.studiolight_new'
+    bl_label = "Save custom Studio light"
+
+    filename: StringProperty(
+        name="Name",
+        default="StudioLight",
+    )
+
+    ask_overide = False
+
+    def execute(self, context):
+        import pathlib
+        userpref = context.user_preferences
+        wm = context.window_manager
+
+        path_studiolights = bpy.utils.user_resource('DATAFILES')
+
+        if not path_studiolights:
+            self.report({'ERROR'}, "Failed to get Studio Light path")
+            return {'CANCELLED'}
+
+        path_studiolights = pathlib.Path(path_studiolights, "studiolights", "studio")
+        if not path_studiolights.exists():
+            try:
+                path_studiolights.mkdir(parents=True, exist_ok=True)
+            except:
+                traceback.print_exc()
+
+        finalpath = str(path_studiolights.joinpath(self.filename));
+        if pathlib.Path(finalpath + ".sl").is_file():
+            if not self.ask_overide:
+                self.ask_overide = True
+                return wm.invoke_props_dialog(self, width=600)
+            else:
+                for studio_light in userpref.studio_lights:
+                    if studio_light.name == self.filename + ".sl":
+                        bpy.ops.wm.studiolight_uninstall(index=studio_light.index)
+
+        userpref.studio_lights.new(path=finalpath)
+
+        # print message
+        msg = (
+            tip_("StudioLight Installed %r into %r") %
+            (self.filename, str(path_studiolights))
+        )
+        print(msg)
+        self.report({'INFO'}, msg)
+        return {'FINISHED'}
+
+    def draw(self, context):
+        layout = self.layout
+        if self.ask_overide:
+            layout.label(text="Warning, file already exists. Overwrite existing file?")
+        else:
+            layout.prop(self, "filename")
+
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self, width=600)
+
+
 class WM_OT_studiolight_uninstall(Operator):
+    """Delete Studio Light"""
     bl_idname = 'wm.studiolight_uninstall'
     bl_label = "Uninstall Studio Light"
     index: bpy.props.IntProperty()
@@ -2504,6 +2536,28 @@ class WM_OT_studiolight_uninstall(Operator):
         return {'CANCELLED'}
 
 
+class WM_OT_studiolight_copy_settings(Operator):
+    """Copy Studio Light settings to the Studio light editor"""
+    bl_idname = 'wm.studiolight_copy_settings'
+    bl_label = "Copy Studio Light settings"
+    index: bpy.props.IntProperty()
+
+    def execute(self, context):
+        userpref = context.user_preferences
+        system = userpref.system
+        for studio_light in userpref.studio_lights:
+            if studio_light.index == self.index:
+                system.light_ambient = studio_light.light_ambient
+                for sys_light, light in zip(system.solid_lights, studio_light.solid_lights):
+                    sys_light.use = light.use
+                    sys_light.diffuse_color = light.diffuse_color
+                    sys_light.specular_color = light.specular_color
+                    sys_light.smooth = light.smooth
+                    sys_light.direction = light.direction
+                return {'FINISHED'}
+        return {'CANCELLED'}
+
+
 class WM_OT_studiolight_userpref_show(Operator):
     """Show light user preferences"""
     bl_idname = "wm.studiolight_userpref_show"
@@ -2521,7 +2575,7 @@ class WM_MT_splash(Menu):
 
     def draw_setup(self, context):
         wm = context.window_manager
-        userpref = context.user_preferences
+        # userpref = context.user_preferences
 
         layout = self.layout
 
@@ -2554,9 +2608,17 @@ class WM_MT_splash(Menu):
             row = sub.row()
             row.alignment = 'RIGHT'
             row.label(text="Select With")
-            sub.row().prop(kc_prefs, 'select_mouse', expand=True)
+            sub.row().prop(kc_prefs, "select_mouse", expand=True)
             has_select_mouse = True
 
+        has_spacebar_action = hasattr(kc_prefs, "spacebar_action")
+        if has_spacebar_action:
+            sub = col.split(factor=0.35)
+            row = sub.row()
+            row.alignment = 'RIGHT'
+            row.label(text="Spacebar")
+            sub.row().prop(kc_prefs, "spacebar_action", expand=True)
+            has_select_mouse = True
 
         col.separator()
 
@@ -2580,6 +2642,8 @@ class WM_MT_splash(Menu):
         # Keep height constant
         if not has_select_mouse:
             col.label()
+        if not has_spacebar_action:
+            col.label()
 
         layout.label()
 
@@ -2595,6 +2659,7 @@ class WM_MT_splash(Menu):
             sub.label()
             sub.operator("wm.save_userpref", text="Next")
 
+        layout.separator()
         layout.separator()
 
     def draw(self, context):
@@ -2673,6 +2738,7 @@ class WM_MT_splash(Menu):
             ).url = "https://www.blender.org/foundation/donation-payment/"
 
         layout.separator()
+        layout.separator()
 
 
 class WM_OT_drop_blend_file(Operator):
@@ -2700,7 +2766,6 @@ class WM_OT_drop_blend_file(Operator):
         col.operator("wm.append", text="Append...", icon='APPEND_BLEND').filepath = self.filepath
 
 classes = (
-    BRUSH_OT_active_index_set,
     WM_OT_addon_disable,
     WM_OT_addon_enable,
     WM_OT_addon_expand,
@@ -2753,7 +2818,9 @@ classes = (
     WM_OT_owner_enable,
     WM_OT_url_open,
     WM_OT_studiolight_install,
+    WM_OT_studiolight_new,
     WM_OT_studiolight_uninstall,
+    WM_OT_studiolight_copy_settings,
     WM_OT_studiolight_userpref_show,
     WM_OT_tool_set_by_name,
     WM_OT_toolbar,

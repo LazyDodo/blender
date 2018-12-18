@@ -575,7 +575,7 @@ static void correctivesmooth_modifier_do(
 	const bool force_delta_cache_update =
 	        /* XXX, take care! if mesh data its self changes we need to forcefully recalculate deltas */
 	        ((csmd->rest_source == MOD_CORRECTIVESMOOTH_RESTSOURCE_ORCO) &&
-	         (((ID *)ob->data)->recalc & ID_RECALC));
+	         (((ID *)ob->data)->recalc & ID_RECALC_ALL));
 
 	bool use_only_smooth = (csmd->flag & MOD_CORRECTIVESMOOTH_ONLY_SMOOTH) != 0;
 	MDeformVert *dvert = NULL;
@@ -717,7 +717,7 @@ static void deformVerts(
         ModifierData *md, const ModifierEvalContext *ctx, Mesh *mesh,
         float (*vertexCos)[3], int numVerts)
 {
-	Mesh *mesh_src = MOD_get_mesh_eval(ctx->object, NULL, mesh, NULL, false, false);
+	Mesh *mesh_src = MOD_deform_mesh_eval_get(ctx->object, NULL, mesh, NULL, numVerts, false, false);
 
 	correctivesmooth_modifier_do(md, ctx->object, mesh_src, vertexCos, (unsigned int)numVerts, NULL);
 
@@ -731,7 +731,7 @@ static void deformVertsEM(
         ModifierData *md, const ModifierEvalContext *ctx, struct BMEditMesh *editData,
         Mesh *mesh, float (*vertexCos)[3], int numVerts)
 {
-	Mesh *mesh_src = MOD_get_mesh_eval(ctx->object, editData, mesh, NULL, false, false);
+	Mesh *mesh_src = MOD_deform_mesh_eval_get(ctx->object, editData, mesh, NULL, numVerts, false, false);
 
 	correctivesmooth_modifier_do(md, ctx->object, mesh_src, vertexCos, (unsigned int)numVerts, editData);
 

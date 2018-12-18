@@ -462,7 +462,7 @@ const EnumPropertyItem rna_enum_transform_pivot_items_full[] = {
 	{V3D_AROUND_CURSOR, "CURSOR", ICON_PIVOT_CURSOR, "3D Cursor", "Pivot around the 3D cursor"},
 	{V3D_AROUND_LOCAL_ORIGINS, "INDIVIDUAL_ORIGINS", ICON_PIVOT_INDIVIDUAL,
 	            "Individual Origins", "Pivot around each object's own origin"},
-	{V3D_AROUND_CENTER_MEAN, "MEDIAN_POINT", ICON_PIVOT_MEDIAN, "Median Point",
+	{V3D_AROUND_CENTER_MEDIAN, "MEDIAN_POINT", ICON_PIVOT_MEDIAN, "Median Point",
 	               "Pivot around the median point of selected objects"},
 	{V3D_AROUND_ACTIVE, "ACTIVE_ELEMENT", ICON_PIVOT_ACTIVE, "Active Element", "Pivot around active object"},
 	{0, NULL, 0, NULL, NULL}
@@ -551,7 +551,7 @@ static void rna_GPencil_update(Main *UNUSED(bmain), Scene *scene, PointerRNA *UN
 			if (ob->type == OB_GPENCIL) {
 				bGPdata *gpd = (bGPdata *)ob->data;
 				gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
-				DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+				DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 			}
 		}
 		FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
@@ -1325,7 +1325,7 @@ static void rna_RenderSettings_engine_set(PointerRNA *ptr, int value)
 
 	if (type) {
 		BLI_strncpy_utf8(rd->engine, type->idname, sizeof(rd->engine));
-		DEG_id_tag_update(ptr->id.data, DEG_TAG_COPY_ON_WRITE);
+		DEG_id_tag_update(ptr->id.data, ID_RECALC_COPY_ON_WRITE);
 	}
 }
 
@@ -1458,7 +1458,7 @@ static void rna_Physics_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Pointe
 	}
 	FOREACH_SCENE_OBJECT_END;
 
-	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&scene->id, ID_RECALC_COPY_ON_WRITE);
 }
 
 static void rna_Scene_editmesh_select_mode_set(PointerRNA *ptr, const bool *value)
@@ -1497,7 +1497,7 @@ static void rna_Scene_editmesh_select_mode_update(bContext *C, PointerRNA *UNUSE
 	}
 
 	if (me) {
-		DEG_id_tag_update(&me->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&me->id, ID_RECALC_SELECT);
 		WM_main_add_notifier(NC_SCENE | ND_TOOLSETTINGS, NULL);
 	}
 }
@@ -1515,12 +1515,12 @@ static void object_simplify_update(Object *ob)
 
 	for (md = ob->modifiers.first; md; md = md->next) {
 		if (ELEM(md->type, eModifierType_Subsurf, eModifierType_Multires, eModifierType_ParticleSystem)) {
-			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+			DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 		}
 	}
 
 	for (psys = ob->particlesystem.first; psys; psys = psys->next)
-		psys->recalc |= PSYS_RECALC_CHILD;
+		psys->recalc |= ID_RECALC_PSYS_CHILD;
 
 	if (ob->dup_group) {
 		CollectionObject *cob;
@@ -1724,7 +1724,7 @@ static void rna_EditMesh_update(bContext *C, PointerRNA *UNUSED(ptr))
 	}
 
 	if (me) {
-		DEG_id_tag_update(&me->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&me->id, ID_RECALC_GEOMETRY);
 		WM_main_add_notifier(NC_GEOM | ND_DATA, me);
 	}
 }
@@ -1745,7 +1745,7 @@ static void rna_Scene_update_active_object_data(bContext *C, PointerRNA *UNUSED(
 	Object *ob = OBACT(view_layer);
 
 	if (ob) {
-		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 		WM_main_add_notifier(NC_OBJECT | ND_DRAW, &ob->id);
 	}
 }
@@ -1756,7 +1756,7 @@ static void rna_SceneCamera_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Po
 	Object *camera = scene->camera;
 
 	if (camera && (camera->type == OB_CAMERA)) {
-		DEG_id_tag_update(&camera->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&camera->id, ID_RECALC_GEOMETRY);
 	}
 }
 
@@ -2086,6 +2086,11 @@ static void rna_unit_system_update(Main *UNUSED(bmain), Scene *scene, PointerRNA
 		unit->length_unit = bUnit_GetBaseUnitOfType(unit->system, B_UNIT_LENGTH);
 		unit->mass_unit = bUnit_GetBaseUnitOfType(unit->system, B_UNIT_MASS);
 	}
+}
+
+static char *rna_UnitSettings_path(PointerRNA *UNUSED(ptr))
+{
+	return BLI_sprintfN("unit_settings");
 }
 
 #else
@@ -2475,6 +2480,26 @@ static void rna_def_tool_settings(BlenderRNA  *brna)
 	prop = RNA_def_property(srna, "use_snap_self", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "snap_flag", SCE_SNAP_NO_SELF);
 	RNA_def_property_ui_text(prop, "Project onto Self", "Snap onto itself (Edit Mode Only)");
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL); /* header redraw */
+
+	prop = RNA_def_property(srna, "use_snap_force_increment_translate", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_negative_sdna(prop, NULL, "snap_force_increment_flag", SCE_SNAP_FORCE_INCREMENT_TRANSLATE);
+	RNA_def_property_ui_text(prop, "Resctrict Translation",
+	                         "Translate uses the snapping modes, otherwise use increment snapping");
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL); /* header redraw */
+
+	prop = RNA_def_property(srna, "use_snap_force_increment_rotate", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_negative_sdna(prop, NULL, "snap_force_increment_flag", SCE_SNAP_FORCE_INCREMENT_ROTATE);
+	RNA_def_property_boolean_default(prop, false);
+	RNA_def_property_ui_text(prop, "Resctrict Rotate",
+	                         "Rotate uses the snapping modes, otherwise use increment snapping");
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL); /* header redraw */
+
+	prop = RNA_def_property(srna, "use_snap_force_increment_scale", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_negative_sdna(prop, NULL, "snap_force_increment_flag", SCE_SNAP_FORCE_INCREMENT_SCALE);
+	RNA_def_property_boolean_default(prop, false);
+	RNA_def_property_ui_text(prop, "Resctrict Scale",
+	                         "Scale uses the snapping modes, otherwise use increment snapping");
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL); /* header redraw */
 
 	prop = RNA_def_property(srna, "use_gizmo_mode", PROP_ENUM, PROP_NONE);
@@ -3019,6 +3044,8 @@ static void rna_def_unit_settings(BlenderRNA *brna)
 
 	srna = RNA_def_struct(brna, "UnitSettings", NULL);
 	RNA_def_struct_ui_text(srna, "Unit Settings", "");
+	RNA_def_struct_nested(brna, srna, "Scene");
+	RNA_def_struct_path_func(srna, "rna_UnitSettings_path");
 
 	/* Units */
 	prop = RNA_def_property(srna, "system", PROP_ENUM, PROP_NONE);
@@ -3388,7 +3415,7 @@ void rna_def_freestyle_settings(BlenderRNA *brna)
 		{0, NULL, 0, NULL, NULL}
 	};
 
-	static const EnumPropertyItem group_negation_items[] = {
+	static const EnumPropertyItem collection_negation_items[] = {
 		{0, "INCLUSIVE", 0, "Inclusive", "Select feature edges belonging to some object in the group"},
 		{FREESTYLE_LINESET_GR_NOT, "EXCLUSIVE", 0, "Exclusive",
 		                           "Select feature edges not belonging to any object in the group"},
@@ -3462,9 +3489,9 @@ void rna_def_freestyle_settings(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Selection by Edge Types", "Select feature edges based on edge types");
 	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, "rna_Scene_freestyle_update");
 
-	prop = RNA_def_property(srna, "select_by_group", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "select_by_collection", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "selection", FREESTYLE_SEL_GROUP);
-	RNA_def_property_ui_text(prop, "Selection by Group", "Select feature edges based on a group of objects");
+	RNA_def_property_ui_text(prop, "Selection by Collection", "Select feature edges based on a collection of objects");
 	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, "rna_Scene_freestyle_update");
 
 	prop = RNA_def_property(srna, "select_by_image_border", PROP_BOOLEAN, PROP_NONE);
@@ -3492,16 +3519,16 @@ void rna_def_freestyle_settings(BlenderRNA *brna)
 	                         "Specify a logical combination of selection conditions on feature edge types");
 	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, "rna_Scene_freestyle_update");
 
-	prop = RNA_def_property(srna, "group", PROP_POINTER, PROP_NONE);
+	prop = RNA_def_property(srna, "collection", PROP_POINTER, PROP_NONE);
 	RNA_def_property_pointer_sdna(prop, NULL, "group");
 	RNA_def_property_struct_type(prop, "Collection");
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Collection", "A collection of objects based on which feature edges are selected");
 	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, "rna_Scene_freestyle_update");
 
-	prop = RNA_def_property(srna, "group_negation", PROP_ENUM, PROP_NONE);
+	prop = RNA_def_property(srna, "collection_negation", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_bitflag_sdna(prop, NULL, "flags");
-	RNA_def_property_enum_items(prop, group_negation_items);
+	RNA_def_property_enum_items(prop, collection_negation_items);
 	RNA_def_property_ui_text(prop, "Collection Negation",
 	                         "Specify either inclusion or exclusion of feature edges belonging to a collection of objects");
 	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, "rna_Scene_freestyle_update");
@@ -3750,10 +3777,10 @@ static void rna_def_bake_data(BlenderRNA *brna)
 	RNA_def_struct_ui_text(srna, "Bake Data", "Bake data for a Scene data-block");
 	RNA_def_struct_path_func(srna, "rna_BakeSettings_path");
 
-	prop = RNA_def_property(srna, "cage_object", PROP_STRING, PROP_NONE);
-	RNA_def_property_string_sdna(prop, NULL, "cage");
+	prop = RNA_def_property(srna, "cage_object", PROP_POINTER, PROP_NONE);
 	RNA_def_property_ui_text(prop, "Cage Object", "Object to use as cage "
 	                         "instead of calculating the cage from the active object with cage extrusion");
+	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, NULL);
 
 	prop = RNA_def_property(srna, "filepath", PROP_STRING, PROP_FILEPATH);
@@ -5186,6 +5213,11 @@ static void rna_def_scene_render_data(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Stamp Peak Memory", "Include the peak memory usage in image metadata");
 	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, NULL);
 
+	prop = RNA_def_property(srna, "use_stamp_hostname", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "stamp", R_STAMP_HOSTNAME);
+	RNA_def_property_ui_text(prop, "Stamp Hostname", "Include the hostname of the machine that rendered the frame");
+	RNA_def_property_update(prop, NC_SCENE | ND_RENDER_OPTIONS, NULL);
+
 	prop = RNA_def_property(srna, "stamp_font_size", PROP_INT, PROP_NONE);
 	RNA_def_property_int_sdna(prop, NULL, "stamp_font_id");
 	RNA_def_property_range(prop, 8, 64);
@@ -5346,6 +5378,11 @@ static void rna_def_scene_render_data(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "simplify_gpencil_shader_fx", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "simplify_gpencil", SIMPLIFY_GPENCIL_FX);
 	RNA_def_property_ui_text(prop, "Simplify Shaders", "Do not apply shader fx");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+
+	prop = RNA_def_property(srna, "simplify_gpencil_blend", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "simplify_gpencil", SIMPLIFY_GPENCIL_BLEND);
+	RNA_def_property_ui_text(prop, "Layers Blending", "Do not display blend layers");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	/* persistent data */
@@ -5590,11 +5627,18 @@ static void rna_def_scene_display(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_SCENE | NA_EDITED, "rna_Scene_set_update");
 
 	prop = RNA_def_property(srna, "shadow_shift", PROP_FLOAT, PROP_ANGLE);
-	RNA_def_property_float_sdna(prop, NULL, "shadow_shift");
 	RNA_def_property_float_default(prop, 0.1);
 	RNA_def_property_ui_text(prop, "Shadow Shift", "Shadow termination angle");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_ui_range(prop, 0.00f, 1.0f, 1, 2);
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_update(prop, NC_SCENE | NA_EDITED, "rna_Scene_set_update");
+
+	prop = RNA_def_property(srna, "shadow_focus", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_float_default(prop, 0.0);
+	RNA_def_property_ui_text(prop, "Shadow Focus", "Shadow factor hardness");
+	RNA_def_property_range(prop, 0.0f, 1.0f);
+	RNA_def_property_ui_range(prop, 0.0f, 1.0f, 1, 2);
 	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
 	RNA_def_property_update(prop, NC_SCENE | NA_EDITED, "rna_Scene_set_update");
 

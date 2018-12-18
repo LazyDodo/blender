@@ -23,7 +23,6 @@ from bpy.types import Operator
 from bpy.props import (
     BoolProperty,
     EnumProperty,
-    FloatProperty,
     IntProperty,
     StringProperty,
 )
@@ -290,7 +289,7 @@ class SubdivisionSet(Operator):
                         for _ in range(level):
                             bpy.ops.object.multires_subdivide(modifier="Multires")
                 else:
-                    mod = obj.modifiers.new("Subsurf", 'SUBSURF')
+                    mod = obj.modifiers.new("Subdivision", 'SUBSURF')
                     mod.levels = level
             except:
                 self.report({'WARNING'},
@@ -641,10 +640,10 @@ class MakeDupliFace(Operator):
             for obj in objects:
                 scene.objects.unlink(obj)
 
-            ob_new.dupli_type = 'FACES'
+            ob_new.instance_type = 'FACES'
             ob_inst.parent = ob_new
-            ob_new.use_dupli_faces_scale = True
-            ob_new.dupli_faces_scale = 1.0 / SCALE_FAC
+            ob_new.use_instance_faces_scale = True
+            ob_new.instance_faces_scale = 1.0 / SCALE_FAC
 
             ob_inst.select_set(True)
             ob_new.select_set(True)
@@ -853,7 +852,7 @@ class TransformsToDeltasAnim(Operator):
 
 class DupliOffsetFromCursor(Operator):
     """Set offset used for collection instances based on cursor position"""
-    bl_idname = "object.dupli_offset_from_cursor"
+    bl_idname = "object.instance_offset_from_cursor"
     bl_label = "Set Offset From Cursor"
     bl_options = {'INTERNAL', 'UNDO'}
 
@@ -865,7 +864,7 @@ class DupliOffsetFromCursor(Operator):
         scene = context.scene
         collection = context.collection
 
-        collection.dupli_offset = scene.cursor_location
+        collection.instance_offset = scene.cursor_location
 
         return {'FINISHED'}
 
@@ -885,6 +884,10 @@ class LoadImageAsEmpty:
         default=True
     )
 
+    @classmethod
+    def poll(cls, context):
+        return context.mode == "OBJECT"
+
     def invoke(self, context, event):
         context.window_manager.fileselect_add(self)
         return {'RUNNING_MODAL'}
@@ -892,7 +895,7 @@ class LoadImageAsEmpty:
     def execute(self, context):
         scene = context.scene
         space = context.space_data
-        cursor = (space if space and space.type == 'VIEW_3D' else scene).cursor_location
+        cursor = scene.cursor_location
 
         try:
             image = bpy.data.images.load(self.filepath, check_existing=True)
@@ -923,10 +926,10 @@ class LoadBackgroundImage(LoadImageAsEmpty, Operator):
     bl_label = "Load Background Image"
 
     def set_settings(self, context, obj):
-        obj.empty_image_depth = "BACK"
-        obj.show_empty_image_backside = False
+        obj.empty_image_depth = 'BACK'
+        obj.empty_image_side = 'FRONT'
 
-        if context.space_data.type == "VIEW_3D":
+        if context.space_data.type == 'VIEW_3D':
             if not context.space_data.region_3d.is_perspective:
                 obj.show_empty_image_perspective = False
 

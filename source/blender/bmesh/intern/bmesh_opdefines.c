@@ -1769,7 +1769,7 @@ static BMOpDefine bmo_bevel_def = {
 	{{"faces.out", BMO_OP_SLOT_ELEMENT_BUF, {BM_FACE}}, /* output faces */
 	 {"edges.out", BMO_OP_SLOT_ELEMENT_BUF, {BM_EDGE}}, /* output edges */
 	 {"verts.out", BMO_OP_SLOT_ELEMENT_BUF, {BM_VERT}}, /* output verts */
-	 {"normals.out", BMO_OP_SLOT_MAPPING,  {(int)BMO_OP_SLOT_SUBTYPE_MAP_ELEM}}, /* output normals per vertex for beveled edges */
+	 {"normals.out", BMO_OP_SLOT_MAPPING,  {(int)BMO_OP_SLOT_SUBTYPE_MAP_INTERNAL}}, /* output normals per vertex for beveled edges */
 	 {{'\0'}},
 	},
 
@@ -1963,8 +1963,8 @@ static BMOpDefine bmo_wireframe_def = {
 };
 
 static BMO_FlagSet bmo_enum_poke_center_mode[] = {
-	{BMOP_POKE_MEAN_WEIGHTED, "MEAN_WEIGHTED"},
-	{BMOP_POKE_MEAN, "MEAN"},
+	{BMOP_POKE_MEDIAN_WEIGHTED, "MEAN_WEIGHTED"},
+	{BMOP_POKE_MEDIAN, "MEAN"},
 	{BMOP_POKE_BOUNDS, "BOUNDS"},
 	{0, NULL},
 };

@@ -31,13 +31,6 @@ from .space_toolsystem_common import (
     ToolSelectPanelHelper,
     ToolDef,
 )
-from .properties_material_gpencil import (
-    GPENCIL_UL_matslots,
-)
-from .properties_grease_pencil_common import (
-    AnnotationDataPanel,
-)
-
 
 def generate_from_enum_ex(
         context, *,
@@ -85,7 +78,7 @@ class _defs_view3d_generic:
                 "Set the cursor location, drag to transform"
             ),
             icon="ops.generic.cursor",
-            keymap=(),
+            keymap="3D View Tool: Cursor",
             draw_settings=draw_settings,
         )
 
@@ -99,115 +92,110 @@ class _defs_view3d_generic:
 
     @ToolDef.from_fn
     def ruler():
-        return dict(
-            text="Measure",
-            description=(
+        def description(context, item, km):
+            return (
                 "Measure distance and angles.\n"
-                "\u2022 Drag anywhere for new measurement.\n"
+                "\u2022 {} anywhere for new measurement.\n"
                 "\u2022 Drag ruler segment to measure an angle.\n"
                 "\u2022 Drag ruler outside the view to remove.\n"
                 "\u2022 Ctrl to snap.\n"
                 "\u2022 Shift to measure surface thickness"
-            ),
+            ).format(
+                km.keymap_items[0].to_string()
+            )
+        return dict(
+            text="Measure",
+            description=description,
             icon="ops.view3d.ruler",
             widget="VIEW3D_GGT_ruler",
-            keymap=(),
+            keymap="3D View Tool: Measure",
         )
 
 
-def _defs_annotate_factory():
+class _defs_annotate:
 
-    class _defs_annotate:
+    def draw_settings_common(context, layout, tool):
+        if type(context.gpencil_data_owner) is bpy.types.Object:
+            gpd = context.scene.grease_pencil
+        else:
+            gpd = context.gpencil_data
 
-        def draw_settings_common(context, layout, tool):
-            if type(context.gpencil_data_owner) is bpy.types.Object:
-                gpd = context.scene.grease_pencil
+        if gpd is not None:
+            if gpd.layers.active_note is not None:
+                text = gpd.layers.active_note
+                maxw = 25
+                if len(text) > maxw:
+                    text = text[:maxw - 5] + '..' + text[-3:]
             else:
-                gpd = context.gpencil_data
+                text = ""
 
-            if gpd is not None:
-                if gpd.layers.active_note is not None:
-                    text = gpd.layers.active_note
-                    maxw = 25
-                    if len(text) > maxw:
-                        text = text[:maxw - 5] + '..' + text[-3:]
-                else:
-                    text = ""
+            layout.label(text="Annotation:")
+            gpl = context.active_gpencil_layer
+            if gpl is not None:
+                sub = layout.row(align=True)
+                sub.ui_units_x = 8
 
-                layout.label(text="Annotation:")
-                gpl = context.active_gpencil_layer
-                if gpl is not None:
-                    sub = layout.row(align=True)
-                    sub.ui_units_x = 8
+                sub.prop(gpl, "color", text="")
+                sub.popover(
+                    panel="TOPBAR_PT_annotation_layers",
+                    text=text,
+                )
 
-                    sub.prop(gpl, "color", text="")
-                    sub.popover(
-                        panel="TOPBAR_PT_annotation_layers",
-                        text=text,
-                    )
+        tool_settings = context.tool_settings
+        space_type = tool.space_type
+        if space_type == 'VIEW_3D':
+            layout.separator()
 
-            tool_settings = context.tool_settings
-            space_type = tool.space_type
-            if space_type == 'VIEW_3D':
-                layout.separator()
+            row = layout.row(align=True)
+            row.prop(tool_settings, "annotation_stroke_placement_view3d", text="Placement")
+            if tool_settings.gpencil_stroke_placement_view3d == 'CURSOR':
+                row.prop(tool_settings.gpencil_sculpt, "lockaxis")
+            elif tool_settings.gpencil_stroke_placement_view3d in {'SURFACE', 'STROKE'}:
+                row.prop(tool_settings, "use_gpencil_stroke_endpoints")
 
-                row = layout.row(align=True)
-                row.prop(tool_settings, "annotation_stroke_placement_view3d", text="Placement")
-                if tool_settings.gpencil_stroke_placement_view3d == 'CURSOR':
-                    row.prop(tool_settings.gpencil_sculpt, "lockaxis")
-                elif tool_settings.gpencil_stroke_placement_view3d in {'SURFACE', 'STROKE'}:
-                    row.prop(tool_settings, "use_gpencil_stroke_endpoints")
+    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
+    def scribble(*, draw_settings):
+        return dict(
+            text="Annotate",
+            icon="ops.gpencil.draw",
+            cursor='PAINT_BRUSH',
+            keymap="Generic Tool: Annotate",
+            draw_settings=draw_settings,
+        )
 
-        @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
-        def scribble(*, draw_settings):
-            return dict(
-                text="Annotate",
-                icon="ops.gpencil.draw",
-                cursor='PAINT_BRUSH',
-                keymap=(),
-                draw_settings=draw_settings,
-            )
+    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
+    def line(*, draw_settings):
+        return dict(
+            text="Annotate Line",
+            icon="ops.gpencil.draw.line",
+            cursor='CROSSHAIR',
+            keymap="Generic Tool: Annotate Line",
+            draw_settings=draw_settings,
+        )
 
-        @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
-        def line(*, draw_settings):
-            return dict(
-                text="Annotate Line",
-                icon="ops.gpencil.draw.line",
-                cursor='CROSSHAIR',
-                keymap=(),
-                draw_settings=draw_settings,
-            )
+    @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
+    def poly(*, draw_settings):
+        return dict(
+            text="Annotate Polygon",
+            icon="ops.gpencil.draw.poly",
+            cursor='CROSSHAIR',
+            keymap="Generic Tool: Annotate Polygon",
+            draw_settings=draw_settings,
+        )
 
-        @ToolDef.from_fn.with_args(draw_settings=draw_settings_common)
-        def poly(*, draw_settings):
-            return dict(
-                text="Annotate Polygon",
-                icon="ops.gpencil.draw.poly",
-                cursor='CROSSHAIR',
-                keymap=(),
-                draw_settings=draw_settings,
-            )
-
-        @ToolDef.from_fn
-        def eraser():
-            def draw_settings(context, layout, tool):
-                # TODO: Move this setting to tool_settings
-                user_prefs = context.user_preferences
-                layout.prop(user_prefs.edit, "grease_pencil_eraser_radius", text="Radius")
-            return dict(
-                text="Annotate Eraser",
-                icon="ops.gpencil.draw.eraser",
-                cursor='CROSSHAIR',  # XXX: Always show brush circle when enabled
-                keymap=(),
-                draw_settings=draw_settings,
-            )
-
-    return _defs_annotate
-
-
-# Needed so annotation gets a keymap per space type.
-_defs_annotate_image = _defs_annotate_factory()
-_defs_annotate_view3d = _defs_annotate_factory()
+    @ToolDef.from_fn
+    def eraser():
+        def draw_settings(context, layout, tool):
+            # TODO: Move this setting to tool_settings
+            user_prefs = context.user_preferences
+            layout.prop(user_prefs.edit, "grease_pencil_eraser_radius", text="Radius")
+        return dict(
+            text="Annotate Eraser",
+            icon="ops.gpencil.draw.eraser",
+            cursor='CROSSHAIR',  # XXX: Always show brush circle when enabled
+            keymap="Generic Tool: Annotate Eraser",
+            draw_settings=draw_settings,
+        )
 
 
 class _defs_transform:
@@ -220,7 +208,7 @@ class _defs_transform:
             icon="ops.transform.translate",
             widget="TRANSFORM_GGT_gizmo",
             operator="transform.translate",
-            keymap=(),
+            keymap="3D View Tool: Move",
         )
 
     @ToolDef.from_fn
@@ -231,7 +219,7 @@ class _defs_transform:
             icon="ops.transform.rotate",
             widget="TRANSFORM_GGT_gizmo",
             operator="transform.rotate",
-            keymap=(),
+            keymap="3D View Tool: Rotate",
         )
 
     @ToolDef.from_fn
@@ -242,7 +230,7 @@ class _defs_transform:
             icon="ops.transform.resize",
             widget="TRANSFORM_GGT_gizmo",
             operator="transform.resize",
-            keymap=(),
+            keymap="3D View Tool: Scale",
         )
 
     @ToolDef.from_fn
@@ -271,7 +259,7 @@ class _defs_transform:
             ),
             icon="ops.transform.transform",
             widget="TRANSFORM_GGT_gizmo",
-            keymap=(),
+            keymap="3D View Tool: Transform",
             draw_settings=draw_settings,
         )
 
@@ -279,7 +267,19 @@ class _defs_transform:
 class _defs_view3d_select:
 
     @ToolDef.from_fn
-    def border():
+    def select():
+        def draw_settings(context, layout, tool):
+            pass
+        return dict(
+            text="Select",
+            icon="ops.generic.select",
+            widget=None,
+            keymap="3D View Tool: Select",
+            draw_settings=draw_settings,
+        )
+
+    @ToolDef.from_fn
+    def box():
         def draw_settings(context, layout, tool):
             props = tool.operator_properties("view3d.select_box")
             layout.prop(props, "mode", expand=True)
@@ -287,7 +287,7 @@ class _defs_view3d_select:
             text="Select Box",
             icon="ops.generic.select_box",
             widget=None,
-            keymap=(),
+            keymap="3D View Tool: Select Box",
             draw_settings=draw_settings,
         )
 
@@ -300,7 +300,7 @@ class _defs_view3d_select:
             text="Select Lasso",
             icon="ops.generic.select_lasso",
             widget=None,
-            keymap=(),
+            keymap="3D View Tool: Select Lasso",
             draw_settings=draw_settings,
         )
 
@@ -320,7 +320,7 @@ class _defs_view3d_select:
             text="Select Circle",
             icon="ops.generic.select_circle",
             widget=None,
-            keymap=(),
+            keymap="3D View Tool: Select Circle",
             draw_settings=draw_settings,
             draw_cursor=draw_cursor,
         )
@@ -972,7 +972,19 @@ class _defs_image_uv_transform:
 class _defs_image_uv_select:
 
     @ToolDef.from_fn
-    def border():
+    def select():
+        def draw_settings(context, layout, tool):
+            pass
+        return dict(
+            text="Select",
+            icon="ops.generic.select",
+            widget=None,
+            keymap=(),
+            draw_settings=draw_settings,
+        )
+
+    @ToolDef.from_fn
+    def box():
         def draw_settings(context, layout, tool):
             props = tool.operator_properties("uv.select_box")
             layout.prop(props, "mode", expand=True)
@@ -1067,6 +1079,25 @@ class _defs_gpencil_paint:
             keymap=(),
         )
 
+    @ToolDef.from_fn
+    def arc():
+        return dict(
+            text="Arc",
+            icon="ops.gpencil.primitive_arc",
+            cursor='CROSSHAIR',
+            widget=None,
+            keymap=(),
+        )
+
+    @ToolDef.from_fn
+    def curve():
+        return dict(
+            text="Curve",
+            icon="ops.gpencil.primitive_curve",
+            cursor='CROSSHAIR',
+            widget=None,
+            keymap=(),
+        )
 
 class _defs_gpencil_edit:
     @ToolDef.from_fn
@@ -1076,6 +1107,18 @@ class _defs_gpencil_edit:
             icon="ops.gpencil.edit_bend",
             widget=None,
             keymap=(),
+        )
+
+    @ToolDef.from_fn
+    def select():
+        def draw_settings(context, layout, tool):
+            pass
+        return dict(
+            text="Select",
+            icon="ops.generic.select",
+            widget=None,
+            keymap=(),
+            draw_settings=draw_settings,
         )
 
     @ToolDef.from_fn
@@ -1156,46 +1199,59 @@ class _defs_gpencil_weight:
         )
 
 
-class TOPBAR_PT_gpencil_materials(Panel):
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'HEADER'
-    bl_label = "Materials"
-    bl_ui_units_x = 14
+class _defs_node_select:
 
-    @classmethod
-    def poll(cls, context):
-        ob = context.object
-        return ob and ob.type == 'GPENCIL'
+    @ToolDef.from_fn
+    def select():
+        def draw_settings(context, layout, tool):
+            pass
+        return dict(
+            text="Select",
+            icon="ops.generic.select",
+            widget=None,
+            keymap="Node Tool: Select",
+            draw_settings=draw_settings,
+        )
 
-    @staticmethod
-    def draw(self, context):
-        layout = self.layout
-        ob = context.object
+    @ToolDef.from_fn
+    def box():
+        def draw_settings(context, layout, tool):
+            props = tool.operator_properties("node.select_box")
+            layout.prop(props, "deselect")
+            pass
+        return dict(
+            text="Select Box",
+            icon="ops.generic.select_box",
+            widget=None,
+            keymap="Node Tool: Select Box",
+            draw_settings=draw_settings,
+        )
 
-        if ob:
-            is_sortable = len(ob.material_slots) > 1
-            rows = 1
-            if (is_sortable):
-                rows = 10
+    @ToolDef.from_fn
+    def lasso():
+        def draw_settings(context, layout, tool):
+            props = tool.operator_properties("node.select_lasso")
+            layout.prop(props, "deselect")
+            pass
+        return dict(
+            text="Select Lasso",
+            icon="ops.generic.select_lasso",
+            widget=None,
+            keymap="Node Tool: Select Lasso",
+            draw_settings=draw_settings,
+        )
 
-            row = layout.row()
 
-            row.template_list("GPENCIL_UL_matslots", "", ob, "material_slots", ob, "active_material_index", rows=rows)
+class _defs_node_edit:
 
-            col = row.column(align=True)
-            col.menu("GPENCIL_MT_color_specials", icon='DOWNARROW_HLT', text="")
-
-            if is_sortable:
-                col.separator()
-
-                col.operator("object.material_slot_move", icon='TRIA_UP', text="").direction = 'UP'
-                col.operator("object.material_slot_move", icon='TRIA_DOWN', text="").direction = 'DOWN'
-
-                col.separator()
-
-                sub = col.column(align=True)
-                sub.operator("gpencil.color_isolate", icon='LOCKED', text="").affect_visibility = False
-                sub.operator("gpencil.color_isolate", icon='HIDE_OFF', text="").affect_visibility = True
+    @ToolDef.from_fn
+    def links_cut():
+        return dict(
+            text="Links Cut",
+            icon="ops.mesh.knife_tool",
+            widget=None,
+            keymap="Node Tool: Links Cut",
+        )
 
 
 class IMAGE_PT_tools_active(ToolSelectPanelHelper, Panel):
@@ -1232,7 +1288,8 @@ class IMAGE_PT_tools_active(ToolSelectPanelHelper, Panel):
 
     _tools_select = (
         (
-            _defs_image_uv_select.border,
+            _defs_image_uv_select.select,
+            _defs_image_uv_select.box,
             _defs_image_uv_select.circle,
             _defs_image_uv_select.lasso,
         ),
@@ -1240,10 +1297,10 @@ class IMAGE_PT_tools_active(ToolSelectPanelHelper, Panel):
 
     _tools_annotate = (
         (
-            _defs_annotate_image.scribble,
-            _defs_annotate_image.line,
-            _defs_annotate_image.poly,
-            _defs_annotate_image.eraser,
+            _defs_annotate.scribble,
+            _defs_annotate.line,
+            _defs_annotate.poly,
+            _defs_annotate.eraser,
         ),
     )
 
@@ -1272,6 +1329,61 @@ class IMAGE_PT_tools_active(ToolSelectPanelHelper, Panel):
         ],
         'PAINT': [
             _defs_texture_paint.generate_from_brushes,
+        ],
+    }
+
+
+class NODE_PT_tools_active(ToolSelectPanelHelper, Panel):
+    bl_space_type = 'NODE_EDITOR'
+    bl_region_type = 'TOOLS'
+    bl_label = "Tools"  # not visible
+    bl_options = {'HIDE_HEADER'}
+
+    # Satisfy the 'ToolSelectPanelHelper' API.
+    keymap_prefix = "Node Editor Tool:"
+
+    @classmethod
+    def tools_from_context(cls, context, mode=None):
+        if mode is None:
+            if context.space_data is None:
+                mode = None
+            else:
+                mode = context.space_data.tree_type
+        for tools in (cls._tools[None], cls._tools.get(mode, ())):
+            for item in tools:
+                if not (type(item) is ToolDef) and callable(item):
+                    yield from item(context)
+                else:
+                    yield item
+
+    @classmethod
+    def tools_all(cls):
+        yield from cls._tools.items()
+
+    _tools_select = (
+        (
+            _defs_node_select.select,
+            _defs_node_select.box,
+            _defs_node_select.lasso,
+        ),
+    )
+
+    _tools_annotate = (
+        (
+            _defs_annotate.scribble,
+            _defs_annotate.line,
+            _defs_annotate.poly,
+            _defs_annotate.eraser,
+        ),
+    )
+
+    _tools = {
+        None: [
+            *_tools_select,
+            None,
+            *_tools_annotate,
+            None,
+            _defs_node_edit.links_cut,
         ],
     }
 
@@ -1313,7 +1425,8 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
 
     _tools_select = (
         (
-            _defs_view3d_select.border,
+            _defs_view3d_select.select,
+            _defs_view3d_select.box,
             _defs_view3d_select.circle,
             _defs_view3d_select.lasso,
         ),
@@ -1321,20 +1434,30 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
 
     _tools_annotate = (
         (
-            _defs_annotate_view3d.scribble,
-            _defs_annotate_view3d.line,
-            _defs_annotate_view3d.poly,
-            _defs_annotate_view3d.eraser,
+            _defs_annotate.scribble,
+            _defs_annotate.line,
+            _defs_annotate.poly,
+            _defs_annotate.eraser,
         ),
         _defs_view3d_generic.ruler,
     )
 
     _tools_gpencil_select = (
         (
+            _defs_gpencil_edit.select,
             _defs_gpencil_edit.box_select,
             _defs_gpencil_edit.circle_select,
             _defs_gpencil_edit.lasso_select,
         ),
+    )
+
+    _tools_default = (
+        *_tools_select,
+        _defs_view3d_generic.cursor,
+        None,
+        *_tools_transform,
+        None,
+        *_tools_annotate,
     )
 
     _tools = {
@@ -1344,20 +1467,10 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             # End group.
         ],
         'OBJECT': [
-            *_tools_select,
-            _defs_view3d_generic.cursor,
-            None,
-            *_tools_transform,
-            None,
-            *_tools_annotate,
+            *_tools_default,
         ],
         'POSE': [
-            *_tools_select,
-            _defs_view3d_generic.cursor,
-            None,
-            *_tools_transform,
-            None,
-            *_tools_annotate,
+            *_tools_default,
             None,
             (
                 _defs_pose.breakdown,
@@ -1366,12 +1479,8 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             ),
         ],
         'EDIT_ARMATURE': [
-            *_tools_select,
-            _defs_view3d_generic.cursor,
+            *_tools_default,
             None,
-            *_tools_transform,
-            None,
-            *_tools_annotate,
             _defs_edit_armature.roll,
             (
                 _defs_edit_armature.bone_size,
@@ -1384,12 +1493,7 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             ),
         ],
         'EDIT_MESH': [
-            *_tools_select,
-            _defs_view3d_generic.cursor,
-            None,
-            *_tools_transform,
-            None,
-            *_tools_annotate,
+            *_tools_default,
             None,
             _defs_edit_mesh.cube_add,
             None,
@@ -1436,12 +1540,7 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             ),
         ],
         'EDIT_CURVE': [
-            *_tools_select,
-            _defs_view3d_generic.cursor,
-            None,
-            *_tools_transform,
-            None,
-            *_tools_annotate,
+            *_tools_default,
             None,
             _defs_edit_curve.tilt,
             _defs_edit_curve.draw,
@@ -1450,23 +1549,14 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
                 _defs_edit_curve.extrude_cursor,
             ),
         ],
+        'EDIT_SURFACE': [
+            *_tools_default,
+        ],
         'EDIT_METABALL': [
-            *_tools_select,
-            _defs_view3d_generic.cursor,
-            None,
-            *_tools_transform,
-            None,
-            *_tools_annotate,
-            None,
+            *_tools_default,
         ],
         'EDIT_LATTICE': [
-            *_tools_select,
-            _defs_view3d_generic.cursor,
-            None,
-            *_tools_transform,
-            None,
-            *_tools_annotate,
-            None,
+            *_tools_default,
         ],
         'EDIT_HAIR': [
             _defs_view3d_generic.cursor,
@@ -1510,16 +1600,18 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             None,
             _defs_weight_paint.gradient,
         ],
-        'GPENCIL_PAINT': [
+        'PAINT_GPENCIL': [
             _defs_view3d_generic.cursor,
             None,
             _defs_gpencil_paint.generate_from_brushes,
             None,
             _defs_gpencil_paint.line,
+            _defs_gpencil_paint.arc,
+            _defs_gpencil_paint.curve,
             _defs_gpencil_paint.box,
             _defs_gpencil_paint.circle,
         ],
-        'GPENCIL_EDIT': [
+        'EDIT_GPENCIL': [
             *_tools_gpencil_select,
             _defs_view3d_generic.cursor,
             None,
@@ -1529,29 +1621,21 @@ class VIEW3D_PT_tools_active(ToolSelectPanelHelper, Panel):
             _defs_gpencil_edit.shear,
             _defs_gpencil_edit.tosphere,
         ],
-        'GPENCIL_SCULPT': [
+        'SCULPT_GPENCIL': [
             *_tools_gpencil_select,
             None,
             _defs_gpencil_sculpt.generate_from_brushes,
         ],
-        'GPENCIL_WEIGHT': [
+        'WEIGHT_GPENCIL': [
             _defs_gpencil_weight.generate_from_brushes,
         ],
     }
 
 
-class TOPBAR_PT_annotation_layers(Panel, AnnotationDataPanel):
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'HEADER'
-    bl_label = "Layers"
-    bl_ui_units_x = 14
-
-
 classes = (
     IMAGE_PT_tools_active,
+    NODE_PT_tools_active,
     VIEW3D_PT_tools_active,
-    TOPBAR_PT_gpencil_materials,
-    TOPBAR_PT_annotation_layers,
 )
 
 if __name__ == "__main__":  # only for live edit.

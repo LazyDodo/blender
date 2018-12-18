@@ -90,7 +90,7 @@ static void rna_Collection_objects_link(Collection *collection, Main *bmain, Rep
 		return;
 	}
 
-	DEG_id_tag_update(&collection->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&collection->id, ID_RECALC_COPY_ON_WRITE);
 	DEG_relations_tag_update(bmain);
 	WM_main_add_notifier(NC_OBJECT | ND_DRAW, &object->id);
 }
@@ -102,7 +102,7 @@ static void rna_Collection_objects_unlink(Collection *collection, Main *bmain, R
 		return;
 	}
 
-	DEG_id_tag_update(&collection->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&collection->id, ID_RECALC_COPY_ON_WRITE);
 	DEG_relations_tag_update(bmain);
 	WM_main_add_notifier(NC_OBJECT | ND_DRAW, &object->id);
 }
@@ -174,7 +174,7 @@ static void rna_Collection_children_link(Collection *collection, Main *bmain, Re
 		return;
 	}
 
-	DEG_id_tag_update(&collection->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&collection->id, ID_RECALC_COPY_ON_WRITE);
 	DEG_relations_tag_update(bmain);
 	WM_main_add_notifier(NC_OBJECT | ND_DRAW, &child->id);
 }
@@ -186,7 +186,7 @@ static void rna_Collection_children_unlink(Collection *collection, Main *bmain, 
 		return;
 	}
 
-	DEG_id_tag_update(&collection->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&collection->id, ID_RECALC_COPY_ON_WRITE);
 	DEG_relations_tag_update(bmain);
 	WM_main_add_notifier(NC_OBJECT | ND_DRAW, &child->id);
 }
@@ -241,7 +241,7 @@ static void rna_Collection_flag_update(Main *bmain, Scene *scene, PointerRNA *pt
 	BKE_collection_object_cache_free(collection);
 	BKE_main_collection_sync(bmain);
 
-	DEG_id_tag_update(&collection->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&collection->id, ID_RECALC_COPY_ON_WRITE);
 	DEG_relations_tag_update(bmain);
 	WM_main_add_notifier(NC_SCENE | ND_OB_SELECT, scene);
 }
@@ -309,15 +309,16 @@ void RNA_def_collections(BlenderRNA *brna)
 	PropertyRNA *prop;
 
 	srna = RNA_def_struct(brna, "Collection", "ID");
+	/* XXX: CAN WE RENAME TO Collection? */
 	RNA_def_struct_sdna(srna, "Group"); /* it is actually Collection but for 2.8 the dna is patched! */
 	RNA_def_struct_ui_text(srna, "Collection", "Collection of Object data-blocks");
 	RNA_def_struct_ui_icon(srna, ICON_GROUP);
 	/* this is done on save/load in readfile.c, removed if no objects are in the collection and not in a scene */
 	RNA_def_struct_clear_flag(srna, STRUCT_ID_REFCOUNT);
 
-	prop = RNA_def_property(srna, "dupli_offset", PROP_FLOAT, PROP_TRANSLATION);
+	prop = RNA_def_property(srna, "instance_offset", PROP_FLOAT, PROP_TRANSLATION);
 	RNA_def_property_float_sdna(prop, NULL, "dupli_ofs");
-	RNA_def_property_ui_text(prop, "Dupli Offset", "Offset from the origin to use when instancing");
+	RNA_def_property_ui_text(prop, "Instance Offset", "Offset from the origin to use when instancing");
 	RNA_def_property_ui_range(prop, -10000.0, 10000.0, 10, RNA_TRANSLATION_PREC_DEFAULT);
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
 

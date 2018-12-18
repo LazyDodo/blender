@@ -17,8 +17,12 @@ class Prefs(bpy.types.KeyConfigPreferences):
     select_mouse: EnumProperty(
         name="Select Mouse",
         items=(
-            ('LEFT', "Left", "Use left Mouse Button for selection"),
-            ('RIGHT', "Right", "Use Right Mouse Button for selection"),
+            ('LEFT', "Left",
+             "Use left mouse button for selection. "
+             "The standard behavior that works well for mouse, trackpad and tablet devices"),
+            ('RIGHT', "Right",
+             "Use right mouse button for selection, and left mouse button for actions. "
+             "This works well primarily for keyboard and mouse devices"),
         ),
         description=(
             "Mouse button used for selection"
@@ -38,14 +42,19 @@ class Prefs(bpy.types.KeyConfigPreferences):
 blender_default = bpy.utils.execfile(os.path.join(dirname, "keymap_data", "blender_default.py"))
 
 def load():
+    from bpy import context
     from bl_keymap_utils.io import keyconfig_init_from_data
 
-    kc = bpy.context.window_manager.keyconfigs.new(idname)
+    prefs = context.user_preferences
+    kc = context.window_manager.keyconfigs.new(idname)
     kc_prefs = kc.preferences
 
     keyconfig_data = blender_default.generate_keymaps(
         blender_default.Params(
             select_mouse=kc_prefs.select_mouse,
+            use_mouse_emulate_3_button=prefs.inputs.use_mouse_emulate_3_button,
+            spacebar_action='SEARCH',
+            use_select_all_toggle=True,
             legacy=True,
         ),
     )

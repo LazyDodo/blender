@@ -255,8 +255,8 @@ static int add_test_hair_exec(bContext *C, wmOperator *op)
 	hair_generate_curves(&edit->curve_data, scalp);
 
 	BKE_hair_batch_cache_dirty(hsys, BKE_HAIR_BATCH_DIRTY_ALL);
-	DEG_id_tag_update(obedit->data, DEG_TAG_SELECT_UPDATE);
-	WM_event_add_notifier(C, NC_GEOM|ND_DRAW, obedit);
+	DEG_id_tag_update(obedit->data, ID_RECALC_SELECT);
+	WM_event_add_notifier(C, NC_GEOM | ND_SELECT, obedit->data);
 
 	return OPERATOR_FINISHED;
 }

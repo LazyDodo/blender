@@ -64,7 +64,8 @@ ToolDef = namedtuple(
     (
         # The name to display in the interface.
         "text",
-        # Description (for tooltip), when not set, use the description of 'operator'.
+        # Description (for tooltip), when not set, use the description of 'operator',
+        # may be a string or a 'function(context, item, keymap) -> string'.
         "description",
         # The name of the icon to use (found in ``release/datafiles/icons``) or None for no icon.
         "icon",
@@ -86,7 +87,7 @@ ToolDef = namedtuple(
         "data_block",
         # Optional primary operator (for introspection only).
         "operator",
-        # Optional draw settings (operator options, toolsettings).
+        # Optional draw settings (operator options, tool_settings).
         "draw_settings",
         # Optional draw cursor.
         "draw_cursor",
@@ -290,6 +291,12 @@ class ToolSelectPanelHelper:
                 else:
                     mode = space_data.mode
             tool = context.workspace.tools.from_space_image_mode(mode, create=create)
+            if tool is not None:
+                tool.refresh_from_context()
+                return tool
+        elif space_type == 'NODE_EDITOR':
+            space_data = context.space_data
+            tool = context.workspace.tools.from_space_node(create=create)
             if tool is not None:
                 tool.refresh_from_context()
                 return tool
@@ -679,17 +686,17 @@ def description_from_name(context, space_type, text, *, use_operator=True):
     # Custom description.
     description = item.description
     if description is not None:
+        if callable(description):
+            km = _keymap_from_item(context, item)
+            return description(context, item, km)
         return description
 
     # Extract from the operator.
     if use_operator:
         operator = item.operator
-
         if operator is None:
             if item.keymap is not None:
-                wm = context.window_manager
-                keyconf = wm.keyconfigs.active
-                km = keyconf.keymaps.get(item.keymap[0])
+                km = _keymap_from_item(context, item)
                 if km is not None:
                     for kmi in km.keymap_items:
                         if kmi.active:
@@ -713,6 +720,14 @@ def keymap_from_name(context, space_type, text):
     if keymap:
         return keymap[0]
     return ""
+
+
+def _keymap_from_item(context, item):
+    if item.keymap is not None:
+        wm = context.window_manager
+        keyconf = wm.keyconfigs.active
+        return keyconf.keymaps.get(item.keymap[0])
+    return None
 
 
 classes = (

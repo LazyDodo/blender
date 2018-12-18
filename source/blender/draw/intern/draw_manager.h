@@ -319,6 +319,8 @@ typedef struct DRWManager {
 	/* State of the object being evaluated if already allocated. */
 	DRWCallState *ob_state;
 	uchar state_cache_id; /* Could be larger but 254 view changes is already a lot! */
+	struct DupliObject *dupli_source;
+	struct Object *dupli_parent;
 
 	/* Rendering state */
 	GPUShader *shader;
@@ -417,5 +419,7 @@ void drw_state_set(DRWState state);
 
 void drw_debug_draw(void);
 void drw_debug_init(void);
+
+void drw_batch_cache_generate_requested(struct Object *ob);
 
 #endif /* __DRAW_MANAGER_H__ */

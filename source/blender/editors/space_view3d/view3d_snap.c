@@ -90,7 +90,7 @@ static int snap_sel_to_grid_exec(bContext *C, wmOperator *UNUSED(op))
 	if (obedit) {
 		ViewLayer *view_layer = CTX_data_view_layer(C);
 		uint objects_len = 0;
-		Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+		Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, CTX_wm_view3d(C), &objects_len);
 		for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 			obedit = objects[ob_index];
 
@@ -132,7 +132,7 @@ static int snap_sel_to_grid_exec(bContext *C, wmOperator *UNUSED(op))
 	else {
 		struct KeyingSet *ks = ANIM_get_keyingset_for_autokeying(scene, ANIM_KS_LOCATION_ID);
 
-		FOREACH_SELECTED_EDITABLE_OBJECT_BEGIN(view_layer_eval, ob_eval)
+		FOREACH_SELECTED_EDITABLE_OBJECT_BEGIN(view_layer_eval, v3d, ob_eval)
 		{
 			Object *ob = DEG_get_original_object(ob_eval);
 			if (ob->mode & OB_MODE_POSE) {
@@ -180,7 +180,7 @@ static int snap_sel_to_grid_exec(bContext *C, wmOperator *UNUSED(op))
 				}
 				ob->pose->flag |= (POSE_LOCKED | POSE_DO_UNLOCK);
 
-				DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+				DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 			}
 			else {
 				vec[0] = -ob_eval->obmat[3][0] + gridf * floorf(0.5f + ob_eval->obmat[3][0] / gridf);
@@ -204,7 +204,7 @@ static int snap_sel_to_grid_exec(bContext *C, wmOperator *UNUSED(op))
 				/* auto-keyframing */
 				ED_autokeyframe_object(C, scene, ob, ks);
 
-				DEG_id_tag_update(&ob->id, OB_RECALC_OB);
+				DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM);
 			}
 		}
 		FOREACH_SELECTED_EDITABLE_OBJECT_END;
@@ -268,7 +268,7 @@ static int snap_selected_to_location(bContext *C, const float snap_target_global
 		float snap_target_local[3];
 		ViewLayer *view_layer = CTX_data_view_layer(C);
 		uint objects_len = 0;
-		Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+		Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, CTX_wm_view3d(C), &objects_len);
 		for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 			obedit = objects[ob_index];
 
@@ -379,7 +379,7 @@ static int snap_selected_to_location(bContext *C, const float snap_target_global
 
 			ob->pose->flag |= (POSE_LOCKED | POSE_DO_UNLOCK);
 
-			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+			DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 		}
 		CTX_DATA_END;
 	}
@@ -437,7 +437,7 @@ static int snap_selected_to_location(bContext *C, const float snap_target_global
 				/* auto-keyframing */
 				ED_autokeyframe_object(C, scene, ob, ks);
 
-				DEG_id_tag_update(&ob->id, OB_RECALC_OB);
+				DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM);
 			}
 		}
 
@@ -454,9 +454,8 @@ static int snap_selected_to_cursor_exec(bContext *C, wmOperator *op)
 	const bool use_offset = RNA_boolean_get(op->ptr, "use_offset");
 
 	Scene *scene = CTX_data_scene(C);
-	View3D *v3d = CTX_wm_view3d(C);
 
-	const float *snap_target_global = ED_view3d_cursor3d_get(scene, v3d)->location;
+	const float *snap_target_global = scene->cursor.location;
 
 	return snap_selected_to_location(C, snap_target_global, use_offset);
 }
@@ -521,14 +520,14 @@ static int snap_curs_to_grid_exec(bContext *C, wmOperator *UNUSED(op))
 	float gridf, *curs;
 
 	gridf = ED_view3d_grid_scale(scene, v3d, NULL);
-	curs = ED_view3d_cursor3d_get(scene, v3d)->location;
+	curs = scene->cursor.location;
 
 	curs[0] = gridf * floorf(0.5f + curs[0] / gridf);
 	curs[1] = gridf * floorf(0.5f + curs[1] / gridf);
 	curs[2] = gridf * floorf(0.5f + curs[2] / gridf);
 
 	WM_event_add_notifier(C, NC_SPACE | ND_SPACE_VIEW3D, v3d);  /* hrm */
-	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&scene->id, ID_RECALC_COPY_ON_WRITE);
 
 	return OPERATOR_FINISHED;
 }
@@ -624,7 +623,7 @@ static bool snap_curs_to_sel_ex(bContext *C, float cursor[3])
 		int global_transverts_tot = 0;
 		ViewLayer *view_layer = CTX_data_view_layer(C);
 		uint objects_len = 0;
-		Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+		Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, CTX_wm_view3d(C), &objects_len);
 		for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 			obedit = objects[ob_index];
 
@@ -659,7 +658,7 @@ static bool snap_curs_to_sel_ex(bContext *C, float cursor[3])
 		}
 		MEM_freeN(objects);
 
-		if (scene->toolsettings->transform_pivot_point == V3D_AROUND_CENTER_MEAN) {
+		if (scene->toolsettings->transform_pivot_point == V3D_AROUND_CENTER_MEDIAN) {
 			mul_v3_fl(centroid, 1.0f / (float)global_transverts_tot);
 			copy_v3_v3(cursor, centroid);
 		}
@@ -687,7 +686,7 @@ static bool snap_curs_to_sel_ex(bContext *C, float cursor[3])
 			}
 		}
 		else {
-			FOREACH_SELECTED_OBJECT_BEGIN(view_layer_eval, ob_eval)
+			FOREACH_SELECTED_OBJECT_BEGIN(view_layer_eval, v3d, ob_eval)
 			{
 				copy_v3_v3(vec, ob_eval->obmat[3]);
 
@@ -710,7 +709,7 @@ static bool snap_curs_to_sel_ex(bContext *C, float cursor[3])
 			return false;
 		}
 
-		if (scene->toolsettings->transform_pivot_point == V3D_AROUND_CENTER_MEAN) {
+		if (scene->toolsettings->transform_pivot_point == V3D_AROUND_CENTER_MEDIAN) {
 			mul_v3_fl(centroid, 1.0f / (float)count);
 			copy_v3_v3(cursor, centroid);
 		}
@@ -724,14 +723,9 @@ static bool snap_curs_to_sel_ex(bContext *C, float cursor[3])
 static int snap_curs_to_sel_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	Scene *scene = CTX_data_scene(C);
-	View3D *v3d = CTX_wm_view3d(C);
-	float *curs;
-
-	curs = ED_view3d_cursor3d_get(scene, v3d)->location;
-
-	if (snap_curs_to_sel_ex(C, curs)) {
-		WM_event_add_notifier(C, NC_SPACE | ND_SPACE_VIEW3D, v3d);
-		DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+	if (snap_curs_to_sel_ex(C, scene->cursor.location)) {
+		WM_event_add_notifier(C, NC_SPACE | ND_SPACE_VIEW3D, NULL);
+		DEG_id_tag_update(&scene->id, ID_RECALC_COPY_ON_WRITE);
 
 		return OPERATOR_FINISHED;
 	}
@@ -761,57 +755,21 @@ void VIEW3D_OT_snap_cursor_to_selected(wmOperatorType *ot)
  *
  * Note: this could be exported to be a generic function.
  * see: calculateCenterActive
-**/
+ */
 static bool snap_calc_active_center(bContext *C, const bool select_only, float r_center[3])
 {
-	const Depsgraph *depsgraph = CTX_data_depsgraph(C);
-	Object *obedit = CTX_data_edit_object(C);
-
-	if (obedit) {
-		if (ED_object_editmode_calc_active_center(obedit, select_only, r_center)) {
-			mul_m4_v3(obedit->obmat, r_center);
-			return true;
-		}
-	}
-	else {
-		Object *ob = CTX_data_active_object(C);
-		if (ob) {
-			Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
-
-			if (ob->mode & OB_MODE_POSE) {
-				bPoseChannel *pchan = BKE_pose_channel_active(ob_eval);
-				if (pchan) {
-					if (!select_only || (pchan->bone->flag & BONE_SELECTED)) {
-						copy_v3_v3(r_center, pchan->pose_head);
-						mul_m4_v3(ob_eval->obmat, r_center);
-						return true;
-					}
-				}
-			}
-			else {
-
-				if (!select_only || (ob_eval->flag & SELECT)) {
-					copy_v3_v3(r_center, ob_eval->obmat[3]);
-					return true;
-				}
-			}
-		}
-	}
-
-	return false;
+	Object *ob = CTX_data_active_object(C);
+	return ED_object_calc_active_center(ob, select_only, r_center);
 }
 
 static int snap_curs_to_active_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	Scene *scene = CTX_data_scene(C);
 	View3D *v3d = CTX_wm_view3d(C);
-	float *curs;
 
-	curs = ED_view3d_cursor3d_get(scene, v3d)->location;
-
-	if (snap_calc_active_center(C, false, curs)) {
+	if (snap_calc_active_center(C, false, scene->cursor.location)) {
 		WM_event_add_notifier(C, NC_SPACE | ND_SPACE_VIEW3D, v3d);
-		DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_COPY_ON_WRITE);
 
 		return OPERATOR_FINISHED;
 	}
@@ -841,15 +799,12 @@ void VIEW3D_OT_snap_cursor_to_active(wmOperatorType *ot)
 static int snap_curs_to_center_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	Scene *scene = CTX_data_scene(C);
-	View3D *v3d = CTX_wm_view3d(C);
-	float *curs;
-	curs = ED_view3d_cursor3d_get(scene, v3d)->location;
 
-	zero_v3(curs);
+	zero_v3(scene->cursor.location);
 
-	WM_event_add_notifier(C, NC_SPACE | ND_SPACE_VIEW3D, v3d);
-	DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&scene->id, ID_RECALC_COPY_ON_WRITE);
 
+	WM_event_add_notifier(C, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 	return OPERATOR_FINISHED;
 }
 

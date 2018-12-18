@@ -237,7 +237,7 @@ class DOPESHEET_HT_editor_buttons(Header):
     @staticmethod
     def draw_header(context, layout):
         st = context.space_data
-        toolsettings = context.tool_settings
+        tool_settings = context.tool_settings
 
         if st.mode in {'ACTION', 'SHAPEKEY'}:
             # TODO: These buttons need some tidying up - Probably by using a popover, and bypassing the template_id() here
@@ -284,10 +284,10 @@ class DOPESHEET_HT_editor_buttons(Header):
             layout.prop(st, "auto_snap", text="")
 
         row = layout.row(align=True)
-        row.prop(toolsettings, "use_proportional_action", text="", icon_only=True)
+        row.prop(tool_settings, "use_proportional_action", text="", icon_only=True)
         sub = row.row(align=True)
-        sub.active = toolsettings.use_proportional_action
-        sub.prop(toolsettings, "proportional_edit_falloff", text="", icon_only=True)
+        sub.active = tool_settings.use_proportional_action
+        sub.prop(tool_settings, "proportional_edit_falloff", text="", icon_only=True)
 
 
 class DOPESHEET_MT_editor_menus(Menu):
@@ -351,6 +351,12 @@ class DOPESHEET_MT_view(Menu):
         layout.operator("action.view_all")
         layout.operator("action.view_selected")
         layout.operator("action.view_frame")
+
+        # Add this to show key-binding (reverse action in dope-sheet).
+        layout.separator()
+        props = layout.operator("wm.context_set_enum", text="Toggle Graph Editor")
+        props.data_path = "area.type"
+        props.value = 'GRAPH_EDITOR'
 
         layout.separator()
         layout.menu("INFO_MT_area")

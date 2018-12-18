@@ -148,6 +148,8 @@ typedef struct uiWidgetStateColors {
 	char inner_driven_sel[4];
 	char inner_overridden[4];
 	char inner_overridden_sel[4];
+	char inner_changed[4];
+	char inner_changed_sel[4];
 	float blend, pad;
 } uiWidgetStateColors;
 
@@ -492,7 +494,9 @@ enum {
 };
 
 typedef struct SolidLight {
-	int flag, pad;
+	int flag;
+	float smooth;
+	float pad[2];
 	float col[4], spec[4], vec[4];
 } SolidLight;
 
@@ -585,9 +589,12 @@ typedef struct UserDef {
 	short gp_manhattendist, gp_euclideandist, gp_eraser;
 	short gp_settings;  /* eGP_UserdefSettings */
 	short tb_leftmouse, tb_rightmouse;
-	struct SolidLight light[3];
+	/* struct SolidLight light[3] DNA_DEPRECATED; */ /* Was using non-aligned struct! */
+	struct SolidLight light_param[4];
+	float light_ambient[3], pad7;
 	short gizmo_flag, gizmo_size;
-	short pad6[3];
+	short edit_studio_light;
+	short pad6[2];
 	short textimeout, texcollectrate;
 	short dragthreshold;
 	int memcachelimit;
@@ -677,16 +684,29 @@ extern UserDef U; /* from blenkernel blender.c */
 
 /* ***************** USERDEF ****************** */
 
+/* Toggles for unfinished 2.8 UserPref design. */
+//#define WITH_USERDEF_WORKSPACES
+//#define WITH_USERDEF_SYSTEM_SPLIT
+
 /* UserDef.userpref (UI active_section) */
 typedef enum eUserPref_Section {
-	USER_SECTION_INTERFACE	= 0,
-	USER_SECTION_EDIT		= 1,
-	USER_SECTION_FILE		= 2,
-	USER_SECTION_SYSTEM		= 3,
-	USER_SECTION_THEME		= 4,
-	USER_SECTION_INPUT		= 5,
-	USER_SECTION_ADDONS 	= 6,
-	USER_SECTION_LIGHT 	= 7,
+	USER_SECTION_INTERFACE         = 0,
+	USER_SECTION_EDIT              = 1,
+	USER_SECTION_SYSTEM_FILES      = 2,
+	USER_SECTION_SYSTEM_GENERAL    = 3,
+	USER_SECTION_THEME             = 4,
+	USER_SECTION_INPUT             = 5,
+	USER_SECTION_ADDONS            = 6,
+	USER_SECTION_LIGHT             = 7,
+#ifdef WITH_USERDEF_WORKSPACES
+	USER_SECTION_WORKSPACE_CONFIG  = 8,
+	USER_SECTION_WORKSPACE_ADDONS  = 9,
+	USER_SECTION_WORKSPACE_KEYMAPS = 10,
+#endif
+#ifdef WITH_USERDEF_SYSTEM_SPLIT
+	USER_SECTION_SYSTEM_DISPLAY    = 11,
+	USER_SECTION_SYSTEM_DEVICES    = 12,
+#endif
 } eUserPref_Section;
 
 /* UserDef.userpref_flag (State of the user preferences UI). */
@@ -701,7 +721,7 @@ typedef enum eUserPref_Flag {
 	USER_FLAG_NUMINPUT_ADVANCED = (1 << 1),
 	USER_FLAG_DEPRECATED_2	= (1 << 2),  /* cleared */
 	USER_FLAG_DEPRECATED_3	= (1 << 3),  /* cleared */
-/*	USER_SCENEGLOBAL         = (1 << 4), deprecated */
+	USER_FLAG_DEPRECATED_4  = (1 << 4),  /* cleared */
 	USER_TRACKBALL			= (1 << 5),
 	USER_FLAG_DEPRECATED_6	= (1 << 6),  /* cleared */
 	USER_FLAG_DEPRECATED_7	= (1 << 7),  /* cleared */
@@ -759,38 +779,36 @@ typedef enum eWalkNavigation_Flag {
 /* UserDef.uiflag */
 typedef enum eUserpref_UI_Flag {
 	/* flags 0 and 1 were old flags (for autokeying) that aren't used anymore */
-	USER_WHEELZOOMDIR		= (1 << 2),
-	USER_FILTERFILEEXTS		= (1 << 3),
-	USER_DRAWVIEWINFO		= (1 << 4),
-	USER_PLAINMENUS			= (1 << 5),
-	USER_LOCK_CURSOR_ADJUST	= (1 << 6),
-	/* Avoid accidentally adjusting the layout
-	 * (exact behavior may change based on what's considered reasonable to lock down). */
-	USER_UIFLAG_DEPRECATED_7 = (1 << 7),
-	USER_ALLWINCODECS		= (1 << 8),
-	USER_MENUOPENAUTO		= (1 << 9),
-	USER_DEPTH_CURSOR		= (1 << 10),
-	USER_AUTOPERSP     		= (1 << 11),
-	/* USER_LOCKAROUND     	= (1 << 12), */  /* DEPRECATED */
-	USER_GLOBALUNDO     	= (1 << 13),
-	USER_ORBIT_SELECTION	= (1 << 14),
-	USER_DEPTH_NAVIGATE     = (1 << 15),
-	USER_HIDE_DOT			= (1 << 16),
-	USER_SHOW_GIZMO_AXIS	= (1 << 17),
-	USER_SHOW_VIEWPORTNAME	= (1 << 18),
-	USER_CAM_LOCK_NO_PARENT	= (1 << 19),
-	USER_ZOOM_TO_MOUSEPOS	= (1 << 20),
-	USER_SHOW_FPS			= (1 << 21),
-	USER_MMB_PASTE			= (1 << 22),
-	USER_MENUFIXEDORDER		= (1 << 23),
-	USER_CONTINUOUS_MOUSE	= (1 << 24),
-	USER_ZOOM_INVERT		= (1 << 25),
-	USER_ZOOM_HORIZ			= (1 << 26), /* for CONTINUE and DOLLY zoom */
-	USER_SPLASH_DISABLE		= (1 << 27),
-	USER_HIDE_RECENT		= (1 << 28),
-	USER_SHOW_THUMBNAILS	= (1 << 29),
-	USER_QUIT_PROMPT		= (1 << 30),
-	USER_HIDE_SYSTEM_BOOKMARKS = (1u << 31)
+	USER_WHEELZOOMDIR           = (1 << 2),
+	USER_FILTERFILEEXTS         = (1 << 3),
+	USER_DRAWVIEWINFO           = (1 << 4),
+	USER_PLAINMENUS             = (1 << 5),
+	USER_LOCK_CURSOR_ADJUST     = (1 << 6),
+	USER_HEADER_BOTTOM          = (1 << 7),
+	USER_UIFLAG_DEPRECATED_8    = (1 << 8),  /* cleared */
+	USER_MENUOPENAUTO           = (1 << 9),
+	USER_DEPTH_CURSOR           = (1 << 10),
+	USER_AUTOPERSP              = (1 << 11),
+	USER_UIFLAG_DEPRECATED_12   = (1 << 12),  /* cleared */
+	USER_GLOBALUNDO             = (1 << 13),
+	USER_ORBIT_SELECTION        = (1 << 14),
+	USER_DEPTH_NAVIGATE         = (1 << 15),
+	USER_HIDE_DOT               = (1 << 16),
+	USER_SHOW_GIZMO_AXIS        = (1 << 17),
+	USER_SHOW_VIEWPORTNAME      = (1 << 18),
+	USER_CAM_LOCK_NO_PARENT     = (1 << 19),
+	USER_ZOOM_TO_MOUSEPOS       = (1 << 20),
+	USER_SHOW_FPS               = (1 << 21),
+	USER_UIFLAG_DEPRECATED_22   = (1 << 22),  /* cleared */
+	USER_MENUFIXEDORDER         = (1 << 23),
+	USER_CONTINUOUS_MOUSE       = (1 << 24),
+	USER_ZOOM_INVERT            = (1 << 25),
+	USER_ZOOM_HORIZ             = (1 << 26), /* for CONTINUE and DOLLY zoom */
+	USER_SPLASH_DISABLE         = (1 << 27),
+	USER_HIDE_RECENT            = (1 << 28),
+	USER_SHOW_THUMBNAILS        = (1 << 29),
+	USER_QUIT_PROMPT            = (1 << 30),
+	USER_HIDE_SYSTEM_BOOKMARKS  = (1u << 31)
 } eUserpref_UI_Flag;
 
 /* UserDef.uiflag2 */
@@ -803,7 +821,6 @@ typedef enum eUserpref_UI_Flag2 {
 /* UserDef.app_flag */
 typedef enum eUserpref_APP_Flag {
 	USER_APP_LOCK_UI_LAYOUT = (1 << 0),
-	USER_APP_VIEW3D_HIDE_CURSOR = (1 << 1),
 } eUserpref_APP_Flag;
 
 /* Auto-Keying mode.

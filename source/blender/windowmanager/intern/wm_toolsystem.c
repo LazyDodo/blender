@@ -205,7 +205,7 @@ static void toolsystem_ref_link(bContext *C, WorkSpace *workspace, bToolRef *tre
 		Main *bmain = CTX_data_main(C);
 
 		if ((tref->space_type == SPACE_VIEW3D) &&
-		    (tref->mode == CTX_MODE_GPENCIL_SCULPT))
+		    (tref->mode == CTX_MODE_SCULPT_GPENCIL))
 		{
 			const EnumPropertyItem *items = rna_enum_gpencil_sculpt_brush_items;
 			const int i = RNA_enum_from_identifier(items, tref_rt->data_block);
@@ -222,7 +222,7 @@ static void toolsystem_ref_link(bContext *C, WorkSpace *workspace, bToolRef *tre
 			}
 		}
 		else if ((tref->space_type == SPACE_VIEW3D) &&
-		         (tref->mode == CTX_MODE_GPENCIL_WEIGHT))
+		         (tref->mode == CTX_MODE_WEIGHT_GPENCIL))
 		{
 			const EnumPropertyItem *items = rna_enum_gpencil_weight_brush_items;
 			const int i = RNA_enum_from_identifier(items, tref_rt->data_block);
@@ -471,9 +471,9 @@ void WM_toolsystem_ref_sync_from_context(
 			/* pass */
 		}
 		else if ((tref->space_type == SPACE_VIEW3D) &&
-		         (tref->mode == CTX_MODE_GPENCIL_SCULPT))
+		         (tref->mode == CTX_MODE_SCULPT_GPENCIL))
 		{
-			if (ob->mode & OB_MODE_GPENCIL_SCULPT) {
+			if (ob->mode & OB_MODE_SCULPT_GPENCIL) {
 				const EnumPropertyItem *items = rna_enum_gpencil_sculpt_brush_items;
 				const int i = RNA_enum_from_value(items, ts->gp_sculpt.brushtype);
 				const EnumPropertyItem *item = &items[i];
@@ -484,9 +484,9 @@ void WM_toolsystem_ref_sync_from_context(
 			}
 		}
 		else if ((tref->space_type == SPACE_VIEW3D) &&
-		         (tref->mode == CTX_MODE_GPENCIL_WEIGHT))
+		         (tref->mode == CTX_MODE_WEIGHT_GPENCIL))
 		{
-			if (ob->mode & OB_MODE_GPENCIL_WEIGHT) {
+			if (ob->mode & OB_MODE_WEIGHT_GPENCIL) {
 				const EnumPropertyItem *items = rna_enum_gpencil_weight_brush_items;
 				const int i = RNA_enum_from_value(items, ts->gp_sculpt.weighttype);
 				const EnumPropertyItem *item = &items[i];
@@ -553,40 +553,26 @@ void WM_toolsystem_init(bContext *C)
 	LISTBASE_FOREACH (WorkSpace *, workspace, &bmain->workspaces) {
 		LISTBASE_FOREACH (bToolRef *, tref, &workspace->tools) {
 			MEM_SAFE_FREE(tref->runtime);
-			tref->tag = 0;
 		}
 	}
 
-	for (wmWindowManager *wm = bmain->wm.first; wm; wm = wm->id.next) {
-		for (wmWindow *win = wm->windows.first; win; win = win->next) {
-			CTX_wm_window_set(C, win);
-			WorkSpace *workspace = WM_window_get_active_workspace(win);
-			bScreen *screen = WM_window_get_active_screen(win);
-			ViewLayer *view_layer = WM_window_get_active_view_layer(win);
-			for (ScrArea *sa = screen->areabase.first; sa; sa = sa->next) {
-				if (((1 << sa->spacetype) & WM_TOOLSYSTEM_SPACE_MASK) == 0) {
-					continue;
-				}
-				const bToolKey tkey = {
-					.space_type = sa->spacetype,
-					.mode = WM_toolsystem_mode_from_spacetype(view_layer, sa, sa->spacetype),
-				};
-				bToolRef *tref = WM_toolsystem_ref_find(workspace, &tkey);
-				if (tref) {
-					if (tref->tag == 0) {
-						toolsystem_reinit_ref(C, workspace, tref);
-						tref->tag = 1;
-					}
-				}
-				else {
-					/* Without this we may load a file without a default tool. */
-					tref = toolsystem_reinit_ensure_toolref(C, workspace, &tkey, NULL);
-					tref->tag = 1;
-				}
+	/* Rely on screen initialization for gizmos. */
+}
+
+static bool toolsystem_key_ensure_check(const bToolKey *tkey)
+{
+	switch (tkey->space_type) {
+		case SPACE_VIEW3D:
+			return true;
+		case SPACE_IMAGE:
+			if (ELEM(tkey->mode, SI_MODE_PAINT, SI_MODE_UV)) {
+				return true;
 			}
-			CTX_wm_window_set(C, NULL);
-		}
+			break;
+		case SPACE_NODE:
+			return true;
 	}
+	return false;
 }
 
 int WM_toolsystem_mode_from_spacetype(
@@ -611,6 +597,11 @@ int WM_toolsystem_mode_from_spacetype(
 		{
 			SpaceImage *sima = sa->spacedata.first;
 			mode = sima->mode;
+			break;
+		}
+		case SPACE_NODE:
+		{
+			mode = 0;
 			break;
 		}
 	}
@@ -800,16 +791,22 @@ static const char *toolsystem_default_tool(const bToolKey *tkey)
 				case CTX_MODE_SCULPT:
 				case CTX_MODE_PAINT_VERTEX:
 				case CTX_MODE_PAINT_WEIGHT:
-				case CTX_MODE_GPENCIL_WEIGHT:
+				case CTX_MODE_WEIGHT_GPENCIL:
 				case CTX_MODE_PAINT_TEXTURE:
-				case CTX_MODE_GPENCIL_PAINT:
+				case CTX_MODE_PAINT_GPENCIL:
 					return "Draw";
-				case CTX_MODE_GPENCIL_SCULPT:
+				case CTX_MODE_SCULPT_GPENCIL:
 					return "Push";
 				/* end temporary hack. */
 
 				case CTX_MODE_PARTICLE:
 					return "Comb";
+			}
+			break;
+		case SPACE_IMAGE:
+			switch (tkey->mode) {
+				case SI_MODE_PAINT:
+					return "Draw";
 			}
 			break;
 	}
@@ -845,6 +842,20 @@ void WM_toolsystem_update_from_context_view3d(bContext *C)
 	};
 	toolsystem_reinit_ensure_toolref(C, workspace, &tkey, NULL);
 }
+
+void WM_toolsystem_update_from_context(
+        bContext *C, WorkSpace *workspace, ViewLayer *view_layer,
+        ScrArea *sa)
+{
+	const bToolKey tkey = {
+		.space_type = sa->spacetype,
+		.mode = WM_toolsystem_mode_from_spacetype(view_layer, sa, sa->spacetype),
+	};
+	if (toolsystem_key_ensure_check(&tkey)) {
+		toolsystem_reinit_ensure_toolref(C, workspace, &tkey, NULL);
+	}
+}
+
 
 /**
  * For paint modes to support non-brush tools.
@@ -911,7 +922,14 @@ void WM_toolsystem_ref_properties_init_for_keymap(
 	if (tref->properties != NULL) {
 		IDProperty *prop = IDP_GetPropertyFromGroup(tref->properties, ot->idname);
 		if (prop) {
-			IDP_MergeGroup(dst_ptr->data, prop, true);
+			/* Important key-map items properties don't get overwritten by the tools.
+			 * - When a key-map item doesn't set a property, the tool-systems is used.
+			 * - When it does, it overrides the tool-system.
+			 *
+			 * This way the default action can be to follow the top-bar tool-settings &
+			 * modifier keys can be used to perform different actions that aren't clobbered here.
+			 */
+			IDP_MergeGroup(dst_ptr->data, prop, false);
 		}
 	}
 }

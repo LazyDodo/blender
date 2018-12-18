@@ -90,6 +90,7 @@
 
 /* prototypes. */
 static void ui_but_to_pixelrect(struct rcti *rect, const struct ARegion *ar, struct uiBlock *block, struct uiBut *but);
+static void ui_def_but_rna__menu(bContext *UNUSED(C), uiLayout *layout, void *but_p);
 
 /* avoid unneeded calls to ui_but_value_get */
 #define UI_BUT_VALUE_UNSET DBL_MAX
@@ -1058,6 +1059,11 @@ static bool ui_but_event_property_operator_string(
         char *buf, const size_t buf_len)
 {
 	/* context toggle operator names to check... */
+
+	/* This function could use a refactor to generalize button type to operator relationship
+	 * as well as which operators use properties.
+	 * - Campbell
+	 * */
 	const char *ctx_toggle_opnames[] = {
 		"WM_OT_context_toggle",
 		"WM_OT_context_toggle_enum",
@@ -1067,54 +1073,110 @@ static bool ui_but_event_property_operator_string(
 		"WM_OT_context_menu_enum",
 		NULL
 	};
-	const size_t num_ops = sizeof(ctx_toggle_opnames) / sizeof(const char *);
+
+	const char *ctx_enum_opnames[] = {
+		"WM_OT_context_set_enum",
+		NULL
+	};
+
+	const char *ctx_enum_opnames_for_Area_ui_type[] = {
+		"SCREEN_OT_space_type_set_or_cycle",
+		NULL
+	};
+
+	const char **opnames = ctx_toggle_opnames;
+	int          opnames_len = ARRAY_SIZE(ctx_toggle_opnames);
+
+
+	int  prop_enum_value = -1;
+	bool prop_enum_value_ok = false;
+	bool prop_enum_value_is_int = false;
+	const char *prop_enum_value_id = "value";
+	PointerRNA *ptr = &but->rnapoin;
+	PropertyRNA *prop = but->rnaprop;
+	if ((but->type == UI_BTYPE_BUT_MENU) && (but->block->handle != NULL)) {
+		uiBut *but_parent = but->block->handle->popup_create_vars.but;
+		if ((but->type == UI_BTYPE_BUT_MENU) &&
+		    (but_parent && but_parent->rnaprop) &&
+		    (RNA_property_type(but_parent->rnaprop) == PROP_ENUM) &&
+		    (but_parent->menu_create_func == ui_def_but_rna__menu))
+		{
+			prop_enum_value = (int)but->hardmin;
+			ptr = &but_parent->rnapoin;
+			prop = but_parent->rnaprop;
+			prop_enum_value_ok = true;
+
+			opnames = ctx_enum_opnames;
+			opnames_len = ARRAY_SIZE(ctx_enum_opnames);
+		}
+	}
 
 	bool found = false;
 
+	/* Don't use the button again. */
+	but = NULL;
+
 	/* this version is only for finding hotkeys for properties (which get set via context using operators) */
-	if (but->rnaprop) {
+	if (prop) {
 		/* to avoid massive slowdowns on property panels, for now, we only check the
 		 * hotkeys for Editor / Scene settings...
 		 *
 		 * TODO: userpref settings?
 		 */
-		// TODO: value (for enum stuff)?
 		char *data_path = NULL;
 
-		if (but->rnapoin.id.data) {
-			ID *id = but->rnapoin.id.data;
+		if (ptr->id.data) {
+			ID *id = ptr->id.data;
 
 			if (GS(id->name) == ID_SCR) {
 				/* screen/editor property
 				 * NOTE: in most cases, there is actually no info for backwards tracing
 				 * how to get back to ID from the editor data we may be dealing with
 				 */
-				if (RNA_struct_is_a(but->rnapoin.type, &RNA_Space)) {
+				if (RNA_struct_is_a(ptr->type, &RNA_Space)) {
 					/* data should be directly on here... */
-					data_path = BLI_sprintfN("space_data.%s", RNA_property_identifier(but->rnaprop));
+					data_path = BLI_sprintfN("space_data.%s", RNA_property_identifier(prop));
+				}
+				else if (RNA_struct_is_a(ptr->type, &RNA_Area)) {
+					/* data should be directly on here... */
+					const char *prop_id = RNA_property_identifier(prop);
+					/* Hack since keys access 'type', UI shows 'ui_type'. */
+					if (STREQ(prop_id, "ui_type")) {
+						prop_id = "type";
+						prop_enum_value >>= 16;
+						prop = RNA_struct_find_property(ptr, prop_id);
+
+						opnames = ctx_enum_opnames_for_Area_ui_type;
+						opnames_len = ARRAY_SIZE(ctx_enum_opnames_for_Area_ui_type);
+						prop_enum_value_id = "space_type";
+						prop_enum_value_is_int = true;
+					}
+					else {
+						data_path = BLI_sprintfN("area.%s", prop_id);
+					}
 				}
 				else {
 					/* special exceptions for common nested data in editors... */
-					if (RNA_struct_is_a(but->rnapoin.type, &RNA_DopeSheet)) {
+					if (RNA_struct_is_a(ptr->type, &RNA_DopeSheet)) {
 						/* dopesheet filtering options... */
-						data_path = BLI_sprintfN("space_data.dopesheet.%s", RNA_property_identifier(but->rnaprop));
+						data_path = BLI_sprintfN("space_data.dopesheet.%s", RNA_property_identifier(prop));
 					}
-					else if (RNA_struct_is_a(but->rnapoin.type, &RNA_FileSelectParams)) {
+					else if (RNA_struct_is_a(ptr->type, &RNA_FileSelectParams)) {
 						/* Filebrowser options... */
-						data_path = BLI_sprintfN("space_data.params.%s", RNA_property_identifier(but->rnaprop));
+						data_path = BLI_sprintfN("space_data.params.%s", RNA_property_identifier(prop));
 					}
 				}
 			}
 			else if (GS(id->name) == ID_SCE) {
-				if (RNA_struct_is_a(but->rnapoin.type, &RNA_ToolSettings)) {
+				if (RNA_struct_is_a(ptr->type, &RNA_ToolSettings)) {
 					/* toolsettings property
 					 * NOTE: toolsettings is usually accessed directly (i.e. not through scene)
 					 */
-					data_path = RNA_path_from_ID_to_property(&but->rnapoin, but->rnaprop);
+					data_path = RNA_path_from_ID_to_property(ptr, prop);
 				}
 				else {
 					/* scene property */
-					char *path = RNA_path_from_ID_to_property(&but->rnapoin, but->rnaprop);
+					char *path = RNA_path_from_ID_to_property(ptr, prop);
 
 					if (path) {
 						data_path = BLI_sprintfN("scene.%s", path);
@@ -1123,7 +1185,7 @@ static bool ui_but_event_property_operator_string(
 #if 0
 					else {
 						printf("ERROR in %s(): Couldn't get path for scene property - %s\n",
-						       __func__, RNA_property_identifier(but->rnaprop));
+						       __func__, RNA_property_identifier(prop));
 					}
 #endif
 				}
@@ -1132,26 +1194,49 @@ static bool ui_but_event_property_operator_string(
 				//puts("other id");
 			}
 
-			//printf("prop shortcut: '%s' (%s)\n", RNA_property_identifier(but->rnaprop), data_path);
+			//printf("prop shortcut: '%s' (%s)\n", RNA_property_identifier(prop), data_path);
 		}
 
 		/* we have a datapath! */
-		if (data_path) {
-			size_t i;
-
+		if (data_path || (prop_enum_value_ok && prop_enum_value_id)) {
 			/* create a property to host the "datapath" property we're sending to the operators */
 			IDProperty *prop_path;
-			IDProperty *prop_path_value;
 
 			IDPropertyTemplate val = {0};
 			prop_path = IDP_New(IDP_GROUP, &val, __func__);
-			prop_path_value = IDP_NewString(data_path, "data_path", strlen(data_path) + 1);
-			IDP_AddToGroup(prop_path, prop_path_value);
+			if (data_path) {
+				IDP_AddToGroup(prop_path, IDP_NewString(data_path, "data_path", strlen(data_path) + 1));
+			}
+			if (prop_enum_value_ok) {
+				const EnumPropertyItem *item;
+				bool free;
+				RNA_property_enum_items((bContext *)C, ptr, prop, &item, NULL, &free);
+				int index = RNA_enum_from_value(item, prop_enum_value);
+				if (index != -1) {
+					IDProperty *prop_value;
+					if (prop_enum_value_is_int) {
+						int value = item[index].value;
+						prop_value = IDP_New(IDP_INT, &(IDPropertyTemplate){ .i = value, }, prop_enum_value_id);
+					}
+					else {
+						const char *id = item[index].identifier;
+						prop_value = IDP_NewString(id, prop_enum_value_id, strlen(id) + 1);
+					}
+					IDP_AddToGroup(prop_path, prop_value);
+				}
+				else {
+					opnames_len = 0;  /* Do nothing. */
+				}
+				if (free) {
+					MEM_freeN((void *)item);
+				}
+			}
 
 			/* check each until one works... */
-			for (i = 0; (i < num_ops) && (ctx_toggle_opnames[i]); i++) {
+
+			for (int i = 0; (i < opnames_len) && (opnames[i]); i++) {
 				if (WM_key_event_operator_string(
-				            C, ctx_toggle_opnames[i], WM_OP_INVOKE_REGION_WIN, prop_path, false,
+				            C, opnames[i], WM_OP_INVOKE_REGION_WIN, prop_path, false,
 				            buf, buf_len))
 				{
 					found = true;
@@ -1162,7 +1247,9 @@ static bool ui_but_event_property_operator_string(
 			/* cleanup */
 			IDP_FreeProperty(prop_path);
 			MEM_freeN(prop_path);
-			MEM_freeN(data_path);
+			if (data_path) {
+				MEM_freeN(data_path);
+			}
 		}
 	}
 
@@ -2177,7 +2264,7 @@ void ui_but_convert_to_unit_alt_name(uiBut *but, char *str, size_t maxlen)
 }
 
 /**
- * \param float_precision  Override the button precision.
+ * \param float_precision: Override the button precision.
  */
 static void ui_get_but_string_unit(uiBut *but, char *str, int len_max, double value, bool pad, int float_precision)
 {
@@ -2239,8 +2326,8 @@ static float ui_get_but_step_unit(uiBut *but, float step_default)
 }
 
 /**
- * \param float_precision  For number buttons the precision to use or -1 to fallback to the button default.
- * \param use_exp_float  Use exponent representation of floats when out of reasonable range (outside of 1e3/1e-3).
+ * \param float_precision: For number buttons the precision to use or -1 to fallback to the button default.
+ * \param use_exp_float: Use exponent representation of floats when out of reasonable range (outside of 1e3/1e-3).
  */
 void ui_but_string_get_ex(uiBut *but, char *str, const size_t maxlen, const int float_precision, const bool use_exp_float, bool *r_use_exp_float)
 {
@@ -2905,18 +2992,19 @@ uiBlock *UI_block_begin(const bContext *C, ARegion *region, const char *name, sh
 	block->evil_C = (void *)C;  /* XXX */
 
 	if (scn) {
-		block->color_profile = true;
-
 		/* store display device name, don't lookup for transformations yet
 		 * block could be used for non-color displays where looking up for transformation
 		 * would slow down redraw, so only lookup for actual transform when it's indeed
 		 * needed
 		 */
-		BLI_strncpy(block->display_device, scn->display_settings.display_device, sizeof(block->display_device));
+		STRNCPY(block->display_device, scn->display_settings.display_device);
 
 		/* copy to avoid crash when scene gets deleted with ui still open */
 		block->unit = MEM_mallocN(sizeof(scn->unit), "UI UnitSettings");
 		memcpy(block->unit, &scn->unit, sizeof(scn->unit));
+	}
+	else {
+		STRNCPY(block->display_device, IMB_colormanagement_display_get_default_name());
 	}
 
 	BLI_strncpy(block->name, name, sizeof(block->name));
@@ -3199,27 +3287,6 @@ void ui_block_cm_to_display_space_v3(uiBlock *block, float pixel[3])
 	struct ColorManagedDisplay *display = ui_block_cm_display_get(block);
 
 	IMB_colormanagement_scene_linear_to_display_v3(pixel, display);
-}
-
-void ui_block_cm_to_scene_linear_v3(uiBlock *block, float pixel[3])
-{
-	struct ColorManagedDisplay *display = ui_block_cm_display_get(block);
-
-	IMB_colormanagement_display_to_scene_linear_v3(pixel, display);
-}
-
-void ui_block_cm_to_display_space_range(uiBlock *block, float *min, float *max)
-{
-	struct ColorManagedDisplay *display = ui_block_cm_display_get(block);
-	float pixel[3];
-
-	copy_v3_fl(pixel, *min);
-	IMB_colormanagement_scene_linear_to_display_v3(pixel, display);
-	*min = min_fff(UNPACK3(pixel));
-
-	copy_v3_fl(pixel, *max);
-	IMB_colormanagement_scene_linear_to_display_v3(pixel, display);
-	*max = max_fff(UNPACK3(pixel));
 }
 
 static uiBut *ui_but_alloc(const eButType type)
@@ -3662,8 +3729,16 @@ static uiBut *ui_def_but_rna(
 		ui_def_but_icon(but, icon, UI_HAS_ICON);
 	}
 
-	if ((type == UI_BTYPE_MENU) && (but->dt == UI_EMBOSS_PULLDOWN)) {
-		ui_but_submenu_enable(block, but);
+	if (type == UI_BTYPE_MENU) {
+		if (but->dt == UI_EMBOSS_PULLDOWN) {
+			ui_but_submenu_enable(block, but);
+		}
+	}
+	else if (type == UI_BTYPE_SEARCH_MENU) {
+		if (proptype == PROP_POINTER) {
+			/* Search buttons normally don't get undo, see: T54580. */
+			but->flag |= UI_BUT_UNDO;
+		}
 	}
 
 	const char *info;

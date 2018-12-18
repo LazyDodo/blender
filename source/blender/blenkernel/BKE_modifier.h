@@ -157,7 +157,7 @@ typedef struct ModifierTypeInfo {
 	/* Copy instance data for this modifier type. Should copy all user
 	 * level settings to the target modifier.
 	 *
-	 * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
+	 * \param flag: Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
 	 */
 	void (*copyData)(const struct ModifierData *md, struct ModifierData *target, const int flag);
 
@@ -273,7 +273,7 @@ typedef struct ModifierTypeInfo {
 
 
 	/* True when a deform modifier uses normals, the requiredDataMask
-	 * cant be used here because that refers to a normal layer where as
+	 * cant be used here because that refers to a normal layer whereas
 	 * in this case we need to know if the deform modifier uses normals.
 	 *
 	 * this is needed because applying 2 deform modifiers will give the

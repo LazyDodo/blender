@@ -148,13 +148,13 @@ bool BKE_object_pose_context_check(const struct Object *ob);
 struct Object *BKE_object_pose_armature_get(struct Object *ob);
 struct Object *BKE_object_pose_armature_get_visible(struct Object *ob, struct ViewLayer *view_layer, struct View3D *v3d);
 
-struct Object **BKE_object_pose_array_get_ex(struct ViewLayer *view_layer, unsigned int *r_objects_len, bool unique);
-struct Object **BKE_object_pose_array_get_unique(struct ViewLayer *view_layer, unsigned int *r_objects_len);
-struct Object **BKE_object_pose_array_get(struct ViewLayer *view_layer, unsigned int *r_objects_len);
+struct Object **BKE_object_pose_array_get_ex(struct ViewLayer *view_layer, struct View3D *v3d, unsigned int *r_objects_len, bool unique);
+struct Object **BKE_object_pose_array_get_unique(struct ViewLayer *view_layer, struct View3D *v3d, unsigned int *r_objects_len);
+struct Object **BKE_object_pose_array_get(struct ViewLayer *view_layer, struct View3D *v3d, unsigned int *r_objects_len);
 
-struct Base **BKE_object_pose_base_array_get_ex(struct ViewLayer *view_layer, unsigned int *r_bases_len, bool unique);
-struct Base **BKE_object_pose_base_array_get_unique(struct ViewLayer *view_layer, unsigned int *r_bases_len);
-struct Base **BKE_object_pose_base_array_get(struct ViewLayer *view_layer, unsigned int *r_bases_len);
+struct Base **BKE_object_pose_base_array_get_ex(struct ViewLayer *view_layer, struct View3D *v3d, unsigned int *r_bases_len, bool unique);
+struct Base **BKE_object_pose_base_array_get_unique(struct ViewLayer *view_layer, struct View3D *v3d, unsigned int *r_bases_len);
+struct Base **BKE_object_pose_base_array_get(struct ViewLayer *view_layer, struct View3D *v3d, unsigned int *r_bases_len);
 
 void BKE_object_get_parent_matrix(
         struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob,
@@ -221,6 +221,10 @@ void BKE_object_tfm_protected_restore(
         const ObjectTfmProtectedChannels *obtfm,
         const short protectflag);
 
+
+void BKE_object_eval_reset(
+        struct Object *ob_eval);
+
 /* Dependency graph evaluation callbacks. */
 void BKE_object_eval_local_transform(
         struct Depsgraph *depsgraph,
@@ -247,7 +251,10 @@ void BKE_object_eval_uber_data(
         struct Scene *scene,
         struct Object *ob);
 
-void BKE_object_eval_boundbox(struct Depsgraph *depsgraph, struct Object *object);
+void BKE_object_eval_boundbox(struct Depsgraph *depsgraph,
+                              struct Object *object);
+void BKE_object_synchronize_to_original(struct Depsgraph *depsgraph,
+                                        struct Object *object);
 
 void BKE_object_eval_ptcache_reset(
         struct Depsgraph *depsgraph,
@@ -312,6 +319,7 @@ void BKE_object_data_relink(struct Object *ob);
 struct MovieClip *BKE_object_movieclip_get(struct Scene *scene, struct Object *ob, bool use_default);
 
 void BKE_object_runtime_reset(struct Object *object);
+void BKE_object_runtime_reset_on_copy(struct Object *object);
 
 void BKE_object_batch_cache_dirty_tag(struct Object *ob);
 
@@ -346,7 +354,9 @@ bool BKE_object_modifier_update_subframe(
         struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob,
         bool update_mesh, int parent_recursion, float frame, int type);
 
-bool BKE_image_empty_visible_in_view3d(const struct Object *ob, const struct RegionView3D *rv3d);
+void BKE_object_type_set_empty_for_versioning(struct Object *ob);
+
+bool BKE_object_empty_image_is_visible_in_view3d(const struct Object *ob, const struct RegionView3D *rv3d);
 
 #ifdef __cplusplus
 }
