@@ -62,6 +62,7 @@
 #include "BKE_tracking.h"
 
 #include "WM_api.h"
+#include "WM_toolsystem.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -1449,7 +1450,7 @@ static bool gp_check_cursor_region(bContext *C, int mval_i[2])
 	Object *ob = CTX_data_active_object(C);
 
 	if ((ob == NULL) ||
-	    (!ELEM(ob->mode, OB_MODE_GPENCIL_PAINT, OB_MODE_GPENCIL_SCULPT, OB_MODE_GPENCIL_WEIGHT)))
+	    (!ELEM(ob->mode, OB_MODE_PAINT_GPENCIL, OB_MODE_SCULPT_GPENCIL, OB_MODE_WEIGHT_GPENCIL)))
 	{
 		return false;
 	}
@@ -1510,8 +1511,16 @@ void ED_gpencil_brush_draw_eraser(Brush *brush, int x, int y)
 	glDisable(GL_LINE_SMOOTH);
 }
 
+static bool gp_brush_cursor_poll(bContext *C)
+{
+   if (WM_toolsystem_active_tool_is_brush(C)) {
+       return true;
+   }
+   return false;
+}
+
 /* Helper callback for drawing the cursor itself */
-static void gp_brush_drawcursor(bContext *C, int x, int y, void *customdata)
+static void gp_brush_cursor_draw(bContext *C, int x, int y, void *customdata)
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
@@ -1692,8 +1701,8 @@ void ED_gpencil_toggle_brush_cursor(bContext *C, bool enable, void *customdata)
 		gset->paintcursor = WM_paint_cursor_activate(
 		        CTX_wm_manager(C),
 		        SPACE_TYPE_ANY, RGN_TYPE_ANY,
-		        NULL,
-		        gp_brush_drawcursor,
+		        gp_brush_cursor_poll,
+		        gp_brush_cursor_draw,
 		        (lastpost) ? customdata : NULL);
 	}
 }
@@ -1705,13 +1714,13 @@ static void gpencil_verify_brush_type(bContext *C, int newmode)
 	GP_Sculpt_Settings *gset = &ts->gp_sculpt;
 
 	switch (newmode) {
-		case OB_MODE_GPENCIL_SCULPT:
+		case OB_MODE_SCULPT_GPENCIL:
 			gset->flag &= ~GP_SCULPT_SETT_FLAG_WEIGHT_MODE;
 			if ((gset->brushtype < 0) || (gset->brushtype >= GP_SCULPT_TYPE_WEIGHT)) {
 				gset->brushtype = GP_SCULPT_TYPE_PUSH;
 			}
 			break;
-		case OB_MODE_GPENCIL_WEIGHT:
+		case OB_MODE_WEIGHT_GPENCIL:
 			gset->flag |= GP_SCULPT_SETT_FLAG_WEIGHT_MODE;
 			if ((gset->weighttype < GP_SCULPT_TYPE_WEIGHT) || (gset->weighttype >= GP_SCULPT_TYPE_MAX)) {
 				gset->weighttype = GP_SCULPT_TYPE_WEIGHT;
@@ -1730,34 +1739,34 @@ void ED_gpencil_setup_modes(bContext *C, bGPdata *gpd, int newmode)
 	}
 
 	switch (newmode) {
-		case OB_MODE_GPENCIL_EDIT:
+		case OB_MODE_EDIT_GPENCIL:
 			gpd->flag |= GP_DATA_STROKE_EDITMODE;
 			gpd->flag &= ~GP_DATA_STROKE_PAINTMODE;
 			gpd->flag &= ~GP_DATA_STROKE_SCULPTMODE;
 			gpd->flag &= ~GP_DATA_STROKE_WEIGHTMODE;
 			ED_gpencil_toggle_brush_cursor(C, false, NULL);
 			break;
-		case OB_MODE_GPENCIL_PAINT:
+		case OB_MODE_PAINT_GPENCIL:
 			gpd->flag &= ~GP_DATA_STROKE_EDITMODE;
 			gpd->flag |= GP_DATA_STROKE_PAINTMODE;
 			gpd->flag &= ~GP_DATA_STROKE_SCULPTMODE;
 			gpd->flag &= ~GP_DATA_STROKE_WEIGHTMODE;
 			ED_gpencil_toggle_brush_cursor(C, true, NULL);
 			break;
-		case OB_MODE_GPENCIL_SCULPT:
+		case OB_MODE_SCULPT_GPENCIL:
 			gpd->flag &= ~GP_DATA_STROKE_EDITMODE;
 			gpd->flag &= ~GP_DATA_STROKE_PAINTMODE;
 			gpd->flag |= GP_DATA_STROKE_SCULPTMODE;
 			gpd->flag &= ~GP_DATA_STROKE_WEIGHTMODE;
-			gpencil_verify_brush_type(C, OB_MODE_GPENCIL_SCULPT);
+			gpencil_verify_brush_type(C, OB_MODE_SCULPT_GPENCIL);
 			ED_gpencil_toggle_brush_cursor(C, true, NULL);
 			break;
-		case OB_MODE_GPENCIL_WEIGHT:
+		case OB_MODE_WEIGHT_GPENCIL:
 			gpd->flag &= ~GP_DATA_STROKE_EDITMODE;
 			gpd->flag &= ~GP_DATA_STROKE_PAINTMODE;
 			gpd->flag &= ~GP_DATA_STROKE_SCULPTMODE;
 			gpd->flag |= GP_DATA_STROKE_WEIGHTMODE;
-			gpencil_verify_brush_type(C, OB_MODE_GPENCIL_WEIGHT);
+			gpencil_verify_brush_type(C, OB_MODE_WEIGHT_GPENCIL);
 			ED_gpencil_toggle_brush_cursor(C, true, NULL);
 			break;
 		default:

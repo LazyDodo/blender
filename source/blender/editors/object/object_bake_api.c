@@ -56,6 +56,7 @@
 #include "BKE_mesh.h"
 #include "BKE_modifier.h"
 #include "BKE_node.h"
+#include "BKE_object.h"
 #include "BKE_report.h"
 #include "BKE_scene.h"
 #include "BKE_screen.h"
@@ -739,7 +740,7 @@ static int bake(
 		}
 	}
 	else {
-		/* when saving extenally always use the size specified in the UI */
+		/* when saving externally always use the size specified in the UI */
 
 		num_pixels = (size_t)width * (size_t)height * bake_images.size;
 
@@ -843,7 +844,7 @@ static int bake(
 				md = md_next;
 			}
 
-			/* get the cage mesh as it arrives in the renderer */
+			BKE_object_eval_reset(ob_low_eval);
 			me_cage = bake_mesh_new_from_object(depsgraph, bmain, scene, ob_low_eval);
 			RE_bake_pixels_populate(me_cage, pixel_array_low, num_pixels, &bake_images, uv_layer);
 		}

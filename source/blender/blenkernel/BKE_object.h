@@ -221,6 +221,10 @@ void BKE_object_tfm_protected_restore(
         const ObjectTfmProtectedChannels *obtfm,
         const short protectflag);
 
+
+void BKE_object_eval_reset(
+        struct Object *ob_eval);
+
 /* Dependency graph evaluation callbacks. */
 void BKE_object_eval_local_transform(
         struct Depsgraph *depsgraph,
@@ -315,6 +319,7 @@ void BKE_object_data_relink(struct Object *ob);
 struct MovieClip *BKE_object_movieclip_get(struct Scene *scene, struct Object *ob, bool use_default);
 
 void BKE_object_runtime_reset(struct Object *object);
+void BKE_object_runtime_reset_on_copy(struct Object *object);
 
 void BKE_object_batch_cache_dirty_tag(struct Object *ob);
 

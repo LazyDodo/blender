@@ -1007,10 +1007,10 @@ int CTX_data_mode_enum_ex(const Object *obedit, const Object *ob, const eObjectM
 			else if (object_mode & OB_MODE_VERTEX_PAINT) return CTX_MODE_PAINT_VERTEX;
 			else if (object_mode & OB_MODE_TEXTURE_PAINT) return CTX_MODE_PAINT_TEXTURE;
 			else if (object_mode & OB_MODE_PARTICLE_EDIT) return CTX_MODE_PARTICLE;
-			else if (object_mode & OB_MODE_GPENCIL_PAINT) return CTX_MODE_GPENCIL_PAINT;
-			else if (object_mode & OB_MODE_GPENCIL_EDIT) return CTX_MODE_GPENCIL_EDIT;
-			else if (object_mode & OB_MODE_GPENCIL_SCULPT) return CTX_MODE_GPENCIL_SCULPT;
-			else if (object_mode & OB_MODE_GPENCIL_WEIGHT) return CTX_MODE_GPENCIL_WEIGHT;
+			else if (object_mode & OB_MODE_PAINT_GPENCIL) return CTX_MODE_PAINT_GPENCIL;
+			else if (object_mode & OB_MODE_EDIT_GPENCIL) return CTX_MODE_EDIT_GPENCIL;
+			else if (object_mode & OB_MODE_SCULPT_GPENCIL) return CTX_MODE_SCULPT_GPENCIL;
+			else if (object_mode & OB_MODE_WEIGHT_GPENCIL) return CTX_MODE_WEIGHT_GPENCIL;
 		}
 	}
 
@@ -1216,11 +1216,6 @@ bGPdata *CTX_data_gpencil_data(const bContext *C)
 bGPDlayer *CTX_data_active_gpencil_layer(const bContext *C)
 {
 	return ctx_data_pointer_get(C, "active_gpencil_layer");
-}
-
-Brush *CTX_data_active_gpencil_brush(const bContext *C)
-{
-	return ctx_data_pointer_get(C, "active_gpencil_brush");
 }
 
 bGPDframe *CTX_data_active_gpencil_frame(const bContext *C)

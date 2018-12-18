@@ -2934,8 +2934,9 @@ static void rna_def_space_view3d_overlay(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "normals_length", PROP_FLOAT, PROP_FACTOR);
 	RNA_def_property_float_sdna(prop, NULL, "overlay.normals_length");
 	RNA_def_property_ui_text(prop, "Normal Size", "Display size for normals in the 3D view");
-	RNA_def_property_range(prop, 0.00001, 1000.0);
-	RNA_def_property_ui_range(prop, 0.01, 10.0, 10.0, 2);
+	RNA_def_property_range(prop, 0.00001, 100000.0);
+	RNA_def_property_ui_range(prop, 0.01, 2.0, 1, 2);
+	RNA_def_property_float_default(prop, 0.02);
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	prop = RNA_def_property(srna, "backwire_opacity", PROP_FLOAT, PROP_FACTOR);
@@ -3153,11 +3154,6 @@ static void rna_def_space_view3d(BlenderRNA *brna)
 	RNA_def_property_ui_range(prop, 0.001f, FLT_MAX, 10, 3);
 	RNA_def_property_float_default(prop, 1000.0f);
 	RNA_def_property_ui_text(prop, "Clip End", "3D View far clipping distance");
-	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
-
-	prop = RNA_def_property(srna, "show_textured_solid", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag2", V3D_SOLID_TEX);
-	RNA_def_property_ui_text(prop, "Textured Solid", "Display face-assigned textures in solid view");
 	RNA_def_property_update(prop, NC_SPACE | ND_SPACE_VIEW3D, NULL);
 
 	prop = RNA_def_property(srna, "lock_camera", PROP_BOOLEAN, PROP_NONE);
