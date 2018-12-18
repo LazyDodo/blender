@@ -79,6 +79,8 @@ typedef struct tGPspoint {
 	float time;             /* Time relative to stroke start (used when converting to path) */
 	float uv_fac;           /* factor of uv along the stroke */
 	float uv_rot;           /* uv rotation for dor mode */
+	float rnd[2];           /* rnd value */
+	bool rnd_dirty;         /* rnd flag */
 } tGPspoint;
 
 /* used to sort by zdepth gpencil objects in viewport */
