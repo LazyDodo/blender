@@ -1453,6 +1453,7 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 			break;
 		}
 		case SPACEKEY:  /* confirm */
+		case MIDDLEMOUSE:
 		case RETKEY:
 		{
 			tgpi->flag = IDLE;
