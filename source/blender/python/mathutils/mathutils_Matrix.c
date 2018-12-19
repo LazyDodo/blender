@@ -354,7 +354,7 @@ static PyObject *Matrix_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 
 			/* Input is now as a sequence of rows so length of sequence
 			 * is the number of rows */
-			/* -1 is an error, size checks will accunt for this */
+			/* -1 is an error, size checks will account for this */
 			const unsigned short num_row = PySequence_Size(arg);
 
 			if (num_row >= 2 && num_row <= 4) {
@@ -2550,7 +2550,7 @@ static PyObject *Matrix_imatmul(PyObject *m1, PyObject *m2)
 		}
 
 		/* copy matrix back */
-		memcpy(mat1->matrix, mat, mat1->num_row * mat1->num_col);
+		memcpy(mat1->matrix, mat, (mat1->num_row * mat1->num_col) * sizeof(float));
 	}
 	else {
 		PyErr_Format(PyExc_TypeError,

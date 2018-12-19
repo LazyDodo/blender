@@ -137,6 +137,27 @@ bool activeSnap(const TransInfo *t)
 	       ((t->modifiers & (MOD_SNAP | MOD_SNAP_INVERT)) == MOD_SNAP_INVERT);
 }
 
+bool transformModeUseSnap(const TransInfo *t)
+{
+	ToolSettings *ts = t->settings;
+	if (t->mode == TFM_TRANSLATION) {
+		return (ts->snap_transform_mode_flag & SCE_SNAP_TRANSFORM_MODE_TRANSLATE) != 0;
+	}
+	if (t->mode == TFM_ROTATION) {
+		return (ts->snap_transform_mode_flag & SCE_SNAP_TRANSFORM_MODE_ROTATE) != 0;
+	}
+	if (t->mode == TFM_RESIZE) {
+		return (ts->snap_transform_mode_flag & SCE_SNAP_TRANSFORM_MODE_SCALE) != 0;
+	}
+
+	return false;
+}
+
+static bool doForceIncrementSnap(const TransInfo *t)
+{
+	return !transformModeUseSnap(t);
+}
+
 void drawSnapping(const struct bContext *C, TransInfo *t)
 {
 	unsigned char col[4], selectedCol[4], activeCol[4];
@@ -405,8 +426,10 @@ void applyGridAbsolute(TransInfo *t)
 
 void applySnapping(TransInfo *t, float *vec)
 {
-	if (t->tsnap.project && t->tsnap.mode == SCE_SNAP_MODE_FACE) {
-		/* Each Trans Data already makes the snap to face */
+	/* Each Trans Data already makes the snap to face */
+	if (doForceIncrementSnap(t) ||
+	    (t->tsnap.project && t->tsnap.mode == SCE_SNAP_MODE_FACE))
+	{
 		return;
 	}
 
@@ -639,7 +662,7 @@ void initSnapping(TransInfo *t, wmOperator *op)
 	/* use scene defaults only when transform is modal */
 	else if (t->flag & T_MODAL) {
 		if (ELEM(t->spacetype, SPACE_VIEW3D, SPACE_IMAGE, SPACE_NODE)) {
-			if (ts->snap_flag & SCE_SNAP) {
+			if (transformModeUseSnap(t) && (ts->snap_flag & SCE_SNAP)) {
 				t->modifiers |= MOD_SNAP;
 			}
 
@@ -1450,8 +1473,8 @@ void snapGridIncrement(TransInfo *t, float *val)
 
 	/* only do something if using absolute or incremental grid snapping
 	 * and there is no valid snap point */
-	if (!(t->tsnap.mode & (SCE_SNAP_MODE_INCREMENT | SCE_SNAP_MODE_GRID)) ||
-	    validSnap(t))
+	if ((!(t->tsnap.mode & (SCE_SNAP_MODE_INCREMENT | SCE_SNAP_MODE_GRID)) ||
+	    validSnap(t)) && !doForceIncrementSnap(t))
 	{
 		return;
 	}
@@ -1494,7 +1517,7 @@ static void applyGridIncrement(TransInfo *t, float *val, int max_index, const fl
 	const float *asp = use_aspect ? t->aspect : asp_local;
 	int i;
 
-	BLI_assert(t->tsnap.mode & (SCE_SNAP_MODE_INCREMENT | SCE_SNAP_MODE_GRID));
+	BLI_assert((t->tsnap.mode & (SCE_SNAP_MODE_INCREMENT | SCE_SNAP_MODE_GRID)) || doForceIncrementSnap(t));
 	BLI_assert(max_index <= 2);
 
 	/* Early bailing out if no need to snap */

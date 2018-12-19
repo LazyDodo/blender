@@ -509,7 +509,7 @@ typedef struct TransInfo {
 		short		user_alt;
 		short		index;
 		short		*types[2];
-		/* this gets used when current_orientation is V3D_MANIP_CUSTOM */
+		/* this gets used when custom_orientation is V3D_MANIP_CUSTOM */
 		TransformOrientation *custom;
 	} orientation;
 	short		gizmo_flag;			/* backup from view3d, to restore on end */
@@ -782,6 +782,8 @@ typedef enum {
 	BIG_GEARS	= 1,
 	SMALL_GEARS	= 2
 } GearsType;
+
+bool transformModeUseSnap(const TransInfo *t);
 
 void snapGridIncrement(TransInfo *t, float *val);
 void snapGridIncrementAction(TransInfo *t, float *val, GearsType action);

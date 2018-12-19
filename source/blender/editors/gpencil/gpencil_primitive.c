@@ -356,7 +356,8 @@ static void gp_primitive_set_initdata(bContext *C, tGPDprimitive *tgpi)
 	gpencil_primitive_allocate_memory(tgpi);
 
 	/* Random generator, only init once. */
-	tgpi->rng = BLI_rng_new((uint)0);
+	uint rng_seed = (uint)(PIL_check_seconds_timer_i() & UINT_MAX);
+	tgpi->rng = BLI_rng_new(rng_seed);
 }
 
 /* add new segment to curve */
@@ -381,6 +382,7 @@ static void gp_primitive_set_cp(tGPDprimitive *tgpi, float p[2], float color[4],
 		bGPDcontrolpoint *cp = &cp_points[tgpi->gpd->runtime.tot_cp_points];
 		copy_v2_v2(&cp->x, p);
 		copy_v4_v4(cp->color, color);
+		color[3] = 0.8f;
 		cp->size = size;
 		tgpi->gpd->runtime.tot_cp_points += 1;
 	}
@@ -475,14 +477,15 @@ static void gp_primitive_rectangle(tGPDprimitive *tgpi, tGPspoint *points2D)
 
 	mid_v2_v2v2(tgpi->midpoint, tgpi->start, tgpi->end);
 	float color[4];
-	UI_GetThemeColor4fv(TH_ACTIVE_VERT, color);
+	UI_GetThemeColor4fv(TH_GIZMO_PRIMARY, color);
 	gp_primitive_set_cp(tgpi, tgpi->end, color, BIG_SIZE_CTL);
 	if (tgpi->tot_stored_edges) {
 		UI_GetThemeColor4fv(TH_REDALERT, color);
 		gp_primitive_set_cp(tgpi, tgpi->start, color, SMALL_SIZE_CTL);
 	}
-	else
+	else {
 		gp_primitive_set_cp(tgpi, tgpi->start, color, BIG_SIZE_CTL);
+	}
 	UI_GetThemeColor4fv(TH_REDALERT, color);
 	gp_primitive_set_cp(tgpi, tgpi->midpoint, color, SMALL_SIZE_CTL);
 }
@@ -511,14 +514,15 @@ static void gp_primitive_line(tGPDprimitive *tgpi, tGPspoint *points2D)
 		}
 	}
 	float color[4];
-	UI_GetThemeColor4fv(TH_ACTIVE_VERT, color);
+	UI_GetThemeColor4fv(TH_GIZMO_PRIMARY, color);
 	gp_primitive_set_cp(tgpi, tgpi->end, color, BIG_SIZE_CTL);
 	if (tgpi->tot_stored_edges) {
 		UI_GetThemeColor4fv(TH_REDALERT, color);
 		gp_primitive_set_cp(tgpi, tgpi->start, color, SMALL_SIZE_CTL);
 	}
-	else
+	else {
 		gp_primitive_set_cp(tgpi, tgpi->start, color, BIG_SIZE_CTL);
+	}
 }
 
 /* create an arc */
@@ -549,15 +553,16 @@ static void gp_primitive_arc(tGPDprimitive *tgpi, tGPspoint *points2D)
 		a += step;
 	}
 	float color[4];
-	UI_GetThemeColor4fv(TH_ACTIVE_VERT, color);
+	UI_GetThemeColor4fv(TH_GIZMO_PRIMARY, color);
 	gp_primitive_set_cp(tgpi, tgpi->end, color, BIG_SIZE_CTL);
 	if (tgpi->tot_stored_edges) {
 		UI_GetThemeColor4fv(TH_REDALERT, color);
 		gp_primitive_set_cp(tgpi, tgpi->start, color, SMALL_SIZE_CTL);
 	}
-	else
+	else {
 		gp_primitive_set_cp(tgpi, tgpi->start, color, BIG_SIZE_CTL);
-	UI_GetThemeColor4fv(TH_GP_VERTEX_SELECT, color);
+	}
+	UI_GetThemeColor4fv(TH_GIZMO_SECONDARY, color);
 	gp_primitive_set_cp(tgpi, tgpi->cp1, color, BIG_SIZE_CTL * 0.9f);
 }
 
@@ -583,15 +588,16 @@ static void gp_primitive_bezier(tGPDprimitive *tgpi, tGPspoint *points2D)
 		a += step;
 	}
 	float color[4];
-	UI_GetThemeColor4fv(TH_ACTIVE_VERT, color);
+	UI_GetThemeColor4fv(TH_GIZMO_PRIMARY, color);
 	gp_primitive_set_cp(tgpi, tgpi->end, color, BIG_SIZE_CTL);
 	if (tgpi->tot_stored_edges) {
 		UI_GetThemeColor4fv(TH_REDALERT, color);
 		gp_primitive_set_cp(tgpi, tgpi->start, color, SMALL_SIZE_CTL);
 	}
-	else
+	else {
 		gp_primitive_set_cp(tgpi, tgpi->start, color, BIG_SIZE_CTL);
-	UI_GetThemeColor4fv(TH_GP_VERTEX_SELECT, color);
+	}
+	UI_GetThemeColor4fv(TH_GIZMO_SECONDARY, color);
 	gp_primitive_set_cp(tgpi, tgpi->cp1, color, BIG_SIZE_CTL * 0.9f);
 	gp_primitive_set_cp(tgpi, tgpi->cp2, color, BIG_SIZE_CTL * 0.9f);
 }
@@ -617,7 +623,7 @@ static void gp_primitive_circle(tGPDprimitive *tgpi, tGPspoint *points2D)
 		a += step;
 	}
 	float color[4];
-	UI_GetThemeColor4fv(TH_ACTIVE_VERT, color);
+	UI_GetThemeColor4fv(TH_GIZMO_PRIMARY, color);
 	gp_primitive_set_cp(tgpi, tgpi->end, color, BIG_SIZE_CTL);
 	gp_primitive_set_cp(tgpi, tgpi->start, color, BIG_SIZE_CTL);
 	UI_GetThemeColor4fv(TH_REDALERT, color);
@@ -777,6 +783,13 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		bGPDspoint *pt = &gps->points[i];
 		tGPspoint *p2d = &points2D[i];
 
+		/* set rnd value for reuse */
+		if (p2d->rnd_dirty != true) {
+			p2d->rnd[0] = BLI_rng_get_float(tgpi->rng);
+			p2d->rnd[1] = BLI_rng_get_float(tgpi->rng);
+			p2d->rnd_dirty = true;
+		}
+
 		/* Copy points to buffer */
 		tGPspoint *tpt = ((tGPspoint *)(gpd->runtime.sbuffer) + gpd->runtime.sbuffer_size);
 
@@ -812,9 +825,8 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 
 			/* exponential value */
 			const float exfactor = SQUARE(brush->gpencil_settings->draw_jitter + 2.0f);
-			const float rnd = BLI_rng_get_float(tgpi->rng);
-			const float fac = rnd * exfactor * jitter;
-			if (rnd > 0.5f) {
+			const float fac = p2d->rnd[0] * exfactor * jitter;
+			if (p2d->rnd[0] > 0.5f) {
 				add_v2_fl(&p2d->x, -fac);
 			}
 			else {
@@ -826,12 +838,11 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		if ((brush->gpencil_settings->flag & GP_BRUSH_GROUP_RANDOM) &&
 		    (brush->gpencil_settings->draw_random_press > 0.0f))
 		{
-			float rnd = BLI_rng_get_float(tgpi->rng);
-			if (rnd > 0.5f) {
-				pressure -= brush->gpencil_settings->draw_random_press * rnd;
+			if (p2d->rnd[0] > 0.5f) {
+				pressure -= brush->gpencil_settings->draw_random_press * p2d->rnd[0];
 			}
 			else {
-				pressure += brush->gpencil_settings->draw_random_press * rnd;
+				pressure += brush->gpencil_settings->draw_random_press * p2d->rnd[0];
 			}
 		}
 
@@ -848,12 +859,11 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		if ((brush->gpencil_settings->flag & GP_BRUSH_GROUP_RANDOM) &&
 		    (brush->gpencil_settings->draw_random_strength > 0.0f))
 		{
-			const float rnd = BLI_rng_get_float(tgpi->rng);
-			if (rnd > 0.5f) {
-				strength -= strength * brush->gpencil_settings->draw_random_strength * rnd;
+			if (p2d->rnd[1] > 0.5f) {
+				strength -= strength * brush->gpencil_settings->draw_random_strength * p2d->rnd[1];
 			}
 			else {
-				strength += strength * brush->gpencil_settings->draw_random_strength * rnd;
+				strength += strength * brush->gpencil_settings->draw_random_strength * p2d->rnd[1];
 			}
 			CLAMP(strength, GPENCIL_STRENGTH_MIN, 1.0f);
 		}
@@ -1136,7 +1146,15 @@ static void gpencil_primitive_interaction_end(bContext *C, wmOperator *op, wmWin
 	WM_cursor_modal_restore(win);
 
 	/* insert keyframes as required... */
-	gpf = BKE_gpencil_layer_getframe(tgpi->gpl, tgpi->cframe, GP_GETFRAME_ADD_NEW);
+	short add_frame_mode;
+	if (ts->gpencil_flags & GP_TOOL_FLAG_RETAIN_LAST) {
+		add_frame_mode = GP_GETFRAME_ADD_COPY;
+	}
+	else {
+		add_frame_mode = GP_GETFRAME_ADD_NEW;
+	}
+
+	gpf = BKE_gpencil_layer_getframe(tgpi->gpl, tgpi->cframe, add_frame_mode);
 
 	/* prepare stroke to get transferred */
 	gps = tgpi->gpf->strokes.first;
@@ -1147,7 +1165,12 @@ static void gpencil_primitive_interaction_end(bContext *C, wmOperator *op, wmWin
 	}
 
 	/* transfer stroke from temporary buffer to the actual frame */
-	BLI_movelisttolist(&gpf->strokes, &tgpi->gpf->strokes);
+	if (ts->gpencil_flags & GP_TOOL_FLAG_PAINT_ONBACK) {
+		BLI_movelisttolist_reverse(&gpf->strokes, &tgpi->gpf->strokes);
+	}
+	else {
+		BLI_movelisttolist(&gpf->strokes, &tgpi->gpf->strokes);
+	}
 	BLI_assert(BLI_listbase_is_empty(&tgpi->gpf->strokes));
 
 	/* add weights if required */
@@ -1368,16 +1391,7 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 			/* done! */
 			return OPERATOR_FINISHED;
 		}
-		case RIGHTMOUSE:
-		{
-			if (tgpi->flag == IN_CURVE_EDIT || (tgpi->flag == IN_PROGRESS && tgpi->tot_stored_edges > 0)) {
-				tgpi->flag = IDLE;
-				gpencil_primitive_interaction_end(C, op, win, tgpi);
-				/* done! */
-				return OPERATOR_FINISHED;
-			}
-			ATTR_FALLTHROUGH;
-		}
+		case RIGHTMOUSE: /* cancel */
 		case ESCKEY:
 		{
 			/* return to normal cursor and header status */

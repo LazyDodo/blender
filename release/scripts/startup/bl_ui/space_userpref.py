@@ -39,9 +39,9 @@ class USERPREF_HT_header(Header):
 
 
         if userpref.active_section == 'LIGHTS':
-            layout.operator('wm.studiolight_install', text="Add MatCap").type = 'MATCAP'
-            layout.operator('wm.studiolight_install', text="Add LookDev HDRI").type = 'WORLD'
-            op = layout.operator('wm.studiolight_install', text="Add Studio Light")
+            layout.operator("wm.studiolight_install", text="Add MatCap").type = 'MATCAP'
+            layout.operator("wm.studiolight_install", text="Add LookDev HDRI").type = 'WORLD'
+            op = layout.operator("wm.studiolight_install", text="Add Studio Light")
             op.type = 'STUDIO'
             op.filter_glob = ".sl"
 
@@ -528,7 +528,6 @@ class USERPREF_PT_interface_system_sound(PreferencePanel):
         layout.prop(system, "audio_device", expand=False)
         sub = layout.column()
         sub.active = system.audio_device not in {'NONE', 'Null'}
-        #sub.prop(system, "use_preview_images")
         sub.prop(system, "audio_channels", text="Channels")
         sub.prop(system, "audio_mixing_buffer", text="Mixing Buffer")
         sub.prop(system, "audio_sample_rate", text="Sample Rate")
@@ -1424,8 +1423,8 @@ class USERPREF_PT_input_view(PreferencePanel):
 
         layout.row().prop(inputs, "view_zoom_method", text="Zoom Method")
         if inputs.view_zoom_method in {'DOLLY', 'CONTINUE'}:
-            layout.row().prop(inputs, "view_zoom_axis", expand=True)
-            layout.prop(inputs, "invert_mouse_zoom", text="Invert Mouse Zoom Direction")
+            sub.row().prop(inputs, "view_zoom_axis", expand=True)
+            sub.prop(inputs, "invert_mouse_zoom", text="Invert Mouse Zoom Direction")
 
         layout.prop(inputs, "invert_zoom_wheel", text="Invert Wheel Zoom Direction")
         #sub.prop(view, "wheel_scroll_lines", text="Scroll Lines")
@@ -1916,11 +1915,11 @@ class StudioLightPanelMixin():
 
         row.template_icon(layout.icon(studio_light), scale=6.0)
         col = row.column()
-        op = col.operator('wm.studiolight_uninstall', text="", icon='REMOVE')
+        op = col.operator("wm.studiolight_uninstall", text="", icon='REMOVE')
         op.index = studio_light.index
 
         if studio_light.type == 'STUDIO':
-            op = col.operator('wm.studiolight_copy_settings', text="", icon='IMPORT')
+            op = col.operator("wm.studiolight_copy_settings", text="", icon='IMPORT')
             op.index = studio_light.index
 
         box.label(text=studio_light.name)
@@ -1966,7 +1965,7 @@ class USERPREF_PT_studiolight_light_editor(Panel):
 
         row = layout.row()
         row.prop(system, "edit_studio_light", toggle=True)
-        row.operator('wm.studiolight_new', text="Save as Studio light", icon="FILE_TICK")
+        row.operator("wm.studiolight_new", text="Save as Studio light", icon="FILE_TICK")
 
         layout.separator()
 

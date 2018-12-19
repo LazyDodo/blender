@@ -131,6 +131,7 @@ void BLO_update_defaults_startup_blend(Main *bmain, const char *app_template)
 							const char *dir_default = BKE_appdir_folder_default();
 							if (dir_default) {
 								STRNCPY(sfile->params->dir, dir_default);
+								sfile->params->file[0] = '\0';
 							}
 						}
 						break;
@@ -326,5 +327,7 @@ void BLO_update_defaults_startup_blend(Main *bmain, const char *app_template)
 
 	for (Scene *scene = bmain->scene.first; scene; scene = scene->id.next) {
 		copy_v3_v3(scene->display.light_direction, (float[3]){M_SQRT1_3, M_SQRT1_3, M_SQRT1_3});
+		copy_v2_fl2(scene->safe_areas.title, 0.1f, 0.05f);
+		copy_v2_fl2(scene->safe_areas.action, 0.035f, 0.035f);
 	}
 }
