@@ -1685,7 +1685,7 @@ static void DRW_shgroup_camera(OBJECT_ShadingGroupList *sgl, Object *ob, ViewLay
 		UI_GetThemeColor4fv(TH_BUNDLE_SOLID, bundle_color_solid);
 
 		float camera_mat[4][4];
-		BKE_tracking_get_camera_object_matrix(draw_ctx->depsgraph, scene, ob, camera_mat);
+		BKE_tracking_get_camera_object_matrix(scene, ob, camera_mat);
 
 		float bundle_scale_mat[4][4];
 		if (is_solid_bundle) {
@@ -2805,6 +2805,25 @@ static void OBJECT_cache_populate(void *vedata, Object *ob)
 					    .relationship_lines = NULL, /* Don't draw relationship lines */
 					};
 					DRW_shgroup_armature_object(ob, view_layer, passes);
+				}
+			}
+			break;
+		}
+		case OB_FONT:
+		{
+			if (hide_object_extra) {
+				break;
+			}
+			Curve *cu = (Curve *)ob->data;
+			bool has_surface = (cu->flag & (CU_FRONT | CU_BACK)) || cu->ext1 != 0.0f || cu->ext2 != 0.0f;
+			if (!has_surface) {
+				struct GPUBatch *geom = DRW_cache_text_edge_wire_get(ob);
+				if (geom) {
+					if (theme_id == TH_UNDEFINED) {
+						theme_id = DRW_object_wire_theme_get(ob, view_layer, NULL);
+					}
+					DRWShadingGroup *shgroup = shgroup_theme_id_to_wire_or(sgl, theme_id, sgl->wire);
+					DRW_shgroup_call_object_add(shgroup, geom, ob);
 				}
 			}
 			break;
