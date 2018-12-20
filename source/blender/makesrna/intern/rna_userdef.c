@@ -2086,7 +2086,7 @@ static void rna_def_userdef_theme_space_userpref(BlenderRNA *brna)
 	srna = RNA_def_struct(brna, "ThemeUserPreferences", NULL);
 	RNA_def_struct_sdna(srna, "ThemeSpace");
 	RNA_def_struct_clear_flag(srna, STRUCT_UNDO);
-	RNA_def_struct_ui_text(srna, "Theme User Preferences", "Theme settings for the User Preferences");
+	RNA_def_struct_ui_text(srna, "Theme Preferences", "Theme settings for the Blender Preferences");
 
 	rna_def_userdef_theme_spaces_main(srna);
 }
@@ -3207,7 +3207,7 @@ static void rna_def_userdef_themes(BlenderRNA *brna)
 		{9, "NODE_EDITOR", ICON_NODETREE, "Node Editor", ""},
 		{11, "PROPERTIES", ICON_PROPERTIES, "Properties", ""},
 		{12, "OUTLINER", ICON_OUTLINER, "Outliner", ""},
-		{14, "USER_PREFERENCES", ICON_PREFERENCES, "User Preferences", ""},
+		{14, "USER_PREFERENCES", ICON_PREFERENCES, "Preferences", ""},
 		{15, "INFO", ICON_INFO, "Info", ""},
 		{16, "FILE_BROWSER", ICON_FILEBROWSER, "File Browser", ""},
 		{17, "CONSOLE", ICON_CONSOLE, "Python Console", ""},
@@ -3316,7 +3316,7 @@ static void rna_def_userdef_themes(BlenderRNA *brna)
 	RNA_def_property_flag(prop, PROP_NEVER_NULL);
 	RNA_def_property_pointer_sdna(prop, NULL, "tuserpref");
 	RNA_def_property_struct_type(prop, "ThemeUserPreferences");
-	RNA_def_property_ui_text(prop, "User Preferences", "");
+	RNA_def_property_ui_text(prop, "Preferences", "");
 
 	prop = RNA_def_property(srna, "console", PROP_POINTER, PROP_NONE);
 	RNA_def_property_flag(prop, PROP_NEVER_NULL);
@@ -5085,7 +5085,7 @@ void RNA_def_userdef(BlenderRNA *brna)
 	RNA_def_property_enum_sdna(prop, NULL, "userpref");
 	RNA_def_property_enum_items(prop, user_pref_sections);
 	RNA_def_property_ui_text(prop, "Active Section",
-	                         "Active section of the user preferences shown in the user interface");
+	                         "Active section of the preferences shown in the user interface");
 	RNA_def_property_update(prop, 0, "rna_userdef_update");
 
 	/* don't expose this directly via the UI, modify via an operator */

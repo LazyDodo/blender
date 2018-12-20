@@ -1828,9 +1828,9 @@ class USERPREF_PT_studiolight_add(PreferencePanel):
         userpref = context.user_preferences
 
         row = layout.row()
-        row.operator('wm.studiolight_install', icon='IMPORT', text="Add MatCap...").type = 'MATCAP'
-        row.operator('wm.studiolight_install', icon='IMPORT', text="Add LookDev HDRI...").type = 'WORLD'
-        op = row.operator('wm.studiolight_install', icon='IMPORT', text="Add Studio Light...")
+        row.operator("wm.studiolight_install", icon='IMPORT', text="Add MatCap...").type = 'MATCAP'
+        row.operator("wm.studiolight_install", icon='IMPORT', text="Add LookDev HDRI...").type = 'WORLD'
+        op = row.operator("wm.studiolight_install", icon='IMPORT', text="Add Studio Light...")
         op.type = 'STUDIO'
         op.filter_glob = ".sl"
 
