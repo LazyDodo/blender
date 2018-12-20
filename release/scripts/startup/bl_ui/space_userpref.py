@@ -179,6 +179,9 @@ class USERPREF_PT_interface_viewports(PreferencePanel):
         userpref = context.user_preferences
         return (userpref.active_section == 'INTERFACE')
 
+    def draw(self, context):
+        pass
+
 
 class USERPREF_PT_interface_viewports_3d(PreferencePanel):
     bl_label = "3D Viewports"
@@ -719,7 +722,7 @@ class USERPREF_PT_theme(Panel):
 
         row = layout.row()
 
-        row.operator("wm.theme_install", text="Install", icon='FILEBROWSER')
+        row.operator("wm.theme_install", text="Install...", icon='IMPORT')
         row.operator("ui.reset_default_theme", text="Reset", icon='LOOP_BACK')
 
         subrow = row.row(align=True)
@@ -1346,17 +1349,16 @@ class USERPREF_PT_input_view(PreferencePanel):
 
         layout.row().prop(inputs, "view_rotate_method", expand=True)
 
-        layout.row().prop(inputs, "view_zoom_method", text="Zoom Method")
+        layout.prop(inputs, "view_zoom_method", text="Zoom Method")
         if inputs.view_zoom_method in {'DOLLY', 'CONTINUE'}:
-            sub.row().prop(inputs, "view_zoom_axis", expand=True)
-            sub.prop(inputs, "invert_mouse_zoom", text="Invert Mouse Zoom Direction")
+            layout.row().prop(inputs, "view_zoom_axis", expand=True)
+            layout.prop(inputs, "invert_mouse_zoom", text="Invert Mouse Zoom Direction")
 
         layout.prop(inputs, "invert_zoom_wheel", text="Invert Wheel Zoom Direction")
         #sub.prop(view, "wheel_scroll_lines", text="Scroll Lines")
 
         if sys.platform == "darwin":
-            sub = layout.column()
-            sub.prop(inputs, "use_trackpad_natural", text="Natural Trackpad Direction")
+            layout.prop(inputs, "use_trackpad_natural", text="Natural Trackpad Direction")
 
 class USERPREF_PT_input_view_fly_walk(PreferencePanel):
     bl_label = "Fly & Walk"
@@ -1604,7 +1606,7 @@ class USERPREF_PT_addons(Panel):
         ]
 
         row = layout.row()
-        row.operator("wm.addon_install", icon='ADD', text="Install...")
+        row.operator("wm.addon_install", icon='IMPORT', text="Install...")
         row.operator("wm.addon_refresh", icon='FILE_REFRESH', text="Refresh")
         row.menu("USERPREF_MT_addons_online_resources", text="Online Resources")
 
@@ -1826,9 +1828,9 @@ class USERPREF_PT_studiolight_add(PreferencePanel):
         userpref = context.user_preferences
 
         row = layout.row()
-        row.operator('wm.studiolight_install', text="Add MatCap").type = 'MATCAP'
-        row.operator('wm.studiolight_install', text="Add LookDev HDRI").type = 'WORLD'
-        op = row.operator('wm.studiolight_install', text="Add Studio Light")
+        row.operator('wm.studiolight_install', icon='IMPORT', text="Add MatCap...").type = 'MATCAP'
+        row.operator('wm.studiolight_install', icon='IMPORT', text="Add LookDev HDRI...").type = 'WORLD'
+        op = row.operator('wm.studiolight_install', icon='IMPORT', text="Add Studio Light...")
         op.type = 'STUDIO'
         op.filter_glob = ".sl"
 
@@ -2005,12 +2007,13 @@ classes += (
     USERPREF_MT_keyconfigs,
 
     USERPREF_PT_input_mouse,
-    USERPREF_PT_input_view,
-    USERPREF_PT_input_view_fly_walk,
-    USERPREF_PT_input_view_fly_walk_gravity,
     USERPREF_PT_input_devices,
     USERPREF_PT_input_devices_tablet,
     USERPREF_PT_input_devices_ndof,
+    USERPREF_PT_input_view,
+    USERPREF_PT_input_view_fly_walk,
+    USERPREF_PT_input_view_fly_walk_gravity,
+
 
     USERPREF_PT_keymap,
     USERPREF_MT_addons_online_resources,
