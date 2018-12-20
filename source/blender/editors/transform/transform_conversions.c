@@ -678,12 +678,12 @@ static void add_pose_transdata(TransInfo *t, bPoseChannel *pchan, Object *ob, Tr
 	/* proper way to get parent transform + own transform + constraints transform */
 	copy_m3_m4(omat, ob->obmat);
 
-	/* New code, using "generic" BKE_pchan_to_parent_transform(). */
+	/* New code, using "generic" BKE_bone_parent_transform_calc_from_pchan(). */
 	{
 		BoneParentTransform bpt;
 		float rpmat[3][3];
 
-		BKE_pchan_to_parent_transform(pchan, &bpt);
+		BKE_bone_parent_transform_calc_from_pchan(pchan, &bpt);
 		if (t->mode == TFM_TRANSLATION)
 			copy_m3_m4(pmat, bpt.loc_mat);
 		else
@@ -8213,15 +8213,7 @@ static void createTransGPencil_center_get(
 	zero_v3(r_center);
 	int tot_sel = 0;
 	for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-		bool point_ok;
-		if (is_prop_edit) {
-			point_ok = true;
-		}
-		else {
-			/* Only selected points in selected strokes */
-			point_ok = (pt->flag & GP_SPOINT_SELECT) != 0;
-		}
-		if (point_ok) {
+		if (pt->flag & GP_SPOINT_SELECT) {
 			add_v3_v3(r_center, &pt->x);
 			tot_sel++;
 		}
@@ -8455,7 +8447,14 @@ static void createTransGPencil(bContext *C, TransInfo *t)
 								/* do point... */
 								if (point_ok) {
 									copy_v3_v3(td->iloc, &pt->x);
-									copy_v3_v3(td->center, center);
+									/* only copy center in local origins.
+									 * This allows get interesting effects also when move using proportional editing */
+									if (ts->transform_pivot_point == V3D_AROUND_LOCAL_ORIGINS) {
+										copy_v3_v3(td->center, center);
+									}
+									else {
+										copy_v3_v3(td->center, &pt->x);
+									}
 
 									td->loc = &pt->x;
 
