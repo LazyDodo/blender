@@ -32,18 +32,7 @@ class USERPREF_HT_header(Header):
 
     def draw(self, context):
         layout = self.layout
-
         layout.template_header()
-
-        userpref = context.user_preferences
-
-
-        if userpref.active_section == 'LIGHTS':
-            layout.operator("wm.studiolight_install", text="Add MatCap").type = 'MATCAP'
-            layout.operator("wm.studiolight_install", text="Add LookDev HDRI").type = 'WORLD'
-            op = layout.operator("wm.studiolight_install", text="Add Studio Light")
-            op.type = 'STUDIO'
-            op.filter_glob = ".sl"
 
 
 class USERPREF_PT_navigation(Panel):
@@ -738,9 +727,6 @@ class USERPREF_PT_theme(Panel):
         subrow.operator("wm.interface_theme_preset_add", text="", icon='ADD')
         subrow.operator("wm.interface_theme_preset_add", text="", icon='REMOVE').remove_active = True
 
-        # TODO theme_area should be deprecated
-        row.prop(theme, "theme_area", text="")
-
 
 class USERPREF_PT_theme_user_interface(PreferencePanel):
     bl_space_type = 'USER_PREFERENCES'
@@ -775,28 +761,28 @@ class PreferenceThemeWidgetColorPanel(Panel):
         widget_style = getattr(ui, self.wcol)
         layout = self.layout
 
-        col = layout.column()
+        layout.use_property_split = True
 
-        row = col.row()
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=False, even_rows=False, align=False)
 
-        row.column().prop(widget_style, "outline")
-        row.column().prop(widget_style, "item", slider=True)
-        row.column().prop(widget_style, "inner", slider=True)
-        row.column().prop(widget_style, "inner_sel", slider=True)
-        row.column().prop(widget_style, "text")
-        row.column().prop(widget_style, "text_sel")
+        col = flow.column()
+        col.prop(widget_style, "outline")
+        col.prop(widget_style, "item", slider=True)
+        col.prop(widget_style, "inner", slider=True)
+        col.prop(widget_style, "inner_sel", slider=True)
 
-        col.separator()
+        col = flow.column()
+        col.prop(widget_style, "text")
+        col.prop(widget_style, "text_sel")
+        col.prop(widget_style, "roundness")
 
-        row = col.row()
+        col = flow.column()
+        col.prop(widget_style, "show_shaded")
 
-        row.prop(widget_style, "roundness")
-        row.prop(widget_style, "show_shaded")
-
-        rowsub = row.row(align=True)
-        rowsub.active = widget_style.show_shaded
-        rowsub.prop(widget_style, "shadetop")
-        rowsub.prop(widget_style, "shadedown")
+        colsub = col.column()
+        colsub.active = widget_style.show_shaded
+        colsub.prop(widget_style, "shadetop")
+        colsub.prop(widget_style, "shadedown")
 
     @classmethod
     def poll(cls, context):
@@ -814,30 +800,30 @@ class USERPREF_PT_theme_interface_state(PreferencePanel):
         ui = theme.user_interface
         ui_state = theme.user_interface.wcol_state
 
-        row = layout.row()
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=False, even_rows=False, align=False)
 
-        subsplit = row.split(factor=0.95)
+        col = flow.column(align=True)
+        col.prop(ui_state, "inner_anim")
+        col.prop(ui_state, "inner_anim_sel")
 
-        padding = subsplit.split(factor=0.15)
-        colsub = padding.column()
-        colsub = padding.column()
-        colsub.row().prop(ui_state, "inner_anim")
-        colsub.row().prop(ui_state, "inner_anim_sel")
-        colsub.row().prop(ui_state, "inner_driven")
-        colsub.row().prop(ui_state, "inner_driven_sel")
-        colsub.row().prop(ui_state, "blend")
+        col = flow.column(align=True)
+        col.prop(ui_state, "inner_driven")
+        col.prop(ui_state, "inner_driven_sel")
 
-        subsplit = row.split(factor=0.85)
+        col = flow.column(align=True)
+        col.prop(ui_state, "inner_key")
+        col.prop(ui_state, "inner_key_sel")
 
-        padding = subsplit.split(factor=0.15)
-        colsub = padding.column()
-        colsub = padding.column()
-        colsub.row().prop(ui_state, "inner_key")
-        colsub.row().prop(ui_state, "inner_key_sel")
-        colsub.row().prop(ui_state, "inner_overridden")
-        colsub.row().prop(ui_state, "inner_overridden_sel")
-        colsub.row().prop(ui_state, "inner_changed")
-        colsub.row().prop(ui_state, "inner_changed_sel")
+        col = flow.column(align=True)
+        col.prop(ui_state, "inner_overridden")
+        col.prop(ui_state, "inner_overridden_sel")
+
+        col = flow.column(align=True)
+        col.prop(ui_state, "inner_changed")
+        col.prop(ui_state, "inner_changed_sel")
+
+        col = flow.column(align=True)
+        col.prop(ui_state, "blend")
 
 
 class USERPREF_PT_theme_interface_styles(PreferencePanel):
@@ -849,25 +835,14 @@ class USERPREF_PT_theme_interface_styles(PreferencePanel):
         theme = context.user_preferences.themes[0]
         ui = theme.user_interface
 
-        row = layout.row()
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=False, even_rows=False, align=False)
 
-        subsplit = row.split(factor=0.95)
-
-        padding = subsplit.split(factor=0.15)
-        colsub = padding.column()
-        colsub = padding.column()
-        colsub.row().prop(ui, "menu_shadow_fac")
-        colsub.row().prop(ui, "icon_alpha")
-        colsub.row().prop(ui, "icon_saturation")
-        colsub.row().prop(ui, "editor_outline")
-
-        subsplit = row.split(factor=0.85)
-
-        padding = subsplit.split(factor=0.15)
-        colsub = padding.column()
-        colsub = padding.column()
-        colsub.row().prop(ui, "menu_shadow_width")
-        colsub.row().prop(ui, "widget_emboss")
+        flow.prop(ui, "menu_shadow_fac")
+        flow.prop(ui, "icon_alpha")
+        flow.prop(ui, "icon_saturation")
+        flow.prop(ui, "editor_outline")
+        flow.prop(ui, "menu_shadow_width")
+        flow.prop(ui, "widget_emboss")
 
 
 class USERPREF_PT_theme_interface_gizmos(PreferencePanel):
@@ -879,26 +854,20 @@ class USERPREF_PT_theme_interface_gizmos(PreferencePanel):
         theme = context.user_preferences.themes[0]
         ui = theme.user_interface
 
-        row = layout.row()
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=True, align=False)
 
-        subsplit = row.split(factor=0.95)
+        col = flow.column(align=True)
+        col.prop(ui, "axis_x", text="Axis X")
+        col.prop(ui, "axis_y", text="Y")
+        col.prop(ui, "axis_z", text="Z")
 
-        padding = subsplit.split(factor=0.15)
-        colsub = padding.column()
-        colsub = padding.column()
-        colsub.row().prop(ui, "axis_x")
-        colsub.row().prop(ui, "axis_y")
-        colsub.row().prop(ui, "axis_z")
+        col = flow.column()
+        col.prop(ui, "gizmo_primary")
+        col.prop(ui, "gizmo_secondary")
 
-        subsplit = row.split(factor=0.85)
-
-        padding = subsplit.split(factor=0.15)
-        colsub = padding.column()
-        colsub = padding.column()
-        colsub.row().prop(ui, "gizmo_primary")
-        colsub.row().prop(ui, "gizmo_secondary")
-        colsub.row().prop(ui, "gizmo_a")
-        colsub.row().prop(ui, "gizmo_b")
+        col = flow.column()
+        col.prop(ui, "gizmo_a")
+        col.prop(ui, "gizmo_b")
 
 
 class USERPREF_PT_theme_interface_icons(PreferencePanel):
@@ -910,25 +879,13 @@ class USERPREF_PT_theme_interface_icons(PreferencePanel):
         theme = context.user_preferences.themes[0]
         ui = theme.user_interface
 
-        row = layout.row()
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=False, even_rows=False, align=False)
 
-        subsplit = row.split(factor=0.95)
-
-        padding = subsplit.split(factor=0.15)
-        colsub = padding.column()
-        colsub = padding.column()
-        colsub.row().prop(ui, "icon_collection")
-        colsub.row().prop(ui, "icon_object")
-        colsub.row().prop(ui, "icon_object_data")
-
-        subsplit = row.split(factor=0.85)
-
-        padding = subsplit.split(factor=0.15)
-        colsub = padding.column()
-        colsub = padding.column()
-        colsub.row().prop(ui, "icon_modifier")
-        colsub.row().prop(ui, "icon_shading")
-
+        flow.prop(ui, "icon_collection")
+        flow.prop(ui, "icon_object")
+        flow.prop(ui, "icon_object_data")
+        flow.prop(ui, "icon_modifier")
+        flow.prop(ui, "icon_shading")
 
 class USERPREF_PT_theme_text_style(PreferencePanel):
     bl_label = "Text Style"
@@ -941,24 +898,21 @@ class USERPREF_PT_theme_text_style(PreferencePanel):
 
     @staticmethod
     def _ui_font_style(layout, font_style):
-        split = layout.split()
+        layout.use_property_split = True
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=False, even_rows=False, align=True)
 
-        col = split.column()
-        col.label(text="Kerning Style:")
+        col = flow.column()
         col.row().prop(font_style, "font_kerning_style", expand=True)
         col.prop(font_style, "points")
 
-        col = split.column()
-        col.label(text="Shadow Offset:")
-        col.prop(font_style, "shadow_offset_x", text="X")
+        col = flow.column(align=True)
+        col.prop(font_style, "shadow_offset_x", text="Shadow Offset X")
         col.prop(font_style, "shadow_offset_y", text="Y")
 
-        col = split.column()
+        col = flow.column()
         col.prop(font_style, "shadow")
         col.prop(font_style, "shadow_alpha")
         col.prop(font_style, "shadow_value")
-
-        layout.separator()
 
     def draw_header(self, context):
         layout = self.layout
@@ -968,17 +922,17 @@ class USERPREF_PT_theme_text_style(PreferencePanel):
     def draw_props(self, context, layout):
         style = context.user_preferences.ui_styles[0]
 
-        layout.label(text="Panel Title:")
+        layout.label(text="Panel Title")
         self._ui_font_style(layout, style.panel_title)
 
         layout.separator()
 
-        layout.label(text="Widget:")
+        layout.label(text="Widget")
         self._ui_font_style(layout, style.widget)
 
         layout.separator()
 
-        layout.label(text="Widget Label:")
+        layout.label(text="Widget Label")
         self._ui_font_style(layout, style.widget_label)
 
 
@@ -999,28 +953,17 @@ class USERPREF_PT_theme_bone_color_sets(PreferencePanel):
     def draw_props(self, context, layout):
         theme = context.user_preferences.themes[0]
 
-        col = layout.column()
+        layout.use_property_split = True
 
         for i, ui in enumerate(theme.bone_color_sets, 1):
-            col.label(text=iface_(f"Color Set {i:d}"), translate=False)
+            layout.label(text=iface_(f"Color Set {i:d}"), translate=False)
 
-            row = col.row()
+            flow = layout.grid_flow(row_major=True, columns=0, even_columns=False, even_rows=False, align=False)
 
-            subsplit = row.split(factor=0.95)
-
-            padding = subsplit.split(factor=0.15)
-            colsub = padding.column()
-            colsub = padding.column()
-            colsub.row().prop(ui, "normal")
-            colsub.row().prop(ui, "select")
-            colsub.row().prop(ui, "active")
-
-            subsplit = row.split(factor=0.85)
-
-            padding = subsplit.split(factor=0.15)
-            colsub = padding.column()
-            colsub = padding.column()
-            colsub.row().prop(ui, "show_colored_constraints")
+            flow.prop(ui, "normal")
+            flow.prop(ui, "select")
+            flow.prop(ui, "active")
+            flow.prop(ui, "show_colored_constraints")
 
 
 # Base class for dynamically defined theme-space panels.
@@ -1056,18 +999,10 @@ class PreferenceThemeSpacePanel(Panel):
     # TODO theme_area should be deprecated
     @staticmethod
     def _theme_generic(layout, themedata, theme_area):
-        row = layout.row()
-        subsplit = row.split(factor=0.95)
 
-        padding1 = subsplit.split(factor=0.15)
-        padding1.column()
+        layout.use_property_split = True
 
-        subsplit = row.split(factor=0.85)
-
-        padding2 = subsplit.split(factor=0.15)
-        padding2.column()
-
-        colsub_pair = padding1.column(), padding2.column()
+        flow = layout.grid_flow(row_major=True, columns=0, even_columns=False, even_rows=False, align=False)
 
         props_type = {}
 
@@ -1085,21 +1020,11 @@ class PreferenceThemeSpacePanel(Panel):
             if th_delimiters is None:
                 # simple, no delimiters
                 for i, prop in enumerate(props_ls):
-                    colsub_pair[i % 2].row().prop(themedata, prop.identifier)
+                    flow.prop(themedata, prop.identifier)
             else:
-                # add hard coded delimiters
-                i = 0
+
                 for prop in props_ls:
-                    colsub = colsub_pair[i]
-                    colsub.row().prop(themedata, prop.identifier)
-                    i = (i + 1) % 2
-                    if prop.identifier in th_delimiters:
-                        if i:
-                            colsub = colsub_pair[1]
-                            colsub.row().label(text="")
-                        colsub_pair[0].row().label(text="")
-                        colsub_pair[1].row().label(text="")
-                        i = 0
+                    flow.prop(themedata, prop.identifier)
 
     @staticmethod
     def draw_header(self, context):
@@ -1679,9 +1604,12 @@ class USERPREF_PT_addons(Panel):
         ]
 
         row = layout.row()
-        row.operator("wm.addon_install", icon='ADD', text="Install")
+        row.operator("wm.addon_install", icon='ADD', text="Install...")
         row.operator("wm.addon_refresh", icon='FILE_REFRESH', text="Refresh")
-        row.menu("USERPREF_MT_addons_online_resources", text="Resources")
+        row.menu("USERPREF_MT_addons_online_resources", text="Online Resources")
+
+        layout.separator()
+
         row = layout.row()
         row.prop(context.window_manager, "addon_support", expand=True)
         row.prop(context.window_manager, "addon_filter", text="")
@@ -1882,6 +1810,29 @@ class USERPREF_PT_addons(Panel):
                 row.label(text=module_name, translate=False)
 
 
+class USERPREF_PT_studiolight_add(PreferencePanel):
+    bl_space_type = 'USER_PREFERENCES'
+    bl_label = "Add Lights"
+    bl_region_type = 'WINDOW'
+    bl_options = {'HIDE_HEADER'}
+
+    @classmethod
+    def poll(cls, context):
+        userpref = context.user_preferences
+        return (userpref.active_section == 'LIGHTS')
+
+    def draw(self, context):
+        layout = self.layout
+        userpref = context.user_preferences
+
+        row = layout.row()
+        row.operator('wm.studiolight_install', text="Add MatCap").type = 'MATCAP'
+        row.operator('wm.studiolight_install', text="Add LookDev HDRI").type = 'WORLD'
+        op = row.operator('wm.studiolight_install', text="Add Studio Light")
+        op.type = 'STUDIO'
+        op.filter_glob = ".sl"
+
+
 class StudioLightPanelMixin():
     bl_space_type = 'USER_PREFERENCES'
     bl_region_type = 'WINDOW'
@@ -1903,7 +1854,7 @@ class StudioLightPanelMixin():
 
     def draw_light_list(self, layout, lights):
         if lights:
-            flow = layout.column_flow(columns=4)
+            flow = layout.grid_flow(row_major=True, columns=0, even_columns=False, even_rows=False, align=False)
             for studio_light in lights:
                 self.draw_studio_light(flow, studio_light)
         else:
@@ -1945,6 +1896,7 @@ class USERPREF_PT_studiolight_light_editor(Panel):
     bl_parent_id = "USERPREF_PT_studiolight_lights"
     bl_space_type = 'USER_PREFERENCES'
     bl_region_type = 'WINDOW'
+    bl_options = {'DEFAULT_CLOSED'}
 
     def opengl_light_buttons(self, layout, light):
 
@@ -2064,6 +2016,7 @@ classes += (
     USERPREF_MT_addons_online_resources,
     USERPREF_PT_addons,
 
+    USERPREF_PT_studiolight_add,
     USERPREF_PT_studiolight_lights,
     USERPREF_PT_studiolight_light_editor,
     USERPREF_PT_studiolight_matcaps,

@@ -3682,7 +3682,7 @@ static void rna_def_userdef_view(BlenderRNA *brna)
 	RNA_def_struct_ui_text(srna, "View & Controls", "Preferences related to viewing data");
 
 	/* View  */
-	prop = RNA_def_property(srna, "ui_scale", PROP_FLOAT, PROP_FACTOR);
+	prop = RNA_def_property(srna, "ui_scale", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_ui_text(prop, "UI Scale", "Changes the size of the fonts and buttons in the interface");
 	RNA_def_property_range(prop, 0.25f, 4.0f);
 	RNA_def_property_ui_range(prop, 0.5f, 2.0f, 1, 2);

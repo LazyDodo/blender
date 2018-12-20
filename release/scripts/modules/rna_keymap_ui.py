@@ -381,8 +381,8 @@ def draw_keymaps(context, layout):
 
     row = col.row()
 
-    row.operator("wm.keyconfig_import", text="Import", icon='IMPORT')
-    row.operator("wm.keyconfig_export", text="Export",  icon='EXPORT')
+    row.operator("wm.keyconfig_import", text="Import...", icon='IMPORT')
+    row.operator("wm.keyconfig_export", text="Export...",  icon='EXPORT')
 
     row.separator()
 
