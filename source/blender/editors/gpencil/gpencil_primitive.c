@@ -1455,11 +1455,10 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 				gpencil_primitive_update(C, op, tgpi);
 				break;
 			case ESCKEY:
-			case LEFTMOUSE:
+			case RIGHTMOUSE:
 				zero_v2(tgpi->move);
 				tgpi->flag = IN_CURVE_EDIT;
 				break;
-			case RIGHTMOUSE:
 			case LEFTMOUSE:
 				tgpi->flag = IN_CURVE_EDIT;
 				break;
