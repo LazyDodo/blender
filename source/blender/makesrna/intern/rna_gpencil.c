@@ -500,7 +500,7 @@ static void rna_GPencil_stroke_point_select_set(PointerRNA *ptr, const bool valu
 	}
 }
 
-static void rna_GPencil_stroke_point_add(bGPDstroke *stroke, int count, float pressure, float strength)
+static void rna_GPencil_stroke_point_add(bGPDstroke *stroke, bGPdata *gpd, int count, float pressure, float strength)
 {
 	if (count > 0) {
 		/* create space at the end of the array for extra points */
@@ -525,10 +525,19 @@ static void rna_GPencil_stroke_point_add(bGPDstroke *stroke, int count, float pr
 		}
 
 		stroke->totpoints += count;
+
+		stroke->flag |= GP_STROKE_RECALC_CACHES;
+
+		DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+
+		gpd->flag |= GP_DATA_PYTHON_UPDATED;
+		DEG_id_tag_update(&gpd->id, ID_RECALC_COPY_ON_WRITE);
+
+		WM_main_add_notifier(NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 	}
 }
 
-static void rna_GPencil_stroke_point_pop(bGPDstroke *stroke, ReportList *reports, int index)
+static void rna_GPencil_stroke_point_pop(bGPDstroke *stroke, ReportList *reports, bGPdata *gpd, int index)
 {
 	bGPDspoint *pt_tmp = stroke->points;
 	MDeformVert *pt_dvert = stroke->dvert;
@@ -571,6 +580,12 @@ static void rna_GPencil_stroke_point_pop(bGPDstroke *stroke, ReportList *reports
 		MEM_freeN(pt_dvert);
 	}
 
+	stroke->flag |= GP_STROKE_RECALC_CACHES;
+
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+
+	gpd->flag |= GP_DATA_PYTHON_UPDATED;
+	DEG_id_tag_update(&gpd->id, ID_RECALC_COPY_ON_WRITE);
 	WM_main_add_notifier(NC_GPENCIL | NA_EDITED, NULL);
 }
 
@@ -594,18 +609,6 @@ static void rna_GPencil_stroke_remove(bGPDframe *frame, ReportList *reports, Poi
 	RNA_POINTER_INVALIDATE(stroke_ptr);
 
 	WM_main_add_notifier(NC_GPENCIL | NA_EDITED, NULL);
-}
-
-static void rna_GPencil_stroke_update(bGPDframe *frame, ReportList *reports, PointerRNA *stroke_ptr)
-{
-	bGPDstroke *stroke = stroke_ptr->data;
-	if (BLI_findindex(&frame->strokes, stroke) == -1) {
-		BKE_report(reports, RPT_ERROR, "Stroke not found in grease pencil frame");
-		return;
-	}
-	stroke->flag |= GP_STROKE_RECALC_CACHES;
-
-	WM_main_add_notifier(NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 }
 
 static void rna_GPencil_stroke_select_set(PointerRNA *ptr, const bool value)
@@ -737,14 +740,6 @@ static void rna_GPencil_clear(bGPdata *gpd)
 	WM_main_add_notifier(NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
 }
 
-static void rna_GPencil_update_data(bGPdata *gpd)
-{
-	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
-	DEG_id_tag_update(&gpd->id, ID_RECALC_COPY_ON_WRITE);
-
-	WM_main_add_notifier(NC_GPENCIL | NA_EDITED, NULL);
-}
-
 static void rna_GpencilVertex_groups_begin(CollectionPropertyIterator *iter, PointerRNA *ptr)
 {
 	bGPDstroke *gps = ptr->data;
@@ -825,6 +820,8 @@ static void rna_def_gpencil_stroke_points_api(BlenderRNA *brna, PropertyRNA *cpr
 
 	func = RNA_def_function(srna, "add", "rna_GPencil_stroke_point_add");
 	RNA_def_function_ui_description(func, "Add a new grease pencil stroke point");
+	parm = RNA_def_pointer(func, "gpd", "GreasePencil", "", "Grease pencil datablock");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	parm = RNA_def_int(func, "count", 1, 0, INT_MAX, "Number", "Number of points to add to the stroke", 0, INT_MAX);
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	RNA_def_float(func, "pressure", 1.0f, 0.0f, 1.0f, "Pressure", "Pressure for newly created points", 0.0f, 1.0f);
@@ -832,6 +829,8 @@ static void rna_def_gpencil_stroke_points_api(BlenderRNA *brna, PropertyRNA *cpr
 
 	func = RNA_def_function(srna, "pop", "rna_GPencil_stroke_point_pop");
 	RNA_def_function_ui_description(func, "Remove a grease pencil stroke point");
+	parm = RNA_def_pointer(func, "gpd", "GreasePencil", "", "Grease pencil datablock");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
 	RNA_def_int(func, "index", -1, INT_MIN, INT_MAX, "Index", "point index", INT_MIN, INT_MAX);
 }
@@ -1008,13 +1007,6 @@ static void rna_def_gpencil_strokes_api(BlenderRNA *brna, PropertyRNA *cprop)
 
 	func = RNA_def_function(srna, "remove", "rna_GPencil_stroke_remove");
 	RNA_def_function_ui_description(func, "Remove a grease pencil stroke");
-	RNA_def_function_flag(func, FUNC_USE_REPORTS);
-	parm = RNA_def_pointer(func, "stroke", "GPencilStroke", "Stroke", "The stroke to remove");
-	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
-	RNA_def_parameter_clear_flags(parm, PROP_THICK_WRAP, 0);
-
-	func = RNA_def_function(srna, "update", "rna_GPencil_stroke_update");
-	RNA_def_function_ui_description(func, "Update stroke geometry");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
 	parm = RNA_def_pointer(func, "stroke", "GPencilStroke", "Stroke", "The stroke to remove");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED | PARM_RNAPTR);
@@ -1655,9 +1647,6 @@ static void rna_def_gpencil_data(BlenderRNA *brna)
 	/* API Functions */
 	func = RNA_def_function(srna, "clear", "rna_GPencil_clear");
 	RNA_def_function_ui_description(func, "Remove all the Grease Pencil data");
-
-	func = RNA_def_function(srna, "update", "rna_GPencil_update_data");
-	RNA_def_function_ui_description(func, "Force internal data update");
 }
 
 /* --- */
