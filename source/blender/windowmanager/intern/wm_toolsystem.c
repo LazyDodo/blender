@@ -255,6 +255,23 @@ static void toolsystem_ref_link(bContext *C, WorkSpace *workspace, bToolRef *tre
 				}
 			}
 		}
+		else if ((tref->space_type == SPACE_VIEW3D) &&
+		         (tref->mode == CTX_MODE_EDIT_HAIR))
+		{
+			const EnumPropertyItem *items = rna_enum_hair_edit_brush_items;
+			const int i = RNA_enum_from_identifier(items, tref_rt->data_block);
+			if (i != -1) {
+				const int value = items[i].value;
+				wmWindowManager *wm = bmain->wm.first;
+				for (wmWindow *win = wm->windows.first; win; win = win->next) {
+					if (workspace == WM_window_get_active_workspace(win)) {
+						Scene *scene = WM_window_get_active_scene(win);
+						ToolSettings *ts = scene->toolsettings;
+						ts->hair_edit.brushtype = value;
+					}
+				}
+			}
+		}
 		else if ((tref->space_type == SPACE_IMAGE) &&
 		         (tref->mode == SI_MODE_UV))
 		{
@@ -502,6 +519,19 @@ void WM_toolsystem_ref_sync_from_context(
 			if (ob->mode & OB_MODE_PARTICLE_EDIT) {
 				const EnumPropertyItem *items = rna_enum_particle_edit_hair_brush_items;
 				const int i = RNA_enum_from_value(items, ts->particle.brushtype);
+				const EnumPropertyItem *item = &items[i];
+				if (!STREQ(tref_rt->data_block, item->identifier)) {
+					STRNCPY(tref_rt->data_block, item->identifier);
+					STRNCPY(tref->idname, item->name);
+				}
+			}
+		}
+		else if ((tref->space_type == SPACE_VIEW3D) &&
+		         (tref->mode == CTX_MODE_EDIT_HAIR))
+		{
+			if (ob->mode & OB_MODE_EDIT) {
+				const EnumPropertyItem *items = rna_enum_hair_edit_brush_items;
+				const int i = RNA_enum_from_value(items, ts->hair_edit.brushtype);
 				const EnumPropertyItem *item = &items[i];
 				if (!STREQ(tref_rt->data_block, item->identifier)) {
 					STRNCPY(tref_rt->data_block, item->identifier);

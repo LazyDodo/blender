@@ -65,6 +65,11 @@ const EnumPropertyItem rna_enum_particle_edit_hair_brush_items[] = {
 	{0, NULL, 0, NULL, NULL}
 };
 
+const EnumPropertyItem rna_enum_hair_edit_brush_items[] = {
+	{HAIR_BRUSH_ADD, "ADD", 0, "Add", "Add hairs"},
+	{0, NULL, 0, NULL, NULL}
+};
+
 const EnumPropertyItem rna_enum_gpencil_sculpt_brush_items[] = {
 	{GP_SCULPT_TYPE_SMOOTH, "SMOOTH", ICON_GPBRUSH_SMOOTH, "Smooth", "Smooth stroke points"},
 	{GP_SCULPT_TYPE_THICKNESS, "THICKNESS", ICON_GPBRUSH_THICKNESS, "Thickness", "Adjust thickness of strokes"},
@@ -1216,11 +1221,6 @@ static void rna_def_hair_edit_settings(BlenderRNA *brna)
 	StructRNA *srna;
 	PropertyRNA *prop;
 
-	static const EnumPropertyItem hair_brush_items[] = {
-		{HAIR_BRUSH_ADD, "ADD", 0, "Add", "Add hairs"},
-		{0, NULL, 0, NULL, NULL}
-	};
-
 	static const EnumPropertyItem select_mode_items[] = {
 	    {HAIR_SELECT_FOLLICLES, "FOLLICLES", ICON_NONE, "Follicles", "Select hair follicles"},
 	    {HAIR_SELECT_VERTICES, "VERTICES", ICON_NONE, "Vertices", "Select hair curve vertices"},
@@ -1242,7 +1242,7 @@ static void rna_def_hair_edit_settings(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "tool", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "brushtype");
-	RNA_def_property_enum_items(prop, hair_brush_items);
+	RNA_def_property_enum_items(prop, rna_enum_hair_edit_brush_items);
 	RNA_def_property_ui_text(prop, "Tool", "");
 
 	prop = RNA_def_property(srna, "select_mode", PROP_ENUM, PROP_NONE);
