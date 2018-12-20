@@ -35,6 +35,8 @@
 
 struct wmOperatorType;
 
+void HAIR_OT_brush_edit(struct wmOperatorType *ot);
+
 void HAIR_OT_select_all(struct wmOperatorType *ot);
 
 void HAIR_OT_add_test_hair(struct wmOperatorType *ot);

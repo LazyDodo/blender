@@ -38,19 +38,23 @@ struct Object;
 struct wmOperator;
 struct wmKeyConfig;
 struct EditHair;
+struct ViewContext;
 
-/* groom_ops.c */
-void    ED_operatortypes_hair(void);
-void    ED_operatormacros_hair(void);
-void    ED_keymap_hair(struct wmKeyConfig *keyconf);
+/* hair_ops.c */
+void ED_operatortypes_hair(void);
+void ED_operatormacros_hair(void);
+void ED_keymap_hair(struct wmKeyConfig *keyconf);
 
-/* editgroom.c */
+/* edithair.c */
 void    undo_push_hair(struct bContext *C, const char *name);
 
 void ED_hair_edithair_load(struct Object *obedit);
 void ED_hair_edithair_make(struct Object *obedit);
 void ED_hair_edithair_free(struct Object *obedit);
 
-int ED_hair_object_poll(struct bContext *C);
+bool ED_hair_poll_object(struct bContext *C);
+bool ED_hair_poll_editmode(struct bContext *C);
+bool ED_hair_poll_view3d(struct bContext *C);
+void ED_hair_init_view3d(struct bContext *C, struct ViewContext *vc);
 
 #endif /* __ED_HAIR_H__ */

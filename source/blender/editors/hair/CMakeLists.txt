@@ -36,6 +36,7 @@ set(INC_SYS
 set(SRC
 	hair_ops.c
 	edithair.c
+	edithair_brush.c
 	edithair_select.c
 	edithair_test.c
 

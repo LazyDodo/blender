@@ -56,6 +56,7 @@
 #include "ED_screen.h"
 #include "ED_types.h"
 #include "ED_util.h"
+#include "ED_view3d.h"
 
 #include "hair_intern.h"
 
@@ -99,8 +100,45 @@ void ED_hair_edithair_free(Object *ob)
 	}
 }
 
-int ED_hair_object_poll(bContext *C)
+bool ED_hair_poll_object(bContext *C)
 {
 	Object *ob = ED_object_context(C);
 	return ob && ob->type == OB_HAIR;
+}
+
+
+bool ED_hair_poll_editmode(bContext *C)
+{
+	Object *ob = ED_object_context(C);
+	return ob && ob->type == OB_HAIR && (ob->mode & OB_MODE_EDIT);
+}
+
+bool ED_hair_poll_view3d(bContext *C)
+{
+	if (!ED_hair_poll_editmode) {
+		return false;
+	}
+
+	ScrArea *sa = CTX_wm_area(C);
+	ARegion *ar = CTX_wm_region(C);
+	return (sa && sa->spacetype == SPACE_VIEW3D) &&
+	       (ar && ar->regiontype == RGN_TYPE_WINDOW);
+}
+
+void ED_hair_init_view3d(bContext *C, ViewContext *vc)
+{
+	ED_view3d_viewcontext_init(C, vc);
+
+	if (V3D_IS_ZBUF(vc->v3d)) {
+		if (vc->v3d->flag & V3D_INVALID_BACKBUF) {
+			/* needed or else the draw matrix can be incorrect */
+			view3d_operator_needs_opengl(C);
+
+			ED_view3d_backbuf_validate(vc);
+			/* we may need to force an update here by setting the rv3d as dirty
+			 * for now it seems ok, but take care!:
+			 * rv3d->depths->dirty = 1; */
+			ED_view3d_depth_update(vc->ar);
+		}
+	}
 }

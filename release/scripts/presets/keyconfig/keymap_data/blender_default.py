@@ -4069,6 +4069,8 @@ def km_hair(params):
          {"properties": [("unselected", False)]}),
         ("hair.hide", {"type": 'H', "value": 'PRESS', "shift": True},
          {"properties": [("unselected", True)]}),
+        ("hair.brush_edit", {"type": 'LEFTMOUSE', "value": 'PRESS'}, None),
+        ("hair.brush_edit", {"type": 'LEFTMOUSE', "value": 'PRESS', "shift": True}, None),
         *_template_items_proportional_editing(connected=False),
     ])
 

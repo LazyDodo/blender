@@ -52,6 +52,8 @@
 
 void ED_operatortypes_hair(void)
 {
+	WM_operatortype_append(HAIR_OT_brush_edit);
+
 	WM_operatortype_append(HAIR_OT_select_all);
 
 	WM_operatortype_append(HAIR_OT_add_test_hair);
