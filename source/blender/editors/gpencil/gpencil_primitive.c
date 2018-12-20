@@ -96,6 +96,7 @@
 #define IN_PROGRESS 1
 #define IN_CURVE_EDIT 2
 #define IN_MOVE 3
+#define IN_BRUSH_SIZE 4
 
 #define SELECT_NONE 0
 #define SELECT_START 1
@@ -384,6 +385,9 @@ static void gpencil_primitive_add_segment(tGPDprimitive *tgpi)
 /* Helper: set control point */
 static void gp_primitive_set_cp(tGPDprimitive *tgpi, float p[2], float color[4], int size)
 {
+	if (tgpi->flag == IN_PROGRESS) {
+		return;
+	}
 	bGPDcontrolpoint *cp_points = tgpi->gpd->runtime.cp_points;
 
 	if (tgpi->gpd->runtime.tot_cp_points < MAX_CP) {
@@ -1370,6 +1374,29 @@ static void gpencil_primitive_edit_event_handling(bContext *C, wmOperator *op, w
 	}
 }
 
+/* brush size */
+static void gpencil_primitive_size(tGPDprimitive *tgpi, bool reset)
+{
+	Brush *brush = tgpi->brush;
+	if (brush) {
+		if (reset) {
+			brush->size = tgpi->brush_size;
+			tgpi->brush_size = 0;
+		}
+		else {
+			if (tgpi->brush_size == 0) {
+				tgpi->brush_size = brush->size;
+			}
+			float move[2];
+			sub_v2_v2v2(move, tgpi->mval, tgpi->mvalo);
+			int adjust = (move[1] > 0.0f) ? 1 : -1;
+			brush->size += adjust * (int)fabsf(len_manhattan_v2(move));
+		}
+		CLAMP_MIN(brush->size, 1);
+	}
+	
+}
+
 /* move */
 static void gpencil_primitive_move(tGPDprimitive *tgpi)
 {
@@ -1401,7 +1428,6 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 	copy_v2fl_v2i(tgpi->mval, event->mval);
 
 	if (tgpi->flag == IN_MOVE) {
-
 		switch (event->type) {
 			case MOUSEMOVE:
 				gpencil_primitive_move(tgpi);
@@ -1412,6 +1438,29 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 			case LEFTMOUSE:
 				tgpi->flag = IN_CURVE_EDIT;
 				break;
+		}
+		copy_v2_v2(tgpi->mvalo, tgpi->mval);
+		return OPERATOR_RUNNING_MODAL;
+	}
+	if (tgpi->flag == IN_BRUSH_SIZE) {
+		switch (event->type) {
+		case MOUSEMOVE:
+			gpencil_primitive_size(tgpi, false);
+			gpencil_primitive_update(C, op, tgpi);
+			break;
+		case ESCKEY:
+		case MIDDLEMOUSE:
+		case LEFTMOUSE:
+			tgpi->brush_size = 0;
+			tgpi->flag = IN_CURVE_EDIT;
+			break;
+		case RIGHTMOUSE:
+			if (event->val == KM_RELEASE) {
+				tgpi->flag = IN_CURVE_EDIT;
+				gpencil_primitive_size(tgpi, true);
+				gpencil_primitive_update(C, op, tgpi);
+			}
+			break;
 		}
 		copy_v2_v2(tgpi->mvalo, tgpi->mval);
 		return OPERATOR_RUNNING_MODAL;
@@ -1517,6 +1566,14 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 			if ((event->val == KM_PRESS)) {
 				tgpi->flag = IN_MOVE;
 				WM_cursor_modal_set(win, BC_NSEW_SCROLLCURSOR);
+			}
+			break;
+		}
+		case FKEY: /* brush thickness */
+		{
+			if ((event->val == KM_PRESS)) {
+				tgpi->flag = IN_BRUSH_SIZE;
+				WM_cursor_modal_set(win, BC_NS_SCROLLCURSOR);
 			}
 			break;
 		}
