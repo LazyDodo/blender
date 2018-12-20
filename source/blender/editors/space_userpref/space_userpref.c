@@ -61,13 +61,6 @@ static SpaceLink *userpref_new(const ScrArea *UNUSED(area), const Scene *UNUSED(
 	spref = MEM_callocN(sizeof(SpaceUserPref), "inituserpref");
 	spref->spacetype = SPACE_USERPREF;
 
-	/* navigation region */
-	ar = MEM_callocN(sizeof(ARegion), "navigation region for userpref");
-
-	BLI_addtail(&spref->regionbase, ar);
-	ar->regiontype = RGN_TYPE_NAV_BAR;
-	ar->alignment = RGN_ALIGN_LEFT;
-
 	/* header */
 	ar = MEM_callocN(sizeof(ARegion), "header for userpref");
 
@@ -75,6 +68,13 @@ static SpaceLink *userpref_new(const ScrArea *UNUSED(area), const Scene *UNUSED(
 	ar->regiontype = RGN_TYPE_HEADER;
 	/* Ignore user preference "USER_HEADER_BOTTOM" here (always show bottom for new types). */
 	ar->alignment = RGN_ALIGN_BOTTOM;
+
+	/* navigation region */
+	ar = MEM_callocN(sizeof(ARegion), "navigation region for userpref");
+
+	BLI_addtail(&spref->regionbase, ar);
+	ar->regiontype = RGN_TYPE_NAV_BAR;
+	ar->alignment = RGN_ALIGN_LEFT;
 
 	/* main region */
 	ar = MEM_callocN(sizeof(ARegion), "main region for userpref");

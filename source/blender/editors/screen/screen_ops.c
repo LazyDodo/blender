@@ -4358,6 +4358,10 @@ static int userpref_show_invoke(bContext *C, wmOperator *op, const wmEvent *even
 
 	/* changes context! */
 	if (WM_window_open_temp(C, event->x, event->y, sizex, sizey, WM_WINDOW_USERPREFS) != NULL) {
+		/* The header only contains the editor switcher and looks empty. So hiding in the temp window makes sense. */
+		ScrArea *area = CTX_wm_area(C);
+		ARegion *region = BKE_area_find_region_type(area, RGN_TYPE_HEADER);
+		region->flag |= RGN_FLAG_HIDDEN;
 		return OPERATOR_FINISHED;
 	}
 	else {
