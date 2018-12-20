@@ -4049,7 +4049,7 @@ def km_particle(params):
 def km_hair(params):
     items = []
     keymap = (
-        "Hair",
+        "HairSystem",
         {"space_type": 'EMPTY', "region_type": 'WINDOW'},
         {"items": items},
     )
