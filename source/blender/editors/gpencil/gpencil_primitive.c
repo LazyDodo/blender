@@ -910,18 +910,8 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 				add_v2_fl(&p2d->x, -fac);
 			}
 			else {
-				zero_v2(mvec);
+				add_v2_fl(&p2d->x, fac);
 			}
-			svec[0] = -mvec[1];
-			svec[1] = mvec[0];
-
-			if (p2d->rnd[0] > 0.5f) {
-				mul_v2_fl(svec, -fac);
-			}
-			else {
-				mul_v2_fl(svec, fac);
-			}
-			add_v2_v2(&p2d->x, svec);
 		}
 
 		/* apply randomness to pressure */
