@@ -4353,8 +4353,8 @@ static void SCREEN_OT_back_to_previous(struct wmOperatorType *ot)
 
 static int userpref_show_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 {
-	int sizex = (800 + UI_NAVIGATION_REGION_WIDTH) * UI_DPI_FAC;
-	int sizey = 500 * UI_DPI_FAC;
+	int sizex = (500 + UI_NAVIGATION_REGION_WIDTH) * UI_DPI_FAC;
+	int sizey = 520 * UI_DPI_FAC;
 
 	/* changes context! */
 	if (WM_window_open_temp(C, event->x, event->y, sizex, sizey, WM_WINDOW_USERPREFS) != NULL) {
