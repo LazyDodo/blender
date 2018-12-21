@@ -906,12 +906,27 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 			/* exponential value */
 			const float exfactor = SQUARE(brush->gpencil_settings->draw_jitter + 2.0f);
 			const float fac = p2d->rnd[0] * exfactor * jitter;
-			if (p2d->rnd[0] > 0.5f) {
-				add_v2_fl(&p2d->x, -fac);
+
+			/* vector */
+			float mvec[2], svec[2];;
+			if (i > 0) {
+				mvec[0] = (p2d->x - (p2d - 1)->x);
+				mvec[1] = (p2d->y - (p2d - 1)->y);
+				normalize_v2(mvec);
 			}
 			else {
-				add_v2_fl(&p2d->x, fac);
+				zero_v2(mvec);
 			}
+			svec[0] = -mvec[1];
+			svec[1] = mvec[0];
+
+			if (p2d->rnd[0] > 0.5f) {
+				mul_v2_fl(svec, -fac);
+			}
+			else {
+				mul_v2_fl(svec, fac);
+			}
+			add_v2_v2(&p2d->x, svec);
 		}
 
 		/* apply randomness to pressure */
@@ -1449,24 +1464,29 @@ static int gpencil_primitive_modal(bContext *C, wmOperator *op, const wmEvent *e
 	copy_v2fl_v2i(tgpi->mval, event->mval);
 
 	if (tgpi->flag == IN_MOVE) {
+
 		switch (event->type) {
-			case MOUSEMOVE:
-				gpencil_primitive_move(tgpi, false);
+		case MOUSEMOVE:
+			gpencil_primitive_move(tgpi, false);
+			gpencil_primitive_update(C, op, tgpi);
+			break;
+		case ESCKEY:
+		case LEFTMOUSE:
+			zero_v2(tgpi->move);
+			tgpi->flag = IN_CURVE_EDIT;
+			break;
+		case RIGHTMOUSE:
+			if (event->val == KM_RELEASE) {
+				tgpi->flag = IN_CURVE_EDIT;
+				gpencil_primitive_move(tgpi, true);
 				gpencil_primitive_update(C, op, tgpi);
-				break;
-			case ESCKEY:
-			case RIGHTMOUSE:
-				zero_v2(tgpi->move);
-				tgpi->flag = IN_CURVE_EDIT;
-				break;
-			case LEFTMOUSE:
-				tgpi->flag = IN_CURVE_EDIT;
-				break;
+			}
+			break;
 		}
 		copy_v2_v2(tgpi->mvalo, tgpi->mval);
 		return OPERATOR_RUNNING_MODAL;
 	}
-	if (tgpi->flag == IN_BRUSH_SIZE) {
+	else if (tgpi->flag == IN_BRUSH_SIZE) {
 		switch (event->type) {
 		case MOUSEMOVE:
 			gpencil_primitive_size(tgpi, false);
