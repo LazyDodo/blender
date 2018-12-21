@@ -1401,20 +1401,21 @@ void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 			t->around = V3D_AROUND_CURSOR;
 		}
 
-		t->orientation.user = t->scene->orientation_type;
-		t->orientation.custom = BKE_scene_transform_orientation_find(
-		        t->scene, t->scene->orientation_index_custom);
+		TransformOrientationSlot *orient_slot = &t->scene->orientation_slots[SCE_ORIENT_DEFAULT];
+		t->orientation.user = orient_slot->type;
+		t->orientation.custom = BKE_scene_transform_orientation_find(t->scene, orient_slot->index_custom);
 
 		t->orientation.index = 0;
 		ARRAY_SET_ITEMS(
 		        t->orientation.types,
-		        NULL,
-		        &t->orientation.user);
+		        &t->orientation.user,
+		        NULL);
 
 		/* Make second orientation local if both are global. */
 		if (t->orientation.user == V3D_MANIP_GLOBAL) {
 			t->orientation.user_alt = V3D_MANIP_LOCAL;
-			t->orientation.types[1] = &t->orientation.user_alt;
+			t->orientation.types[0] = &t->orientation.user_alt;
+			SWAP(short *, t->orientation.types[0], t->orientation.types[1]);
 		}
 
 		/* exceptional case */
@@ -1996,7 +1997,7 @@ void calculateCenterBound(TransInfo *t, float r_center[3])
 }
 
 /**
- * \param select_only only get active center from data being transformed.
+ * \param select_only: only get active center from data being transformed.
  */
 bool calculateCenterActive(TransInfo *t, bool select_only, float r_center[3])
 {
@@ -2005,21 +2006,17 @@ bool calculateCenterActive(TransInfo *t, bool select_only, float r_center[3])
 	bool ok = false;
 
 	if (tc->obedit) {
-		if (ED_object_editmode_calc_active_center(tc->obedit, select_only, r_center)) {
+		if (ED_object_calc_active_center_for_editmode(tc->obedit, select_only, r_center)) {
 			mul_m4_v3(tc->obedit->obmat, r_center);
 			ok = true;
 		}
 	}
 	else if (t->flag & T_POSE) {
 		ViewLayer *view_layer = t->view_layer;
-		Object *ob = OBACT(view_layer);
-		if (ob) {
-			bPoseChannel *pchan = BKE_pose_channel_active(ob);
-			if (pchan && (!select_only || (pchan->bone->flag & BONE_SELECTED))) {
-				copy_v3_v3(r_center, pchan->pose_head);
-				mul_m4_v3(ob->obmat, r_center);
-				ok = true;
-			}
+		Object *ob = OBACT(view_layer) ;
+		if (ED_object_calc_active_center_for_posemode(ob, select_only, r_center)) {
+			mul_m4_v3(ob->obmat, r_center);
+			ok = true;
 		}
 	}
 	else if (t->options & CTX_PAINT_CURVE) {
@@ -2050,7 +2047,7 @@ static void calculateCenter_FromAround(TransInfo *t, int around, float r_center[
 		case V3D_AROUND_CENTER_BOUNDS:
 			calculateCenterBound(t, r_center);
 			break;
-		case V3D_AROUND_CENTER_MEAN:
+		case V3D_AROUND_CENTER_MEDIAN:
 			calculateCenterMedian(t, r_center);
 			break;
 		case V3D_AROUND_CURSOR:

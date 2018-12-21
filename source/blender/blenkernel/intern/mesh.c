@@ -503,7 +503,6 @@ void BKE_mesh_init(Mesh *me)
 	me->size[0] = me->size[1] = me->size[2] = 1.0;
 	me->smoothresh = DEG2RADF(30);
 	me->texflag = ME_AUTOSPACE;
-	me->drawflag = 0;
 
 	CustomData_reset(&me->vdata);
 	CustomData_reset(&me->edata);
@@ -529,7 +528,7 @@ Mesh *BKE_mesh_add(Main *bmain, const char *name)
  *
  * WARNING! This function will not handle ID user count!
  *
- * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
+ * \param flag: Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
  */
 void BKE_mesh_copy_data(Main *bmain, Mesh *me_dst, const Mesh *me_src, const int flag)
 {
@@ -1564,6 +1563,18 @@ void BKE_mesh_mselect_active_set(Mesh *me, int index, int type)
 	           (me->mselect[me->totselect - 1].type  == type));
 }
 
+void BKE_mesh_count_selected_items(const Mesh *mesh, int r_count[3])
+{
+	r_count[0] = r_count[1] = r_count[2] = 0;
+	if (mesh->edit_btmesh) {
+		BMesh *bm = mesh->edit_btmesh->bm;
+		r_count[0] = bm->totvertsel;
+		r_count[1] = bm->totedgesel;
+		r_count[2] = bm->totfacesel;
+	}
+	/* We could support faces in paint modes. */
+
+}
 
 void BKE_mesh_apply_vert_coords(Mesh *mesh, float (*vertCoords)[3])
 {
@@ -1598,7 +1609,7 @@ void BKE_mesh_apply_vert_normals(Mesh *mesh, short (*vertNormals)[3])
 /**
  * Compute 'split' (aka loop, or per face corner's) normals.
  *
- * \param r_lnors_spacearr Allows to get computed loop normal space array. That data, among other things,
+ * \param r_lnors_spacearr: Allows to get computed loop normal space array. That data, among other things,
  *                         contains 'smooth fan' info, useful e.g. to split geometry along sharp edges...
  */
 void BKE_mesh_calc_normals_split_ex(Mesh *mesh, MLoopNorSpaceArray *r_lnors_spacearr)

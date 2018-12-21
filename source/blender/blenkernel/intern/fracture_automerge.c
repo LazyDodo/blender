@@ -208,8 +208,8 @@ static void find_other_face(FractureModifierData *fmd, int i, BMesh* bm, Object*
 	}
 
 
-	BM_face_calc_center_mean(f1, f_centr);
-	BM_face_calc_center_mean(f2, f_centr_other);
+	BM_face_calc_center_median(f1, f_centr);
+	BM_face_calc_center_median(f2, f_centr_other);
 
 
 	if ((len_squared_v3v3(f_centr, f_centr_other) < (fmd->autohide_dist)) && (f1 != f2) &&

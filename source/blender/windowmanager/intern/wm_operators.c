@@ -440,7 +440,6 @@ static const char *wm_context_member_from_ptr(bContext *C, const PointerRNA *ptr
 		switch (GS(((ID *)ptr->id.data)->name)) {
 			case ID_SCE:
 			{
-				CTX_TEST_PTR_DATA_TYPE(C, "active_gpencil_brush", RNA_Brush, ptr, CTX_data_active_gpencil_brush(C));
 				CTX_TEST_PTR_ID(C, "scene", ptr->id.data);
 				break;
 			}
@@ -613,7 +612,7 @@ void WM_operator_properties_sanitize(PointerRNA *ptr, const bool no_context)
 
 
 /** set all props to their default,
- * \param do_update Only update un-initialized props.
+ * \param do_update: Only update un-initialized props.
  *
  * \note, there's nothing specific to operators here.
  * this could be made a general function.

@@ -172,7 +172,7 @@ static int gpencil_editmode_toggle_exec(bContext *C, wmOperator *op)
 	}
 	/* set mode */
 	if (gpd->flag & GP_DATA_STROKE_EDITMODE) {
-		mode = OB_MODE_GPENCIL_EDIT;
+		mode = OB_MODE_EDIT_GPENCIL;
 	}
 	else {
 		mode = OB_MODE_OBJECT;
@@ -301,7 +301,7 @@ static int gpencil_paintmode_toggle_exec(bContext *C, wmOperator *op)
 	gpd->flag ^= GP_DATA_STROKE_PAINTMODE;
 	/* set mode */
 	if (gpd->flag & GP_DATA_STROKE_PAINTMODE) {
-		mode = OB_MODE_GPENCIL_PAINT;
+		mode = OB_MODE_PAINT_GPENCIL;
 	}
 	else {
 		mode = OB_MODE_OBJECT;
@@ -316,7 +316,7 @@ static int gpencil_paintmode_toggle_exec(bContext *C, wmOperator *op)
 		ob->mode = mode;
 	}
 
-	if (mode == OB_MODE_GPENCIL_PAINT) {
+	if (mode == OB_MODE_PAINT_GPENCIL) {
 		/* be sure we have brushes */
 		BKE_paint_ensure(ts, (Paint **)&ts->gp_paint);
 		Paint *paint = &ts->gp_paint->paint;
@@ -400,7 +400,7 @@ static int gpencil_sculptmode_toggle_exec(bContext *C, wmOperator *op)
 	gpd->flag ^= GP_DATA_STROKE_SCULPTMODE;
 	/* set mode */
 	if (gpd->flag & GP_DATA_STROKE_SCULPTMODE) {
-		mode = OB_MODE_GPENCIL_SCULPT;
+		mode = OB_MODE_SCULPT_GPENCIL;
 	}
 	else {
 		mode = OB_MODE_OBJECT;
@@ -488,7 +488,7 @@ static int gpencil_weightmode_toggle_exec(bContext *C, wmOperator *op)
 	gpd->flag ^= GP_DATA_STROKE_WEIGHTMODE;
 	/* set mode */
 	if (gpd->flag & GP_DATA_STROKE_WEIGHTMODE) {
-		mode = OB_MODE_GPENCIL_WEIGHT;
+		mode = OB_MODE_WEIGHT_GPENCIL;
 	}
 	else {
 		mode = OB_MODE_OBJECT;
@@ -871,7 +871,9 @@ GHash *gp_copybuf_validate_colormap(bContext *C)
 		}
 
 		/* Store this mapping (for use later when pasting) */
-		BLI_ghash_insert(new_colors, key, ma);
+		if (!BLI_ghash_haskey(new_colors, POINTER_FROM_INT(*key))) {
+			BLI_ghash_insert(new_colors, POINTER_FROM_INT(*key), ma);
+		}
 	}
 
 	gp_strokes_copypastebuf_colors_name_to_material_free(name_to_ma);
@@ -1118,13 +1120,13 @@ static int gp_strokes_paste_exec(bContext *C, wmOperator *op)
 				BLI_addtail(&gpf->strokes, new_stroke);
 
 				/* Remap material */
-				Material *ma = BLI_ghash_lookup(new_colors, &new_stroke->mat_nr);
+				Material *ma = BLI_ghash_lookup(new_colors, POINTER_FROM_INT(new_stroke->mat_nr));
 				if ((ma) && (BKE_gpencil_get_material_index(ob, ma) > 0)) {
-					gps->mat_nr = BKE_gpencil_get_material_index(ob, ma) - 1;
-					CLAMP_MIN(gps->mat_nr, 0);
+					new_stroke->mat_nr = BKE_gpencil_get_material_index(ob, ma) - 1;
+					CLAMP_MIN(new_stroke->mat_nr, 0);
 				}
 				else {
-					gps->mat_nr = 0; /* only if the color is not found */
+					new_stroke->mat_nr = 0; /* only if the color is not found */
 				}
 
 			}
@@ -2335,7 +2337,7 @@ static int gp_snap_cursor_to_sel(bContext *C, wmOperator *UNUSED(op))
 		}
 	}
 
-	if (scene->toolsettings->transform_pivot_point == V3D_AROUND_CENTER_MEAN && count) {
+	if (scene->toolsettings->transform_pivot_point == V3D_AROUND_CENTER_MEDIAN && count) {
 		mul_v3_fl(centroid, 1.0f / (float)count);
 		copy_v3_v3(cursor, centroid);
 	}
@@ -3013,6 +3015,53 @@ void GPENCIL_OT_reproject(wmOperatorType *ot)
 }
 
 /* ******************* Stroke subdivide ************************** */
+/* helper to smooth */
+static void gp_smooth_stroke(bContext *C, wmOperator *op)
+{
+	const int repeat = RNA_int_get(op->ptr, "repeat");
+	float factor = RNA_float_get(op->ptr, "factor");
+	const bool only_selected = RNA_boolean_get(op->ptr, "only_selected");
+	const bool smooth_position = RNA_boolean_get(op->ptr, "smooth_position");
+	const bool smooth_thickness = RNA_boolean_get(op->ptr, "smooth_thickness");
+	const bool smooth_strength = RNA_boolean_get(op->ptr, "smooth_strength");
+	const bool smooth_uv = RNA_boolean_get(op->ptr, "smooth_uv");
+
+	if (factor == 0.0f) {
+		return;
+	}
+
+	GP_EDITABLE_STROKES_BEGIN(gpstroke_iter, C, gpl, gps)
+	{
+		if (gps->flag & GP_STROKE_SELECT) {
+			for (int r = 0; r < repeat; r++) {
+				for (int i = 0; i < gps->totpoints; i++) {
+					bGPDspoint *pt = &gps->points[i];
+					if ((only_selected) && ((pt->flag & GP_SPOINT_SELECT) == 0)) {
+						continue;
+					}
+
+					/* perform smoothing */
+					if (smooth_position) {
+						BKE_gpencil_smooth_stroke(gps, i, factor);
+					}
+					if (smooth_strength) {
+						BKE_gpencil_smooth_stroke_strength(gps, i, factor);
+					}
+					if (smooth_thickness) {
+						/* thickness need to repeat process several times */
+						for (int r2 = 0; r2 < r * 10; r2++) {
+							BKE_gpencil_smooth_stroke_thickness(gps, i, factor);
+						}
+					}
+					if (smooth_uv) {
+						BKE_gpencil_smooth_stroke_uv(gps, i, factor);
+					}
+				}
+			}
+		}
+	}
+	GP_EDITABLE_STROKES_END(gpstroke_iter);
+}
 
 /* helper: Count how many points need to be inserted */
 static int gp_count_subdivision_cuts(bGPDstroke *gps)
@@ -3151,6 +3200,9 @@ static int gp_stroke_subdivide_exec(bContext *C, wmOperator *op)
 	}
 	GP_EDITABLE_STROKES_END(gpstroke_iter);
 
+	/* smooth stroke */
+	gp_smooth_stroke(C, op);
+
 	/* notifiers */
 	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
@@ -3178,6 +3230,17 @@ void GPENCIL_OT_stroke_subdivide(wmOperatorType *ot)
 	prop = RNA_def_int(ot->srna, "number_cuts", 1, 1, 10, "Number of Cuts", "", 1, 5);
 	/* avoid re-using last var because it can cause _very_ high value and annoy users */
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+
+	/* Smooth parameters */
+	RNA_def_float(ot->srna, "factor", 0.0f, 0.0f, 2.0f, "Smooth", "", 0.0f, 2.0f);
+	prop = RNA_def_int(ot->srna, "repeat", 1, 1, 10, "Repeat", "", 1, 5);
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+	RNA_def_boolean(ot->srna, "only_selected", true, "Selected Points",
+		"Smooth only selected points in the stroke");
+	RNA_def_boolean(ot->srna, "smooth_position", true, "Position", "");
+	RNA_def_boolean(ot->srna, "smooth_thickness", true, "Thickness", "");
+	RNA_def_boolean(ot->srna, "smooth_strength", false, "Strength", "");
+	RNA_def_boolean(ot->srna, "smooth_uv", false, "UV", "");
 
 }
 
@@ -3590,4 +3653,50 @@ void GPENCIL_OT_stroke_split(wmOperatorType *ot)
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+}
+
+static int gp_stroke_smooth_exec(bContext *C, wmOperator *op)
+{
+	bGPdata *gpd = ED_gpencil_data_get_active(C);
+
+	/* sanity checks */
+	if (ELEM(NULL, gpd))
+		return OPERATOR_CANCELLED;
+
+	gp_smooth_stroke(C, op);
+
+	/* notifiers */
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+
+	return OPERATOR_FINISHED;
+}
+
+void GPENCIL_OT_stroke_smooth(wmOperatorType *ot)
+{
+	PropertyRNA *prop;
+
+	/* identifiers */
+	ot->name = "Smooth Stroke";
+	ot->idname = "GPENCIL_OT_stroke_smooth";
+	ot->description = "Smooth selected strokes";
+
+	/* api callbacks */
+	ot->exec = gp_stroke_smooth_exec;
+	ot->poll = gp_active_layer_poll;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+	/* properties */
+	prop = RNA_def_int(ot->srna, "repeat", 1, 1, 10, "Repeat", "", 1, 5);
+	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+
+	RNA_def_float(ot->srna, "factor", 0.5f, 0.0f, 2.0f, "Factor", "", 0.0f, 2.0f);
+	RNA_def_boolean(ot->srna, "only_selected", true, "Selected Points",
+		"Smooth only selected points in the stroke");
+	RNA_def_boolean(ot->srna, "smooth_position", true, "Position", "");
+	RNA_def_boolean(ot->srna, "smooth_thickness", true, "Thickness", "");
+	RNA_def_boolean(ot->srna, "smooth_strength", false, "Strength", "");
+	RNA_def_boolean(ot->srna, "smooth_uv", false, "UV", "");
 }

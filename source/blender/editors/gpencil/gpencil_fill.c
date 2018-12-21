@@ -70,6 +70,7 @@
 #include "GPU_draw.h"
 #include "GPU_matrix.h"
 #include "GPU_framebuffer.h"
+#include "GPU_state.h"
 
 #include "UI_interface.h"
 
@@ -87,6 +88,7 @@
 
   /* Temporary fill operation data (op->customdata) */
 typedef struct tGPDfill {
+	bContext *C;
 	struct Main *bmain;
 	struct Depsgraph *depsgraph;
 	struct wmWindow *win;               /* window where painting originated */
@@ -151,7 +153,7 @@ static void gp_draw_basic_stroke(
 	immBindBuiltinProgram(GPU_SHADER_3D_FLAT_COLOR);
 
 	/* draw stroke curve */
-	glLineWidth(1.0f);
+	GPU_line_width(1.0f);
 	immBeginAtMost(GPU_PRIM_LINE_STRIP, totpoints + cyclic_add);
 	const bGPDspoint *pt = points;
 
@@ -393,11 +395,11 @@ static void set_pixel(ImBuf *ibuf, int idx, const float col[4])
  * this is used for strokes with small gaps between them to get a full fill
  * and do not get a full screen fill.
  *
- * \param ibuf      Image pixel data
- * \param maxpixel  Maximum index
- * \param limit     Limit of pixels to analyze
- * \param index     Index of current pixel
- * \param type      0-Horizontal 1-Vertical
+ * \param ibuf: Image pixel data
+ * \param maxpixel: Maximum index
+ * \param limit: Limit of pixels to analyze
+ * \param index: Index of current pixel
+ * \param type: 0-Horizontal 1-Vertical
  */
 static bool is_leak_narrow(ImBuf *ibuf, const int maxpixel, int limit, int index, int type)
 {
@@ -495,7 +497,7 @@ static bool is_leak_narrow(ImBuf *ibuf, const int maxpixel, int limit, int index
  * Fills the space created by a set of strokes using the stroke color as the boundary
  * of the shape to fill.
  *
- * \param tgpf       Temporary fill data
+ * \param tgpf: Temporary fill data
  */
 static void gpencil_boundaryfill_area(tGPDfill *tgpf)
 {
@@ -818,6 +820,10 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 	const int cfra_eval = (int)DEG_get_ctime(tgpf->depsgraph);
 
 	ToolSettings *ts = tgpf->scene->toolsettings;
+	const char *align_flag = &ts->gpencil_v3d_align;
+	const bool is_depth = (bool)(*align_flag & (GP_PROJECT_DEPTH_VIEW | GP_PROJECT_DEPTH_STROKE));
+	const bool is_camera = (bool)(ts->gp_sculpt.lock_axis == 0) &&
+		(tgpf->rv3d->persp == RV3D_CAMOB) && (!is_depth);
 	Brush *brush = BKE_paint_brush(&ts->gp_paint->paint);
 	if (brush == NULL) {
 		return;
@@ -935,6 +941,11 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 		gp_apply_parent_point(tgpf->depsgraph, tgpf->ob, tgpf->gpd, tgpf->gpl, pt);
 	}
 
+	/* if camera view, reproject flat to view to avoid perspective effect */
+	if (is_camera) {
+		ED_gpencil_project_stroke_to_view(tgpf->C, tgpf->gpl, gps);
+	}
+
 	/* simplify stroke */
 	for (int b = 0; b < tgpf->fill_simplylvl; b++) {
 		BKE_gpencil_simplify_fixed(gps);
@@ -1003,6 +1014,7 @@ static tGPDfill *gp_session_init_fill(bContext *C, wmOperator *UNUSED(op))
 	Main *bmain = CTX_data_main(C);
 
 	/* set current scene and window info */
+	tgpf->C = C;
 	tgpf->bmain = CTX_data_main(C);
 	tgpf->scene = CTX_data_scene(C);
 	tgpf->ob = CTX_data_active_object(C);

@@ -99,7 +99,7 @@ void BKE_material_free(Material *ma)
 
 	/* is no lib link block, but material extension */
 	if (ma->nodetree) {
-		ntreeFreeTree(ma->nodetree);
+		ntreeFreeNestedTree(ma->nodetree);
 		MEM_freeN(ma->nodetree);
 		ma->nodetree = NULL;
 	}
@@ -185,7 +185,7 @@ Material *BKE_material_add_gpencil(Main *bmain, const char *name)
  *
  * WARNING! This function will not handle ID user count!
  *
- * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
+ * \param flag: Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
  */
 void BKE_material_copy_data(Main *bmain, Material *ma_dst, const Material *ma_src, const int flag)
 {
@@ -1373,7 +1373,7 @@ void clear_matcopybuf(void)
 void free_matcopybuf(void)
 {
 	if (matcopybuf.nodetree) {
-		ntreeFreeTree(matcopybuf.nodetree);
+		ntreeFreeLocalTree(matcopybuf.nodetree);
 		MEM_freeN(matcopybuf.nodetree);
 		matcopybuf.nodetree = NULL;
 	}
@@ -1406,7 +1406,7 @@ void paste_matcopybuf(Main *bmain, Material *ma)
 	GPU_material_free(&ma->gpumaterial);
 
 	if (ma->nodetree) {
-		ntreeFreeTree(ma->nodetree);
+		ntreeFreeNestedTree(ma->nodetree);
 		MEM_freeN(ma->nodetree);
 	}
 

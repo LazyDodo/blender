@@ -69,6 +69,18 @@
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_query.h"
 
+/**
+ * Restore the object->data to a non-modifier evaluated state.
+ *
+ * Some changes done directly in evaluated object require them to be reset
+ * before being re-evaluated.
+ * For example, we need to call this before BKE_mesh_new_from_object(),
+ * in case we removed/added modifiers in the evaluated object.
+ **/
+void BKE_object_eval_reset(Object *ob_eval)
+{
+	BKE_object_free_derived_caches(ob_eval);
+}
 
 void BKE_object_eval_local_transform(Depsgraph *depsgraph, Object *ob)
 {
@@ -80,9 +92,7 @@ void BKE_object_eval_local_transform(Depsgraph *depsgraph, Object *ob)
 
 /* Evaluate parent */
 /* NOTE: based on solve_parenting(), but with the cruft stripped out */
-void BKE_object_eval_parent(Depsgraph *depsgraph,
-                            Scene *scene,
-                            Object *ob)
+void BKE_object_eval_parent(Depsgraph *depsgraph, Object *ob)
 {
 	Object *par = ob->parent;
 
@@ -97,7 +107,7 @@ void BKE_object_eval_parent(Depsgraph *depsgraph,
 	copy_m4_m4(locmat, ob->obmat);
 
 	/* get parent effect matrix */
-	BKE_object_get_parent_matrix(depsgraph, scene, ob, par, totmat);
+	BKE_object_get_parent_matrix(ob, par, totmat);
 
 	/* total */
 	mul_m4_m4m4(tmat, totmat, ob->parentinv);
@@ -385,7 +395,7 @@ void BKE_object_eval_transform_all(Depsgraph *depsgraph,
 	/* This mimics full transform update chain from new depsgraph. */
 	BKE_object_eval_local_transform(depsgraph, object);
 	if (object->parent != NULL) {
-		BKE_object_eval_parent(depsgraph, scene, object);
+		BKE_object_eval_parent(depsgraph, object);
 	}
 	if (!BLI_listbase_is_empty(&object->constraints)) {
 		BKE_object_eval_constraints(depsgraph, scene, object);

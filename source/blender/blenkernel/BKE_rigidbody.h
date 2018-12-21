@@ -38,13 +38,13 @@ struct RigidBodyWorld;
 struct RigidBodyOb;
 struct RigidBodyShardCon;
 
+struct Collection;
 struct Depsgraph;
-struct Scene;
+struct Main;
 struct Object;
 struct Group;
 struct Shard;
 struct FractureModifierData;
-struct Main;
 struct rbCollisionShape;
 struct rbContactPoint;
 struct ModifierData;
@@ -76,6 +76,13 @@ struct RigidBodyCon *BKE_rigidbody_create_constraint(struct Scene *scene, struct
 struct RigidBodyOb *BKE_rigidbody_create_shard(struct Object *ob, struct Object *target, struct Shard *mi,
                                                struct Scene *scene);
 struct RigidBodyShardCon *BKE_rigidbody_create_shard_constraint(struct Scene *scene, short type, bool reset);
+
+/* Ensure newly set collections' objects all have required data. */
+void BKE_rigidbody_objects_collection_validate(struct Scene *scene, struct RigidBodyWorld *rbw);
+void BKE_rigidbody_constraints_collection_validate(struct Scene *scene, struct RigidBodyWorld *rbw);
+
+/* Ensure object added to collection gets RB data if that collection is a RB one. */
+void BKE_rigidbody_main_collection_object_add(struct Main *bmain, struct Collection *collection, struct Object *object);
 
 /* copy */
 struct RigidBodyWorld *BKE_rigidbody_world_copy(struct RigidBodyWorld *rbw, const int flag);

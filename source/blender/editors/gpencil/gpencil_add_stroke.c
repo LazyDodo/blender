@@ -35,6 +35,7 @@
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
 
+#include "BKE_brush.h"
 #include "BKE_context.h"
 #include "BKE_gpencil.h"
 #include "BKE_main.h"
@@ -229,8 +230,12 @@ void ED_gpencil_create_stroke(bContext *C, float mat[4][4])
 	gp_stroke_material(bmain, ob, &gp_stroke_material_blue);
 	gp_stroke_material(bmain, ob, &gp_stroke_material_grey);
 
-	/* set first color as active */
+	/* set first color as active and in brushes */
 	ob->actcol = color_black + 1;
+	Material *ma = give_current_material(ob, ob->actcol);
+	if (ma != NULL) {
+		BKE_brush_update_material(bmain, ma, NULL);
+	}
 
 	/* layers */
 	bGPDlayer *colors = BKE_gpencil_layer_addnew(gpd, "Colors", false);
@@ -242,7 +247,7 @@ void ED_gpencil_create_stroke(bContext *C, float mat[4][4])
 	UNUSED_VARS(frame_color);
 
 	/* generate stroke */
-	gps = BKE_gpencil_add_stroke(frame_lines, color_black, 175, 3);
+	gps = BKE_gpencil_add_stroke(frame_lines, color_black, 175, 75);
 	BKE_gpencil_stroke_add_points(gps, data0, 175, mat);
 
 	/* update depsgraph */

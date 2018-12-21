@@ -226,7 +226,7 @@ Paint *BKE_paint_get_active(Scene *sce, ViewLayer *view_layer)
 					return &ts->wpaint->paint;
 				case OB_MODE_TEXTURE_PAINT:
 					return &ts->imapaint.paint;
-				case OB_MODE_GPENCIL_PAINT:
+				case OB_MODE_PAINT_GPENCIL:
 					return &ts->gp_paint->paint;
 				case OB_MODE_EDIT:
 					if (ts->use_uv_sculpt)
@@ -337,7 +337,7 @@ ePaintMode BKE_paintmode_get_from_tool(const struct bToolRef *tref)
 				return PAINT_MODE_VERTEX;
 			case CTX_MODE_PAINT_WEIGHT:
 				return PAINT_MODE_WEIGHT;
-			case CTX_MODE_GPENCIL_PAINT:
+			case CTX_MODE_PAINT_GPENCIL:
 				return PAINT_MODE_GPENCIL;
 			case CTX_MODE_PAINT_TEXTURE:
 				return PAINT_MODE_TEXTURE_3D;
@@ -389,7 +389,7 @@ void BKE_paint_runtime_init(const ToolSettings *ts, Paint *paint)
 	}
 	else if (paint == &ts->gp_paint->paint) {
 		paint->runtime.tool_offset = offsetof(Brush, gpencil_tool);
-		paint->runtime.ob_mode = OB_MODE_GPENCIL_PAINT;
+		paint->runtime.ob_mode = OB_MODE_PAINT_GPENCIL;
 	}
 	else if (paint == &ts->uvsculpt->paint) {
 		/* We don't use these yet. */
@@ -444,7 +444,7 @@ PaintCurve *BKE_paint_curve_add(Main *bmain, const char *name)
  *
  * WARNING! This function will not handle ID user count!
  *
- * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
+ * \param flag: Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
  */
 void BKE_paint_curve_copy_data(Main *UNUSED(bmain), PaintCurve *pc_dst, const PaintCurve *pc_src, const int UNUSED(flag))
 {
@@ -527,7 +527,7 @@ Palette *BKE_palette_add(Main *bmain, const char *name)
  *
  * WARNING! This function will not handle ID user count!
  *
- * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
+ * \param flag: Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
  */
 void BKE_palette_copy_data(Main *UNUSED(bmain), Palette *palette_dst, const Palette *palette_src, const int UNUSED(flag))
 {
@@ -1058,7 +1058,7 @@ static bool sculpt_modifiers_active(Scene *scene, Sculpt *sd, Object *ob)
 }
 
 /**
- * \param need_mask So that the evaluated mesh that is returned has mask data.
+ * \param need_mask: So that the evaluated mesh that is returned has mask data.
  */
 void BKE_sculpt_update_mesh_elements(
         Depsgraph *depsgraph, Scene *scene, Sculpt *sd, Object *ob,

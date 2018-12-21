@@ -116,7 +116,6 @@ typedef enum eGP_StrokeAdd_Result {
 typedef enum eGPencil_PaintFlags {
 	GP_PAINTFLAG_FIRSTRUN       = (1 << 0),    /* operator just started */
 	GP_PAINTFLAG_STROKEADDED    = (1 << 1),
-	GP_PAINTFLAG_V3D_ERASER_DEPTH = (1 << 2),
 	GP_PAINTFLAG_SELECTMASK     = (1 << 3),
 	GP_PAINTFLAG_HARD_ERASER    = (1 << 4),
 	GP_PAINTFLAG_STROKE_ERASER  = (1 << 5),
@@ -503,9 +502,9 @@ static void gp_brush_angle(bGPdata *gpd, Brush *brush, tGPspoint *pt, const floa
  *
  *   A----B-----C------D
  *
- * \param p	    Temp data
- * \param inf    Influence factor
- * \param idx	Index of the last point (need minimum 3 points in the array)
+ * \param p: Temp data
+ * \param inf: Influence factor
+ * \param idx: Index of the last point (need minimum 3 points in the array)
  */
 static void gp_smooth_buffer(tGPsdata *p, float inf, int idx)
 {
@@ -846,10 +845,15 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 	ToolSettings *ts = p->scene->toolsettings;
 	Depsgraph *depsgraph = p->depsgraph;
 	Object *obact = (Object *)p->ownerPtr.data;
+	RegionView3D *rv3d = p->ar->regiondata;
 	const int def_nr = obact->actdef - 1;
 	const bool have_weight = (bool)BLI_findlink(&obact->defbase, def_nr);
-
+	const char *align_flag = &ts->gpencil_v3d_align;
+	const bool is_depth = (bool)(*align_flag & (GP_PROJECT_DEPTH_VIEW | GP_PROJECT_DEPTH_STROKE));
+	const bool is_camera = (bool)(ts->gp_sculpt.lock_axis == 0) &&
+		(rv3d->persp == RV3D_CAMOB) && (!is_depth);
 	int i, totelem;
+
 	/* since strokes are so fine, when using their depth we need a margin otherwise they might get missed */
 	int depth_margin = (ts->gpencil_v3d_align & GP_PROJECT_DEPTH_STROKE) ? 4 : 0;
 
@@ -977,6 +981,11 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 			/* if parented change position relative to parent object */
 			gp_apply_parent_point(depsgraph, obact, gpd, gpl, pt);
 		}
+
+		/* if camera view, reproject flat to view to avoid perspective effect */
+		if (is_camera) {
+			ED_gpencil_project_stroke_to_view(p->C, p->gpl, gps);
+		}
 	}
 	else if (p->paintmode == GP_PAINTMODE_DRAW_POLY) {
 		/* first point */
@@ -988,6 +997,10 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 		gp_reproject_toplane(p, gps);
 		/* if parented change position relative to parent object */
 		gp_apply_parent_point(depsgraph, obact, gpd, gpl, pt);
+		/* if camera view, reproject flat to view to avoid perspective effect */
+		if (is_camera) {
+			ED_gpencil_project_stroke_to_view(p->C, p->gpl, gps);
+		}
 		/* copy pressure and time */
 		pt->pressure = ptc->pressure;
 		pt->strength = ptc->strength;
@@ -1021,7 +1034,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 			depth_arr = MEM_mallocN(sizeof(float) * gpd->runtime.sbuffer_size, "depth_points");
 
 			for (i = 0, ptc = gpd->runtime.sbuffer; i < gpd->runtime.sbuffer_size; i++, ptc++, pt++) {
-				
+
 				round_v2i_v2fl(mval_i, &ptc->x);
 
 				if ((ED_view3d_autodist_depth(p->ar, mval_i, depth_margin, depth_arr + i) == 0) &&
@@ -1066,7 +1079,7 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 						}
 						last_valid = i;
 					}
-					/* invalidate any point other point, to interpolate between
+					/* invalidate any other point, to interpolate between
 					 * first and last contact in an imaginary line between them */
 					for (i = 0; i < gpd->runtime.sbuffer_size; i++) {
 						if ((i != first_valid) && (i != last_valid)) {
@@ -1147,6 +1160,10 @@ static void gp_stroke_newfrombuffer(tGPsdata *p)
 		gp_reproject_toplane(p, gps);
 		/* change position relative to parent object */
 		gp_apply_parent(depsgraph, obact, gpd, gpl, gps);
+		/* if camera view, reproject flat to view to avoid perspective effect */
+		if (is_camera) {
+			ED_gpencil_project_stroke_to_view(p->C, p->gpl, gps);
+		}
 
 		if (depth_arr)
 			MEM_freeN(depth_arr);
@@ -1200,9 +1217,19 @@ static float view3d_point_depth(const RegionView3D *rv3d, const float co[3])
 static bool gp_stroke_eraser_is_occluded(tGPsdata *p, const bGPDspoint *pt, const int x, const int y)
 {
 	Object *obact = (Object *)p->ownerPtr.data;
+	Brush *brush = p->brush;
+	Brush *eraser = p->eraser;
+	BrushGpencilSettings *gp_settings = NULL;
 
-	if ((p->sa->spacetype == SPACE_VIEW3D) &&
-	    (p->flags & GP_PAINTFLAG_V3D_ERASER_DEPTH))
+	if (brush->gpencil_tool == GPAINT_TOOL_ERASE) {
+		gp_settings = brush->gpencil_settings;
+	}
+	else if ((eraser != NULL) & (eraser->gpencil_tool == GPAINT_TOOL_ERASE)) {
+		gp_settings = eraser->gpencil_settings;
+	}
+
+	if ((gp_settings != NULL) && (p->sa->spacetype == SPACE_VIEW3D) &&
+	    (gp_settings->flag & GP_BRUSH_OCCLUDE_ERASER))
 	{
 		RegionView3D *rv3d = p->ar->regiondata;
 		bGPDlayer *gpl = p->gpl;
@@ -1550,13 +1577,16 @@ static void gp_stroke_doeraser(tGPsdata *p)
 	Brush *eraser = p->eraser;
 	bool use_pressure = false;
 	float press = 1.0f;
+	BrushGpencilSettings *gp_settings = NULL;
 
 	/* detect if use pressure in eraser */
 	if (brush->gpencil_tool == GPAINT_TOOL_ERASE) {
 		use_pressure = (bool)(brush->gpencil_settings->flag & GP_BRUSH_USE_PRESSURE);
+		gp_settings = brush->gpencil_settings;
 	}
 	else if ((eraser != NULL) & (eraser->gpencil_tool == GPAINT_TOOL_ERASE)) {
 		use_pressure = (bool)(eraser->gpencil_settings->flag & GP_BRUSH_USE_PRESSURE);
+		gp_settings = eraser->gpencil_settings;
 	}
 	if (use_pressure) {
 		press = p->pressure;
@@ -1570,7 +1600,7 @@ static void gp_stroke_doeraser(tGPsdata *p)
 	rect.ymax = p->mval[1] + calc_radius;
 
 	if (p->sa->spacetype == SPACE_VIEW3D) {
-		if (p->flags & GP_PAINTFLAG_V3D_ERASER_DEPTH) {
+		if ((gp_settings != NULL) && (gp_settings->flag & GP_BRUSH_OCCLUDE_ERASER)) {
 			View3D *v3d = p->sa->spacedata.first;
 			view3d_region_operator_needs_opengl(p->win, p->ar);
 			ED_view3d_autodist_init(p->depsgraph, p->ar, v3d, 0);
@@ -1650,7 +1680,7 @@ static Brush *gp_get_default_eraser(Main *bmain, ToolSettings *ts)
 	Paint *paint = &ts->gp_paint->paint;
 	Brush *brush_old = paint->brush;
 	for (Brush *brush = bmain->brush.first; brush; brush = brush->id.next) {
-		if ((brush->ob_mode == OB_MODE_GPENCIL_PAINT) &&
+		if ((brush->ob_mode == OB_MODE_PAINT_GPENCIL) &&
 		    (brush->gpencil_tool == GPAINT_TOOL_ERASE))
 		{
 			/* save first eraser to use later if no default */
@@ -1832,7 +1862,7 @@ static bool gp_session_initdata(bContext *C, wmOperator *op, tGPsdata *p)
 					local_view_bits = v3d->local_view_uuid;
 				}
 				/* create new default object */
-				obact = ED_add_gpencil_object(C, p->scene, cur, local_view_bits);
+				obact = ED_gpencil_add_object(C, p->scene, cur, local_view_bits);
 			}
 			/* assign object after all checks to be sure we have one active */
 			p->ob = obact;
@@ -2063,23 +2093,10 @@ static void gp_paint_initstroke(tGPsdata *p, eGPencil_PaintModes paintmode, Deps
 	p->paintmode = paintmode;
 	if (p->paintmode == GP_PAINTMODE_ERASER) {
 		p->gpd->runtime.sbuffer_sflag |= GP_STROKE_ERASER;
-
-		/* check if we should respect depth while erasing */
-		if (p->sa->spacetype == SPACE_VIEW3D) {
-			if (p->gpl->flag & GP_LAYER_NO_XRAY) {
-				p->flags |= GP_PAINTFLAG_V3D_ERASER_DEPTH;
-			}
-		}
 	}
 	else {
 		/* disable eraser flags - so that we can switch modes during a session */
 		p->gpd->runtime.sbuffer_sflag &= ~GP_STROKE_ERASER;
-
-		if (p->sa->spacetype == SPACE_VIEW3D) {
-			if (p->gpl->flag & GP_LAYER_NO_XRAY) {
-				p->flags &= ~GP_PAINTFLAG_V3D_ERASER_DEPTH;
-			}
-		}
 	}
 
 	/* set special fill stroke mode */
@@ -2794,7 +2811,7 @@ static int gpencil_draw_invoke(bContext *C, wmOperator *op, const wmEvent *event
 			p->gpd->flag &= ~GP_DATA_STROKE_WEIGHTMODE;
 			/* set workspace mode */
 			ob->restore_mode = ob->mode;
-			ob->mode = OB_MODE_GPENCIL_PAINT;
+			ob->mode = OB_MODE_PAINT_GPENCIL;
 			/* redraw mode on screen */
 			WM_event_add_notifier(C, NC_SCENE | ND_MODE, NULL);
 		}

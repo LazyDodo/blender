@@ -65,7 +65,7 @@ class CyclesNodeButtonsPanel:
 
 
 def get_device_type(context):
-    return context.user_preferences.addons[__package__].preferences.compute_device_type
+    return context.preferences.addons[__package__].preferences.compute_device_type
 
 
 def use_cpu(context):
@@ -102,7 +102,7 @@ def show_device_active(context):
     cscene = context.scene.cycles
     if cscene.device != 'GPU':
         return True
-    return context.user_preferences.addons[__package__].preferences.has_active_device()
+    return context.preferences.addons[__package__].preferences.has_active_device()
 
 
 def draw_samples_info(layout, context):
@@ -911,6 +911,8 @@ class CYCLES_RENDER_PT_denoising(CyclesButtonsPanel, Panel):
         split.active = cycles_view_layer.use_denoising
 
         layout = layout.column(align=True)
+        layout.prop(cycles_view_layer, "denoising_radius", text="Radius")
+        layout.prop(cycles_view_layer, "denoising_strength", slider=True, text="Strength")
         layout.prop(cycles_view_layer, "denoising_feature_strength", slider=True, text="Feature Strength")
         layout.prop(cycles_view_layer, "denoising_relative_pca")
 
@@ -1978,7 +1980,8 @@ class CYCLES_NODE_PT_settings(CyclesNodeButtonsPanel, Panel):
     def poll(cls, context):
         snode = context.space_data
         return CyclesNodeButtonsPanel.poll(context) and \
-               snode.tree_type == 'ShaderNodeTree' and snode.id
+               snode.tree_type == 'ShaderNodeTree' and snode.id and \
+               snode.id.bl_rna.identifier == 'Material'
 
     def draw(self, context):
         material = context.space_data.id

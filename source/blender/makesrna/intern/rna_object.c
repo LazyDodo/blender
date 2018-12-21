@@ -74,10 +74,10 @@ const EnumPropertyItem rna_enum_object_mode_items[] = {
 	{OB_MODE_WEIGHT_PAINT, "WEIGHT_PAINT", ICON_WPAINT_HLT, "Weight Paint", ""},
 	{OB_MODE_TEXTURE_PAINT, "TEXTURE_PAINT", ICON_TPAINT_HLT, "Texture Paint", ""},
 	{OB_MODE_PARTICLE_EDIT, "PARTICLE_EDIT", ICON_PARTICLEMODE, "Particle Edit", ""},
-	{OB_MODE_GPENCIL_EDIT, "GPENCIL_EDIT", ICON_EDITMODE_HLT, "Edit Mode", "Edit Grease Pencil Strokes"},
-	{OB_MODE_GPENCIL_SCULPT, "GPENCIL_SCULPT", ICON_SCULPTMODE_HLT, "Sculpt Mode", "Sculpt Grease Pencil Strokes"},
-	{OB_MODE_GPENCIL_PAINT, "GPENCIL_PAINT", ICON_GREASEPENCIL, "Draw", "Paint Grease Pencil Strokes"},
-	{OB_MODE_GPENCIL_WEIGHT, "GPENCIL_WEIGHT", ICON_WPAINT_HLT, "Weight Paint", "Grease Pencil Weight Paint Strokes" },
+	{OB_MODE_EDIT_GPENCIL, "EDIT_GPENCIL", ICON_EDITMODE_HLT, "Edit Mode", "Edit Grease Pencil Strokes"},
+	{OB_MODE_SCULPT_GPENCIL, "SCULPT_GPENCIL", ICON_SCULPTMODE_HLT, "Sculpt Mode", "Sculpt Grease Pencil Strokes"},
+	{OB_MODE_PAINT_GPENCIL, "PAINT_GPENCIL", ICON_GREASEPENCIL, "Draw", "Paint Grease Pencil Strokes"},
+	{OB_MODE_WEIGHT_GPENCIL, "WEIGHT_GPENCIL", ICON_WPAINT_HLT, "Weight Paint", "Grease Pencil Weight Paint Strokes" },
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -91,10 +91,10 @@ const EnumPropertyItem rna_enum_workspace_object_mode_items[] = {
 	{OB_MODE_WEIGHT_PAINT, "WEIGHT_PAINT", ICON_WPAINT_HLT, "Weight Paint", ""},
 	{OB_MODE_TEXTURE_PAINT, "TEXTURE_PAINT", ICON_TPAINT_HLT, "Texture Paint", ""},
 	{OB_MODE_PARTICLE_EDIT, "PARTICLE_EDIT", ICON_PARTICLEMODE, "Particle Edit", ""},
-	{OB_MODE_GPENCIL_EDIT, "GPENCIL_EDIT", ICON_EDITMODE_HLT, "Grease Pencil Edit Mode", "Edit Grease Pencil Strokes"},
-	{OB_MODE_GPENCIL_SCULPT, "GPENCIL_SCULPT", ICON_SCULPTMODE_HLT, "Grease Pencil Sculpt Mode", "Sculpt Grease Pencil Strokes"},
-	{OB_MODE_GPENCIL_PAINT, "GPENCIL_PAINT", ICON_GREASEPENCIL, "Grease Pencil Draw", "Paint Grease Pencil Strokes"},
-	{OB_MODE_GPENCIL_WEIGHT, "GPENCIL_WEIGHT", ICON_WPAINT_HLT, "Grease Pencil Weight Paint", "Grease Pencil Weight Paint Strokes" },
+	{OB_MODE_EDIT_GPENCIL, "EDIT_GPENCIL", ICON_EDITMODE_HLT, "Grease Pencil Edit Mode", "Edit Grease Pencil Strokes"},
+	{OB_MODE_SCULPT_GPENCIL, "SCULPT_GPENCIL", ICON_SCULPTMODE_HLT, "Grease Pencil Sculpt Mode", "Sculpt Grease Pencil Strokes"},
+	{OB_MODE_PAINT_GPENCIL, "PAINT_GPENCIL", ICON_GREASEPENCIL, "Grease Pencil Draw", "Paint Grease Pencil Strokes"},
+	{OB_MODE_WEIGHT_GPENCIL, "WEIGHT_GPENCIL", ICON_WPAINT_HLT, "Grease Pencil Weight Paint", "Grease Pencil Weight Paint Strokes" },
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -2502,18 +2502,25 @@ static void rna_def_object(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
 
 	prop = RNA_def_property(srna, "show_empty_image_perspective", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "empty_image_visibility_flag", OB_EMPTY_IMAGE_VISIBLE_PERSPECTIVE);
+	RNA_def_property_boolean_negative_sdna(prop, NULL, "empty_image_visibility_flag", OB_EMPTY_IMAGE_HIDE_PERSPECTIVE);
 	RNA_def_property_ui_text(prop, "Display in Perspective Mode", "Display image in perspective mode");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
 
 	prop = RNA_def_property(srna, "show_empty_image_orthographic", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "empty_image_visibility_flag", OB_EMPTY_IMAGE_VISIBLE_ORTHOGRAPHIC);
+	RNA_def_property_boolean_negative_sdna(prop, NULL, "empty_image_visibility_flag", OB_EMPTY_IMAGE_HIDE_ORTHOGRAPHIC);
 	RNA_def_property_ui_text(prop, "Display in Orthographic Mode", "Display image in orthographic mode");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
 
-	prop = RNA_def_property(srna, "show_empty_image_backside", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "empty_image_visibility_flag", OB_EMPTY_IMAGE_VISIBLE_BACKSIDE);
-	RNA_def_property_ui_text(prop, "Display Back Side", "Display empty image even when viewed from the back");
+	static EnumPropertyItem prop_empty_image_side_items[] = {
+		{0, "DOUBLE_SIDED", 0, "Both", ""},
+		{OB_EMPTY_IMAGE_HIDE_BACK, "FRONT", 0, "Front", ""},
+		{OB_EMPTY_IMAGE_HIDE_FRONT, "BACK", 0, "Back", ""},
+		{0, NULL, 0, NULL, NULL}
+	};
+	prop = RNA_def_property(srna, "empty_image_side", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_bitflag_sdna(prop, NULL, "empty_image_visibility_flag");
+	RNA_def_property_enum_items(prop, prop_empty_image_side_items);
+	RNA_def_property_ui_text(prop, "Empty Image Side", "Show front/back side");
 	RNA_def_property_update(prop, NC_OBJECT | ND_DRAW, NULL);
 
 	/* render */

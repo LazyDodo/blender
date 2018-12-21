@@ -122,7 +122,7 @@ void ED_editors_init(bContext *C)
 				if (ob->type != OB_GPENCIL) {
 					ID *data = ob->data;
 					ob->mode = OB_MODE_OBJECT;
-					if ((ob == obact) && !ID_IS_LINKED(ob) && !(data && ID_IS_LINKED(data))) {
+					if ((ob->type == obact->type) && !ID_IS_LINKED(ob) && !(data && ID_IS_LINKED(data))) {
 						if (mode == OB_MODE_EDIT) {
 							ED_object_editmode_enter_ex(bmain, scene, ob, 0);
 						}
@@ -377,7 +377,7 @@ void ED_region_draw_mouse_line_cb(const bContext *C, ARegion *ar, void *arg_info
 /**
  * Use to free ID references within runtime data (stored outside of DNA)
  *
- * \param new_id may be NULL to unlink \a old_id.
+ * \param new_id: may be NULL to unlink \a old_id.
  */
 void ED_spacedata_id_remap(struct ScrArea *sa, struct SpaceLink *sl, ID *old_id, ID *new_id)
 {

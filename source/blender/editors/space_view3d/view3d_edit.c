@@ -325,7 +325,7 @@ static bool view3d_orbit_calc_center(bContext *C, float r_dyn_ofs[3])
 	}
 	else {
 		/* If there's no selection, lastofs is unmodified and last value since static */
-		is_set = calculateTransformCenter(C, V3D_AROUND_CENTER_MEAN, lastofs, NULL);
+		is_set = calculateTransformCenter(C, V3D_AROUND_CENTER_MEDIAN, lastofs, NULL);
 	}
 
 	copy_v3_v3(r_dyn_ofs, lastofs);
@@ -1039,7 +1039,7 @@ static float view3d_ndof_pan_speed_calc(RegionView3D *rv3d)
 /**
  * Zoom and pan in the same function since sometimes zoom is interpreted as dolly (pan forward).
  *
- * \param has_zoom zoom, otherwise dolly, often `!rv3d->is_persp` since it doesn't make sense to dolly in ortho.
+ * \param has_zoom: zoom, otherwise dolly, often `!rv3d->is_persp` since it doesn't make sense to dolly in ortho.
  */
 static void view3d_ndof_pan_zoom(
         const struct wmNDOFMotionData *ndof, ScrArea *sa, ARegion *ar,
@@ -2842,8 +2842,8 @@ static int viewselected_exec(bContext *C, wmOperator *op)
 		CTX_DATA_END;
 
 		if ((ob_eval) && (ok)) {
-			add_v3_v3(min, ob_eval->obmat[3]);
-			add_v3_v3(max, ob_eval->obmat[3]);
+			mul_m4_v3(ob_eval->obmat, min);
+			mul_m4_v3(ob_eval->obmat, max);
 		}
 	}
 	else if (ob_eval && (ob_eval->type == OB_GPENCIL)) {
