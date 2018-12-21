@@ -864,9 +864,10 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		tGPspoint *p2d = &points2D[i];
 
 		/* set rnd value for reuse */
-		if (p2d->rnd_dirty != true) {
+		if ((brush->gpencil_settings->flag & GP_BRUSH_GROUP_RANDOM) && (p2d->rnd_dirty != true)) {
 			p2d->rnd[0] = BLI_rng_get_float(tgpi->rng);
 			p2d->rnd[1] = BLI_rng_get_float(tgpi->rng);
+			p2d->rnd[2] = BLI_rng_get_float(tgpi->rng);
 			p2d->rnd_dirty = true;
 		}
 
@@ -920,7 +921,7 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 			svec[0] = -mvec[1];
 			svec[1] = mvec[0];
 
-			if (p2d->rnd[0] > 0.5f) {
+			if (p2d->rnd[1] > 0.5f) {
 				mul_v2_fl(svec, -fac);
 			}
 			else {
@@ -934,10 +935,10 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		    (brush->gpencil_settings->draw_random_press > 0.0f))
 		{
 			if (p2d->rnd[0] > 0.5f) {
-				pressure -= brush->gpencil_settings->draw_random_press * p2d->rnd[0];
+				pressure -= brush->gpencil_settings->draw_random_press * p2d->rnd[1];
 			}
 			else {
-				pressure += brush->gpencil_settings->draw_random_press * p2d->rnd[0];
+				pressure += brush->gpencil_settings->draw_random_press * p2d->rnd[2];
 			}
 		}
 
@@ -954,8 +955,8 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 		if ((brush->gpencil_settings->flag & GP_BRUSH_GROUP_RANDOM) &&
 		    (brush->gpencil_settings->draw_random_strength > 0.0f))
 		{
-			if (p2d->rnd[1] > 0.5f) {
-				strength -= strength * brush->gpencil_settings->draw_random_strength * p2d->rnd[1];
+			if (p2d->rnd[2] > 0.5f) {
+				strength -= strength * brush->gpencil_settings->draw_random_strength * p2d->rnd[0];
 			}
 			else {
 				strength += strength * brush->gpencil_settings->draw_random_strength * p2d->rnd[1];
