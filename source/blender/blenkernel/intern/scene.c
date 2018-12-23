@@ -670,7 +670,7 @@ void BKE_scene_init(Scene *sce)
 	sce->toolsettings->snap_mode = SCE_SNAP_MODE_INCREMENT;
 	sce->toolsettings->snap_node_mode = SCE_SNAP_MODE_GRID;
 	sce->toolsettings->snap_uv_mode = SCE_SNAP_MODE_INCREMENT;
-	sce->toolsettings->snap_force_increment_flag = SCE_SNAP_FORCE_INCREMENT_ROTATE | SCE_SNAP_FORCE_INCREMENT_SCALE;
+	sce->toolsettings->snap_transform_mode_flag = SCE_SNAP_TRANSFORM_MODE_TRANSLATE;
 
 	sce->toolsettings->curve_paint_settings.curve_type = CU_BEZIER;
 	sce->toolsettings->curve_paint_settings.flag |= CURVE_PAINT_FLAG_CORNERS_DETECT;
@@ -782,8 +782,8 @@ void BKE_scene_init(Scene *sce)
 	            sizeof(sce->sequencer_colorspace_settings.name));
 
 	/* Safe Areas */
-	copy_v2_fl2(sce->safe_areas.title, 3.5f / 100.0f, 3.5f / 100.0f);
-	copy_v2_fl2(sce->safe_areas.action, 10.0f / 100.0f, 5.0f / 100.0f);
+	copy_v2_fl2(sce->safe_areas.title, 10.0f / 100.0f, 5.0f / 100.0f);
+	copy_v2_fl2(sce->safe_areas.action, 3.5f / 100.0f, 3.5f / 100.0f);
 	copy_v2_fl2(sce->safe_areas.title_center, 17.5f / 100.0f, 5.0f / 100.0f);
 	copy_v2_fl2(sce->safe_areas.action_center, 15.0f / 100.0f, 5.0f / 100.0f);
 

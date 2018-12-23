@@ -721,11 +721,13 @@ static void ui_item_enum_expand_exec(
 		if (icon && name[0] && !icon_only)
 			but = uiDefIconTextButR_prop(block, but_type, 0, icon, name, 0, 0, itemw, h, ptr, prop, -1, 0, value, -1, -1, NULL);
 		else if (icon)
-			but = uiDefIconButR_prop(block, but_type, 0, icon, 0, 0, (is_first) ? itemw : itemw - UI_DPI_FAC, h, ptr, prop, -1, 0, value, -1, -1, NULL);
+			but = uiDefIconButR_prop(block, but_type, 0, icon, 0, 0, (is_first) ? itemw : ceilf(itemw - UI_DPI_FAC), h, ptr, prop, -1, 0, value, -1, -1, NULL);
 		else
 			but = uiDefButR_prop(block, but_type, 0, name, 0, 0, itemw, h, ptr, prop, -1, 0, value, -1, -1, NULL);
 
 		if (RNA_property_flag(prop) & PROP_ENUM_FLAG) {
+			/* If this is set, assert since we're clobbering someone elses callback. */
+			BLI_assert(but->func == NULL);
 			UI_but_func_set(but, ui_item_enum_expand_handle, but, POINTER_FROM_INT(value));
 		}
 
