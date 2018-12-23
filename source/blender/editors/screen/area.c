@@ -1605,6 +1605,7 @@ void ED_area_update_region_sizes(wmWindowManager *wm, wmWindow *win, ScrArea *ar
 	if (!(area->flag & AREA_FLAG_REGION_SIZE_UPDATE)) {
 		return;
 	}
+	const bScreen *screen = WM_window_get_active_screen(win);
 
 	WM_window_rect_calc(win, &window_rect);
 	area_calc_totrct(area, &window_rect);
@@ -1614,6 +1615,9 @@ void ED_area_update_region_sizes(wmWindowManager *wm, wmWindow *win, ScrArea *ar
 	overlap_rect = rect;
 	region_rect_recursive(area, area->regionbase.first, &rect, &overlap_rect, 0);
 
+	/* Dynamically sized regions may have changed region sizes, so we have to force azone update. */
+	area_azone_initialize(win, screen, area);
+
 	for (ARegion *ar = area->regionbase.first; ar; ar = ar->next) {
 		region_subwindow(ar);
 
@@ -1621,6 +1625,9 @@ void ED_area_update_region_sizes(wmWindowManager *wm, wmWindow *win, ScrArea *ar
 		if (ar->type->init) {
 			ar->type->init(wm, ar);
 		}
+
+		/* Some AZones use View2D data which is only updated in region init, so call that first! */
+		region_azones_add(screen, area, ar, ar->alignment & ~RGN_SPLIT_PREV);
 	}
 
 	area->flag &= ~AREA_FLAG_REGION_SIZE_UPDATE;
@@ -2385,6 +2392,9 @@ void ED_region_panels_draw(const bContext *C, ARegion *ar)
 
 	/* set the view */
 	UI_view2d_view_ortho(v2d);
+
+	/* View2D matrix might have changed due to dynamic sized regions. */
+	UI_blocklist_update_window_matrix(C, &ar->uiblocks);
 
 	/* draw panels */
 	UI_panels_draw(C, ar);

@@ -36,12 +36,6 @@ class USERPREF_HT_header(Header):
 
         layout.template_header()
 
-        row = layout.row()
-
-        row.separator_spacer()
-
-        row.operator("wm.save_userpref")
-
 
 class USERPREF_PT_navigation(Panel):
     bl_label = ""
@@ -60,6 +54,24 @@ class USERPREF_PT_navigation(Panel):
         col.scale_x = 1.3
         col.scale_y = 1.3
         col.prop(prefs, "active_section", expand=True)
+
+
+class USERPREF_PT_save_preferences(Panel):
+    bl_label = ""
+    bl_space_type = 'PREFERENCES'
+    bl_region_type = 'EXECUTE'
+    bl_options = {'HIDE_HEADER'}
+
+    def draw(self, context):
+        layout = self.layout
+        layout.operator_context = 'EXEC_AREA'
+
+        prefs = context.preferences
+
+        layout.scale_x = 1.3
+        layout.scale_y = 1.3
+
+        layout.operator("wm.save_userpref")
 
 
 class PreferencePanel(Panel):
@@ -1498,11 +1510,6 @@ class USERPREF_PT_keymap(Panel):
         prefs = context.preferences
         return (prefs.active_section == 'KEYMAP')
 
-    @staticmethod
-    def draw_input_prefs(inputs, layout):
-        import sys
-
-
     def draw(self, context):
         from rna_keymap_ui import draw_keymaps
 
@@ -1516,9 +1523,6 @@ class USERPREF_PT_keymap(Panel):
         keymappref = prefs.keymap
 
         col = layout.column()
-
-        # Input settings
-        self.draw_input_prefs(keymappref, col)
 
         # Keymap Settings
         draw_keymaps(context, col)
@@ -1975,6 +1979,7 @@ classes = (USERPREF_PT_theme_user_interface,) + tuple(ThemeGenericClassGenerator
 classes += (
     USERPREF_HT_header,
     USERPREF_PT_navigation,
+    USERPREF_PT_save_preferences,
 
     USERPREF_PT_interface_display,
     USERPREF_PT_interface_display_info,

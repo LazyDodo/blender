@@ -1251,7 +1251,7 @@ ScrArea *ED_screen_state_toggle(bContext *C, wmWindow *win, ScrArea *sa, const s
 			for (ar = newa->regionbase.first; ar; ar = ar->next) {
 				ar->flagfullscreen = ar->flag;
 
-				if (ELEM(ar->regiontype, RGN_TYPE_UI, RGN_TYPE_HEADER, RGN_TYPE_TOOLS, RGN_TYPE_NAV_BAR)) {
+				if (ELEM(ar->regiontype, RGN_TYPE_UI, RGN_TYPE_HEADER, RGN_TYPE_TOOLS, RGN_TYPE_NAV_BAR, RGN_TYPE_EXECUTE)) {
 					ar->flag |= RGN_FLAG_HIDDEN;
 				}
 			}

@@ -2386,8 +2386,12 @@ static int region_scale_modal(bContext *C, wmOperator *op, const wmEvent *event)
 					if (!(rmd->ar->flag & RGN_FLAG_HIDDEN))
 						region_scale_toggle_hidden(C, rmd);
 				}
-				else if (rmd->ar->flag & RGN_FLAG_HIDDEN)
+				else if (rmd->ar->flag & RGN_FLAG_HIDDEN) {
 					region_scale_toggle_hidden(C, rmd);
+				}
+				else if (rmd->ar->flag & RGN_FLAG_DYNAMIC_SIZE) {
+					rmd->ar->sizex = rmd->origval;
+				}
 			}
 			else {
 				int maxsize = region_scale_get_maxsize(rmd);
@@ -2415,10 +2419,15 @@ static int region_scale_modal(bContext *C, wmOperator *op, const wmEvent *event)
 					if (!(rmd->ar->flag & RGN_FLAG_HIDDEN))
 						region_scale_toggle_hidden(C, rmd);
 				}
-				else if (maxsize > 0 && (rmd->ar->sizey > maxsize))
+				else if (maxsize > 0 && (rmd->ar->sizey > maxsize)) {
 					rmd->ar->sizey = maxsize;
-				else if (rmd->ar->flag & RGN_FLAG_HIDDEN)
+				}
+				else if (rmd->ar->flag & RGN_FLAG_HIDDEN) {
 					region_scale_toggle_hidden(C, rmd);
+				}
+				else if (rmd->ar->flag & RGN_FLAG_DYNAMIC_SIZE) {
+					rmd->ar->sizey = rmd->origval;
+				}
 			}
 			ED_area_tag_redraw(rmd->sa);
 			WM_event_add_notifier(C, NC_SCREEN | NA_EDITED, NULL);
