@@ -423,8 +423,8 @@ def draw_keymaps(context, layout):
             box = col.box()
             row = box.row(align=True)
 
-            userpref = context.user_preferences
-            keymappref = userpref.keymap
+            pref = context.preferences
+            keymappref = pref.keymap
             show_ui_keyconfig = keymappref.show_ui_keyconfig
             row.prop(
                 keymappref,

@@ -28,7 +28,7 @@ from bpy.app.translations import contexts as i18n_contexts
 
 
 class USERPREF_HT_header(Header):
-    bl_space_type = 'USER_PREFERENCES'
+    bl_space_type = 'PREFERENCES'
 
     def draw(self, context):
         layout = self.layout
@@ -37,7 +37,7 @@ class USERPREF_HT_header(Header):
 
 class USERPREF_PT_navigation(Panel):
     bl_label = ""
-    bl_space_type = 'USER_PREFERENCES'
+    bl_space_type = 'PREFERENCES'
     bl_region_type = 'NAVIGATION_BAR'
     bl_options = {'HIDE_HEADER'}
 
@@ -45,13 +45,13 @@ class USERPREF_PT_navigation(Panel):
         layout = self.layout
         layout.operator_context = 'EXEC_AREA'
 
-        userpref = context.user_preferences
+        prefs = context.preferences
 
         col = layout.column()
 
         col.scale_x = 1.3
         col.scale_y = 1.3
-        col.prop(userpref, "active_section", expand=True)
+        col.prop(prefs, "active_section", expand=True)
 
         col.separator_spacer()
         #Doesn't work vertically yet
@@ -60,7 +60,7 @@ class USERPREF_PT_navigation(Panel):
 
 
 class PreferencePanel(Panel):
-    bl_space_type = 'USER_PREFERENCES'
+    bl_space_type = 'PREFERENCES'
     bl_region_type = 'WINDOW'
 
     def draw_props(self, context, layout):
@@ -90,12 +90,12 @@ class USERPREF_PT_interface_display(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'INTERFACE')
+        prefs = context.preferences
+        return (prefs.active_section == 'INTERFACE')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        view = userpref.view
+        prefs = context.preferences
+        view = prefs.view
 
         layout.prop(view, "ui_scale", text="Scale")
         layout.prop(view, "ui_line_width", text="Line Width")
@@ -107,8 +107,8 @@ class USERPREF_PT_interface_display_info(PreferencePanel):
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        view = userpref.view
+        prefs = context.preferences
+        view = prefs.view
 
         layout.prop(view, "show_tooltips")
         layout.prop(view, "show_object_info", text="Object Info")
@@ -123,12 +123,12 @@ class USERPREF_PT_interface_develop(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'INTERFACE')
+        prefs = context.preferences
+        return (prefs.active_section == 'INTERFACE')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        view = userpref.view
+        prefs = context.preferences
+        view = prefs.view
 
         layout.prop(view, "show_tooltips_python")
         layout.prop(view, "show_developer_ui")
@@ -140,12 +140,12 @@ class USERPREF_PT_interface_view_manipulation(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'INTERFACE')
+        prefs = context.preferences
+        return (prefs.active_section == 'INTERFACE')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        view = userpref.view
+        prefs = context.preferences
+        view = prefs.view
 
         layout.prop(view, "smooth_view")
         layout.prop(view, "rotation_angle")
@@ -176,8 +176,8 @@ class USERPREF_PT_interface_viewports(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'INTERFACE')
+        prefs = context.preferences
+        return (prefs.active_section == 'INTERFACE')
 
     def draw(self, context):
         pass
@@ -188,8 +188,8 @@ class USERPREF_PT_interface_viewports_3d(PreferencePanel):
     bl_parent_id = "USERPREF_PT_interface_viewports"
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        view = userpref.view
+        prefs = context.preferences
+        view = prefs.view
 
         layout.prop(view, "object_origin_size")
 
@@ -213,14 +213,14 @@ class USERPREF_PT_interface_viewports_3d_weight_paint(PreferencePanel):
     bl_parent_id = "USERPREF_PT_interface_viewports_3d"
 
     def draw_header(self, context):
-        userpref = context.user_preferences
-        system = userpref.system
+        prefs = context.preferences
+        system = prefs.system
 
         self.layout.prop(system, "use_weight_color_range", text="")
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        system = userpref.system
+        prefs = context.preferences
+        system = prefs.system
 
         layout.active = system.use_weight_color_range
         layout.template_color_ramp(system, "weight_color_range", expand=True)
@@ -231,8 +231,8 @@ class USERPREF_PT_interface_viewports_2d(PreferencePanel):
     bl_parent_id = "USERPREF_PT_interface_viewports"
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        view = userpref.view
+        prefs = context.preferences
+        view = prefs.view
 
         layout.prop(view, "view2d_grid_spacing_min", text="Minimum Grid Spacing")
         layout.prop(view, "timecode_style")
@@ -249,12 +249,12 @@ class USERPREF_PT_interface_menus(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'INTERFACE')
+        prefs = context.preferences
+        return (prefs.active_section == 'INTERFACE')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        view = userpref.view
+        prefs = context.preferences
+        view = prefs.view
 
         layout.prop(view, "show_splash")
         layout.prop(view, "use_quit_dialog")
@@ -266,14 +266,14 @@ class USERPREF_PT_interface_menus_mouse_over(PreferencePanel):
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw_header(self, context):
-        userpref = context.user_preferences
-        view = userpref.view
+        prefs = context.preferences
+        view = prefs.view
 
         self.layout.prop(view, "use_mouse_over_open", text="")
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        view = userpref.view
+        prefs = context.preferences
+        view = prefs.view
 
         layout.active = view.use_mouse_over_open
 
@@ -286,8 +286,8 @@ class USERPREF_PT_interface_menus_pie(PreferencePanel):
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        view = userpref.view
+        prefs = context.preferences
+        view = prefs.view
 
         layout.prop(view, "pie_animation_timeout")
         layout.prop(view, "pie_initial_timeout")
@@ -302,12 +302,12 @@ class USERPREF_PT_interface_templates(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'INTERFACE')
+        prefs = context.preferences
+        return (prefs.active_section == 'INTERFACE')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        view = userpref.view
+        prefs = context.preferences
+        view = prefs.view
 
         layout.label(text="Options intended for use with app-templates only.")
         layout.prop(view, "show_layout_ui")
@@ -318,12 +318,12 @@ class USERPREF_PT_edit_undo(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'EDITING')
+        prefs = context.preferences
+        return (prefs.active_section == 'EDITING')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        edit = userpref.edit
+        prefs = context.preferences
+        edit = prefs.edit
 
         layout.prop(edit, "undo_steps", text="Steps")
         layout.prop(edit, "undo_memory_limit", text="Memory Limit")
@@ -336,12 +336,12 @@ class USERPREF_PT_edit_objects(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'EDITING')
+        prefs = context.preferences
+        return (prefs.active_section == 'EDITING')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        edit = userpref.edit
+        prefs = context.preferences
+        edit = prefs.edit
 
         layout.prop(edit, "material_link", text="Link Materials to")
         layout.prop(edit, "object_align", text="Align New Objects to")
@@ -354,12 +354,12 @@ class USERPREF_PT_edit_gpencil(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'EDITING')
+        prefs = context.preferences
+        return (prefs.active_section == 'EDITING')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        edit = userpref.edit
+        prefs = context.preferences
+        edit = prefs.edit
 
         layout.prop(edit, "grease_pencil_manhattan_distance", text="Manhattan Distance")
         layout.prop(edit, "grease_pencil_euclidean_distance", text="Euclidean Distance")
@@ -371,12 +371,12 @@ class USERPREF_PT_edit_annotations(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'EDITING')
+        prefs = context.preferences
+        return (prefs.active_section == 'EDITING')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        edit = userpref.edit
+        prefs = context.preferences
+        edit = prefs.edit
 
         layout.prop(edit, "grease_pencil_default_color", text="Default Color")
         layout.prop(edit, "grease_pencil_eraser_radius", text="Eraser Radius")
@@ -388,12 +388,12 @@ class USERPREF_PT_edit_animation(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'EDITING')
+        prefs = context.preferences
+        return (prefs.active_section == 'EDITING')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        edit = userpref.edit
+        prefs = context.preferences
+        edit = prefs.edit
 
         layout.prop(edit, "use_negative_frames")
 
@@ -407,14 +407,14 @@ class USERPREF_PT_edit_animation_autokey(PreferencePanel):
     bl_parent_id = "USERPREF_PT_edit_animation"
 
     def draw_header(self, context):
-        userpref = context.user_preferences
-        edit = userpref.edit
+        prefs = context.preferences
+        edit = prefs.edit
 
         self.layout.prop(edit, "use_auto_keying", text="")
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        edit = userpref.edit
+        prefs = context.preferences
+        edit = prefs.edit
 
         layout.prop(edit, "use_auto_keying_warning")
         layout.prop(edit, "use_keyframe_insert_available", text="Only Insert Available")
@@ -426,8 +426,8 @@ class USERPREF_PT_edit_animation_fcurves(PreferencePanel):
     bl_parent_id = "USERPREF_PT_edit_animation"
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        edit = userpref.edit
+        prefs = context.preferences
+        edit = prefs.edit
 
         layout.prop(edit, "keyframe_new_interpolation_type", text="Default Interpolation")
         layout.prop(edit, "keyframe_new_handle_type", text="Default Handles")
@@ -444,12 +444,12 @@ class USERPREF_PT_edit_transform(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'EDITING')
+        prefs = context.preferences
+        return (prefs.active_section == 'EDITING')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        edit = userpref.edit
+        prefs = context.preferences
+        edit = prefs.edit
 
         layout.prop(edit, "use_drag_immediately")
         layout.prop(edit, "use_numeric_input_advanced")
@@ -461,12 +461,12 @@ class USERPREF_PT_edit_duplicate_data(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'EDITING')
+        prefs = context.preferences
+        return (prefs.active_section == 'EDITING')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        edit = userpref.edit
+        prefs = context.preferences
+        edit = prefs.edit
 
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=False, even_rows=False, align=True)
 
@@ -493,12 +493,12 @@ class USERPREF_PT_edit_misc(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'EDITING')
+        prefs = context.preferences
+        return (prefs.active_section == 'EDITING')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        edit = userpref.edit
+        prefs = context.preferences
+        edit = prefs.edit
 
         layout.prop(edit, "sculpt_paint_overlay_color", text="Sculpt Overlay Color")
         layout.prop(edit, "node_margin", text="Node Editor Auto-offset Margin")
@@ -510,12 +510,12 @@ class USERPREF_PT_interface_system_sound(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'SYSTEM_GENERAL')
+        prefs = context.preferences
+        return (prefs.active_section == 'SYSTEM_GENERAL')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        system = userpref.system
+        prefs = context.preferences
+        system = prefs.system
 
         layout.prop(system, "audio_device", expand=False)
         sub = layout.column()
@@ -532,17 +532,17 @@ class USERPREF_PT_interface_system_compute_device(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'SYSTEM_GENERAL')
+        prefs = context.preferences
+        return (prefs.active_section == 'SYSTEM_GENERAL')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        system = userpref.system
+        prefs = context.preferences
+        system = prefs.system
 
         col = layout.column()
 
         if bpy.app.build_options.cycles:
-            addon = userpref.addons.get("cycles")
+            addon = prefs.addons.get("cycles")
             if addon is not None:
                 addon.preferences.draw_impl(col, context)
             del addon
@@ -558,13 +558,13 @@ class USERPREF_PT_interface_system_opengl(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'SYSTEM_GENERAL')
+        prefs = context.preferences
+        return (prefs.active_section == 'SYSTEM_GENERAL')
 
     def draw_props(self, context, layout):
         import sys
-        userpref = context.user_preferences
-        system = userpref.system
+        prefs = context.preferences
+        system = prefs.system
 
         layout.prop(system, "gl_clip_alpha", slider=True)
         layout.prop(system, "gpu_viewport_quality")
@@ -589,8 +589,8 @@ class USERPREF_PT_interface_system_opengl_selection(PreferencePanel):
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        system = userpref.system
+        prefs = context.preferences
+        system = prefs.system
 
         layout.prop(system, "select_method", text="Selection Method")
         layout.prop(system, "use_select_pick_depth")
@@ -602,12 +602,12 @@ class USERPREF_PT_interface_system_textures(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'SYSTEM_GENERAL')
+        prefs = context.preferences
+        return (prefs.active_section == 'SYSTEM_GENERAL')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        system = userpref.system
+        prefs = context.preferences
+        system = prefs.system
 
         layout.prop(system, "gl_texture_limit", text="Limit Size")
         layout.prop(system, "texture_time_out", text="Time Out")
@@ -624,12 +624,12 @@ class USERPREF_PT_interface_system_text(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'SYSTEM_GENERAL')
+        prefs = context.preferences
+        return (prefs.active_section == 'SYSTEM_GENERAL')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        system = userpref.system
+        prefs = context.preferences
+        system = prefs.system
 
         layout.prop(system, "use_text_antialiasing", text="Anti-aliasing")
         sub = layout.column()
@@ -647,19 +647,19 @@ class USERPREF_PT_interface_system_text_translate(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
+        prefs = context.preferences
         if bpy.app.build_options.international:
-            return (userpref.active_section == 'SYSTEM_GENERAL')
+            return (prefs.active_section == 'SYSTEM_GENERAL')
 
     def draw_header(self, context):
-        userpref = context.user_preferences
-        system = userpref.system
+        prefs = context.preferences
+        system = prefs.system
 
         self.layout.prop(system, "use_international_fonts", text="")
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        system = userpref.system
+        prefs = context.preferences
+        system = prefs.system
 
         layout.active = system.use_international_fonts
         layout.prop(system, "language")
@@ -675,12 +675,12 @@ class USERPREF_PT_interface_system_misc(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'SYSTEM_GENERAL')
+        prefs = context.preferences
+        return (prefs.active_section == 'SYSTEM_GENERAL')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        system = userpref.system
+        prefs = context.preferences
+        system = prefs.system
 
         layout.prop(system, "color_picker_type")
 
@@ -695,8 +695,8 @@ class USERPREF_MT_interface_theme_presets(Menu):
     preset_operator = "script.execute_preset"
     preset_type = 'XML'
     preset_xml_map = (
-        ("user_preferences.themes[0]", "Theme"),
-        ("user_preferences.ui_styles[0]", "ThemeStyle"),
+        ("preferences.themes[0]", "Theme"),
+        ("preferences.ui_styles[0]", "ThemeStyle"),
     )
     draw = Menu.draw_preset
 
@@ -705,20 +705,20 @@ class USERPREF_MT_interface_theme_presets(Menu):
 
 
 class USERPREF_PT_theme(Panel):
-    bl_space_type = 'USER_PREFERENCES'
+    bl_space_type = 'PREFERENCES'
     bl_label = "Themes"
     bl_region_type = 'WINDOW'
     bl_options = {'HIDE_HEADER'}
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'THEMES')
+        prefs = context.preferences
+        return (prefs.active_section == 'THEMES')
 
     def draw(self, context):
         layout = self.layout
 
-        theme = context.user_preferences.themes[0]
+        theme = context.preferences.themes[0]
 
         row = layout.row()
 
@@ -732,15 +732,15 @@ class USERPREF_PT_theme(Panel):
 
 
 class USERPREF_PT_theme_user_interface(PreferencePanel):
-    bl_space_type = 'USER_PREFERENCES'
+    bl_space_type = 'PREFERENCES'
     bl_region_type = 'WINDOW'
     bl_label = "User Interface"
     bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'THEMES')
+        prefs = context.preferences
+        return (prefs.active_section == 'THEMES')
 
     def draw_header(self, context):
         layout = self.layout
@@ -753,13 +753,13 @@ class USERPREF_PT_theme_user_interface(PreferencePanel):
 
 # Base class for dynamically defined widget color panels.
 class PreferenceThemeWidgetColorPanel(Panel):
-    bl_space_type = 'USER_PREFERENCES'
+    bl_space_type = 'PREFERENCES'
     bl_region_type = 'WINDOW'
     bl_parent_id = "USERPREF_PT_theme_user_interface"
 
     @staticmethod
     def draw(self, context):
-        theme = context.user_preferences.themes[0]
+        theme = context.preferences.themes[0]
         ui = theme.user_interface
         widget_style = getattr(ui, self.wcol)
         layout = self.layout
@@ -789,8 +789,8 @@ class PreferenceThemeWidgetColorPanel(Panel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'THEMES')
+        prefs = context.preferences
+        return (prefs.active_section == 'THEMES')
 
 
 class USERPREF_PT_theme_interface_state(PreferencePanel):
@@ -799,7 +799,7 @@ class USERPREF_PT_theme_interface_state(PreferencePanel):
     bl_parent_id = "USERPREF_PT_theme_user_interface"
 
     def draw_props(self, context, layout):
-        theme = context.user_preferences.themes[0]
+        theme = context.preferences.themes[0]
         ui = theme.user_interface
         ui_state = theme.user_interface.wcol_state
 
@@ -835,7 +835,7 @@ class USERPREF_PT_theme_interface_styles(PreferencePanel):
     bl_parent_id = "USERPREF_PT_theme_user_interface"
 
     def draw_props(self, context, layout):
-        theme = context.user_preferences.themes[0]
+        theme = context.preferences.themes[0]
         ui = theme.user_interface
 
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=False, even_rows=False, align=False)
@@ -854,7 +854,7 @@ class USERPREF_PT_theme_interface_gizmos(PreferencePanel):
     bl_parent_id = "USERPREF_PT_theme_user_interface"
 
     def draw_props(self, context, layout):
-        theme = context.user_preferences.themes[0]
+        theme = context.preferences.themes[0]
         ui = theme.user_interface
 
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=True, align=False)
@@ -879,7 +879,7 @@ class USERPREF_PT_theme_interface_icons(PreferencePanel):
     bl_parent_id = "USERPREF_PT_theme_user_interface"
 
     def draw_props(self, context, layout):
-        theme = context.user_preferences.themes[0]
+        theme = context.preferences.themes[0]
         ui = theme.user_interface
 
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=False, even_rows=False, align=False)
@@ -896,8 +896,8 @@ class USERPREF_PT_theme_text_style(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'THEMES')
+        prefs = context.preferences
+        return (prefs.active_section == 'THEMES')
 
     @staticmethod
     def _ui_font_style(layout, font_style):
@@ -923,7 +923,7 @@ class USERPREF_PT_theme_text_style(PreferencePanel):
         layout.label(icon='FONTPREVIEW')
 
     def draw_props(self, context, layout):
-        style = context.user_preferences.ui_styles[0]
+        style = context.preferences.ui_styles[0]
 
         layout.label(text="Panel Title")
         self._ui_font_style(layout, style.panel_title)
@@ -945,8 +945,8 @@ class USERPREF_PT_theme_bone_color_sets(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'THEMES')
+        prefs = context.preferences
+        return (prefs.active_section == 'THEMES')
 
     def draw_header(self, context):
         layout = self.layout
@@ -954,7 +954,7 @@ class USERPREF_PT_theme_bone_color_sets(PreferencePanel):
         layout.label(icon='COLOR')
 
     def draw_props(self, context, layout):
-        theme = context.user_preferences.themes[0]
+        theme = context.preferences.themes[0]
 
         layout.use_property_split = True
 
@@ -971,7 +971,7 @@ class USERPREF_PT_theme_bone_color_sets(PreferencePanel):
 
 # Base class for dynamically defined theme-space panels.
 class PreferenceThemeSpacePanel(Panel):
-    bl_space_type = 'USER_PREFERENCES'
+    bl_space_type = 'PREFERENCES'
     bl_region_type = 'WINDOW'
 
     # not essential, hard-coded UI delimiters for the theme layout
@@ -1038,7 +1038,7 @@ class PreferenceThemeSpacePanel(Panel):
     @staticmethod
     def draw(self, context):
         layout = self.layout
-        theme = context.user_preferences.themes[0]
+        theme = context.preferences.themes[0]
 
         datapath_list = self.datapath.split(".")
         data = theme
@@ -1048,8 +1048,8 @@ class PreferenceThemeSpacePanel(Panel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'THEMES')
+        prefs = context.preferences
+        return (prefs.active_section == 'THEMES')
 
 
 class ThemeGenericClassGenerator():
@@ -1152,13 +1152,13 @@ class USERPREF_PT_file_paths(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'SYSTEM_FILES')
+        prefs = context.preferences
+        return (prefs.active_section == 'SYSTEM_FILES')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        paths = userpref.filepaths
-        system = userpref.system
+        prefs = context.preferences
+        paths = prefs.filepaths
+        system = prefs.system
 
         layout.prop(paths, "render_output_directory", text="Render Output")
         layout.prop(paths, "render_cache_directory", text="Render Cache")
@@ -1179,27 +1179,27 @@ class USERPREF_PT_file_autorun(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'SYSTEM_FILES')
+        prefs = context.preferences
+        return (prefs.active_section == 'SYSTEM_FILES')
 
     def draw_header(self, context):
-        userpref = context.user_preferences
-        paths = userpref.filepaths
-        system = userpref.system
+        prefs = context.preferences
+        paths = prefs.filepaths
+        system = prefs.system
 
         self.layout.prop(system, "use_scripts_auto_execute", text="")
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        paths = userpref.filepaths
-        system = userpref.system
+        prefs = context.preferences
+        paths = prefs.filepaths
+        system = prefs.system
 
         if system.use_scripts_auto_execute:
             box = layout.box()
             row = box.row()
             row.label(text="Excluded Paths:")
             row.operator("wm.userpref_autoexec_path_add", text="", icon='ADD', emboss=False)
-            for i, path_cmp in enumerate(userpref.autoexec_paths):
+            for i, path_cmp in enumerate(prefs.autoexec_paths):
                 row = box.row()
                 row.prop(path_cmp, "path", text="")
                 row.prop(path_cmp, "use_glob", text="", icon='FILTER')
@@ -1212,13 +1212,13 @@ class USERPREF_PT_file_saveload(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'SYSTEM_FILES')
+        prefs = context.preferences
+        return (prefs.active_section == 'SYSTEM_FILES')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        paths = userpref.filepaths
-        system = userpref.system
+        prefs = context.preferences
+        paths = prefs.filepaths
+        system = prefs.system
 
 
         layout.prop(paths, "use_relative_paths")
@@ -1243,9 +1243,9 @@ class USERPREF_PT_file_saveload_autosave(PreferencePanel):
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        paths = userpref.filepaths
-        system = userpref.system
+        prefs = context.preferences
+        paths = prefs.filepaths
+        system = prefs.system
 
         layout.prop(paths, "use_keep_session")
         layout.prop(paths, "use_auto_save_temporary_files")
@@ -1260,9 +1260,9 @@ class USERPREF_PT_file_saveload_texteditor(PreferencePanel):
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        paths = userpref.filepaths
-        system = userpref.system
+        prefs = context.preferences
+        paths = prefs.filepaths
+        system = prefs.system
 
         layout.prop(system, "use_tabs_as_spaces")
         layout.prop(system, "author", text="Author")
@@ -1275,7 +1275,7 @@ class USERPREF_MT_ndof_settings(Menu):
     def draw(self, context):
         layout = self.layout
 
-        input_prefs = context.user_preferences.inputs
+        input_prefs = context.preferences.inputs
 
         is_view3d = context.space_data.type == 'VIEW_3D'
 
@@ -1320,12 +1320,12 @@ class USERPREF_PT_input_mouse(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'INPUT')
+        prefs = context.preferences
+        return (prefs.active_section == 'INPUT')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        inputs = userpref.inputs
+        prefs = context.preferences
+        inputs = prefs.inputs
 
         layout.prop(inputs, "drag_threshold")
         layout.prop(inputs, "tweak_threshold")
@@ -1339,13 +1339,13 @@ class USERPREF_PT_input_view(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'INPUT')
+        prefs = context.preferences
+        return (prefs.active_section == 'INPUT')
 
     def draw_props(self, context, layout):
         import sys
-        userpref = context.user_preferences
-        inputs = userpref.inputs
+        prefs = context.preferences
+        inputs = prefs.inputs
 
         layout.row().prop(inputs, "view_rotate_method", expand=True)
 
@@ -1366,8 +1366,8 @@ class USERPREF_PT_input_view_fly_walk(PreferencePanel):
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        inputs = userpref.inputs
+        prefs = context.preferences
+        inputs = prefs.inputs
 
         layout.row().prop(inputs, "navigation_mode", expand=True)
 
@@ -1389,15 +1389,15 @@ class USERPREF_PT_input_view_fly_walk_gravity(PreferencePanel):
     bl_parent_id = "USERPREF_PT_input_view_fly_walk"
 
     def draw_header(self, context):
-        userpref = context.user_preferences
-        inputs = userpref.inputs
+        prefs = context.preferences
+        inputs = prefs.inputs
         walk = inputs.walk_navigation
 
         self.layout.prop(walk, "use_gravity", text="")
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        inputs = userpref.inputs
+        prefs = context.preferences
+        inputs = prefs.inputs
         walk = inputs.walk_navigation
 
         layout.active = walk.use_gravity
@@ -1410,12 +1410,12 @@ class USERPREF_PT_input_devices(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'INPUT')
+        prefs = context.preferences
+        return (prefs.active_section == 'INPUT')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        inputs = userpref.inputs
+        prefs = context.preferences
+        inputs = prefs.inputs
 
         layout.prop(inputs, "use_emulate_numpad")
 
@@ -1425,8 +1425,8 @@ class USERPREF_PT_input_devices_tablet(PreferencePanel):
     bl_options = {'DEFAULT_CLOSED'}
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        inputs = userpref.inputs
+        prefs = context.preferences
+        inputs = prefs.inputs
 
         layout.prop(inputs, "pressure_threshold_max")
         layout.prop(inputs, "pressure_softness")
@@ -1439,14 +1439,14 @@ class USERPREF_PT_input_devices_ndof(PreferencePanel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        inputs = userpref.inputs
+        prefs = context.preferences
+        inputs = prefs.inputs
         if inputs.use_ndof:
-            return (userpref.active_section == 'INPUT')
+            return (prefs.active_section == 'INPUT')
 
     def draw_props(self, context, layout):
-        userpref = context.user_preferences
-        inputs = userpref.inputs
+        prefs = context.preferences
+        inputs = prefs.inputs
 
         layout.prop(inputs, "ndof_sensitivity", text="Pan Sensitivity")
         layout.prop(inputs, "ndof_orbit_sensitivity", text="Orbit Sensitivity")
@@ -1468,15 +1468,15 @@ class USERPREF_MT_keyconfigs(Menu):
 
 
 class USERPREF_PT_keymap(Panel):
-    bl_space_type = 'USER_PREFERENCES'
+    bl_space_type = 'PREFERENCES'
     bl_label = "Keymap"
     bl_region_type = 'WINDOW'
     bl_options = {'HIDE_HEADER'}
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'KEYMAP')
+        prefs = context.preferences
+        return (prefs.active_section == 'KEYMAP')
 
     @staticmethod
     def draw_input_prefs(inputs, layout):
@@ -1492,8 +1492,8 @@ class USERPREF_PT_keymap(Panel):
 
         #start = time.time()
 
-        userpref = context.user_preferences
-        keymappref = userpref.keymap
+        prefs = context.preferences
+        keymappref = prefs.keymap
 
         col = layout.column()
 
@@ -1534,7 +1534,7 @@ class USERPREF_MT_addons_online_resources(Menu):
 
 
 class USERPREF_PT_addons(Panel):
-    bl_space_type = 'USER_PREFERENCES'
+    bl_space_type = 'PREFERENCES'
     bl_label = "Add-ons"
     bl_region_type = 'WINDOW'
     bl_options = {'HIDE_HEADER'}
@@ -1547,8 +1547,8 @@ class USERPREF_PT_addons(Panel):
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'ADDONS')
+        prefs = context.preferences
+        return (prefs.active_section == 'ADDONS')
 
     @staticmethod
     def is_user_addon(mod, user_addon_paths):
@@ -1583,12 +1583,12 @@ class USERPREF_PT_addons(Panel):
 
         layout = self.layout
 
-        userpref = context.user_preferences
-        used_ext = {ext.module for ext in userpref.addons}
+        prefs = context.preferences
+        used_ext = {ext.module for ext in prefs.addons}
 
         addon_user_dirs = tuple(
             p for p in (
-                os.path.join(userpref.filepaths.script_directory, "addons"),
+                os.path.join(prefs.filepaths.script_directory, "addons"),
                 bpy.utils.user_resource('SCRIPTS', "addons"),
             )
             if p
@@ -1769,7 +1769,7 @@ class USERPREF_PT_addons(Panel):
 
                     # Show addon user preferences
                     if is_enabled:
-                        addon_preferences = userpref.addons[module_name].preferences
+                        addon_preferences = prefs.addons[module_name].preferences
                         if addon_preferences is not None:
                             draw = getattr(addon_preferences, "draw", None)
                             if draw is not None:
@@ -1813,19 +1813,19 @@ class USERPREF_PT_addons(Panel):
 
 
 class USERPREF_PT_studiolight_add(PreferencePanel):
-    bl_space_type = 'USER_PREFERENCES'
+    bl_space_type = 'PREFERENCES'
     bl_label = "Add Lights"
     bl_region_type = 'WINDOW'
     bl_options = {'HIDE_HEADER'}
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'LIGHTS')
+        prefs = context.preferences
+        return (prefs.active_section == 'LIGHTS')
 
     def draw(self, context):
         layout = self.layout
-        userpref = context.user_preferences
+        prefs = context.preferences
 
         row = layout.row()
         row.operator("wm.studiolight_install", icon='IMPORT', text="Add MatCap...").type = 'MATCAP'
@@ -1836,21 +1836,21 @@ class USERPREF_PT_studiolight_add(PreferencePanel):
 
 
 class StudioLightPanelMixin():
-    bl_space_type = 'USER_PREFERENCES'
+    bl_space_type = 'PREFERENCES'
     bl_region_type = 'WINDOW'
 
     @classmethod
     def poll(cls, context):
-        userpref = context.user_preferences
-        return (userpref.active_section == 'LIGHTS')
+        prefs = context.preferences
+        return (prefs.active_section == 'LIGHTS')
 
-    def _get_lights(self, userpref):
-        return [light for light in userpref.studio_lights if light.is_user_defined and light.type == self.sl_type]
+    def _get_lights(self, prefs):
+        return [light for light in prefs.studio_lights if light.is_user_defined and light.type == self.sl_type]
 
     def draw(self, context):
         layout = self.layout
-        userpref = context.user_preferences
-        lights = self._get_lights(userpref)
+        prefs = context.preferences
+        lights = self._get_lights(prefs)
 
         self.draw_light_list(layout, lights)
 
@@ -1896,7 +1896,7 @@ class USERPREF_PT_studiolight_lights(Panel, StudioLightPanelMixin):
 class USERPREF_PT_studiolight_light_editor(Panel):
     bl_label = "Studio Light Editor"
     bl_parent_id = "USERPREF_PT_studiolight_lights"
-    bl_space_type = 'USER_PREFERENCES'
+    bl_space_type = 'PREFERENCES'
     bl_region_type = 'WINDOW'
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -1914,8 +1914,8 @@ class USERPREF_PT_studiolight_light_editor(Panel):
     def draw(self, context):
         layout = self.layout
 
-        userpref = context.user_preferences
-        system = userpref.system
+        prefs = context.preferences
+        system = prefs.system
 
         row = layout.row()
         row.prop(system, "edit_studio_light", toggle=True)
