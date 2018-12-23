@@ -32,7 +32,15 @@ class USERPREF_HT_header(Header):
 
     def draw(self, context):
         layout = self.layout
+        layout.operator_context = 'EXEC_AREA'
+
         layout.template_header()
+
+        row = layout.row()
+
+        row.separator_spacer()
+
+        row.operator("wm.save_userpref")
 
 
 class USERPREF_PT_navigation(Panel):
@@ -52,11 +60,6 @@ class USERPREF_PT_navigation(Panel):
         col.scale_x = 1.3
         col.scale_y = 1.3
         col.prop(prefs, "active_section", expand=True)
-
-        col.separator_spacer()
-        #Doesn't work vertically yet
-
-        col.operator("wm.save_userpref")
 
 
 class PreferencePanel(Panel):
@@ -100,6 +103,10 @@ class USERPREF_PT_interface_display(PreferencePanel):
         layout.prop(view, "ui_scale", text="Scale")
         layout.prop(view, "ui_line_width", text="Line Width")
 
+        layout.separator()
+
+        layout.row().prop(view, "header_align_default", expand=True)
+
 
 class USERPREF_PT_interface_display_info(PreferencePanel):
     bl_label = "Information"
@@ -134,42 +141,6 @@ class USERPREF_PT_interface_develop(PreferencePanel):
         layout.prop(view, "show_developer_ui")
 
 
-class USERPREF_PT_interface_view_manipulation(PreferencePanel):
-    bl_label = "View Manipulation"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    @classmethod
-    def poll(cls, context):
-        prefs = context.preferences
-        return (prefs.active_section == 'INTERFACE')
-
-    def draw_props(self, context, layout):
-        prefs = context.preferences
-        view = prefs.view
-
-        layout.prop(view, "smooth_view")
-        layout.prop(view, "rotation_angle")
-
-        layout.separator()
-
-        layout.prop(view, "use_mouse_depth_cursor")
-        layout.prop(view, "use_cursor_lock_adjust")
-
-        layout.separator()
-
-        layout.prop(view, "use_auto_perspective")
-        layout.prop(view, "use_mouse_depth_navigate")
-
-        layout.separator()
-
-        layout.prop(view, "use_zoom_to_mouse")
-        layout.prop(view, "use_rotate_around_active")
-
-        layout.separator()
-
-        layout.prop(view, "use_camera_lock_parent")
-
-
 class USERPREF_PT_interface_viewports(PreferencePanel):
     bl_label = "Viewports"
     bl_options = {'DEFAULT_CLOSED'}
@@ -190,6 +161,11 @@ class USERPREF_PT_interface_viewports_3d(PreferencePanel):
     def draw_props(self, context, layout):
         prefs = context.preferences
         view = prefs.view
+
+        layout.prop(view, "smooth_view")
+        layout.prop(view, "rotation_angle")
+
+        layout.separator()
 
         layout.prop(view, "object_origin_size")
 
@@ -1315,13 +1291,32 @@ class USERPREF_MT_ndof_settings(Menu):
             layout.prop(input_prefs, "ndof_lock_horizon", icon='NDOF_DOM')
 
 
-class USERPREF_PT_input_mouse(PreferencePanel):
-    bl_label = "Mouse"
+class USERPREF_PT_input_devices(PreferencePanel):
+    bl_label = "Devices"
 
     @classmethod
     def poll(cls, context):
         prefs = context.preferences
         return (prefs.active_section == 'INPUT')
+
+    def draw(self, context):
+        pass
+
+
+class USERPREF_PT_input_devices_keyboard(PreferencePanel):
+    bl_label = "Keyboard"
+    bl_parent_id = "USERPREF_PT_input_devices"
+
+    def draw_props(self, context, layout):
+        prefs = context.preferences
+        inputs = prefs.inputs
+
+        layout.prop(inputs, "use_emulate_numpad")
+
+
+class USERPREF_PT_input_devices_mouse(PreferencePanel):
+    bl_label = "Mouse"
+    bl_parent_id = "USERPREF_PT_input_devices"
 
     def draw_props(self, context, layout):
         prefs = context.preferences
@@ -1335,12 +1330,22 @@ class USERPREF_PT_input_mouse(PreferencePanel):
 
 
 class USERPREF_PT_input_view(PreferencePanel):
-    bl_label = "View"
+    bl_label = "View Manipulation"
+    bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def poll(cls, context):
         prefs = context.preferences
         return (prefs.active_section == 'INPUT')
+
+    def draw(self, context):
+        pass
+
+
+class USERPREF_PT_input_view_orbit(PreferencePanel):
+    bl_label = "Orbit & Pan"
+    bl_parent_id = "USERPREF_PT_input_view"
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw_props(self, context, layout):
         import sys
@@ -1348,6 +1353,22 @@ class USERPREF_PT_input_view(PreferencePanel):
         inputs = prefs.inputs
 
         layout.row().prop(inputs, "view_rotate_method", expand=True)
+        layout.prop(inputs, "use_rotate_around_active")
+        layout.prop(inputs, "use_auto_perspective")
+        layout.prop(inputs, "use_mouse_depth_navigate")
+
+        if sys.platform == "darwin":
+            layout.prop(inputs, "use_trackpad_natural", text="Natural Trackpad Direction")
+
+
+class USERPREF_PT_input_view_zoom(PreferencePanel):
+    bl_label = "Zoom"
+    bl_parent_id = "USERPREF_PT_input_view"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw_props(self, context, layout):
+        prefs = context.preferences
+        inputs = prefs.inputs
 
         layout.prop(inputs, "view_zoom_method", text="Zoom Method")
         if inputs.view_zoom_method in {'DOLLY', 'CONTINUE'}:
@@ -1356,9 +1377,21 @@ class USERPREF_PT_input_view(PreferencePanel):
 
         layout.prop(inputs, "invert_zoom_wheel", text="Invert Wheel Zoom Direction")
         #sub.prop(view, "wheel_scroll_lines", text="Scroll Lines")
+        layout.prop(inputs, "use_zoom_to_mouse")
 
-        if sys.platform == "darwin":
-            layout.prop(inputs, "use_trackpad_natural", text="Natural Trackpad Direction")
+
+class USERPREF_PT_input_view_cursor(PreferencePanel):
+    bl_label = "Cursor"
+    bl_parent_id = "USERPREF_PT_input_view"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw_props(self, context, layout):
+        prefs = context.preferences
+        inputs = prefs.inputs
+
+        layout.prop(inputs, "use_mouse_depth_cursor")
+        layout.prop(inputs, "use_cursor_lock_adjust")
+
 
 class USERPREF_PT_input_view_fly_walk(PreferencePanel):
     bl_label = "Fly & Walk"
@@ -1370,6 +1403,7 @@ class USERPREF_PT_input_view_fly_walk(PreferencePanel):
         inputs = prefs.inputs
 
         layout.row().prop(inputs, "navigation_mode", expand=True)
+        layout.prop(inputs, "use_camera_lock_parent")
 
         layout.label(text="Walk Navigation:")
 
@@ -1404,20 +1438,6 @@ class USERPREF_PT_input_view_fly_walk_gravity(PreferencePanel):
         layout.prop(walk, "view_height")
         layout.prop(walk, "jump_height")
 
-
-class USERPREF_PT_input_devices(PreferencePanel):
-    bl_label = "Devices"
-
-    @classmethod
-    def poll(cls, context):
-        prefs = context.preferences
-        return (prefs.active_section == 'INPUT')
-
-    def draw_props(self, context, layout):
-        prefs = context.preferences
-        inputs = prefs.inputs
-
-        layout.prop(inputs, "use_emulate_numpad")
 
 class USERPREF_PT_input_devices_tablet(PreferencePanel):
     bl_label = "Tablet"
@@ -1958,7 +1978,6 @@ classes += (
 
     USERPREF_PT_interface_display,
     USERPREF_PT_interface_display_info,
-    USERPREF_PT_interface_view_manipulation,
     USERPREF_PT_interface_viewports,
     USERPREF_PT_interface_viewports_3d,
     USERPREF_PT_interface_viewports_3d_weight_paint,
@@ -2006,14 +2025,17 @@ classes += (
     USERPREF_MT_ndof_settings,
     USERPREF_MT_keyconfigs,
 
-    USERPREF_PT_input_mouse,
     USERPREF_PT_input_devices,
+    USERPREF_PT_input_devices_keyboard,
+    USERPREF_PT_input_devices_mouse,
     USERPREF_PT_input_devices_tablet,
     USERPREF_PT_input_devices_ndof,
     USERPREF_PT_input_view,
+    USERPREF_PT_input_view_orbit,
+    USERPREF_PT_input_view_zoom,
+    USERPREF_PT_input_view_cursor,
     USERPREF_PT_input_view_fly_walk,
     USERPREF_PT_input_view_fly_walk_gravity,
-
 
     USERPREF_PT_keymap,
     USERPREF_MT_addons_online_resources,

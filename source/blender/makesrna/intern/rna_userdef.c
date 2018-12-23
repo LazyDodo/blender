@@ -3824,44 +3824,6 @@ static void rna_def_userdef_view(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Header Position", "Default header position for new space-types");
 	RNA_def_property_update(prop, 0, "rna_userdef_update");
 
-	prop = RNA_def_property(srna, "use_mouse_depth_navigate", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_DEPTH_NAVIGATE);
-	RNA_def_property_ui_text(prop, "Auto Depth",
-	                         "Use the depth under the mouse to improve view pan/rotate/zoom functionality");
-
-	prop = RNA_def_property(srna, "use_mouse_depth_cursor", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_DEPTH_CURSOR);
-	RNA_def_property_ui_text(prop, "Cursor Surface Project",
-	                         "Use the surface depth for cursor placement");
-
-	prop = RNA_def_property(srna, "use_cursor_lock_adjust", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_LOCK_CURSOR_ADJUST);
-	RNA_def_property_ui_text(prop, "Cursor Lock Adjust",
-	                         "Place the cursor without 'jumping' to the new location (when lock-to-cursor is used)");
-
-	prop = RNA_def_property(srna, "use_camera_lock_parent", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_negative_sdna(prop, NULL, "uiflag", USER_CAM_LOCK_NO_PARENT);
-	RNA_def_property_ui_text(prop, "Camera Parent Lock",
-	                         "When the camera is locked to the view and in fly mode, "
-	                         "transform the parent rather than the camera");
-
-	/* view zoom */
-	prop = RNA_def_property(srna, "use_zoom_to_mouse", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_ZOOM_TO_MOUSEPOS);
-	RNA_def_property_ui_text(prop, "Zoom To Mouse Position",
-	                         "Zoom in towards the mouse pointer's position in the 3D view, "
-	                         "rather than the 2D window center");
-
-	/* view rotation */
-	prop = RNA_def_property(srna, "use_auto_perspective", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_AUTOPERSP);
-	RNA_def_property_ui_text(prop, "Auto Perspective",
-	                         "Automatically switch between orthographic and perspective when changing "
-	                         "from top/front/side views");
-
-	prop = RNA_def_property(srna, "use_rotate_around_active", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_ORBIT_SELECTION);
-	RNA_def_property_ui_text(prop, "Rotate Around Selection", "Use selection as the pivot point");
 
 	/* mini axis */
 	static const EnumPropertyItem mini_axis_type_items[] = {
@@ -4604,8 +4566,8 @@ static void rna_def_userdef_input(BlenderRNA *brna)
 	StructRNA *srna;
 
 	static const EnumPropertyItem view_rotation_items[] = {
-		{0, "TURNTABLE", 0, "Turntable", "Use turntable style rotation in the viewport"},
-		{USER_TRACKBALL, "TRACKBALL", 0, "Trackball", "Use trackball style rotation in the viewport"},
+		{0, "TURNTABLE", 0, "Turntable", "Turntable keeps the Z-axis upright while orbiting"},
+		{USER_TRACKBALL, "TRACKBALL", 0, "Trackball", "Trackball allows you to tumble your view at any angle"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
@@ -4657,10 +4619,49 @@ static void rna_def_userdef_input(BlenderRNA *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_ZOOM_INVERT);
 	RNA_def_property_ui_text(prop, "Invert Zoom Direction", "Invert the axis of mouse movement for zooming");
 
+	prop = RNA_def_property(srna, "use_cursor_lock_adjust", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_LOCK_CURSOR_ADJUST);
+	RNA_def_property_ui_text(prop, "Cursor Lock Adjust",
+	                         "Place the cursor without 'jumping' to the new location (when lock-to-cursor is used)");
+
+	prop = RNA_def_property(srna, "use_mouse_depth_navigate", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_DEPTH_NAVIGATE);
+	RNA_def_property_ui_text(prop, "Auto Depth",
+	                         "Use the depth under the mouse to improve view pan/rotate/zoom functionality");
+
+	prop = RNA_def_property(srna, "use_mouse_depth_cursor", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_DEPTH_CURSOR);
+	RNA_def_property_ui_text(prop, "Cursor Surface Project",
+	                         "Use the surface depth for cursor placement");
+
+	prop = RNA_def_property(srna, "use_camera_lock_parent", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_negative_sdna(prop, NULL, "uiflag", USER_CAM_LOCK_NO_PARENT);
+	RNA_def_property_ui_text(prop, "Camera Parent Lock",
+	                         "When the camera is locked to the view and in fly mode, "
+	                         "transform the parent rather than the camera");
+
+	/* view zoom */
+	prop = RNA_def_property(srna, "use_zoom_to_mouse", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_ZOOM_TO_MOUSEPOS);
+	RNA_def_property_ui_text(prop, "Zoom To Mouse Position",
+	                         "Zoom in towards the mouse pointer's position in the 3D view, "
+	                         "rather than the 2D window center");
+
+	/* view rotation */
+	prop = RNA_def_property(srna, "use_auto_perspective", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_AUTOPERSP);
+	RNA_def_property_ui_text(prop, "Auto Perspective",
+	                         "Automatically switch between orthographic and perspective when changing "
+	                         "from top/front/side views");
+
+	prop = RNA_def_property(srna, "use_rotate_around_active", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_ORBIT_SELECTION);
+	RNA_def_property_ui_text(prop, "Orbit Around Selection", "Use selection as the pivot point");
+
 	prop = RNA_def_property(srna, "view_rotate_method", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_bitflag_sdna(prop, NULL, "flag");
 	RNA_def_property_enum_items(prop, view_rotation_items);
-	RNA_def_property_ui_text(prop, "View Rotation", "Rotation style in the viewport");
+	RNA_def_property_ui_text(prop, "Orbit Method", "Orbit method in the viewport");
 
 	prop = RNA_def_property(srna, "use_mouse_continuous", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_CONTINUOUS_MOUSE);
@@ -4804,7 +4805,7 @@ static void rna_def_userdef_input(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "use_mouse_emulate_3_button", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", USER_TWOBUTTONMOUSE);
 	RNA_def_property_ui_text(prop, "Emulate 3 Button Mouse",
-	                         "Emulate Middle Mouse with Alt+Left Mouse (doesn't work with Left Mouse Select option)");
+	                         "Emulate Middle Mouse with Alt+Left Mouse");
 	RNA_def_property_flag(prop, PROP_CONTEXT_UPDATE);
 	RNA_def_property_update(prop, 0, "rna_userdef_keyconfig_reload_update");
 
