@@ -233,7 +233,7 @@ static void gp_primitive_update_cps(tGPDprimitive *tgpi)
 		copy_v2_v2(tgpi->cp1, tgpi->midpoint);
 		copy_v2_v2(tgpi->cp2, tgpi->cp1);
 	}
-	else if (tgpi->type == GP_STROKE_CURVE || tgpi->type == GP_STROKE_CHORD) {
+	else if (tgpi->type == GP_STROKE_CURVE) {
 		mid_v2_v2v2(tgpi->midpoint, tgpi->start, tgpi->end);
 		copy_v2_v2(tgpi->cp1, tgpi->midpoint);
 		copy_v2_v2(tgpi->cp2, tgpi->cp1);
@@ -433,9 +433,6 @@ static void gpencil_primitive_status_indicators(bContext *C, tGPDprimitive *tgpi
 			IFACE_("Arc: ESC to cancel, Enter/MMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center, M: Flip, E: extrude"),
 			UI_MAX_DRAW_STR);
 	}
-	else if (tgpi->type == GP_STROKE_CHORD) {
-		BLI_strncpy(msg_str, IFACE_("Chord: ESC to cancel, Enter/RMB to confirm, WHEEL/+- to adjust edge number, Shift to square, Alt to center, M: Flip"), UI_MAX_DRAW_STR);
-	}
 	else if (tgpi->type == GP_STROKE_CURVE) {
 		BLI_strncpy(
 			msg_str,
@@ -443,7 +440,7 @@ static void gpencil_primitive_status_indicators(bContext *C, tGPDprimitive *tgpi
 			UI_MAX_DRAW_STR);
 	}
 
-	if (ELEM(tgpi->type, GP_STROKE_CIRCLE, GP_STROKE_ARC, GP_STROKE_CHORD, GP_STROKE_LINE, GP_STROKE_BOX)) {
+	if (ELEM(tgpi->type, GP_STROKE_CIRCLE, GP_STROKE_ARC, GP_STROKE_LINE, GP_STROKE_BOX)) {
 		if (hasNumInput(&tgpi->num)) {
 			char str_offs[NUM_STR_REP_LEN];
 
@@ -555,63 +552,6 @@ static void gp_primitive_line(tGPDprimitive *tgpi, tGPspoint *points2D)
 	else {
 		gp_primitive_set_cp(tgpi, tgpi->start, color, BIG_SIZE_CTL);
 	}
-}
-
-/* create a chord */
-static void gp_primitive_chord(tGPDprimitive *tgpi, tGPspoint *points2D)
-{
-	const int totpoints = (tgpi->tot_edges + tgpi->tot_stored_edges);
-	float cp[2];
-	float point[2];
-	float center[2];
-
-	copy_v2_v2(cp, tgpi->cp1);
-	mid_v2_v2v2(tgpi->midpoint, tgpi->start, tgpi->end);
-	closest_to_line_v2(point, cp, tgpi->start, tgpi->end);
-
-	center[0] = tgpi->midpoint[0] + cp[0] - point[0];
-	center[1] = tgpi->midpoint[1] + cp[1] - point[1];
-
-	float cross = cross_tri_v2(tgpi->start, center, tgpi->end);
-	float stepangle;
-	float step;
-
-	if (!tgpi->flip) {
-		float fcenter[2];
-		gp_reflect_point_v2_v2v2v2(fcenter, center, tgpi->start, tgpi->end);
-		stepangle = angle_v2v2v2(tgpi->start, fcenter, tgpi->end);
-		if (cross < 0.0f) {
-			stepangle = (M_PI * 2.0f) - stepangle;
-		}
-		step = stepangle / (float)(tgpi->tot_edges - 1);
-		step = -step;
-	}
-	else {
-		stepangle = angle_v2v2v2(tgpi->start, center, tgpi->end); ;
-		if (cross > 0.0f) {
-			stepangle = (M_PI * 2.0f) - stepangle;
-		}
-		step = stepangle / (float)(tgpi->tot_edges - 1);
-	}
-
-	float a = tgpi->tot_stored_edges ? step : 0.0f;
-
-	for (int i = tgpi->tot_stored_edges; i < totpoints; i++) {
-		tGPspoint *p2d = &points2D[i];
-		gp_rotate_v2_v2v2fl(&p2d->x, tgpi->start, center, a);
-		a += step;
-	}
-	float color[4];
-	UI_GetThemeColor4fv(TH_ACTIVE_VERT, color);
-	gp_primitive_set_cp(tgpi, tgpi->end, color, BIG_SIZE_CTL);
-	if (tgpi->tot_stored_edges) {
-		UI_GetThemeColor4fv(TH_REDALERT, color);
-		gp_primitive_set_cp(tgpi, tgpi->start, color, SMALL_SIZE_CTL);
-	}
-	else
-		gp_primitive_set_cp(tgpi, tgpi->start, color, BIG_SIZE_CTL);
-	UI_GetThemeColor4fv(TH_GP_VERTEX_SELECT, color);
-	gp_primitive_set_cp(tgpi, center, color, BIG_SIZE_CTL * 0.9f);
 }
 
 /* create an arc */
@@ -759,9 +699,6 @@ static void gp_primitive_update_strokes(bContext *C, tGPDprimitive *tgpi)
 			break;
 		case GP_STROKE_ARC:
 			gp_primitive_arc(tgpi, points2D);
-			break;
-		case GP_STROKE_CHORD:
-			gp_primitive_chord(tgpi, points2D);
 			break;
 		case GP_STROKE_CURVE:
 			gp_primitive_bezier(tgpi, points2D);
@@ -1171,7 +1108,7 @@ static void gpencil_primitive_init(bContext *C, wmOperator *op)
 	/* set parameters */
 	tgpi->type = RNA_enum_get(op->ptr, "type");
 
-	if (ELEM(tgpi->type, GP_STROKE_ARC, GP_STROKE_CURVE, GP_STROKE_CHORD)) {
+	if (ELEM(tgpi->type, GP_STROKE_ARC, GP_STROKE_CURVE)) {
 		tgpi->curve = true;
 	}
 	else {
@@ -1395,7 +1332,7 @@ static void gpencil_primitive_edit_event_handling(bContext *C, wmOperator *op, w
 		{
 			if ((event->val == KM_PRESS) &&
 			    (tgpi->curve) &&
-			    (ELEM(tgpi->orign_type, GP_STROKE_ARC, GP_STROKE_CHORD) ))
+			    (ELEM(tgpi->orign_type, GP_STROKE_ARC) ))
 			{
 				tgpi->flip ^= 1;
 				gp_primitive_update_cps(tgpi);
@@ -1808,7 +1745,6 @@ void GPENCIL_OT_primitive(wmOperatorType *ot)
 		{GP_STROKE_LINE, "LINE", 0, "Line", ""},
 		{GP_STROKE_CIRCLE, "CIRCLE", 0, "Circle", ""},
 		{GP_STROKE_ARC, "ARC", 0, "Arc", ""},
-		{GP_STROKE_CHORD, "CHORD", 0, "Chord", ""},
 		{GP_STROKE_CURVE, "CURVE", 0, "Curve", ""},
 		{0, NULL, 0, NULL, NULL}
 	};

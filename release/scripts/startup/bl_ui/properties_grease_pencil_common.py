@@ -647,7 +647,6 @@ class GPENCIL_MT_gpencil_draw_specials(Menu):
         layout.operator("gpencil.primitive", text="Circle", icon='ANTIALIASED').type = 'CIRCLE'
         layout.operator("gpencil.primitive", text="Arc", icon='SPHERECURVE').type = 'ARC'
         layout.operator("gpencil.primitive", text="Curve", icon='CURVE_BEZCURVE').type = 'CURVE'
-        layout.operator("gpencil.primitive", text="Chord", icon='SPHERECURVE').type = 'CHORD'
 
 
 class GPENCIL_MT_gpencil_draw_delete(Menu):
