@@ -285,8 +285,8 @@ static int ui_text_icon_width(uiLayout *layout, const char *name, int icon, bool
 	bool variable;
 	const int unit_x = UI_UNIT_X * (layout->scale[0] ? layout->scale[0] : 1.0f);
 
-	if (icon && !name[0])
-		return unit_x;  /* icon only */
+	if (!name[0])
+		return unit_x;  /* icon only or empty name */
 
 	variable = ui_layout_variable_size(layout);
 
@@ -2228,7 +2228,7 @@ static uiBut *ui_item_menu(
 			/* pass */
 		}
 		else if (force_menu) {
-			w += UI_UNIT_X;
+			w += 0.6f * UI_UNIT_X;
 		}
 		else {
 			if (name[0]) {
@@ -2237,12 +2237,16 @@ static uiBut *ui_item_menu(
 		}
 	}
 
-	if (name[0] && icon)
+	if (name[0] && icon) {
 		but = uiDefIconTextMenuBut(block, func, arg, icon, name, 0, 0, w, h, tip);
-	else if (icon)
+	}
+	else if (icon) {
 		but = uiDefIconMenuBut(block, func, arg, icon, 0, 0, w, h, tip);
-	else
+		UI_but_drawflag_enable(but, UI_BUT_ICON_LEFT);
+	}
+	else {
 		but = uiDefMenuBut(block, func, arg, name, 0, 0, w, h, tip);
+	}
 
 	if (argN) {
 		/* ugly .. */
