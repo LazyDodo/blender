@@ -63,7 +63,6 @@
 
 typedef struct tGPencilPointCache {
 	float factor;  /* value to sort */
-	float pos2d[2];
 	bGPDstroke *gps;
 	float x, y, z;
 	float pressure;
@@ -289,7 +288,6 @@ static void gpencil_calc_points_factor(
 		tGPencilPointCache *sort_pt = &original_array[i];
 		bGPDspoint *pt2 = &pt_array[i];
 
-		copy_v2_v2(sort_pt->pos2d, v1);
 		copy_v3_v3(&sort_pt->x, &pt2->x);
 		sort_pt->pressure = pt2->pressure;
 		sort_pt->strength = pt2->strength;
@@ -333,7 +331,6 @@ static int gpencil_insert_to_array(
 		dst_elem = &dst_array[last];
 		last++;
 
-		copy_v2_v2(dst_elem->pos2d, src_elem->pos2d);
 		copy_v3_v3(&dst_elem->x, &src_elem->x);
 		dst_elem->gps = src_elem->gps;
 		dst_elem->pressure = src_elem->pressure;
