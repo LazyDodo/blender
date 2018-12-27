@@ -69,7 +69,7 @@ typedef struct tGPencilPointCache {
 	float strength;
 } tGPencilPointCache;
 
-/* helper function to sort strokes around center */
+/* helper function to sort points */
 static int gpencil_sort_points(const void *a1, const void *a2)
 {
 	const tGPencilPointCache *ps1 = a1, *ps2 = a2;
@@ -211,7 +211,7 @@ static void gpencil_dissolve_points(bContext *C)
 static void gpencil_calc_points_factor(
 			bContext *C, const int mode, int totpoints,
 			const bool clear_point, const bool clear_stroke,
-			tGPencilPointCache *original_array)
+			tGPencilPointCache *src_array)
 {
 	bGPDspoint *pt;
 	int i;
@@ -285,7 +285,7 @@ static void gpencil_calc_points_factor(
 		else {
 			angle = (M_PI * 2.0) - angle;
 		}
-		tGPencilPointCache *sort_pt = &original_array[i];
+		tGPencilPointCache *sort_pt = &src_array[i];
 		bGPDspoint *pt2 = &pt_array[i];
 
 		copy_v3_v3(&sort_pt->x, &pt2->x);
@@ -343,7 +343,7 @@ static int gpencil_insert_to_array(
 
 /* get first and last point location */
 static void gpencil_get_extremes(
-	tGPencilPointCache *original_array, int totpoints,
+	tGPencilPointCache *src_array, int totpoints,
 	bGPDstroke *gps_filter, float *start, float *end)
 {
 	tGPencilPointCache *array_pt = NULL;
@@ -351,7 +351,7 @@ static void gpencil_get_extremes(
 
 	/* find first point */
 	for (i = 0; i < totpoints; i++) {
-		array_pt = &original_array[i];
+		array_pt = &src_array[i];
 		if (gps_filter == array_pt->gps) {
 			copy_v3_v3(start, &array_pt->x);
 			break;
@@ -359,7 +359,7 @@ static void gpencil_get_extremes(
 	}
 	/* find last point */
 	for (i = totpoints - 1; i >= 0; i--) {
-		array_pt = &original_array[i];
+		array_pt = &src_array[i];
 		if (gps_filter == array_pt->gps) {
 			copy_v3_v3(end, &array_pt->x);
 			break;
