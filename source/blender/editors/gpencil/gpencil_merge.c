@@ -135,7 +135,6 @@ static bGPDstroke *gpencil_prepare_stroke(bContext *C, wmOperator *op, int totpo
 	gps->totpoints = totpoints;
 	gps->inittime = 0.0f;
 	gps->thickness = brush->size;
-	gps->flag |= GP_STROKE_RECALC_CACHES;
 	gps->flag |= GP_STROKE_SELECT;
 	gps->flag |= GP_STROKE_3DSPACE;
 	gps->mat_nr = ob->actcol - 1;
@@ -145,7 +144,7 @@ static bGPDstroke *gpencil_prepare_stroke(bContext *C, wmOperator *op, int totpo
 	/* initialize triangle memory to dummy data */
 	gps->tot_triangles = 0;
 	gps->triangles = NULL;
-	gps->flag |= GP_STROKE_RECALC_CACHES;
+	gps->flag |= GP_STROKE_RECALC_GEOMETRY;
 
 	if (cyclic) {
 		gps->flag |= GP_STROKE_CYCLIC;
