@@ -21,6 +21,8 @@
 import bpy
 import string
 
+GLOBAL_OUTPUT_PATH = ''
+
 def lanpr_get_composition_scene(scene):
     n = scene.name+'_lanpr_comp'
     for s in bpy.data.scenes:
@@ -96,12 +98,16 @@ class LANPR_remove_composition_scene(bpy.types.Operator):
 def lanpr_is_composition_scene(scene):
     return scene.name.endswith('_lanpr_comp')
 
-def lanpr_goto_original_scene(scene):
+def lanpr_get_original_scene(scene):
     name = scene.name[:-len('_lanpr_comp')]
     for s in bpy.data.scenes:
-        if s.name == name:
-            bpy.context.window.scene = s
-            break
+        if s.name == name: return s
+    return None
+
+def lanpr_goto_original_scene(scene):
+    s = lanpr_get_original_scene(scene)
+    if s: bpy.context.window.scene = s
+    
             
 class LANPR_goto_original_scene(bpy.types.Operator):
     """Goto Original Scene"""
@@ -136,24 +142,83 @@ class LANPR_goto_composition_scene(bpy.types.Operator):
         lanpr_goto_composition_scene(context.scene)
         return {'FINISHED'}
 
-@persistent
-def lanpr_render_composited_still(scene):
 
-@persistent
-def lanpr_render_composited_still(scene):
+#callbacks
+
+GC = None
+
+def lanpr_render_next_frame(sc):
+    global GLOBAL_OUTPUT_PATH
+    sc.frame_current = sc.frame_current+1
+    if sc.frame_current>sc.frame_end: 
+        bpy.app.handlers.render_complete.remove(lanpr_render_next_frame)
+        bpy.context.scene.render.filepath = GLOBAL_OUTPUT_PATH
+        return
     
+    bpy.app.handlers.render_cancel.append(lanpr_render_canceled)
+    bpy.app.handlers.render_complete.remove(lanpr_render_next_frame)
+    
+    lanpr_render_backdrop_first(sc)
+
+def lanpr_render_this_scene_next(scene):
+    
+    bpy.app.handlers.render_complete.remove(lanpr_render_this_scene_next)
+    bpy.app.handlers.render_cancel.remove(lanpr_render_canceled)
+    
+    bpy.app.handlers.render_cancel.append(lanpr_render_canceled)
+    
+    sc = lanpr_get_composition_scene(scene)
+    write = sc.lanpr.composite_render_animation
+    
+    bpy.context.scene.render.filepath = GLOBAL_OUTPUT_PATH + '/%04d'%sc.frame_current + bpy.context.scene.render.file_extension
+    
+    if sc.lanpr.composite_render_animation:
+        bpy.app.handlers.render_complete.append(lanpr_render_next_frame)
+        global GC
+        bpy.ops.render.render(scene=sc.name, write_still = write)
+    else:
+        bpy.ops.render.render(GC,'INVOKE_DEFAULT',scene=sc.name)
+    
+def lanpr_render_canceled(scene):
+    
+    bpy.app.handlers.render_complete.remove(lanpr_render_this_scene_next)
+    
+    bpy.app.handlers.render_cancel.remove(lanpr_render_canceled)
+
+def lanpr_render_backdrop_first(this_scene):
+    s = lanpr_get_original_scene(this_scene)
+    if not s: return
+
+    s.frame_current = this_scene.frame_current
+    bpy.app.handlers.render_complete.append(lanpr_render_this_scene_next)
+    bpy.ops.render.render(scene=s.name)
             
-class LANPR_render_composited_still(bpy.types.Operator):
-    """Render Composited Still"""
-    bl_idname = "lanpr.goto_composition_scene"
-    bl_label = "Render Composited Still"
+class LANPR_render_composited(bpy.types.Operator):
+    """Render Composited"""
+    bl_idname = "lanpr.render_composited"
+    bl_label = "Render Composited"
 
     @classmethod
     def poll(cls, context):
-        return lanpr_get_composition_scene(context.scene) is not None
-
+        return True
+    
     def execute(self, context):
-        lanpr_goto_composition_scene(context.scene)
+        if bpy.context.scene.lanpr.composite_render_animation:
+            s = lanpr_get_original_scene(bpy.context.scene)
+            bpy.context.scene.frame_current = bpy.context.scene.frame_start
+            s.frame_current = bpy.context.scene.frame_start
+            bpy.context.scene.frame_end = s.frame_end
+            bpy.context.scene.render.filepath = s.render.filepath
+            
+        global GLOBAL_OUTPUT_PATH
+        GLOBAL_OUTPUT_PATH = bpy.context.scene.render.filepath
+
+        bpy.app.handlers.render_cancel.append(lanpr_render_canceled)
+        global GC
+        GC = bpy.context.copy()
+        
+        lanpr_render_backdrop_first(bpy.context.scene)
+        
         return {'FINISHED'}
 
 classes=(
@@ -161,4 +226,5 @@ classes=(
     LANPR_remove_composition_scene,
     LANPR_goto_original_scene,
     LANPR_goto_composition_scene,
+    LANPR_render_composited,
 )

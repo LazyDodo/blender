@@ -668,7 +668,16 @@ class SCENE_PT_lanpr(SceneButtonsPanel, Panel):
             layout.operator("lanpr.make_composition_scene")
             return
             
-
+        layout.label(text='LANPR Composition')
+        row = layout.row()
+        row.scale_y=1.5
+        row.scale_x=4
+        row.operator("lanpr.render_composited", icon = 'RENDER_STILL')
+        row.scale_x=1
+        row.prop(lanpr,"composite_render_animation", toggle=True, icon = 'RENDER_ANIMATION')
+        
+        layout.label(text='Mode:')
+        
         layout.prop(lanpr, "master_mode", expand=True) 
 
         if lanpr.master_mode == "DPIX" or lanpr.master_mode == "SOFTWARE":
