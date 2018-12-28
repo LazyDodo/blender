@@ -74,8 +74,9 @@ static void gpencil_calc_vertex(
 	Object *ob = cache_ob->ob;
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	const bool main_onion = draw_ctx->v3d != NULL ? (draw_ctx->v3d->gp_flag & V3D_GP_SHOW_ONION_SKIN) : true;
+	const bool playing = stl->storage->is_playing;
 	const bool do_onion = (bool)((gpd->flag & GP_DATA_STROKE_WEIGHTMODE) == 0) &&
-		main_onion && DRW_gpencil_onion_active(gpd);
+		main_onion && DRW_gpencil_onion_active(gpd) && !playing;
 
 	const bool time_remap = BKE_gpencil_has_time_modifiers(ob);
 
@@ -218,7 +219,7 @@ static void gpencil_calc_stroke_fill_uv(
 static void DRW_gpencil_recalc_geometry_caches(
 	Object *ob, bGPDlayer *gpl, MaterialGPencilStyle *gp_style, bGPDstroke *gps)
 {
-	if (gps->flag & GP_STROKE_RECALC_CACHES) {
+	if (gps->flag & GP_STROKE_RECALC_GEOMETRY) {
 		/* Calculate triangles cache for filling area (must be done only after changes) */
 		if ((gps->tot_triangles == 0) || (gps->triangles == NULL)) {
 			if ((gps->totpoints > 2) &&
@@ -233,7 +234,7 @@ static void DRW_gpencil_recalc_geometry_caches(
 		ED_gpencil_calc_stroke_uv(ob, gps);
 
 		/* clear flag */
-		gps->flag &= ~GP_STROKE_RECALC_CACHES;
+		gps->flag &= ~GP_STROKE_RECALC_GEOMETRY;
 	}
 }
 
@@ -1117,8 +1118,8 @@ void DRW_gpencil_triangulate_stroke_fill(Object *ob, bGPDstroke *gps)
 	}
 
 	/* disable recalculation flag */
-	if (gps->flag & GP_STROKE_RECALC_CACHES) {
-		gps->flag &= ~GP_STROKE_RECALC_CACHES;
+	if (gps->flag & GP_STROKE_RECALC_GEOMETRY) {
+		gps->flag &= ~GP_STROKE_RECALC_GEOMETRY;
 	}
 
 	/* clear memory */
