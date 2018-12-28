@@ -622,8 +622,17 @@ class LANPR_linesets(UIList):
             layout.alignment = 'CENTER'
             layout.label("", icon_value=icon)
 
+def lanpr_get_composition_scene(scene):
+    n = scene.name+'_lanpr_comp'
+    for s in bpy.data.scenes:
+        if s.name == n: return s
+    return None
+
+def lanpr_is_composition_scene(scene):
+    return scene.name.endswith('_lanpr_comp')
+
 class SCENE_PT_lanpr(SceneButtonsPanel, Panel):
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_LANPR', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_LANPR', 'BLENDER_OPENGL', 'BLENDER_EEVEE'}
     bl_label = "LANPR"
     bl_options = {'DEFAULT_CLOSED'}
     
@@ -635,7 +644,30 @@ class SCENE_PT_lanpr(SceneButtonsPanel, Panel):
         layout = self.layout
         scene = context.scene
         lanpr = scene.lanpr
-        active_layer = lanpr.layers.active_layer
+        active_layer = lanpr.layers.active_layer 
+        
+        sc = lanpr_get_composition_scene(scene)
+        
+        if lanpr_is_composition_scene(scene):
+            row = layout.row()
+            row.scale_y=1.5
+            row.operator("lanpr.goto_original_scene")
+
+        if sc is not None:
+            layout.label(text = 'You are adjusting values for LANPR compostion scene.')
+            row = layout.row()
+            row.scale_y=1.5
+            row.operator("lanpr.goto_composition_scene")
+            layout.operator("lanpr.remove_composition_scene")
+            scene = sc
+            lanpr = scene.lanpr
+            active_layer = lanpr.layers.active_layer
+            return
+        elif scene.render.engine!='BLENDER_LANPR':
+            layout.label(text = 'Select LANPR engine or use composition scene.')
+            layout.operator("lanpr.make_composition_scene")
+            return
+            
 
         layout.prop(lanpr, "master_mode", expand=True) 
 
@@ -668,19 +700,17 @@ class SCENE_PT_lanpr(SceneButtonsPanel, Panel):
                     layout.operator("scene.lanpr_rebuild_all_commands")
                 else:
                     layout.operator("scene.lanpr_add_line_layer")
-
-            layout.label(text= "Normal:")
-            layout.prop(active_layer,"normal_mode", expand = True)
-            if active_layer.normal_mode != "DISABLED":
-                layout.prop(active_layer,"normal_control_object")
-                layout.prop(active_layer,"normal_effect_inverse", toggle = True)
-                layout.prop(active_layer,"normal_ramp_begin")
-                layout.prop(active_layer,"normal_ramp_end")
-                layout.prop(active_layer,"normal_thickness_begin", slider=True)
-                layout.prop(active_layer,"normal_thickness_end", slider=True)
-
-            elif not lanpr.layers.active_layer:
-                layout.operator("scene.lanpr_add_line_layer")
+            
+            if active_layer:
+                layout.label(text= "Normal:")
+                layout.prop(active_layer,"normal_mode", expand = True)
+                if active_layer.normal_mode != "DISABLED":
+                    layout.prop(active_layer,"normal_control_object")
+                    layout.prop(active_layer,"normal_effect_inverse", toggle = True)
+                    layout.prop(active_layer,"normal_ramp_begin")
+                    layout.prop(active_layer,"normal_ramp_end")
+                    layout.prop(active_layer,"normal_thickness_begin", slider=True)
+                    layout.prop(active_layer,"normal_thickness_end", slider=True)
             
         else:
             layout.label(text="Vectorization:")

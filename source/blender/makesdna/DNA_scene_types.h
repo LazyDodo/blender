@@ -1578,6 +1578,10 @@ typedef struct SceneLANPR {
 	int enable_intersections;
 	int enable_chaining;
 
+	/* composite utility */
+	int composite_render_animation;
+	int what;
+
 } SceneLANPR;
 
 /* *************************************************************** */

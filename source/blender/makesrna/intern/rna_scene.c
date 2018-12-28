@@ -6406,8 +6406,11 @@ static void rna_def_scene_lanpr(BlenderRNA *brna)
 	RNA_def_property_boolean_default(prop, 1);
 	RNA_def_property_ui_text(prop, "Enable Chaining", "Chain Feature Lines After Occlusion Test");
 
-	/* these shall go into LANPR_LineLayer */
+	/* composition */
 
+	prop = RNA_def_property(srna, "composite_render_animation", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_default(prop, 0);
+	RNA_def_property_ui_text(prop, "Composition Render Animation", "Re-render backdrop and LANPR layer to produce animation(image sequence only).");
 
 	/* here's the collection stuff.... */
 
