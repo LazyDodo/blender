@@ -368,7 +368,7 @@ static void gpencil_get_extremes(
 }
 
 static int gpencil_analyze_strokes(
-		tGPencilPointCache *src_array, int totpoints,
+		tGPencilPointCache *src_array, int totstrokes, int totpoints,
 		tGPencilPointCache *dst_array)
 {
 		int i;
@@ -386,7 +386,7 @@ static int gpencil_analyze_strokes(
 		BLI_ghash_insert(all_strokes, sort_pt->gps, sort_pt->gps);
 
 		/* look for near stroke */
-		bool loop = true;
+		bool loop = (bool)(totstrokes > 1);
 		while (loop) {
 			bGPDstroke *gps_next = NULL;
 			GHash *strokes = BLI_ghash_ptr_new(__func__);
@@ -513,7 +513,7 @@ static int gp_stroke_merge_exec(bContext *C, wmOperator *op)
 	/* for strokes analyze strokes and load sorted array */
 	if (mode == GP_MERGE_STROKE) {
 		sorted_array = MEM_callocN(sizeof(tGPencilPointCache) * totpoints, __func__);
-		totpoints = gpencil_analyze_strokes(original_array, totpoints, sorted_array);
+		totpoints = gpencil_analyze_strokes(original_array, totstrokes, totpoints, sorted_array);
 	}
 	else {
 		/* make a copy to sort */
