@@ -75,29 +75,33 @@ class USERPREF_PT_save_preferences(Panel):
 
 
 class PreferencePanel(Panel):
+    """
+    Base class for panels to center align contents with some horizontal margin.
+    Deriving classes need to implement a ``draw_props(context, layout)`` function.
+    """
+
     bl_space_type = 'PREFERENCES'
     bl_region_type = 'WINDOW'
 
-    def draw_props(self, context, layout):
-        # Deriving classes should implement this.
-        # TODO use abc module for abstract method support?
-        pass
-
     def draw(self, context):
         layout = self.layout
+        width = context.region.width
 
         layout.use_property_split = True
         layout.use_property_decorate = False  # No animation.
 
         row = layout.row()
-        row.label()
+        if width > 350: # No horizontal margin if region is rather small.
+            row.label() # Needed so col below is centered.
 
         col = row.column()
         col.ui_units_x = 50
 
+        # draw_props implemented by deriving classes.
         self.draw_props(context, col)
 
-        row.label() # Needed so col above is centered.
+        if width > 350: # No horizontal margin if region is rather small.
+            row.label() # Needed so col above is centered.
 
 
 class USERPREF_PT_interface_display(PreferencePanel):
