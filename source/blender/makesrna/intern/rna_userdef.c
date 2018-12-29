@@ -3663,15 +3663,17 @@ static void rna_def_userdef_view(BlenderRNA *brna)
 		{0, NULL, 0, NULL, NULL}
 	};
 
-    static const EnumPropertyItem color_picker_types[] = {
-        {USER_CP_CIRCLE_HSV, "CIRCLE_HSV", 0, "Circle (HSV)", "A circular Hue/Saturation color wheel, with Value slider"},
-        {USER_CP_CIRCLE_HSL, "CIRCLE_HSL", 0, "Circle (HSL)", "A circular Hue/Saturation color wheel, with Lightness slider"},
-        {USER_CP_SQUARE_SV, "SQUARE_SV", 0, "Square (SV + H)", "A square showing Saturation/Value, with Hue slider"},
-        {USER_CP_SQUARE_HS, "SQUARE_HS", 0, "Square (HS + V)", "A square showing Hue/Saturation, with Value slider"},
-        {USER_CP_SQUARE_HV, "SQUARE_HV", 0, "Square (HV + S)", "A square showing Hue/Value, with Saturation slider"},
-        {0, NULL, 0, NULL, NULL}
-    };
-    
+	static const EnumPropertyItem color_picker_types[] = {
+		{USER_CP_CIRCLE_HSV, "CIRCLE_HSV", 0, "Circle (HSV)", "A circular Hue/Saturation color wheel, with "
+		                                      "Value slider"},
+		{USER_CP_CIRCLE_HSL, "CIRCLE_HSL", 0, "Circle (HSL)", "A circular Hue/Saturation color wheel, with "
+		                                                      "Lightness slider"},
+		{USER_CP_SQUARE_SV, "SQUARE_SV", 0, "Square (SV + H)", "A square showing Saturation/Value, with Hue slider"},
+		{USER_CP_SQUARE_HS, "SQUARE_HS", 0, "Square (HS + V)", "A square showing Hue/Saturation, with Value slider"},
+		{USER_CP_SQUARE_HV, "SQUARE_HV", 0, "Square (HV + S)", "A square showing Hue/Value, with Saturation slider"},
+		{0, NULL, 0, NULL, NULL}
+	};
+
 	static const EnumPropertyItem zoom_frame_modes[] = {
 		{ZOOM_FRAME_MODE_KEEP_RANGE, "KEEP_RANGE", 0, "Keep Range", ""},
 		{ZOOM_FRAME_MODE_SECONDS, "SECONDS", 0, "Seconds", ""},
@@ -3773,12 +3775,12 @@ static void rna_def_userdef_view(BlenderRNA *brna)
 	RNA_def_property_range(prop, 1, 40);
 	RNA_def_property_ui_text(prop, "Sub Level Menu Open Delay",
 	                         "Time delay in 1/10 seconds before automatically opening sub level menus");
-    
-    prop = RNA_def_property(srna, "color_picker_type", PROP_ENUM, PROP_NONE);
-    RNA_def_property_enum_items(prop, color_picker_types);
-    RNA_def_property_enum_sdna(prop, NULL, "color_picker_type");
-    RNA_def_property_ui_text(prop, "Color Picker Type", "Different styles of displaying the color picker widget");
-    RNA_def_property_update(prop, 0, "rna_userdef_update");
+
+	prop = RNA_def_property(srna, "color_picker_type", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, color_picker_types);
+	RNA_def_property_enum_sdna(prop, NULL, "color_picker_type");
+	RNA_def_property_ui_text(prop, "Color Picker Type", "Different styles of displaying the color picker widget");
+	RNA_def_property_update(prop, 0, "rna_userdef_update");
 
 	/* pie menus */
 	prop = RNA_def_property(srna, "pie_initial_timeout", PROP_INT, PROP_NONE);
@@ -3843,14 +3845,14 @@ static void rna_def_userdef_view(BlenderRNA *brna)
 	RNA_def_property_enum_bitflag_sdna(prop, NULL, "uiflag");
 	RNA_def_property_ui_text(prop, "Header Position", "Default header position for new space-types");
 	RNA_def_property_update(prop, 0, "rna_userdef_update");
-    
-    static const EnumPropertyItem text_hinting_items[] = {
-        {0, "AUTO", 0, "Auto", ""},
-        {USER_TEXT_HINTING_NONE, "NONE", 0, "None", ""},
-        {USER_TEXT_HINTING_SLIGHT, "SLIGHT", 0, "Slight", ""},
-        {USER_TEXT_HINTING_FULL, "FULL", 0, "Full", ""},
-        {0, NULL, 0, NULL, NULL}
-    };
+
+	static const EnumPropertyItem text_hinting_items[] = {
+		{0, "AUTO", 0, "Auto", ""},
+		{USER_TEXT_HINTING_NONE, "NONE", 0, "None", ""},
+		{USER_TEXT_HINTING_SLIGHT, "SLIGHT", 0, "Slight", ""},
+		{USER_TEXT_HINTING_FULL, "FULL", 0, "Full", ""},
+		{0, NULL, 0, NULL, NULL}
+	};
 
 	/* mini axis */
 	static const EnumPropertyItem mini_axis_type_items[] = {
@@ -3939,66 +3941,64 @@ static void rna_def_userdef_view(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Zoom Seconds",
 	                         "Seconds around cursor that we zoom around");
 
-    
-    /* Text. */
-    
-    prop = RNA_def_property(srna, "use_text_antialiasing", PROP_BOOLEAN, PROP_NONE);
-    RNA_def_property_boolean_negative_sdna(prop, NULL, "text_render", USER_TEXT_DISABLE_AA);
-    RNA_def_property_ui_text(prop, "Text Anti-aliasing", "Draw user interface text anti-aliased");
-    RNA_def_property_update(prop, 0, "rna_userdef_text_update");
-    
-    prop = RNA_def_property(srna, "text_hinting", PROP_ENUM, PROP_NONE);
-    RNA_def_property_enum_bitflag_sdna(prop, NULL, "text_render");
-    RNA_def_property_enum_items(prop, text_hinting_items);
-    RNA_def_property_ui_text(prop, "Text Hinting", "Method for making user interface text render sharp");
-    RNA_def_property_update(prop, 0, "rna_userdef_text_update");
-    
-    prop = RNA_def_property(srna, "font_path_ui", PROP_STRING, PROP_FILEPATH);
-    RNA_def_property_string_sdna(prop, NULL, "font_path_ui");
-    RNA_def_property_ui_text(prop, "Interface Font", "Path to interface font");
-    RNA_def_property_update(prop, NC_WINDOW, "rna_userdef_language_update");
-    
-    prop = RNA_def_property(srna, "font_path_ui_mono", PROP_STRING, PROP_FILEPATH);
-    RNA_def_property_string_sdna(prop, NULL, "font_path_ui_mono");
-    RNA_def_property_ui_text(prop, "Mono-space Font", "Path to interface mono-space Font");
-    RNA_def_property_update(prop, NC_WINDOW, "rna_userdef_language_update");
-    
-    
-    /* Language. */
-    
-    prop = RNA_def_property(srna, "use_international_fonts", PROP_BOOLEAN, PROP_NONE);
-    RNA_def_property_boolean_sdna(prop, NULL, "transopts", USER_DOTRANSLATE);
-    RNA_def_property_ui_text(prop, "Translate UI", "Enable UI translation and use international fonts");
-    RNA_def_property_update(prop, NC_WINDOW, "rna_userdef_language_update");
-    
-    prop = RNA_def_property(srna, "language", PROP_ENUM, PROP_NONE);
-    RNA_def_property_enum_items(prop, rna_enum_language_default_items);
-#ifdef WITH_INTERNATIONAL
-    RNA_def_property_enum_funcs(prop, NULL, NULL, "rna_lang_enum_properties_itemf");
-#endif
-    RNA_def_property_ui_text(prop, "Language", "Language used for translation");
-    RNA_def_property_update(prop, NC_WINDOW, "rna_userdef_language_update");
-    
-    prop = RNA_def_property(srna, "use_translate_tooltips", PROP_BOOLEAN, PROP_NONE);
-    RNA_def_property_boolean_sdna(prop, NULL, "transopts", USER_TR_TOOLTIPS);
-    RNA_def_property_ui_text(prop, "Translate Tooltips",
-                             "Translate the descriptions when hovering UI elements (recommended)");
-    RNA_def_property_update(prop, 0, "rna_userdef_update");
-    
-    prop = RNA_def_property(srna, "use_translate_interface", PROP_BOOLEAN, PROP_NONE);
-    RNA_def_property_boolean_sdna(prop, NULL, "transopts", USER_TR_IFACE);
-    RNA_def_property_ui_text(prop, "Translate Interface",
-                             "Translate all labels in menus, buttons and panels "
-                             "(note that this might make it hard to follow tutorials or the manual)");
-    RNA_def_property_update(prop, 0, "rna_userdef_update");
-    
-    prop = RNA_def_property(srna, "use_translate_new_dataname", PROP_BOOLEAN, PROP_NONE);
-    RNA_def_property_boolean_sdna(prop, NULL, "transopts", USER_TR_NEWDATANAME);
-    RNA_def_property_ui_text(prop, "Translate New Names",
-                             "Translate the names of new data-blocks (objects, materials...)");
-    RNA_def_property_update(prop, 0, "rna_userdef_update");
 
-    
+	/* Text. */
+
+	prop = RNA_def_property(srna, "use_text_antialiasing", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_negative_sdna(prop, NULL, "text_render", USER_TEXT_DISABLE_AA);
+	RNA_def_property_ui_text(prop, "Text Anti-aliasing", "Draw user interface text anti-aliased");
+	RNA_def_property_update(prop, 0, "rna_userdef_text_update");
+
+	prop = RNA_def_property(srna, "text_hinting", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_bitflag_sdna(prop, NULL, "text_render");
+	RNA_def_property_enum_items(prop, text_hinting_items);
+	RNA_def_property_ui_text(prop, "Text Hinting", "Method for making user interface text render sharp");
+	RNA_def_property_update(prop, 0, "rna_userdef_text_update");
+
+	prop = RNA_def_property(srna, "font_path_ui", PROP_STRING, PROP_FILEPATH);
+	RNA_def_property_string_sdna(prop, NULL, "font_path_ui");
+	RNA_def_property_ui_text(prop, "Interface Font", "Path to interface font");
+	RNA_def_property_update(prop, NC_WINDOW, "rna_userdef_language_update");
+
+	prop = RNA_def_property(srna, "font_path_ui_mono", PROP_STRING, PROP_FILEPATH);
+	RNA_def_property_string_sdna(prop, NULL, "font_path_ui_mono");
+	RNA_def_property_ui_text(prop, "Mono-space Font", "Path to interface mono-space Font");
+	RNA_def_property_update(prop, NC_WINDOW, "rna_userdef_language_update");
+
+
+	/* Language. */
+
+	prop = RNA_def_property(srna, "use_international_fonts", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "transopts", USER_DOTRANSLATE);
+	RNA_def_property_ui_text(prop, "Translate UI", "Enable UI translation and use international fonts");
+	RNA_def_property_update(prop, NC_WINDOW, "rna_userdef_language_update");
+
+	prop = RNA_def_property(srna, "language", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_items(prop, rna_enum_language_default_items);
+#ifdef WITH_INTERNATIONAL
+	RNA_def_property_enum_funcs(prop, NULL, NULL, "rna_lang_enum_properties_itemf");
+#endif
+	RNA_def_property_ui_text(prop, "Language", "Language used for translation");
+	RNA_def_property_update(prop, NC_WINDOW, "rna_userdef_language_update");
+
+	prop = RNA_def_property(srna, "use_translate_tooltips", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "transopts", USER_TR_TOOLTIPS);
+	RNA_def_property_ui_text(prop, "Translate Tooltips",
+	                         "Translate the descriptions when hovering UI elements (recommended)");
+	RNA_def_property_update(prop, 0, "rna_userdef_update");
+
+	prop = RNA_def_property(srna, "use_translate_interface", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "transopts", USER_TR_IFACE);
+	RNA_def_property_ui_text(prop, "Translate Interface",
+	                         "Translate all labels in menus, buttons and panels "
+	                         "(note that this might make it hard to follow tutorials or the manual)");
+	RNA_def_property_update(prop, 0, "rna_userdef_update");
+
+	prop = RNA_def_property(srna, "use_translate_new_dataname", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "transopts", USER_TR_NEWDATANAME);
+	RNA_def_property_ui_text(prop, "Translate New Names",
+	                         "Translate the names of new data-blocks (objects, materials...)");
+	RNA_def_property_update(prop, 0, "rna_userdef_update");
 }
 
 static void rna_def_userdef_edit(BlenderRNA *brna)
@@ -4343,24 +4343,26 @@ static void rna_def_userdef_system(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_float_sdna(prop, NULL, "pixelsize");
 
-    /* Undo */
-    prop = RNA_def_property(srna, "undo_steps", PROP_INT, PROP_NONE);
-    RNA_def_property_int_sdna(prop, NULL, "undosteps");
-    RNA_def_property_range(prop, 0, 256);
-    RNA_def_property_int_funcs(prop, NULL, "rna_userdef_undo_steps_set", NULL);
-    RNA_def_property_ui_text(prop, "Undo Steps", "Number of undo steps available (smaller values conserve memory)");
-    
-    prop = RNA_def_property(srna, "undo_memory_limit", PROP_INT, PROP_NONE);
-    RNA_def_property_int_sdna(prop, NULL, "undomemory");
-    RNA_def_property_range(prop, 0, max_memory_in_megabytes_int());
-    RNA_def_property_ui_text(prop, "Undo Memory Size", "Maximum memory usage in megabytes (0 means unlimited)");
-    
-    prop = RNA_def_property(srna, "use_global_undo", PROP_BOOLEAN, PROP_NONE);
-    RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_GLOBALUNDO);
-    RNA_def_property_ui_text(prop, "Global Undo",
-                             "Global undo works by keeping a full copy of the file itself in memory, "
-                             "so takes extra memory");
-    
+	/* Undo */
+
+	prop = RNA_def_property(srna, "undo_steps", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "undosteps");
+	RNA_def_property_range(prop, 0, 256);
+	RNA_def_property_int_funcs(prop, NULL, "rna_userdef_undo_steps_set", NULL);
+	RNA_def_property_ui_text(prop, "Undo Steps", "Number of undo steps available (smaller values conserve memory)");
+
+	prop = RNA_def_property(srna, "undo_memory_limit", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "undomemory");
+	RNA_def_property_range(prop, 0, max_memory_in_megabytes_int());
+	RNA_def_property_ui_text(prop, "Undo Memory Size", "Maximum memory usage in megabytes (0 means unlimited)");
+
+	prop = RNA_def_property(srna, "use_global_undo", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_GLOBALUNDO);
+	RNA_def_property_ui_text(prop, "Global Undo",
+	                         "Global undo works by keeping a full copy of the file itself in memory, "
+	                         "so takes extra memory");
+
+
 	prop = RNA_def_property(srna, "scrollback", PROP_INT, PROP_UNSIGNED);
 	RNA_def_property_int_sdna(prop, NULL, "scrollback");
 	RNA_def_property_range(prop, 32, 32768);
