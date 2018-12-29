@@ -128,7 +128,7 @@ class USERPREF_PT_interface_display_info(PreferencePanel):
     def draw_props(self, context, layout):
         prefs = context.preferences
         view = prefs.view
-        
+
         flow = layout.grid_flow(row_major=True, columns=0, even_columns=False, even_rows=False, align=False)
 
         flow.prop(view, "show_tooltips")
@@ -305,21 +305,21 @@ class USERPREF_PT_interface_templates(PreferencePanel):
 class USERPREF_PT_interface_text(PreferencePanel):
     bl_label = "Text"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     @classmethod
     def poll(cls, context):
         prefs = context.preferences
         return (prefs.active_section == 'INTERFACE')
-    
+
     def draw_props(self, context, layout):
         prefs = context.preferences
         view = prefs.view
-        
+
         layout.prop(view, "use_text_antialiasing", text="Anti-aliasing")
         sub = layout.column()
         sub.active = view.use_text_antialiasing
         sub.prop(view, "text_hinting", text="Hinting")
-        
+
         layout.prop(view, "font_path_ui")
         layout.prop(view, "font_path_ui_mono")
 
@@ -328,7 +328,7 @@ class USERPREF_PT_interface_text_translate(PreferencePanel):
     bl_label = "Translate UI"
     bl_options = {'DEFAULT_CLOSED'}
     bl_parent_id = "USERPREF_PT_interface_text"
-    
+
     @classmethod
     def poll(cls, context):
         prefs = context.preferences
@@ -338,16 +338,16 @@ class USERPREF_PT_interface_text_translate(PreferencePanel):
     def draw_header(self, context):
         prefs = context.preferences
         view = prefs.view
-        
+
         self.layout.prop(view, "use_international_fonts", text="")
 
     def draw_props(self, context, layout):
         prefs = context.preferences
         view = prefs.view
-        
+
         layout.active = view.use_international_fonts
         layout.prop(view, "language")
-        
+
         layout.prop(view, "use_translate_tooltips", text="Translate Tooltips")
         layout.prop(view, "use_translate_interface", text="Translate Interface")
         layout.prop(view, "use_translate_new_dataname", text="Translate New Data")
@@ -478,16 +478,16 @@ class USERPREF_PT_edit_duplicate_data(PreferencePanel):
 class USERPREF_PT_edit_gpencil(PreferencePanel):
     bl_label = "Grease Pencil"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     @classmethod
     def poll(cls, context):
         prefs = context.preferences
         return (prefs.active_section == 'EDITING')
-    
+
     def draw_props(self, context, layout):
         prefs = context.preferences
         edit = prefs.edit
-        
+
         layout.prop(edit, "grease_pencil_manhattan_distance", text="Manhattan Distance")
         layout.prop(edit, "grease_pencil_euclidean_distance", text="Euclidean Distance")
 
@@ -495,16 +495,16 @@ class USERPREF_PT_edit_gpencil(PreferencePanel):
 class USERPREF_PT_edit_annotations(PreferencePanel):
     bl_label = "Annotations"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     @classmethod
     def poll(cls, context):
         prefs = context.preferences
         return (prefs.active_section == 'EDITING')
-    
+
     def draw_props(self, context, layout):
         prefs = context.preferences
         edit = prefs.edit
-        
+
         layout.prop(edit, "grease_pencil_default_color", text="Default Color")
         layout.prop(edit, "grease_pencil_eraser_radius", text="Eraser Radius")
         layout.prop(edit, "use_grease_pencil_simplify_stroke", text="Simplify Stroke")
@@ -597,7 +597,7 @@ class USERPREF_PT_system_opengl(PreferencePanel):
         if sys.platform == "linux" and system.multi_sample != 'NONE':
             layout.label(text="Might fail for Mesh editing selection!")
             layout.separator()
-        
+
         layout.prop(system, "anisotropic_filter")
         layout.prop(system, "use_region_overlap")
 
@@ -606,24 +606,24 @@ class USERPREF_PT_system_opengl_textures(PreferencePanel):
     bl_label = "Textures"
     bl_parent_id = "USERPREF_PT_system_opengl"
     bl_options = {'DEFAULT_CLOSED'}
-    
+
     @classmethod
     def poll(cls, context):
         prefs = context.preferences
         return (prefs.active_section == 'SYSTEM_GENERAL')
-    
+
     def draw_props(self, context, layout):
         prefs = context.preferences
         system = prefs.system
-        
+
         layout.prop(system, "gl_texture_limit", text="Limit Size")
         layout.prop(system, "use_16bit_textures")
         layout.prop(system, "use_gpu_mipmap")
         layout.prop(system, "texture_time_out", text="Time Out")
         layout.prop(system, "texture_collection_rate", text="Garbage Collection Rate")
-        
+
         layout.separator()
-        
+
         layout.prop(system, "image_draw_method", text="Image Display Method")
 
 
@@ -656,11 +656,11 @@ class USERPREF_PT_system_memory(PreferencePanel):
         layout.prop(system, "undo_steps", text="Undo Steps")
         layout.prop(system, "undo_memory_limit", text="Undo Memory Limit")
         layout.prop(system, "use_global_undo")
-        
+
         layout.separator()
-        
+
         layout.prop(system, "memory_cache_limit", text="Sequencer Cache Limit")
-        
+
         layout.separator()
 
         layout.prop(system, "scrollback", text="Console Scrollback Lines")
@@ -1170,9 +1170,9 @@ class USERPREF_PT_file_autorun(PreferencePanel):
         prefs = context.preferences
         paths = prefs.filepaths
         system = prefs.system
-        
+
         layout.active = system.use_scripts_auto_execute
-        
+
         box = layout.box()
         row = box.row()
         row.label(text="Excluded Paths:")
