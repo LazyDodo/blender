@@ -981,12 +981,12 @@ int lanpr_point_triangle_relation(tnsVector2d v, tnsVector2d v0, tnsVector2d v1,
 
 	cl = (v1[0] - v[0]) * (v2[1] - v[1]) - (v1[1] - v[1]) * (v2[0] - v[0]);
 	if ((r = c * cl) < 0) return 0;
-	elif(r == 0) return 1;
+	//elif(r == 0) return 1; // removed, point could still be on the extention line of some edge
 	else c = cl;
 
 	cl = (v2[0] - v[0]) * (v0[1] - v[1]) - (v2[1] - v[1]) * (v0[0] - v[0]);
 	if ((r = c * cl) < 0) return 0;
-	elif(r == 0) return 1;
+	//elif(r == 0) return 1;
 	else c = cl;
 
 	cl = (v0[0] - v[0]) * (v1[1] - v[1]) - (v0[1] - v[1]) * (v1[0] - v[0]);
@@ -2132,7 +2132,7 @@ int lanpr_triangle_line_imagespace_intersection_v2(SpinLock *spl, LANPR_RenderTr
 	*FBC1 = rt->V[1]->FrameBufferCoord,
 	*FBC2 = rt->V[2]->FrameBufferCoord;
 
-	//printf("%f %f %f   %f %f\n", FBC0[2], FBC1[2], FBC2[2], LFBC[2], RFBC[2]);
+	//printf("(%f %f)(%f %f)(%f %f)   (%f %f)(%f %f)\n", FBC0[0], FBC0[1], FBC1[0], FBC1[1], FBC2[0], FBC2[1], LFBC[0], LFBC[1], RFBC[0], RFBC[1]);
 
 	//bound box.
 	//if (MIN3(FBC0[2], FBC1[2], FBC2[2]) > MAX2(LFBC[2], RFBC[2]))
@@ -2152,6 +2152,8 @@ int lanpr_triangle_line_imagespace_intersection_v2(SpinLock *spl, LANPR_RenderTr
 	b = lanpr_LineIntersectTest2d(LFBC, RFBC, FBC1, FBC2, &is[1]);
 	c = lanpr_LineIntersectTest2d(LFBC, RFBC, FBC2, FBC0, &is[2]);
 	//BLI_spin_unlock(spl);
+
+	//printf("abc: %d %d %d\n", a,b,c);
 
 	INTERSECT_SORT_MIN_TO_MAX_3(is[0], is[1], is[2], order);
 
@@ -2306,18 +2308,21 @@ int lanpr_triangle_line_imagespace_intersection_v2(SpinLock *spl, LANPR_RenderTr
 		*From = MAX2(0, is[LCross]);
 		*To = MIN2(1, is[RCross]);
 		if (*From >= *To) return 0;
+		//printf("1 From %f to %f\n",*From, *To);
 		return 1;
 	} elif(LF >= 0 && RF <= 0 && (DotL || DotR))
 	{
 		*From = MAX2(Cut, is[LCross]);
 		*To = MIN2(1, is[RCross]);
 		if (*From >= *To) return 0;
+		//printf("2 From %f to %f\n",*From, *To);
 		return 1;
 	} elif(LF <= 0 && RF >= 0 && (DotL || DotR))
 	{
 		*From = MAX2(0, is[LCross]);
 		*To = MIN2(Cut, is[RCross]);
 		if (*From >= *To) return 0;
+		//printf("3 From %f to %f\n",*From, *To);
 		return 1;
 	}
 	else
