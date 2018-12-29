@@ -177,7 +177,9 @@ def lanpr_render_this_scene_next(scene):
         global GC
         bpy.ops.render.render(scene=sc.name, write_still = write)
     else:
-        bpy.ops.render.render(GC,'INVOKE_DEFAULT',scene=sc.name)
+        #'INVOKE_DEAFULT' still cause trouble on windows.
+        #bpy.ops.render.render(GC,'INVOKE_DEFAULT',scene=sc.name)
+        bpy.ops.render.render(scene=sc.name)
     
 def lanpr_render_canceled(scene):
     
