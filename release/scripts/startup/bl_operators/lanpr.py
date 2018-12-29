@@ -155,25 +155,25 @@ def lanpr_render_next_frame(sc):
         bpy.context.scene.render.filepath = GLOBAL_OUTPUT_PATH
         return
     
-    bpy.app.handlers.render_cancel.append(lanpr_render_canceled)
-    bpy.app.handlers.render_complete.remove(lanpr_render_next_frame)
+    #bpy.app.handlers.render_cancel.append(lanpr_render_canceled)
+    #bpy.app.handlers.render_complete.remove(lanpr_render_next_frame)
     
-    lanpr_render_backdrop_first(sc)
+    #lanpr_render_backdrop_first(sc)
 
 def lanpr_render_this_scene_next(scene):
     
-    bpy.app.handlers.render_complete.remove(lanpr_render_this_scene_next)
-    bpy.app.handlers.render_cancel.remove(lanpr_render_canceled)
+    #bpy.app.handlers.render_complete.remove(lanpr_render_this_scene_next)
+    #bpy.app.handlers.render_cancel.remove(lanpr_render_canceled)
     
-    bpy.app.handlers.render_cancel.append(lanpr_render_canceled)
+    #bpy.app.handlers.render_cancel.append(lanpr_render_canceled)
     
-    sc = lanpr_get_composition_scene(scene)
+    sc = scene #lanpr_get_composition_scene(scene)
     write = sc.lanpr.composite_render_animation
     
     bpy.context.scene.render.filepath = GLOBAL_OUTPUT_PATH + '/%04d'%sc.frame_current + bpy.context.scene.render.file_extension
     
     if sc.lanpr.composite_render_animation:
-        bpy.app.handlers.render_complete.append(lanpr_render_next_frame)
+        #bpy.app.handlers.render_complete.append(lanpr_render_next_frame)
         global GC
         bpy.ops.render.render(scene=sc.name, write_still = write)
     else:
@@ -192,7 +192,7 @@ def lanpr_render_backdrop_first(this_scene):
     if not s: return
 
     s.frame_current = this_scene.frame_current
-    bpy.app.handlers.render_complete.append(lanpr_render_this_scene_next)
+    #bpy.app.handlers.render_complete.append(lanpr_render_this_scene_next)
     bpy.ops.render.render(scene=s.name)
             
 class LANPR_render_composited(bpy.types.Operator):
@@ -219,7 +219,16 @@ class LANPR_render_composited(bpy.types.Operator):
         global GC
         GC = bpy.context.copy()
         
-        lanpr_render_backdrop_first(bpy.context.scene)
+        while True :
+        
+            lanpr_render_backdrop_first(bpy.context.scene)
+            
+            lanpr_render_this_scene_next(bpy.context.scene)
+            
+            bpy.context.scene.frame_current = bpy.context.scene.frame_current+1
+            if not bpy.context.scene.lanpr.composite_render_animation or bpy.context.scene.frame_current>bpy.context.scene.frame_end: 
+                bpy.context.scene.render.filepath = GLOBAL_OUTPUT_PATH
+                return {'FINISHED'}
         
         return {'FINISHED'}
 
