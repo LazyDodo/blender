@@ -58,11 +58,11 @@ int use_smooth_contour_modifier_contour = 0; // debug purpose
 /* ====================================== base structures =========================================== */
 
 #define TNS_BOUND_AREA_CROSSES(b1, b2) \
-	((b1)[0] < (b2)[1] && (b1)[1] > (b2)[0] && (b1)[3] < (b2)[2] && (b1)[2] > (b2)[3])
+	((b1)[0] <= (b2)[1] && (b1)[1] >= (b2)[0] && (b1)[3] <= (b2)[2] && (b1)[2] >= (b2)[3])
 
 void lanpr_make_initial_bounding_areas(LANPR_RenderBuffer *rb) {
-	int sp_w = 20;
-	int sp_h = rb->H / (rb->W / sp_w);
+	int sp_w = 4;//20;
+	int sp_h = 4;//rb->H / (rb->W / sp_w);
 	int row, col;
 	LANPR_BoundingArea *ba;
 	real W = (real)rb->W;
@@ -80,7 +80,7 @@ void lanpr_make_initial_bounding_areas(LANPR_RenderBuffer *rb) {
 
 	for (row = 0; row < sp_h; row++) {
 		for (col = 0; col < sp_w; col++) {
-			ba = &rb->InitialBoundingAreas[row * 20 + col];
+			ba = &rb->InitialBoundingAreas[row * 4 + col];
 
 			ba->L = span_w * col - 1.0;
 			ba->R = (col == sp_w - 1) ? 1.0 : (span_w * (col + 1) - 1.0);
@@ -91,16 +91,16 @@ void lanpr_make_initial_bounding_areas(LANPR_RenderBuffer *rb) {
 			ba->CY = (ba->U + ba->B) / 2;
 
 			if (row) {
-				list_append_pointer_static(&ba->UP, &rb->RenderDataPool, &rb->InitialBoundingAreas[(row - 1) * 20 + col]);
+				list_append_pointer_static(&ba->UP, &rb->RenderDataPool, &rb->InitialBoundingAreas[(row - 1) * 4 + col]);
 			}
 			if (col) {
-				list_append_pointer_static(&ba->LP, &rb->RenderDataPool, &rb->InitialBoundingAreas[row * 20 + col - 1]);
+				list_append_pointer_static(&ba->LP, &rb->RenderDataPool, &rb->InitialBoundingAreas[row * 4 + col - 1]);
 			}
 			if (row != sp_h - 1) {
-				list_append_pointer_static(&ba->BP, &rb->RenderDataPool, &rb->InitialBoundingAreas[(row + 1) * 20 + col]);
+				list_append_pointer_static(&ba->BP, &rb->RenderDataPool, &rb->InitialBoundingAreas[(row + 1) * 4 + col]);
 			}
 			if (col != sp_w - 1) {
-				list_append_pointer_static(&ba->RP, &rb->RenderDataPool, &rb->InitialBoundingAreas[row * 20 + col + 1]);
+				list_append_pointer_static(&ba->RP, &rb->RenderDataPool, &rb->InitialBoundingAreas[row * 4 + col + 1]);
 			}
 		}
 	}
@@ -395,7 +395,7 @@ LANPR_BoundingArea *lanpr_get_point_bounding_area(LANPR_RenderBuffer *rb, real x
 	if (col < 0) col = 0;
 	if (row < 0) row = 0;
 
-	return &rb->InitialBoundingAreas[row * 20 + col];
+	return &rb->InitialBoundingAreas[row * 4 + col];
 }
 void lanpr_add_triangles(LANPR_RenderBuffer *rb) {
 	LANPR_RenderElementLinkNode *reln;
@@ -430,7 +430,7 @@ void lanpr_add_triangles(LANPR_RenderBuffer *rb) {
 			if (lanpr_get_triangle_bounding_areas(rb, rt, &y1, &y2, &x1, &x2)) {
 				for (co = x1; co <= x2; co++) {
 					for (r = y1; r <= y2; r++) {
-						lanpr_link_triangle_with_bounding_area(rb, &rb->InitialBoundingAreas[r * 20 + co], rt, 0, 1);
+						lanpr_link_triangle_with_bounding_area(rb, &rb->InitialBoundingAreas[r * 4 + co], rt, 0, 1);
 					}
 				}
 			}
@@ -578,7 +578,7 @@ LANPR_BoundingArea *lanpr_get_bounding_area(LANPR_RenderBuffer *rb, real x, real
 	if (r >= rb->TileCountY) r = rb->TileCountY - 1;
 	if (c >= rb->TileCountX) c = rb->TileCountX - 1;
 
-	iba = &rb->InitialBoundingAreas[r * 20 + c];
+	iba = &rb->InitialBoundingAreas[r * 4 + c];
 	while (iba->Child) {
 		if (x > iba->CX) {
 			if (y > iba->CY) iba = &iba->Child[0];
@@ -2115,7 +2115,7 @@ int lanpr_triangle_line_imagespace_intersection_v2(SpinLock *spl, LANPR_RenderTr
 	tnsVector3d LV;
 	tnsVector3d RV;
 	tnsVector4d vd4;
-	real *CV = CameraDir;
+	real CV[3];
 	real DotL, DotR, DotLA, DotRA;
 	real DotF;
 	LANPR_RenderVert *Result, *rv;
@@ -2145,13 +2145,9 @@ int lanpr_triangle_line_imagespace_intersection_v2(SpinLock *spl, LANPR_RenderTr
 	if (lanpr_share_edge_direct(rt, rl))
 		return 0;
 
-	// XXX: not using lock will cause very few random calculation error if running in multiple threads.
-	//      lanpr_LineIntersectTest2d() doesn't even write data
-	//BLI_spin_lock(spl);
 	a = lanpr_LineIntersectTest2d(LFBC, RFBC, FBC0, FBC1, &is[0]);
 	b = lanpr_LineIntersectTest2d(LFBC, RFBC, FBC1, FBC2, &is[1]);
 	c = lanpr_LineIntersectTest2d(LFBC, RFBC, FBC2, FBC0, &is[2]);
-	//BLI_spin_unlock(spl);
 
 	//printf("abc: %d %d %d\n", a,b,c);
 
@@ -2159,6 +2155,8 @@ int lanpr_triangle_line_imagespace_intersection_v2(SpinLock *spl, LANPR_RenderTr
 
 	tMatVectorMinus3d(LV, rl->L->GLocation, rt->V[0]->GLocation);
 	tMatVectorMinus3d(RV, rl->R->GLocation, rt->V[0]->GLocation);
+
+	tMatVectorCopy3d(CameraDir,CV);
 
 	tMatVectorConvert4fd(cam->obmat[3], vd4);
 	if (((Camera *)cam->data)->type == CAM_PERSP) tMatVectorMinus3d(CV, vd4, rt->V[0]->GLocation);
@@ -2497,10 +2495,12 @@ LANPR_RenderLine *lanpr_triangle_generate_intersection_line_only(LANPR_RenderBuf
 	if (lanpr_get_line_bounding_areas(rb, Result, &r1, &r2, &c1, &c2)) {
 		for (row = r1; row != r2 + 1; row++) {
 			for (col = c1; col != c2 + 1; col++) {
-				lanpr_link_line_with_bounding_area(rb, &rb->InitialBoundingAreas[row * 20 + col], Result);
+				lanpr_link_line_with_bounding_area(rb, &rb->InitialBoundingAreas[row * 4 + col], Result);
 			}
 		}
 	}
+
+	//printf("Intersection (%f %f)-(%f %f)\n",Result->L->FrameBufferCoord[0], Result->L->FrameBufferCoord[1],Result->R->FrameBufferCoord[0], Result->R->FrameBufferCoord[1]);
 
 	//tnsglobal_TriangleIntersectionCount++;
 
@@ -2668,7 +2668,7 @@ void lanpr_compute_scene_contours(LANPR_RenderBuffer *rb, float threshold) {
 			if (lanpr_get_line_bounding_areas(rb, rl, &r1, &r2, &c1, &c2)) {
 				for (row = r1; row != r2 + 1; row++) {
 					for (col = c1; col != c2 + 1; col++) {
-						lanpr_link_line_with_bounding_area(rb, &rb->InitialBoundingAreas[row * 20 + col], rl);
+						lanpr_link_line_with_bounding_area(rb, &rb->InitialBoundingAreas[row * 4 + col], rl);
 					}
 				}
 			}
