@@ -86,12 +86,13 @@ class PreferencePanel(Panel):
     def draw(self, context):
         layout = self.layout
         width = context.region.width
+        pixel_size = context.preferences.system.pixel_size
 
         layout.use_property_split = True
         layout.use_property_decorate = False  # No animation.
 
         row = layout.row()
-        if width > 350: # No horizontal margin if region is rather small.
+        if width > (350 * pixel_size): # No horizontal margin if region is rather small.
             row.label() # Needed so col below is centered.
 
         col = row.column()
@@ -100,7 +101,7 @@ class PreferencePanel(Panel):
         # draw_props implemented by deriving classes.
         self.draw_props(context, col)
 
-        if width > 350: # No horizontal margin if region is rather small.
+        if width > (350 * pixel_size): # No horizontal margin if region is rather small.
             row.label() # Needed so col above is centered.
 
 
