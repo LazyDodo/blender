@@ -297,7 +297,7 @@ class USERPREF_PT_interface_templates(PreferencePanel):
         prefs = context.preferences
         view = prefs.view
 
-        layout.label(text="Options intended for use with app-templates only.")
+        layout.label(text="Options intended for use with app-templates only")
         layout.prop(view, "show_layout_ui")
 
 
