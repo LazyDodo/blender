@@ -139,6 +139,57 @@ class USERPREF_PT_interface_display_info(PreferencePanel):
         flow.prop(view, "show_playback_fps", text="Playback FPS")
 
 
+class USERPREF_PT_interface_text(PreferencePanel):
+    bl_label = "Text"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        prefs = context.preferences
+        return (prefs.active_section == 'INTERFACE')
+
+    def draw_props(self, context, layout):
+        prefs = context.preferences
+        view = prefs.view
+
+        layout.prop(view, "use_text_antialiasing", text="Anti-aliasing")
+        sub = layout.column()
+        sub.active = view.use_text_antialiasing
+        sub.prop(view, "text_hinting", text="Hinting")
+
+        layout.prop(view, "font_path_ui")
+        layout.prop(view, "font_path_ui_mono")
+
+
+class USERPREF_PT_interface_text_translate(PreferencePanel):
+    bl_label = "Translate UI"
+    bl_options = {'DEFAULT_CLOSED'}
+    bl_parent_id = "USERPREF_PT_interface_text"
+
+    @classmethod
+    def poll(cls, context):
+        prefs = context.preferences
+        if bpy.app.build_options.international:
+            return (prefs.active_section == 'INTERFACE')
+
+    def draw_header(self, context):
+        prefs = context.preferences
+        view = prefs.view
+
+        self.layout.prop(view, "use_international_fonts", text="")
+
+    def draw_props(self, context, layout):
+        prefs = context.preferences
+        view = prefs.view
+
+        layout.active = view.use_international_fonts
+        layout.prop(view, "language")
+
+        layout.prop(view, "use_translate_tooltips", text="Translate Tooltips")
+        layout.prop(view, "use_translate_interface", text="Translate Interface")
+        layout.prop(view, "use_translate_new_dataname", text="Translate New Data")
+
+
 class USERPREF_PT_interface_develop(PreferencePanel):
     bl_label = "Develop"
     bl_options = {'DEFAULT_CLOSED'}
@@ -301,57 +352,6 @@ class USERPREF_PT_interface_templates(PreferencePanel):
 
         layout.label(text="Options intended for use with app-templates only")
         layout.prop(view, "show_layout_ui")
-
-
-class USERPREF_PT_interface_text(PreferencePanel):
-    bl_label = "Text"
-    bl_options = {'DEFAULT_CLOSED'}
-
-    @classmethod
-    def poll(cls, context):
-        prefs = context.preferences
-        return (prefs.active_section == 'INTERFACE')
-
-    def draw_props(self, context, layout):
-        prefs = context.preferences
-        view = prefs.view
-
-        layout.prop(view, "use_text_antialiasing", text="Anti-aliasing")
-        sub = layout.column()
-        sub.active = view.use_text_antialiasing
-        sub.prop(view, "text_hinting", text="Hinting")
-
-        layout.prop(view, "font_path_ui")
-        layout.prop(view, "font_path_ui_mono")
-
-
-class USERPREF_PT_interface_text_translate(PreferencePanel):
-    bl_label = "Translate UI"
-    bl_options = {'DEFAULT_CLOSED'}
-    bl_parent_id = "USERPREF_PT_interface_text"
-
-    @classmethod
-    def poll(cls, context):
-        prefs = context.preferences
-        if bpy.app.build_options.international:
-            return (prefs.active_section == 'INTERFACE')
-
-    def draw_header(self, context):
-        prefs = context.preferences
-        view = prefs.view
-
-        self.layout.prop(view, "use_international_fonts", text="")
-
-    def draw_props(self, context, layout):
-        prefs = context.preferences
-        view = prefs.view
-
-        layout.active = view.use_international_fonts
-        layout.prop(view, "language")
-
-        layout.prop(view, "use_translate_tooltips", text="Translate Tooltips")
-        layout.prop(view, "use_translate_interface", text="Translate Interface")
-        layout.prop(view, "use_translate_new_dataname", text="Translate New Data")
 
 
 class USERPREF_PT_edit_objects(PreferencePanel):
@@ -599,7 +599,6 @@ class USERPREF_PT_system_opengl(PreferencePanel):
             layout.label(text="Might fail for Mesh editing selection!")
             layout.separator()
 
-        layout.prop(system, "anisotropic_filter")
         layout.prop(system, "use_region_overlap")
 
 
@@ -618,14 +617,13 @@ class USERPREF_PT_system_opengl_textures(PreferencePanel):
         system = prefs.system
 
         layout.prop(system, "gl_texture_limit", text="Limit Size")
-        layout.prop(system, "use_16bit_textures")
-        layout.prop(system, "use_gpu_mipmap")
+        layout.prop(system, "anisotropic_filter")
         layout.prop(system, "texture_time_out", text="Time Out")
         layout.prop(system, "texture_collection_rate", text="Garbage Collection Rate")
-
-        layout.separator()
-
         layout.prop(system, "image_draw_method", text="Image Display Method")
+
+        layout.prop(system, "use_16bit_textures")
+        layout.prop(system, "use_gpu_mipmap")
 
 
 class USERPREF_PT_system_opengl_selection(PreferencePanel):
@@ -1975,6 +1973,8 @@ classes += (
 
     USERPREF_PT_interface_display,
     USERPREF_PT_interface_display_info,
+    USERPREF_PT_interface_text,
+    USERPREF_PT_interface_text_translate,
     USERPREF_PT_interface_viewports,
     USERPREF_PT_interface_viewports_3d,
     USERPREF_PT_interface_viewports_3d_weight_paint,
@@ -1984,8 +1984,6 @@ classes += (
     USERPREF_PT_interface_menus_pie,
     USERPREF_PT_interface_develop,
     USERPREF_PT_interface_templates,
-    USERPREF_PT_interface_text,
-    USERPREF_PT_interface_text_translate,
 
     USERPREF_PT_edit_objects,
     USERPREF_PT_edit_animation,
