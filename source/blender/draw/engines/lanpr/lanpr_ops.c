@@ -58,7 +58,7 @@ int use_smooth_contour_modifier_contour = 0; // debug purpose
 /* ====================================== base structures =========================================== */
 
 #define TNS_BOUND_AREA_CROSSES(b1, b2) \
-	((b1)[0] <= (b2)[1] && (b1)[1] >= (b2)[0] && (b1)[3] <= (b2)[2] && (b1)[2] >= (b2)[3])
+	((b1)[0] < (b2)[1] && (b1)[1] > (b2)[0] && (b1)[3] < (b2)[2] && (b1)[2] > (b2)[3])
 
 void lanpr_make_initial_bounding_areas(LANPR_RenderBuffer *rb) {
 	int sp_w = 4;//20;
@@ -1750,6 +1750,9 @@ void lanpr_make_render_geometry_buffers_object(Object *o, real *MVMat, real *MVP
 			//m = tnsGetIndexedMaterial(rb->Scene, f->MaterialID);
 			//if(m) m->Previewv_count += (f->TriangleCount*3);
 
+			if (BM_elem_flag_test(f, BM_ELEM_SELECT))
+				rt->MaterialID = 1;
+
 			rt = (LANPR_RenderTriangle *)(((unsigned char *)rt) + rb->TriangleSize);
 		}
 
@@ -2524,11 +2527,22 @@ void lanpr_triangle_enable_intersections_in_bounding_area(LANPR_RenderBuffer *rb
 	*FBC1 = rt->V[1]->FrameBufferCoord,
 	*FBC2 = rt->V[2]->FrameBufferCoord;
 
+	if (ba->Child){
+		lanpr_triangle_enable_intersections_in_bounding_area(rb,rt,&ba->Child[0]);
+		lanpr_triangle_enable_intersections_in_bounding_area(rb,rt,&ba->Child[1]);
+		lanpr_triangle_enable_intersections_in_bounding_area(rb,rt,&ba->Child[2]);
+		lanpr_triangle_enable_intersections_in_bounding_area(rb,rt,&ba->Child[3]);
+		return;
+	}
+
 	for (lip = ba->LinkedTriangles.first; lip; lip = next_lip) {
 		next_lip = lip->pNext;
 		TestingTriangle = lip->p;
-		if (TestingTriangle == rt || TestingTriangle->Testing == rt || lanpr_triangle_share_edge(rt, TestingTriangle))
+		if (TestingTriangle == rt || TestingTriangle->Testing == rt || lanpr_triangle_share_edge(rt, TestingTriangle)){
+			
 			continue;
+		}
+
 		TestingTriangle->Testing = rt;
 		real
 		*RFBC0 = TestingTriangle->V[0]->FrameBufferCoord,
