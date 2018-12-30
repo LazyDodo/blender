@@ -38,14 +38,13 @@ class USERPREF_HT_header(Header):
 
 
 class USERPREF_PT_navigation(Panel):
-    bl_label = ""
+    bl_label = "Preferences Navigation"
     bl_space_type = 'PREFERENCES'
     bl_region_type = 'NAVIGATION_BAR'
     bl_options = {'HIDE_HEADER'}
 
     def draw(self, context):
         layout = self.layout
-        layout.operator_context = 'EXEC_AREA'
 
         prefs = context.preferences
 
@@ -57,7 +56,7 @@ class USERPREF_PT_navigation(Panel):
 
 
 class USERPREF_PT_save_preferences(Panel):
-    bl_label = ""
+    bl_label = "Save Preferences"
     bl_space_type = 'PREFERENCES'
     bl_region_type = 'EXECUTE'
     bl_options = {'HIDE_HEADER'}
