@@ -861,6 +861,7 @@ void GPENCIL_OT_select_less(wmOperatorType *ot)
  *       It would be great to de-duplicate the logic here sometime, but that can wait...
  */
 static bool gp_stroke_do_circle_sel(
+		bGPdata *gpd, bGPDlayer *gpl,
         bGPDstroke *gps, GP_SpaceConversion *gsc,
         const int mx, const int my, const int radius,
         const bool select, rcti *rect, float diff_mat[4][4], const int selectmode)
@@ -958,6 +959,14 @@ static bool gp_stroke_do_circle_sel(
 			}
 		}
 
+		/* expand selection to segment */
+		if ((hit) && (selectmode == GP_SELECTMODE_SEGMENT) && (select)) {
+			float r_hita[3], r_hitb[3];
+			bool hit_select = (bool)(pt1->flag & GP_SPOINT_SELECT);
+			ED_gpencil_select_stroke_segment(
+				gpd, gpl, gps, pt1, hit_select, r_hita, r_hitb);
+		}
+
 		/* Ensure that stroke selection is in sync with its points */
 		BKE_gpencil_stroke_sync_selection(gps);
 	}
@@ -1012,7 +1021,8 @@ static int gpencil_circle_select_exec(bContext *C, wmOperator *op)
 	GP_EDITABLE_STROKES_BEGIN(gpstroke_iter, C, gpl, gps)
 	{
 		changed |= gp_stroke_do_circle_sel(
-			gps, &gsc, mx, my, radius, select, &rect, gpstroke_iter.diff_mat, selectmode);
+			gpd, gpl, gps, &gsc, mx, my, radius, select, &rect,
+			gpstroke_iter.diff_mat, selectmode);
 	}
 	GP_EDITABLE_STROKES_END(gpstroke_iter);
 
@@ -1074,6 +1084,9 @@ static int gpencil_generic_select_exec(
 	const bool strokemode = (
 	        (ts->gpencil_selectmode == GP_SELECTMODE_STROKE) &&
 	        ((gpd->flag & GP_DATA_STROKE_PAINTMODE) == 0));
+	const bool segmentmode = (
+			(ts->gpencil_selectmode == GP_SELECTMODE_SEGMENT) &&
+			((gpd->flag & GP_DATA_STROKE_PAINTMODE) == 0));
 	const eSelectOp sel_op = RNA_enum_get(op->ptr, "mode");
 
 
@@ -1124,6 +1137,17 @@ static int gpencil_generic_select_exec(
 				if (sel_op_result != -1) {
 					SET_FLAG_FROM_TEST(pt->flag, sel_op_result, GP_SPOINT_SELECT);
 					changed = true;
+
+					/* expand selection to segment */
+					if ((sel_op_result != -1) &&
+						(segmentmode))
+					{
+						bool hit_select = (bool)(pt->flag & GP_SPOINT_SELECT);
+						float r_hita[3], r_hitb[3];
+						ED_gpencil_select_stroke_segment(
+							gpd, gpl, gps, pt, hit_select, r_hita, r_hitb);
+					}
+
 				}
 			}
 			else {
@@ -1350,6 +1374,7 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
 
 	GP_SpaceConversion gsc = {NULL};
 
+	bGPDlayer *hit_layer = NULL;
 	bGPDstroke *hit_stroke = NULL;
 	bGPDspoint *hit_point = NULL;
 	int hit_distance = radius_squared;
@@ -1394,6 +1419,7 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
 				if (pt_distance <= radius_squared) {
 					/* only use this point if it is a better match than the current hit - T44685 */
 					if (pt_distance < hit_distance) {
+						hit_layer = gpl;
 						hit_stroke = gps;
 						hit_point = pt;
 						hit_distance = pt_distance;
@@ -1454,6 +1480,14 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
 			/* we're adding selection, so selection must be true */
 			hit_point->flag  |= GP_SPOINT_SELECT;
 			hit_stroke->flag |= GP_STROKE_SELECT;
+
+			/* expand selection to segment */
+			if (ts->gpencil_selectmode == GP_SELECTMODE_SEGMENT) {
+				float r_hita[3], r_hitb[3];
+				bool hit_select = (bool)(hit_point->flag & GP_SPOINT_SELECT);
+				ED_gpencil_select_stroke_segment(
+						gpd, hit_layer, hit_stroke, hit_point, hit_select, r_hita, r_hitb);
+			}
 		}
 		else {
 			/* deselect point */

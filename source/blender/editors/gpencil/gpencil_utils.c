@@ -36,6 +36,7 @@
 
 #include "BLI_math.h"
 #include "BLI_blenlib.h"
+#include "BLI_ghash.h"
 #include "BLI_utildefines.h"
 #include "BLT_translation.h"
 #include "BLI_rand.h"
@@ -1947,4 +1948,209 @@ void ED_gpencil_update_color_uv(Main *bmain, Material *mat)
 		}
 	}
 }
-/* ******************************************************** */
+
+static bool gpencil_check_collision(
+	bGPDstroke *gps, bGPDstroke **gps_array, GHash *all_2d,
+	int totstrokes,	float p2d_a1[2], float p2d_a2[2], float r_hit[2])
+{
+	bool hit = false;
+	/* check segment with all segments of all strokes */
+	for (int s = 0; s < totstrokes; s++) {
+		bGPDstroke *gps_iter = gps_array[s];
+		if (gps_iter->totpoints < 3) {
+			continue;
+		}
+		/* get stroke 2d version */
+		float(*points2d)[2] = BLI_ghash_lookup(all_2d, gps_iter);
+
+		for (int i2 = 0; i2 < gps_iter->totpoints - 1; i2++) {
+			float p2d_b1[2], p2d_b2[2];
+			copy_v2_v2(p2d_b1, points2d[i2]);
+			copy_v2_v2(p2d_b2, points2d[i2 + 1]);
+
+			/* check collision */
+			int check = isect_seg_seg_v2_point(p2d_a1, p2d_a2, p2d_b1, p2d_b2, r_hit);
+			if (check > 0) {
+				hit = true;
+				break;
+			}
+		}
+
+		if (hit) {
+			break;
+		}
+	}
+
+	if (!hit) {
+		zero_v2(r_hit);
+	}
+
+	return hit;
+}
+
+/* extend selection to stroke intersections */
+int ED_gpencil_select_stroke_segment(
+	bGPdata *gpd, bGPDlayer *gpl, bGPDstroke *gps, bGPDspoint *pt, bool select,
+	float r_hita[3], float r_hitb[3])
+{
+	bGPDspoint *pta1 = NULL;
+	bGPDspoint *pta2 = NULL;
+
+	bGPDframe *gpf = gpl->actframe;
+	if (gpf == NULL) {
+		return 0;
+	}
+
+	int memsize = BLI_listbase_count(&gpf->strokes) - 1;
+	bGPDstroke **gps_array = MEM_callocN(sizeof(bGPDstroke *) * memsize, __func__);
+
+	/* Save strokes with possible collision. This reduces the time to check the
+	 * points of contact because some strokes could be outside of the possible
+	 * collision areas.
+	 */
+	int totstrokes = 0;
+	for (bGPDstroke *gps_iter = gpf->strokes.first; gps_iter; gps_iter = gps_iter->next) {
+		/* do not check selfcollision */
+		if ((gps == gps_iter) || (gps_iter->totpoints < 3)) {
+			continue;
+		}
+		gps_array[totstrokes] = gps_iter;
+		totstrokes++;
+	}
+
+	if (totstrokes == 0) {
+		return 0;
+	}
+
+	/* look for index of the current point */
+	int cur_idx = -1;
+	for (int i = 0; i < gps->totpoints; i++) {
+		pta1 = &gps->points[i];
+		if (pta1 == pt) {
+			cur_idx = i;
+			break;
+		}
+	}
+	if (cur_idx < 0) {
+		return 0;
+	}
+
+	/* convert all gps points to 2d and save in a hash to avoid recalculation  */
+	int direction = 0;
+	float(*points2d)[2] = MEM_mallocN(sizeof(*points2d) * gps->totpoints, "GP Stroke temp 2d points");
+	BKE_gpencil_stroke_2d_flat(gps->points, gps->totpoints, points2d, &direction);
+
+	GHash *all_2d = BLI_ghash_ptr_new(__func__);
+
+	for (int s = 0; s < totstrokes; s++) {
+		bGPDstroke *gps_iter = gps_array[s];
+		float(*points2d_iter)[2] = MEM_mallocN(sizeof(*points2d_iter) * gps_iter->totpoints, __func__);
+		BKE_gpencil_stroke_2d_flat_ref(
+			gps->points, gps->totpoints,
+			gps_iter->points, gps_iter->totpoints, points2d_iter, &direction);
+		BLI_ghash_insert(all_2d, gps_iter, points2d_iter);
+	}
+
+	bool hit_a = false;
+	bool hit_b = false;
+	float dist1 = 0.0f;
+	float dist2 = 0.0f;
+	float f = 0.0f;
+	float r_hit2d[2];
+
+	/* analyze points before current */
+	if (cur_idx > 0) {
+		for (int i = cur_idx; i >= 0; i--) {
+			pta1 = &gps->points[i];
+
+			float p2d_a1[2], p2d_a2[2];
+			copy_v2_v2(p2d_a1, points2d[i]);
+			if (i > 0) {
+				copy_v2_v2(p2d_a2, points2d[i - 1]);
+				pta2 = &gps->points[i - 1];
+			}
+			else {
+				copy_v2_v2(p2d_a2, p2d_a1);
+				pta2 = &gps->points[i];
+			}
+			hit_a = gpencil_check_collision(
+				gps, gps_array, all_2d, totstrokes, p2d_a1, p2d_a2, r_hit2d);
+
+			if (select) {
+				pta1->flag |= GP_SPOINT_SELECT;
+			}
+			else {
+				pta1->flag &= ~GP_SPOINT_SELECT;
+			}
+
+			if (hit_a) {
+				dist1 = len_squared_v2v2(p2d_a1, p2d_a2);
+				dist2 = len_squared_v2v2(p2d_a1, r_hit2d);
+				f = dist1 > 0 ? dist2 / dist1 : 0.0f;
+				interp_v3_v3v3(r_hita, &pta1->x, &pta2->x, f);
+				break;
+			}
+		}
+	}
+
+	/* analyze points after current */
+	for (int i = cur_idx; i < gps->totpoints; i++) {
+		pta1 = &gps->points[i];
+
+		float p2d_a1[2], p2d_a2[2];
+		copy_v2_v2(p2d_a1, points2d[i]);
+		if (i < gps->totpoints - 1) {
+			copy_v2_v2(p2d_a2, points2d[i + 1]);
+			pta2 = &gps->points[i + 1];
+		}
+		else {
+			copy_v2_v2(p2d_a2, p2d_a1);
+			pta2 = &gps->points[i];
+		}
+
+		hit_b = gpencil_check_collision(
+			gps, gps_array, all_2d, totstrokes, p2d_a1, p2d_a2, r_hit2d);
+
+		if (select) {
+			pta1->flag |= GP_SPOINT_SELECT;
+		}
+		else {
+			pta1->flag &= ~GP_SPOINT_SELECT;
+		}
+
+		if (hit_b) {
+			dist1 = len_squared_v2v2(p2d_a1, p2d_a2);
+			dist2 = len_squared_v2v2(p2d_a1, r_hit2d);
+			f = dist1 > 0 ? dist2 / dist1 : 0.0f;
+			interp_v3_v3v3(r_hitb, &pta1->x, &pta2->x, f);
+			break;
+		}
+	}
+
+	/* free memory */
+	if (all_2d) {
+		GHashIterator gh_iter;
+		GHASH_ITER(gh_iter, all_2d) {
+			float(*p2d)[2] = BLI_ghashIterator_getValue(&gh_iter);
+			MEM_SAFE_FREE(p2d);
+		}
+		BLI_ghash_free(all_2d, NULL, NULL);
+	}
+
+	MEM_SAFE_FREE(points2d);
+	MEM_SAFE_FREE(gps_array);
+
+	/* return type of hit */
+	if ((hit_a) && (hit_b)) {
+		return 3;
+	}
+	else if (hit_a) {
+		return 1;
+	}
+	else if (hit_b) {
+		return 2;
+	}
+	else {
+		return 0;
+	}
+}

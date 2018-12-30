@@ -2188,8 +2188,9 @@ typedef enum eGPencil_Placement_Flags {
 
 /* ToolSettings.gpencil_selectmode */
 typedef enum eGPencil_Selectmode_types {
-	GP_SELECTMODE_POINT  = 0,
-	GP_SELECTMODE_STROKE = 1
+	GP_SELECTMODE_POINT   = 0,
+	GP_SELECTMODE_STROKE  = 1,
+	GP_SELECTMODE_SEGMENT = 2
 } eGPencil_Selectmode_types;
 
 /* ToolSettings.particle flag */
