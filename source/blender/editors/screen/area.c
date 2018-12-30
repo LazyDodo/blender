@@ -187,52 +187,6 @@ void ED_area_do_refresh(bContext *C, ScrArea *sa)
 }
 
 /**
- * Action zones are only updated if the mouse is inside of them, but in some cases (currently only fullscreen icon)
- * it might be needed to update their properties and redraw if the mouse isn't inside.
- */
-void ED_area_azones_update(ScrArea *sa, const int mouse_xy[2])
-{
-	AZone *az;
-	bool changed = false;
-
-	for (az = sa->actionzones.first; az; az = az->next) {
-		if (az->type == AZONE_FULLSCREEN) {
-			/* only if mouse is not hovering the azone */
-			if (BLI_rcti_isect_pt_v(&az->rect, mouse_xy) == false) {
-				az->alpha = 0.0f;
-				changed = true;
-
-				/* can break since currently only this is handled here */
-				break;
-			}
-		}
-		else if (az->type == AZONE_REGION_SCROLL) {
-			/* only if mouse is not hovering the azone */
-			if (BLI_rcti_isect_pt_v(&az->rect, mouse_xy) == false) {
-				View2D *v2d = &az->ar->v2d;
-
-				if (az->direction == AZ_SCROLL_VERT) {
-					az->alpha = v2d->alpha_vert = 0;
-					changed = true;
-				}
-				else if (az->direction == AZ_SCROLL_HOR) {
-					az->alpha = v2d->alpha_hor = 0;
-					changed = true;
-				}
-				else {
-					BLI_assert(0);
-				}
-			}
-		}
-	}
-
-	if (changed) {
-		sa->flag &= ~AREA_FLAG_ACTIONZONES_UPDATE;
-		ED_area_tag_redraw_no_rebuild(sa);
-	}
-}
-
-/**
  * \brief Corner widget use for quitting fullscreen.
  */
 static void area_draw_azone_fullscreen(short x1, short y1, short x2, short y2, float alpha)
@@ -412,17 +366,10 @@ static void region_draw_azones(ScrArea *sa, ARegion *ar)
 			}
 			else if (az->type == AZONE_FULLSCREEN) {
 				area_draw_azone_fullscreen(az->x1, az->y1, az->x2, az->y2, az->alpha);
-
-				if (az->alpha != 0.0f) {
-					area_azone_tag_update(sa);
-				}
 			}
-			else if (az->type == AZONE_REGION_SCROLL) {
-				if (az->alpha != 0.0f) {
-					area_azone_tag_update(sa);
-				}
-				/* Don't draw this azone. */
-			}
+		}
+		if (!IS_EQF(az->alpha, 0.0f) && ELEM(az->type, AZONE_FULLSCREEN, AZONE_REGION_SCROLL)) {
+			area_azone_tag_update(sa);
 		}
 	}
 
@@ -1629,6 +1576,7 @@ void ED_area_update_region_sizes(wmWindowManager *wm, wmWindow *win, ScrArea *ar
 		/* Some AZones use View2D data which is only updated in region init, so call that first! */
 		region_azones_add(screen, area, ar, ar->alignment & ~RGN_SPLIT_PREV);
 	}
+	ED_area_azones_update(area, &win->eventstate->x);
 
 	area->flag &= ~AREA_FLAG_REGION_SIZE_UPDATE;
 }

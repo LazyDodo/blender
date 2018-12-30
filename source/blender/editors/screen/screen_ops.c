@@ -802,6 +802,32 @@ static AZone *area_actionzone_refresh_xy(ScrArea *sa, const int xy[2], const boo
 				}
 			}
 		}
+		else if (!test_only && !IS_EQF(az->alpha, 0.0f)) {
+			bool changed = false;
+
+			if (az->type == AZONE_FULLSCREEN) {
+				az->alpha = 0.0f;
+				changed = true;
+			}
+			else if (az->type == AZONE_REGION_SCROLL) {
+				if (az->direction == AZ_SCROLL_VERT) {
+					az->alpha = az->ar->v2d.alpha_vert = 0;
+					changed = true;
+				}
+				else if (az->direction == AZ_SCROLL_HOR) {
+					az->alpha = az->ar->v2d.alpha_hor = 0;
+					changed = true;
+				}
+				else {
+					BLI_assert(0);
+				}
+			}
+
+			if (changed) {
+				sa->flag &= ~AREA_FLAG_ACTIONZONES_UPDATE;
+				ED_area_tag_redraw_no_rebuild(sa);
+			}
+		}
 	}
 
 	return az;
@@ -812,7 +838,7 @@ AZone *ED_area_actionzone_find_xy(ScrArea *sa, const int xy[2])
 	return area_actionzone_refresh_xy(sa, xy, true);
 }
 
-AZone *ED_area_actionzone_refresh_xy(ScrArea *sa, const int xy[2])
+AZone *ED_area_azones_update(ScrArea *sa, const int xy[2])
 {
 	return area_actionzone_refresh_xy(sa, xy, false);
 }
