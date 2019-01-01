@@ -964,7 +964,7 @@ static bool gp_stroke_do_circle_sel(
 			float r_hita[3], r_hitb[3];
 			bool hit_select = (bool)(pt1->flag & GP_SPOINT_SELECT);
 			ED_gpencil_select_stroke_segment(
-				gpd, gpl, gps, pt1, hit_select, r_hita, r_hitb);
+				gpd, gpl, gps, pt1, hit_select, false, r_hita, r_hitb);
 		}
 
 		/* Ensure that stroke selection is in sync with its points */
@@ -1145,7 +1145,7 @@ static int gpencil_generic_select_exec(
 						bool hit_select = (bool)(pt->flag & GP_SPOINT_SELECT);
 						float r_hita[3], r_hitb[3];
 						ED_gpencil_select_stroke_segment(
-							gpd, gpl, gps, pt, hit_select, r_hita, r_hitb);
+							gpd, gpl, gps, pt, hit_select, false, r_hita, r_hitb);
 					}
 
 				}
@@ -1486,7 +1486,8 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
 				float r_hita[3], r_hitb[3];
 				bool hit_select = (bool)(hit_point->flag & GP_SPOINT_SELECT);
 				ED_gpencil_select_stroke_segment(
-						gpd, hit_layer, hit_stroke, hit_point, hit_select, r_hita, r_hitb);
+						gpd, hit_layer, hit_stroke, hit_point, hit_select,
+						false, r_hita, r_hitb);
 			}
 		}
 		else {

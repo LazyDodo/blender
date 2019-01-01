@@ -1561,7 +1561,7 @@ static void gp_stroke_eraser_dostroke(tGPsdata *p,
 				gp_stroke_soft_refine(gps, cull_thresh);
 			}
 
-			gp_stroke_delete_tagged_points(gpf, gps, gps->next, GP_SPOINT_TAG, false);
+			gp_stroke_delete_tagged_points(gpf, gps, gps->next, GP_SPOINT_TAG, false, 0);
 		}
 		gp_update_cache(p->gpd);
 	}

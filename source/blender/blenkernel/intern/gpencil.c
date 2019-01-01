@@ -1563,7 +1563,7 @@ int BKE_gpencil_get_material_index(Object *ob, Material *ma)
 /* Get points of stroke always flat to view not affected by camera view or view position */
 void BKE_gpencil_stroke_2d_flat(const bGPDspoint *points, int totpoints, float(*points2d)[2], int *r_direction)
 {
-	BLI_assert(totpoints >= 3);
+	BLI_assert(totpoints >= 2);
 
 	const bGPDspoint *pt0 = &points[0];
 	const bGPDspoint *pt1 = &points[1];
@@ -1578,7 +1578,15 @@ void BKE_gpencil_stroke_2d_flat(const bGPDspoint *points, int totpoints, float(*
 	sub_v3_v3v3(locx, &pt1->x, &pt0->x);
 
 	/* point vector at 3/4 */
-	sub_v3_v3v3(loc3, &pt3->x, &pt0->x);
+	float v3[3];
+	if (totpoints == 2) {
+		mul_v3_v3fl(v3, &pt3->x, 0.001f);
+	}
+	else {
+		copy_v3_v3(v3, &pt3->x);
+	}
+
+	sub_v3_v3v3(loc3, v3, &pt0->x);
 
 	/* vector orthogonal to polygon plane */
 	cross_v3_v3v3(normal, locx, loc3);
@@ -1614,7 +1622,7 @@ void BKE_gpencil_stroke_2d_flat_ref(
 	const bGPDspoint *points, int totpoints,
 	float(*points2d)[2], int *r_direction)
 {
-	BLI_assert(ref_totpoints >= 3);
+	BLI_assert(totpoints >= 2);
 
 	const bGPDspoint *pt0 = &ref_points[0];
 	const bGPDspoint *pt1 = &ref_points[1];
@@ -1629,7 +1637,15 @@ void BKE_gpencil_stroke_2d_flat_ref(
 	sub_v3_v3v3(locx, &pt1->x, &pt0->x);
 
 	/* point vector at 3/4 */
-	sub_v3_v3v3(loc3, &pt3->x, &pt0->x);
+	float v3[3];
+	if (totpoints == 2) {
+		mul_v3_v3fl(v3, &pt3->x, 0.001f);
+	}
+	else {
+		copy_v3_v3(v3, &pt3->x);
+	}
+
+	sub_v3_v3v3(loc3,v3, &pt0->x);
 
 	/* vector orthogonal to polygon plane */
 	cross_v3_v3v3(normal, locx, loc3);

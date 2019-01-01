@@ -263,7 +263,7 @@ struct GHash *gp_copybuf_validate_colormap(struct bContext *C);
 
 void gp_stroke_delete_tagged_points(
         bGPDframe *gpf, bGPDstroke *gps, bGPDstroke *next_stroke,
-        int tag_flags, bool select);
+        int tag_flags, bool select, int limit);
 int gp_delete_selected_point_wrap(bContext *C);
 
 void gp_subdivide_stroke(bGPDstroke *gps, const int subdivide);
@@ -407,6 +407,7 @@ void GPENCIL_OT_stroke_separate(struct wmOperatorType *ot);
 void GPENCIL_OT_stroke_split(struct wmOperatorType *ot);
 void GPENCIL_OT_stroke_smooth(struct wmOperatorType *ot);
 void GPENCIL_OT_stroke_merge(struct wmOperatorType *ot);
+void GPENCIL_OT_stroke_cutter(struct wmOperatorType *ot);
 
 void GPENCIL_OT_brush_presets_create(struct wmOperatorType *ot);
 

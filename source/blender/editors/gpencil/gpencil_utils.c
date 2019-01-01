@@ -1988,13 +1988,121 @@ static bool gpencil_check_collision(
 	return hit;
 }
 
+void static gp_copy_points(
+	bGPDstroke *gps, bGPDspoint *pt, bGPDspoint *pt_final, int i, int i2)
+{
+	copy_v3_v3(&pt_final->x, &pt->x);
+	pt_final->pressure = pt->pressure;
+	pt_final->strength = pt->strength;
+	pt_final->time = pt->time;
+	pt_final->flag = pt->flag;
+	pt_final->uv_fac = pt->uv_fac;
+	pt_final->uv_rot = pt->uv_rot;
+
+	if (gps->dvert != NULL) {
+		MDeformVert *dvert = &gps->dvert[i];
+		MDeformVert *dvert_final = &gps->dvert[i2];
+
+		dvert_final->totweight = dvert->totweight;
+		dvert_final->dw = dvert->dw;
+	}
+
+}
+
+void static gp_insert_point(
+	bGPDstroke *gps,
+	bGPDspoint *a_pt, bGPDspoint *b_pt,
+	float co_a[3], float co_b[3])
+{
+	bGPDspoint *temp_points;
+	int totnewpoints, oldtotpoints;
+
+	totnewpoints = gps->totpoints;
+	if (a_pt) {
+		totnewpoints++;
+	}
+	if (b_pt) {
+		totnewpoints++;
+	}
+
+	/* duplicate points in a temp area */
+	temp_points = MEM_dupallocN(gps->points);
+	oldtotpoints = gps->totpoints;
+
+	/* look index of base points because memory is changed when resize points array */
+	int a_idx = -1;
+	int b_idx = -1;
+	for (int i = 0; i < oldtotpoints; i++) {
+		bGPDspoint *pt = &gps->points[i];
+		if (pt == a_pt) {
+			a_idx = i;
+		}
+		if (pt == b_pt) {
+			b_idx = i;
+		}
+	}
+
+	/* resize the points arrays */
+	gps->totpoints = totnewpoints;
+	gps->points = MEM_recallocN(gps->points, sizeof(*gps->points) * gps->totpoints);
+	if (gps->dvert != NULL) {
+		gps->dvert = MEM_recallocN(gps->dvert, sizeof(*gps->dvert) * gps->totpoints);
+	}
+	gps->flag |= GP_STROKE_RECALC_GEOMETRY;
+
+	/* copy all points */
+	int i2 = 0;
+	for (int i = 0; i < oldtotpoints; i++) {
+		bGPDspoint *pt = &temp_points[i];
+		bGPDspoint *pt_final = &gps->points[i2];
+		gp_copy_points(gps, pt, pt_final, i, i2);
+
+		/* create new point duplicating point and copy location */
+		if ((i == a_idx) || (i == b_idx)) {
+			i2++;
+			pt_final = &gps->points[i2];
+			gp_copy_points(gps, pt, pt_final, i, i2);
+			copy_v3_v3(&pt_final->x, (i == a_idx) ? co_a : co_b);
+
+			/* unselect */
+			pt_final->flag &= ~GP_SPOINT_SELECT;
+		}
+
+		i2++;
+	}
+
+	MEM_SAFE_FREE(temp_points);
+}
+
+static float gp_calc_factor(float p2d_a1[2], float p2d_a2[2], float r_hit2d[2])
+{
+	float dist1 = len_squared_v2v2(p2d_a1, p2d_a2);
+	float dist2 = len_squared_v2v2(p2d_a1, r_hit2d);
+	float f = dist1 > 0.0f ? dist2 / dist1 : 0.0f;
+
+	/* apply a correction factor */
+	float v1[2];
+	interp_v2_v2v2(v1, p2d_a1, p2d_a2, f);
+	float dist3 = len_squared_v2v2(p2d_a1, v1);
+	float f1 = dist1 > 0.0f ? dist3 / dist1 : 0.0f;
+	f = f + (f - f1);
+
+	interp_v2_v2v2(v1, p2d_a1, p2d_a2, f);
+
+	return f;
+}
+
 /* extend selection to stroke intersections */
 int ED_gpencil_select_stroke_segment(
-	bGPdata *gpd, bGPDlayer *gpl, bGPDstroke *gps, bGPDspoint *pt, bool select,
+	bGPdata *gpd, bGPDlayer *gpl, bGPDstroke *gps, bGPDspoint *pt,
+	bool select, bool insert,
 	float r_hita[3], float r_hitb[3])
 {
+	const float min_factor = 0.0015f;
 	bGPDspoint *pta1 = NULL;
 	bGPDspoint *pta2 = NULL;
+	float f = 0.0f;
+	int i2 = 0;
 
 	bGPDframe *gpf = gpl->actframe;
 	if (gpf == NULL) {
@@ -2004,14 +2112,11 @@ int ED_gpencil_select_stroke_segment(
 	int memsize = BLI_listbase_count(&gpf->strokes) - 1;
 	bGPDstroke **gps_array = MEM_callocN(sizeof(bGPDstroke *) * memsize, __func__);
 
-	/* Save strokes with possible collision. This reduces the time to check the
-	 * points of contact because some strokes could be outside of the possible
-	 * collision areas.
-	 */
+	/* Save list of strokes to check */
 	int totstrokes = 0;
 	for (bGPDstroke *gps_iter = gpf->strokes.first; gps_iter; gps_iter = gps_iter->next) {
 		/* do not check selfcollision */
-		if ((gps == gps_iter) || (gps_iter->totpoints < 3)) {
+		if ((gps == gps_iter) || (gps_iter->totpoints < 2)) {
 			continue;
 		}
 		gps_array[totstrokes] = gps_iter;
@@ -2053,26 +2158,23 @@ int ED_gpencil_select_stroke_segment(
 
 	bool hit_a = false;
 	bool hit_b = false;
-	float dist1 = 0.0f;
-	float dist2 = 0.0f;
-	float f = 0.0f;
+	float p2d_a1[2] = {0.0f, 0.0f};
+	float p2d_a2[2] = {0.0f, 0.0f};
 	float r_hit2d[2];
+	bGPDspoint *hit_pointa = NULL;
+	bGPDspoint *hit_pointb = NULL;
 
 	/* analyze points before current */
 	if (cur_idx > 0) {
 		for (int i = cur_idx; i >= 0; i--) {
 			pta1 = &gps->points[i];
-
-			float p2d_a1[2], p2d_a2[2];
 			copy_v2_v2(p2d_a1, points2d[i]);
-			if (i > 0) {
-				copy_v2_v2(p2d_a2, points2d[i - 1]);
-				pta2 = &gps->points[i - 1];
-			}
-			else {
-				copy_v2_v2(p2d_a2, p2d_a1);
-				pta2 = &gps->points[i];
-			}
+
+			i2 = i - 1;
+			CLAMP_MIN(i2, 0);
+			pta2 = &gps->points[i2];
+			copy_v2_v2(p2d_a2, points2d[i2]);
+
 			hit_a = gpencil_check_collision(
 				gps, gps_array, all_2d, totstrokes, p2d_a1, p2d_a2, r_hit2d);
 
@@ -2084,10 +2186,14 @@ int ED_gpencil_select_stroke_segment(
 			}
 
 			if (hit_a) {
-				dist1 = len_squared_v2v2(p2d_a1, p2d_a2);
-				dist2 = len_squared_v2v2(p2d_a1, r_hit2d);
-				f = dist1 > 0 ? dist2 / dist1 : 0.0f;
+				f = gp_calc_factor(p2d_a1, p2d_a2, r_hit2d);
 				interp_v3_v3v3(r_hita, &pta1->x, &pta2->x, f);
+				if (f > min_factor) {
+					hit_pointa = pta2; /* first point is second (inverted loop) */
+				}
+				else {
+					pta1->flag &= ~GP_SPOINT_SELECT;
+				}
 				break;
 			}
 		}
@@ -2096,17 +2202,12 @@ int ED_gpencil_select_stroke_segment(
 	/* analyze points after current */
 	for (int i = cur_idx; i < gps->totpoints; i++) {
 		pta1 = &gps->points[i];
-
-		float p2d_a1[2], p2d_a2[2];
 		copy_v2_v2(p2d_a1, points2d[i]);
-		if (i < gps->totpoints - 1) {
-			copy_v2_v2(p2d_a2, points2d[i + 1]);
-			pta2 = &gps->points[i + 1];
-		}
-		else {
-			copy_v2_v2(p2d_a2, p2d_a1);
-			pta2 = &gps->points[i];
-		}
+
+		i2 = i + 1;
+		CLAMP_MAX(i2, gps->totpoints - 1);
+		pta2 = &gps->points[i2];
+		copy_v2_v2(p2d_a2, points2d[i2]);
 
 		hit_b = gpencil_check_collision(
 			gps, gps_array, all_2d, totstrokes, p2d_a1, p2d_a2, r_hit2d);
@@ -2119,12 +2220,21 @@ int ED_gpencil_select_stroke_segment(
 		}
 
 		if (hit_b) {
-			dist1 = len_squared_v2v2(p2d_a1, p2d_a2);
-			dist2 = len_squared_v2v2(p2d_a1, r_hit2d);
-			f = dist1 > 0 ? dist2 / dist1 : 0.0f;
+			f = gp_calc_factor(p2d_a1, p2d_a2, r_hit2d);
 			interp_v3_v3v3(r_hitb, &pta1->x, &pta2->x, f);
+			if (f > min_factor) {
+				hit_pointb = pta1;
+			}
+			else {
+				pta1->flag &= ~GP_SPOINT_SELECT;
+			}
 			break;
 		}
+	}
+
+	/* insert new point in the collision points */
+	if (insert) {
+		gp_insert_point(gps, hit_pointa, hit_pointb, r_hita, r_hitb);
 	}
 
 	/* free memory */

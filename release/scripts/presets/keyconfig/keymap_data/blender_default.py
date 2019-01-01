@@ -5717,6 +5717,15 @@ def km_3d_view_tool_paint_gpencil_curve(params):
         ]},
     )
 
+def km_3d_view_tool_paint_gpencil_cutter(params):
+    return (
+        "3D View Tool: Paint Gpencil, Cutter",
+        {"space_type": 'VIEW_3D', "region_type": 'WINDOW'},
+        {"items": [
+            ("gpencil.stroke_cutter", {"type": params.tool_mouse, "value": 'PRESS'}, None),
+        ]},
+    )
+
 def km_3d_view_tool_edit_gpencil_select(params):
     return (
         "3D View Tool: Edit Gpencil, Select",
@@ -6027,6 +6036,7 @@ def generate_keymaps(params=None):
         km_3d_view_tool_paint_gpencil_circle(params),
         km_3d_view_tool_paint_gpencil_arc(params),
         km_3d_view_tool_paint_gpencil_curve(params),
+        km_3d_view_tool_paint_gpencil_cutter(params),
         km_3d_view_tool_edit_gpencil_select(params),
         km_3d_view_tool_edit_gpencil_select_box(params),
         km_3d_view_tool_edit_gpencil_select_circle(params),

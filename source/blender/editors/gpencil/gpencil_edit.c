@@ -1829,9 +1829,10 @@ typedef struct tGPDeleteIsland {
  *    - Once we start having larger islands than that, the number required
  *      becomes much less
  * 2) Each island gets converted to a new stroke
+ * If the number of points is <= limit, the stroke is deleted
  */
 void gp_stroke_delete_tagged_points(bGPDframe *gpf, bGPDstroke *gps, bGPDstroke *next_stroke,
-	int tag_flags, bool select)
+	int tag_flags, bool select, int limit)
 {
 	tGPDeleteIsland *islands = MEM_callocN(sizeof(tGPDeleteIsland) * (gps->totpoints + 1) / 2, "gp_point_islands");
 	bool in_island  = false;
@@ -1929,12 +1930,17 @@ void gp_stroke_delete_tagged_points(bGPDframe *gpf, bGPDstroke *gps, bGPDstroke 
 				}
 			}
 
-			/* Add new stroke to the frame */
-			if (next_stroke) {
-				BLI_insertlinkbefore(&gpf->strokes, next_stroke, new_stroke);
+			/* Add new stroke to the frame or delete if below limit */
+			if ((limit > 0) && (new_stroke->totpoints <= limit)) {
+				BKE_gpencil_free_stroke(new_stroke);
 			}
 			else {
-				BLI_addtail(&gpf->strokes, new_stroke);
+				if (next_stroke) {
+					BLI_insertlinkbefore(&gpf->strokes, next_stroke, new_stroke);
+				}
+				else {
+					BLI_addtail(&gpf->strokes, new_stroke);
+				}
 			}
 		}
 	}
@@ -1995,7 +2001,7 @@ static int gp_delete_selected_points(bContext *C)
 						gps->flag &= ~GP_STROKE_SELECT;
 
 						/* delete unwanted points by splitting stroke into several smaller ones */
-						gp_stroke_delete_tagged_points(gpf, gps, gpsn, GP_SPOINT_SELECT, false);
+						gp_stroke_delete_tagged_points(gpf, gps, gpsn, GP_SPOINT_SELECT, false, 0);
 
 						changed = true;
 					}
@@ -3471,10 +3477,10 @@ static int gp_stroke_separate_exec(bContext *C, wmOperator *op)
 								}
 
 								/* delete selected points from destination stroke */
-								gp_stroke_delete_tagged_points(gpf_dst, gps_dst, NULL, GP_SPOINT_SELECT, false);
+								gp_stroke_delete_tagged_points(gpf_dst, gps_dst, NULL, GP_SPOINT_SELECT, false, 0);
 
 								/* delete selected points from origin stroke */
-								gp_stroke_delete_tagged_points(gpf, gps, gpsn, GP_SPOINT_SELECT, false);
+								gp_stroke_delete_tagged_points(gpf, gps, gpsn, GP_SPOINT_SELECT, false, 0);
 							}
 							/* selected strokes mode */
 							else if (mode == GP_SEPARATE_STROKE) {
@@ -3608,10 +3614,10 @@ static int gp_stroke_split_exec(bContext *C, wmOperator *UNUSED(op))
 						}
 
 						/* delete selected points from destination stroke */
-						gp_stroke_delete_tagged_points(gpf, gps_dst, NULL, GP_SPOINT_SELECT, true);
+						gp_stroke_delete_tagged_points(gpf, gps_dst, NULL, GP_SPOINT_SELECT, true, 0);
 
 						/* delete selected points from origin stroke */
-						gp_stroke_delete_tagged_points(gpf, gps, gpsn, GP_SPOINT_SELECT, false);
+						gp_stroke_delete_tagged_points(gpf, gps, gpsn, GP_SPOINT_SELECT, false, 0);
 					}
 				}
 				/* select again tagged points */
@@ -3700,4 +3706,176 @@ void GPENCIL_OT_stroke_smooth(wmOperatorType *ot)
 	RNA_def_boolean(ot->srna, "smooth_thickness", true, "Thickness", "");
 	RNA_def_boolean(ot->srna, "smooth_strength", false, "Strength", "");
 	RNA_def_boolean(ot->srna, "smooth_uv", false, "UV", "");
+}
+
+/* smart stroke knife */
+static bool gpencil_cutter_poll(bContext *C)
+{
+	bGPdata *gpd = ED_gpencil_data_get_active(C);
+
+	if (GPENCIL_PAINT_MODE(gpd)) {
+		if (gpd->layers.first)
+			return true;
+	}
+
+	return false;
+}
+
+static int gpencil_cutter_exec(bContext *C, wmOperator *op)
+{
+	ScrArea *sa = CTX_wm_area(C);
+	bGPdata *gpd = ED_gpencil_data_get_active(C);
+
+	/* "radius" is simply a threshold (screen space) to make it easier to test with a tolerance */
+	const float radius = 0.50f * U.widget_unit;
+	const int radius_squared = (int)(radius * radius);
+
+	int mval[2] = { 0 };
+
+	GP_SpaceConversion gsc = { NULL };
+
+	bGPDlayer *hit_layer = NULL;
+	bGPDstroke *hit_stroke = NULL;
+	bGPDspoint *hit_point = NULL;
+	bGPDspoint *pt = NULL;
+	bGPDspoint *pt1 = NULL;
+	int i = 0;
+	int hit_distance = radius_squared;
+
+	/* sanity checks */
+	if (sa == NULL) {
+		BKE_report(op->reports, RPT_ERROR, "No active area");
+		return OPERATOR_CANCELLED;
+	}
+
+	/* init space conversion stuff */
+	gp_point_conversion_init(C, &gsc);
+
+	/* get mouse location */
+	RNA_int_get_array(op->ptr, "location", mval);
+
+	/* Find stroke point which gets hit */
+	GP_EDITABLE_STROKES_BEGIN(gpstroke_iter, C, gpl, gps)
+	{
+		/* deselect stroke */
+		gps->flag &= ~GP_STROKE_SELECT;
+
+		/* firstly, check for hit-point */
+		for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+			int xy[2];
+			/* deselect point */
+			pt->flag &= ~GP_SPOINT_SELECT;
+
+			bGPDspoint pt2;
+			gp_point_to_parent_space(pt, gpstroke_iter.diff_mat, &pt2);
+			gp_point_to_xy(&gsc, gps, &pt2, &xy[0], &xy[1]);
+
+			/* do boundbox check first */
+			if (!ELEM(V2D_IS_CLIPPED, xy[0], xy[1])) {
+				const int pt_distance = len_manhattan_v2v2_int(mval, xy);
+
+				/* check if point is inside */
+				if (pt_distance <= radius_squared) {
+					/* only use this point if it is a better match than the current hit - T44685 */
+					if (pt_distance < hit_distance) {
+						hit_layer = gpl;
+						hit_stroke = gps;
+						hit_point = pt;
+						hit_distance = pt_distance;
+					}
+				}
+			}
+		}
+	}
+	GP_EDITABLE_STROKES_END(gpstroke_iter);
+
+	/* if no stroke point selected or null data, exit */
+	if (ELEM(NULL, hit_layer, hit_layer->actframe, hit_stroke, hit_point)) {
+		return OPERATOR_CANCELLED;
+	}
+
+	bGPDstroke *gpsn = hit_stroke->next;
+
+	/* if only one point delete */
+	if (hit_stroke->totpoints == 1) {
+		BLI_remlink(&hit_layer->actframe->strokes, hit_stroke);
+		BKE_gpencil_free_stroke(hit_stroke);
+		hit_stroke = NULL;
+	}
+
+	/* if very small distance delete */
+ 	if (hit_stroke->totpoints == 2) {
+		pt = &hit_stroke->points[0];
+		pt1 = &hit_stroke->points[1];
+		if (len_v3v3(&pt->x, &pt1->x) < 0.001f) {
+			BLI_remlink(&hit_layer->actframe->strokes, hit_stroke);
+			BKE_gpencil_free_stroke(hit_stroke);
+			hit_stroke = NULL;
+		}
+	}
+
+	if (hit_stroke) {
+		/* select segment */
+		hit_point->flag &= ~GP_SPOINT_SELECT;
+		hit_stroke->flag &= ~GP_STROKE_SELECT;
+		float r_hita[3], r_hitb[3];
+		int hit = ED_gpencil_select_stroke_segment(
+			gpd, hit_layer, hit_stroke, hit_point,
+			true, true, r_hita, r_hitb);
+		/* tag and dissolve */
+		if (hit > 0) {
+			/* deselect points and tag  */
+			for (i = 0, pt = hit_stroke->points; i < hit_stroke->totpoints; i++, pt++) {
+				if (pt->flag & GP_SPOINT_SELECT) {
+					pt->flag &= ~GP_SPOINT_SELECT;
+					pt->flag |= GP_SPOINT_TAG;
+				}
+			}
+			gp_stroke_delete_tagged_points(
+				hit_layer->actframe, hit_stroke, gpsn, GP_SPOINT_TAG, false, 1);
+		}
+	}
+
+	/* updates */
+	if (hit_point != NULL) {
+		DEG_id_tag_update(&gpd->id, ID_RECALC_GEOMETRY);
+
+		/* copy on write tag is needed, or else no refresh happens */
+		DEG_id_tag_update(&gpd->id, ID_RECALC_COPY_ON_WRITE);
+
+		WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
+		WM_event_add_notifier(C, NC_GEOM | ND_SELECT, NULL);
+	}
+
+	return OPERATOR_FINISHED;
+}
+
+static int gpencil_cutter_invoke(bContext *C, wmOperator *op, const wmEvent *event)
+{
+	RNA_int_set_array(op->ptr, "location", event->mval);
+	return gpencil_cutter_exec(C, op);
+}
+
+void GPENCIL_OT_stroke_cutter(wmOperatorType *ot)
+{
+	PropertyRNA *prop;
+
+	/* identifiers */
+	ot->name = "Stroke Cutter";
+	ot->description = "Select section and cut";
+	ot->idname = "GPENCIL_OT_stroke_cutter";
+
+	/* callbacks */
+	ot->invoke = gpencil_cutter_invoke;
+	ot->exec = gpencil_cutter_exec;
+	ot->poll = gpencil_cutter_poll;
+
+	/* flag */
+	ot->flag = OPTYPE_UNDO | OPTYPE_USE_EVAL_DATA;
+
+	/* properties */
+	WM_operator_properties_mouse_select(ot);
+
+	prop = RNA_def_int_vector(ot->srna, "location", 2, NULL, INT_MIN, INT_MAX, "Location", "Mouse location", INT_MIN, INT_MAX);
+	RNA_def_property_flag(prop, PROP_HIDDEN);
 }
