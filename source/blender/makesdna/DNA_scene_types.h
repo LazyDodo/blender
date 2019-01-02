@@ -991,8 +991,8 @@ typedef struct GP_Sculpt_Data {
 	float strength;         /* strength of effect */
 	float curcolor_add[3];  /* cursor color for add */
 	float curcolor_sub[3];  /* cursor color for sub */
-	float target_weight;    /* target weight */
-	char pad_[4];
+	float weight;           /* target weight */
+	char _pad[4];
 } GP_Sculpt_Data;
 
 /* GP_Sculpt_Data.flag */
@@ -1337,7 +1337,7 @@ typedef struct ToolSettings {
 	char edge_mode;
 	char edge_mode_live_unwrap;
 
-	/* SCE_MPR_LOC/SCAL */
+	/* SCE_GIZMO_SHOW_* */
 	char gizmo_flag;
 
 	/* Transform */

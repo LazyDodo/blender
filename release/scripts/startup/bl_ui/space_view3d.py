@@ -1751,15 +1751,15 @@ class VIEW3D_MT_object_specials(Menu):
         '''
 
         # If something is selected
-        if obj is None:
-            pass
-        elif obj.type == 'MESH':
-
+        if obj is not None and obj.type in {'MESH', 'CURVE', 'SURFACE'}:
             layout.operator("object.shade_smooth", text="Shade Smooth")
             layout.operator("object.shade_flat", text="Shade Flat")
 
             layout.separator()
 
+        if obj is None:
+            pass
+        elif obj.type == 'MESH':
             layout.operator_context = 'INVOKE_REGION_WIN'
             layout.operator_menu_enum("object.origin_set", text="Set Origin...", property="type")
 
@@ -4426,7 +4426,7 @@ class VIEW3D_PT_shading_lighting(Panel):
 
                 if not system.edit_studio_light:
                     sub.scale_y = 0.6  # smaller studiolight preview
-                    sub.template_icon_view(shading, "studio_light", scale=3)
+                    sub.template_icon_view(shading, "studio_light", scale_popup=3.0)
                 else:
                     sub.prop(system, "edit_studio_light", text="Disable Studio Light Edit", icon='NONE', toggle=True)
 
@@ -4446,7 +4446,7 @@ class VIEW3D_PT_shading_lighting(Panel):
             elif shading.light == 'MATCAP':
                 sub.scale_y = 0.6  # smaller matcap preview
 
-                sub.template_icon_view(shading, "studio_light", scale=3)
+                sub.template_icon_view(shading, "studio_light", scale_popup=3.0)
 
                 col = split.column()
                 col.operator("wm.studiolight_userpref_show", emboss=False, text="", icon='PREFERENCES')
@@ -4463,7 +4463,7 @@ class VIEW3D_PT_shading_lighting(Panel):
                 col = split.column()
                 sub = col.row()
                 sub.scale_y = 0.6
-                sub.template_icon_view(shading, "studio_light", scale=3)
+                sub.template_icon_view(shading, "studio_light", scale_popup=3)
 
                 col = split.column()
                 col.operator("wm.studiolight_userpref_show", emboss=False, text="", icon='PREFERENCES')
