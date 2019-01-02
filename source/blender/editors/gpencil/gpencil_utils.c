@@ -2080,6 +2080,15 @@ static float gp_calc_factor(float p2d_a1[2], float p2d_a2[2], float r_hit2d[2])
 	float dist2 = len_squared_v2v2(p2d_a1, r_hit2d);
 	float f = dist1 > 0.0f ? dist2 / dist1 : 0.0f;
 
+	/* apply a correction factor */
+	float v1[2];
+	interp_v2_v2v2(v1, p2d_a1, p2d_a2, f);
+	float dist3 = len_squared_v2v2(p2d_a1, v1);
+	float f1 = dist1 > 0.0f ? dist3 / dist1 : 0.0f;
+	f = f + (f - f1);
+
+	interp_v2_v2v2(v1, p2d_a1, p2d_a2, f);
+
 	return f;
 }
 
