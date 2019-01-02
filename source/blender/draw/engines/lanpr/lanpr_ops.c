@@ -52,6 +52,7 @@ struct Object;
 
 
 int lanpr_triangle_line_imagespace_intersection_v2(SpinLock *spl, LANPR_RenderTriangle *rt, LANPR_RenderLine *rl, Object *cam, tnsMatrix44d vp, real *CameraDir, double *From, double *To);
+void lanpr_compute_view_vector(LANPR_RenderBuffer *rb);
 
 int use_smooth_contour_modifier_contour = 0; // debug purpose
 
@@ -1124,10 +1125,23 @@ void lanpr_cull_triangles(LANPR_RenderBuffer *rb) {
 	LANPR_RenderElementLinkNode *reln, *veln, *teln;
 	LANPR_RenderLineSegment *rls;
 	real *mv_inverse = rb->VPInverse;
+	real *vp = rb->ViewProjection;
 	int i;
 	real a;
 	int v_count = 0, t_count = 0;
 	Object *o;
+
+	real cam_pos[3];
+	Object* cam = ((Camera *)rb->Scene->camera);
+	cam_pos[0] = cam->obmat[3][0];
+	cam_pos[1] = cam->obmat[3][1];
+	cam_pos[2] = cam->obmat[3][2];
+
+	real view_dir[3], clip_advance[3];
+	tMatVectorCopy3d(rb->ViewVector,view_dir);
+	tMatVectorCopy3d(rb->ViewVector,clip_advance);
+	tMatVectorMultiSelf3d(clip_advance, -((Camera*)cam->data)->clipsta);
+	tMatVectorAccum3d(cam_pos, clip_advance);
 
 	veln = lanpr_new_cull_point_space64(rb);
 	teln = lanpr_new_cull_triangle_space64(rb);
@@ -1171,6 +1185,7 @@ void lanpr_cull_triangles(LANPR_RenderBuffer *rb) {
 			rt1 = (void *)(((BYTE *)teln->Pointer) + rb->TriangleSize * t_count);
 			rt2 = (void *)(((BYTE *)teln->Pointer) + rb->TriangleSize * (t_count + 1));
 
+			real vv1[3], vv2[3], dot1, dot2;
 
 			switch (In1 + In2 + In3) {
 				case 0:
@@ -1184,19 +1199,25 @@ void lanpr_cull_triangles(LANPR_RenderBuffer *rb) {
 				case 2:
 					rt->CullStatus = TNS_CULL_USED;
 					if (!In1) {
-						a = rt->V[0]->FrameBufferCoord[2] / (rt->V[0]->FrameBufferCoord[2] - rt->V[2]->FrameBufferCoord[2]);
-						rv[0].FrameBufferCoord[0] = (1 - a) * rt->V[0]->FrameBufferCoord[0] + a * rt->V[2]->FrameBufferCoord[0];
-						rv[0].FrameBufferCoord[1] = (1 - a) * rt->V[0]->FrameBufferCoord[1] + a * rt->V[2]->FrameBufferCoord[1];
-						rv[0].FrameBufferCoord[2] = 0;
-						rv[0].FrameBufferCoord[3] = (1 - a) * rt->V[0]->FrameBufferCoord[3] + a * rt->V[2]->FrameBufferCoord[3];
-						tmat_apply_transform_44dTrue(rv[0].GLocation, mv_inverse, rv[0].FrameBufferCoord);
+						tMatVectorMinus3d(vv1,rt->V[0]->GLocation,cam_pos);
+						tMatVectorMinus3d(vv2,cam_pos,rt->V[2]->GLocation);
+						dot1 = tmat_dot_3d(vv1,view_dir,0);
+						dot2 = tmat_dot_3d(vv2,view_dir,0);
+						a = dot1/(dot1+dot2);
+						rv[0].GLocation[0] = (1-a) * rt->V[0]->GLocation[0] + a * rt->V[2]->GLocation[0];
+						rv[0].GLocation[1] = (1-a) * rt->V[0]->GLocation[1] + a * rt->V[2]->GLocation[1];
+						rv[0].GLocation[2] = (1-a) * rt->V[0]->GLocation[2] + a * rt->V[2]->GLocation[2];
+						tmat_apply_transform_44d(rv[0].FrameBufferCoord,vp,rv[0].GLocation);
 
-						a = rt->V[0]->FrameBufferCoord[2] / (rt->V[0]->FrameBufferCoord[2] - rt->V[1]->FrameBufferCoord[2]);
-						rv[1].FrameBufferCoord[0] = (1 - a) * rt->V[0]->FrameBufferCoord[0] + a * rt->V[1]->FrameBufferCoord[0];
-						rv[1].FrameBufferCoord[1] = (1 - a) * rt->V[0]->FrameBufferCoord[1] + a * rt->V[1]->FrameBufferCoord[1];
-						rv[1].FrameBufferCoord[2] = 0;
-						rv[1].FrameBufferCoord[3] = (1 - a) * rt->V[0]->FrameBufferCoord[3] + a * rt->V[1]->FrameBufferCoord[3];
-						tmat_apply_transform_44dTrue(rv[1].GLocation, mv_inverse, rv[1].FrameBufferCoord);
+						tMatVectorMinus3d(vv1,rt->V[0]->GLocation,cam_pos);
+						tMatVectorMinus3d(vv2,cam_pos,rt->V[1]->GLocation);
+						dot1 = tmat_dot_3d(vv1,view_dir,0);
+						dot2 = tmat_dot_3d(vv2,view_dir,0);
+						a = dot1/(dot1+dot2);
+						rv[1].GLocation[0] = (1-a) * rt->V[0]->GLocation[0] + a * rt->V[1]->GLocation[0];
+						rv[1].GLocation[1] = (1-a) * rt->V[0]->GLocation[1] + a * rt->V[1]->GLocation[1];
+						rv[1].GLocation[2] = (1-a) * rt->V[0]->GLocation[2] + a * rt->V[1]->GLocation[2];
+						tmat_apply_transform_44d(rv[1].FrameBufferCoord,vp,rv[1].GLocation);
 
 						BLI_remlink(&rb->AllRenderLines, (void *)rt->RL[0]); rt->RL[0]->Item.pNext = rt->RL[0]->Item.pPrev = 0;
 						BLI_remlink(&rb->AllRenderLines, (void *)rt->RL[1]); rt->RL[1]->Item.pNext = rt->RL[1]->Item.pPrev = 0;
@@ -1240,21 +1261,26 @@ void lanpr_cull_triangles(LANPR_RenderBuffer *rb) {
 						v_count += 2;
 						t_count += 1;
 						continue;
-					} elif(!In3)
-					{
-						a = rt->V[2]->FrameBufferCoord[2] / (rt->V[2]->FrameBufferCoord[2] - rt->V[0]->FrameBufferCoord[2]);
-						rv[0].FrameBufferCoord[0] = (1 - a) * rt->V[2]->FrameBufferCoord[0] + a * rt->V[0]->FrameBufferCoord[0];
-						rv[0].FrameBufferCoord[1] = (1 - a) * rt->V[2]->FrameBufferCoord[1] + a * rt->V[0]->FrameBufferCoord[1];
-						rv[0].FrameBufferCoord[2] = 0;
-						rv[0].FrameBufferCoord[3] = (1 - a) * rt->V[2]->FrameBufferCoord[3] + a * rt->V[0]->FrameBufferCoord[3];
-						tmat_apply_transform_44dTrue(rv[0].GLocation, mv_inverse, rv[0].FrameBufferCoord);
+					} elif(!In3) {
+						tMatVectorMinus3d(vv1,rt->V[2]->GLocation,cam_pos);
+						tMatVectorMinus3d(vv2,cam_pos,rt->V[0]->GLocation);
+						dot1 = tmat_dot_3d(vv1,view_dir,0);
+						dot2 = tmat_dot_3d(vv2,view_dir,0);
+						a = dot1/(dot1+dot2);
+						rv[0].GLocation[0] = (1-a) * rt->V[2]->GLocation[0] + a * rt->V[0]->GLocation[0];
+						rv[0].GLocation[1] = (1-a) * rt->V[2]->GLocation[1] + a * rt->V[0]->GLocation[1];
+						rv[0].GLocation[2] = (1-a) * rt->V[2]->GLocation[2] + a * rt->V[0]->GLocation[2];
+						tmat_apply_transform_44d(rv[0].FrameBufferCoord,vp,rv[0].GLocation);
 
-						a = rt->V[2]->FrameBufferCoord[2] / (rt->V[2]->FrameBufferCoord[2] - rt->V[1]->FrameBufferCoord[2]);
-						rv[1].FrameBufferCoord[0] = (1 - a) * rt->V[2]->FrameBufferCoord[0] + a * rt->V[1]->FrameBufferCoord[0];
-						rv[1].FrameBufferCoord[1] = (1 - a) * rt->V[2]->FrameBufferCoord[1] + a * rt->V[1]->FrameBufferCoord[1];
-						rv[1].FrameBufferCoord[2] = 0;
-						rv[1].FrameBufferCoord[3] = (1 - a) * rt->V[2]->FrameBufferCoord[3] + a * rt->V[1]->FrameBufferCoord[3];
-						tmat_apply_transform_44dTrue(rv[1].GLocation, mv_inverse, rv[1].FrameBufferCoord);
+						tMatVectorMinus3d(vv1,rt->V[2]->GLocation,cam_pos);
+						tMatVectorMinus3d(vv2,cam_pos,rt->V[1]->GLocation);
+						dot1 = tmat_dot_3d(vv1,view_dir,0);
+						dot2 = tmat_dot_3d(vv2,view_dir,0);
+						a = dot1/(dot1+dot2);
+						rv[1].GLocation[0] = (1-a) * rt->V[2]->GLocation[0] + a * rt->V[1]->GLocation[0];
+						rv[1].GLocation[1] = (1-a) * rt->V[2]->GLocation[1] + a * rt->V[1]->GLocation[1];
+						rv[1].GLocation[2] = (1-a) * rt->V[2]->GLocation[2] + a * rt->V[1]->GLocation[2];
+						tmat_apply_transform_44d(rv[1].FrameBufferCoord,vp,rv[1].GLocation);
 
 						BLI_remlink(&rb->AllRenderLines, (void *)rt->RL[0]); rt->RL[0]->Item.pNext = rt->RL[0]->Item.pPrev = 0;
 						BLI_remlink(&rb->AllRenderLines, (void *)rt->RL[1]); rt->RL[1]->Item.pNext = rt->RL[1]->Item.pPrev = 0;
@@ -1300,19 +1326,25 @@ void lanpr_cull_triangles(LANPR_RenderBuffer *rb) {
 						continue;
 					} elif(!In2)
 					{
-						a = rt->V[1]->FrameBufferCoord[2] / (rt->V[1]->FrameBufferCoord[2] - rt->V[0]->FrameBufferCoord[2]);
-						rv[0].FrameBufferCoord[0] = (1 - a) * rt->V[1]->FrameBufferCoord[0] + a * rt->V[0]->FrameBufferCoord[0];
-						rv[0].FrameBufferCoord[1] = (1 - a) * rt->V[1]->FrameBufferCoord[1] + a * rt->V[0]->FrameBufferCoord[1];
-						rv[0].FrameBufferCoord[2] = 0;
-						rv[0].FrameBufferCoord[3] = (1 - a) * rt->V[1]->FrameBufferCoord[3] + a * rt->V[0]->FrameBufferCoord[3];
-						tmat_apply_transform_44dTrue(rv[0].GLocation, mv_inverse, rv[0].FrameBufferCoord);
+						tMatVectorMinus3d(vv1,rt->V[1]->GLocation,cam_pos);
+						tMatVectorMinus3d(vv2,cam_pos,rt->V[2]->GLocation);
+						dot1 = tmat_dot_3d(vv1,view_dir,0);
+						dot2 = tmat_dot_3d(vv2,view_dir,0);
+						a = dot1/(dot1+dot2);
+						rv[0].GLocation[0] = (1-a) * rt->V[1]->GLocation[0] + a * rt->V[2]->GLocation[0];
+						rv[0].GLocation[1] = (1-a) * rt->V[1]->GLocation[1] + a * rt->V[2]->GLocation[1];
+						rv[0].GLocation[2] = (1-a) * rt->V[1]->GLocation[2] + a * rt->V[2]->GLocation[2];
+						tmat_apply_transform_44d(rv[0].FrameBufferCoord,vp,rv[0].GLocation);
 
-						a = rt->V[1]->FrameBufferCoord[2] / (rt->V[1]->FrameBufferCoord[2] - rt->V[2]->FrameBufferCoord[2]);
-						rv[1].FrameBufferCoord[0] = (1 - a) * rt->V[1]->FrameBufferCoord[0] + a * rt->V[2]->FrameBufferCoord[0];
-						rv[1].FrameBufferCoord[1] = (1 - a) * rt->V[1]->FrameBufferCoord[1] + a * rt->V[2]->FrameBufferCoord[1];
-						rv[1].FrameBufferCoord[2] = 0;
-						rv[1].FrameBufferCoord[3] = (1 - a) * rt->V[1]->FrameBufferCoord[3] + a * rt->V[2]->FrameBufferCoord[3];
-						tmat_apply_transform_44dTrue(rv[1].GLocation, mv_inverse, rv[1].FrameBufferCoord);
+						tMatVectorMinus3d(vv1,rt->V[1]->GLocation,cam_pos);
+						tMatVectorMinus3d(vv2,cam_pos,rt->V[0]->GLocation);
+						dot1 = tmat_dot_3d(vv1,view_dir,0);
+						dot2 = tmat_dot_3d(vv2,view_dir,0);
+						a = dot1/(dot1+dot2);
+						rv[1].GLocation[0] = (1-a) * rt->V[1]->GLocation[0] + a * rt->V[0]->GLocation[0];
+						rv[1].GLocation[1] = (1-a) * rt->V[1]->GLocation[1] + a * rt->V[0]->GLocation[1];
+						rv[1].GLocation[2] = (1-a) * rt->V[1]->GLocation[2] + a * rt->V[0]->GLocation[2];
+						tmat_apply_transform_44d(rv[1].FrameBufferCoord,vp,rv[1].GLocation);
 
 						BLI_remlink(&rb->AllRenderLines, (void *)rt->RL[0]); rt->RL[0]->Item.pNext = rt->RL[0]->Item.pPrev = 0;
 						BLI_remlink(&rb->AllRenderLines, (void *)rt->RL[1]); rt->RL[1]->Item.pNext = rt->RL[1]->Item.pPrev = 0;
@@ -1361,19 +1393,25 @@ void lanpr_cull_triangles(LANPR_RenderBuffer *rb) {
 				case 1:
 					rt->CullStatus = TNS_CULL_USED;
 					if (In1) {
-						a = rt->V[0]->FrameBufferCoord[2] / (rt->V[0]->FrameBufferCoord[2] - rt->V[2]->FrameBufferCoord[2]);
-						rv[0].FrameBufferCoord[0] = (1 - a) * rt->V[0]->FrameBufferCoord[0] + a * rt->V[2]->FrameBufferCoord[0];
-						rv[0].FrameBufferCoord[1] = (1 - a) * rt->V[0]->FrameBufferCoord[1] + a * rt->V[2]->FrameBufferCoord[1];
-						rv[0].FrameBufferCoord[2] = 0;
-						rv[0].FrameBufferCoord[3] = (1 - a) * rt->V[0]->FrameBufferCoord[3] + a * rt->V[2]->FrameBufferCoord[3];
-						tmat_apply_transform_44dTrue(rv[0].GLocation, mv_inverse, rv[0].FrameBufferCoord);
+						tMatVectorMinus3d(vv1,rt->V[0]->GLocation,cam_pos);
+						tMatVectorMinus3d(vv2,cam_pos,rt->V[2]->GLocation);
+						dot1 = tmat_dot_3d(vv1,view_dir,0);
+						dot2 = tmat_dot_3d(vv2,view_dir,0);
+						a = dot1/(dot1+dot2);
+						rv[0].GLocation[0] = (1-a) * rt->V[0]->GLocation[0] + a * rt->V[2]->GLocation[0];
+						rv[0].GLocation[1] = (1-a) * rt->V[0]->GLocation[1] + a * rt->V[2]->GLocation[1];
+						rv[0].GLocation[2] = (1-a) * rt->V[0]->GLocation[2] + a * rt->V[2]->GLocation[2];
+						tmat_apply_transform_44d(rv[0].FrameBufferCoord,vp,rv[0].GLocation);
 
-						a = rt->V[0]->FrameBufferCoord[2] / (rt->V[0]->FrameBufferCoord[2] - rt->V[1]->FrameBufferCoord[2]);
-						rv[1].FrameBufferCoord[0] = (1 - a) * rt->V[0]->FrameBufferCoord[0] + a * rt->V[1]->FrameBufferCoord[0];
-						rv[1].FrameBufferCoord[1] = (1 - a) * rt->V[0]->FrameBufferCoord[1] + a * rt->V[1]->FrameBufferCoord[1];
-						rv[1].FrameBufferCoord[2] = 0;
-						rv[1].FrameBufferCoord[3] = (1 - a) * rt->V[0]->FrameBufferCoord[3] + a * rt->V[1]->FrameBufferCoord[3];
-						tmat_apply_transform_44dTrue(rv[1].GLocation, mv_inverse, rv[1].FrameBufferCoord);
+						tMatVectorMinus3d(vv1,rt->V[0]->GLocation,cam_pos);
+						tMatVectorMinus3d(vv2,cam_pos,rt->V[1]->GLocation);
+						dot1 = tmat_dot_3d(vv1,view_dir,0);
+						dot2 = tmat_dot_3d(vv2,view_dir,0);
+						a = dot1/(dot1+dot2);
+						rv[1].GLocation[0] = (1-a) * rt->V[0]->GLocation[0] + a * rt->V[1]->GLocation[0];
+						rv[1].GLocation[1] = (1-a) * rt->V[0]->GLocation[1] + a * rt->V[1]->GLocation[1];
+						rv[1].GLocation[2] = (1-a) * rt->V[0]->GLocation[2] + a * rt->V[1]->GLocation[2];
+						tmat_apply_transform_44d(rv[1].FrameBufferCoord,vp,rv[1].GLocation);
 
 						BLI_remlink(&rb->AllRenderLines, (void *)rt->RL[0]); rt->RL[0]->Item.pNext = rt->RL[0]->Item.pPrev = 0;
 						BLI_remlink(&rb->AllRenderLines, (void *)rt->RL[2]); rt->RL[2]->Item.pNext = rt->RL[2]->Item.pPrev = 0;
@@ -1433,21 +1471,27 @@ void lanpr_cull_triangles(LANPR_RenderBuffer *rb) {
 						v_count += 2;
 						t_count += 2;
 						continue;
-					} elif(In2)
-					{
-						a = rt->V[1]->FrameBufferCoord[2] / (rt->V[1]->FrameBufferCoord[2] - rt->V[0]->FrameBufferCoord[2]);
-						rv[0].FrameBufferCoord[0] = (1 - a) * rt->V[1]->FrameBufferCoord[0] + a * rt->V[0]->FrameBufferCoord[0];
-						rv[0].FrameBufferCoord[1] = (1 - a) * rt->V[1]->FrameBufferCoord[1] + a * rt->V[0]->FrameBufferCoord[1];
-						rv[0].FrameBufferCoord[2] = 0;
-						rv[0].FrameBufferCoord[3] = (1 - a) * rt->V[1]->FrameBufferCoord[3] + a * rt->V[0]->FrameBufferCoord[3];
-						tmat_apply_transform_44dTrue(rv[0].GLocation, mv_inverse, rv[0].FrameBufferCoord);
+					} elif(In2)	{
 
-						a = rt->V[1]->FrameBufferCoord[2] / (rt->V[1]->FrameBufferCoord[2] - rt->V[2]->FrameBufferCoord[2]);
-						rv[1].FrameBufferCoord[0] = (1 - a) * rt->V[1]->FrameBufferCoord[0] + a * rt->V[2]->FrameBufferCoord[0];
-						rv[1].FrameBufferCoord[1] = (1 - a) * rt->V[1]->FrameBufferCoord[1] + a * rt->V[2]->FrameBufferCoord[1];
-						rv[1].FrameBufferCoord[2] = 0;
-						rv[1].FrameBufferCoord[3] = (1 - a) * rt->V[1]->FrameBufferCoord[3] + a * rt->V[2]->FrameBufferCoord[3];
-						tmat_apply_transform_44dTrue(rv[1].GLocation, mv_inverse, rv[1].FrameBufferCoord);
+						tMatVectorMinus3d(vv1,rt->V[1]->GLocation,cam_pos);
+						tMatVectorMinus3d(vv2,cam_pos,rt->V[2]->GLocation);
+						dot1 = tmat_dot_3d(vv1,view_dir,0);
+						dot2 = tmat_dot_3d(vv2,view_dir,0);
+						a = dot1/(dot1+dot2);
+						rv[0].GLocation[0] = (1-a) * rt->V[1]->GLocation[0] + a * rt->V[2]->GLocation[0];
+						rv[0].GLocation[1] = (1-a) * rt->V[1]->GLocation[1] + a * rt->V[2]->GLocation[1];
+						rv[0].GLocation[2] = (1-a) * rt->V[1]->GLocation[2] + a * rt->V[2]->GLocation[2];
+						tmat_apply_transform_44d(rv[0].FrameBufferCoord,vp,rv[0].GLocation);
+
+						tMatVectorMinus3d(vv1,rt->V[1]->GLocation,cam_pos);
+						tMatVectorMinus3d(vv2,cam_pos,rt->V[0]->GLocation);
+						dot1 = tmat_dot_3d(vv1,view_dir,0);
+						dot2 = tmat_dot_3d(vv2,view_dir,0);
+						a = dot1/(dot1+dot2);
+						rv[1].GLocation[0] = (1-a) * rt->V[1]->GLocation[0] + a * rt->V[0]->GLocation[0];
+						rv[1].GLocation[1] = (1-a) * rt->V[1]->GLocation[1] + a * rt->V[0]->GLocation[1];
+						rv[1].GLocation[2] = (1-a) * rt->V[1]->GLocation[2] + a * rt->V[0]->GLocation[2];
+						tmat_apply_transform_44d(rv[1].FrameBufferCoord,vp,rv[1].GLocation);
 
 						BLI_remlink(&rb->AllRenderLines, (void *)rt->RL[0]); rt->RL[0]->Item.pNext = rt->RL[0]->Item.pPrev = 0;
 						BLI_remlink(&rb->AllRenderLines, (void *)rt->RL[1]); rt->RL[1]->Item.pNext = rt->RL[1]->Item.pPrev = 0;
@@ -1507,21 +1551,27 @@ void lanpr_cull_triangles(LANPR_RenderBuffer *rb) {
 						v_count += 2;
 						t_count += 2;
 						continue;
-					} elif(In3)
-					{
-						a = rt->V[2]->FrameBufferCoord[2] / (rt->V[2]->FrameBufferCoord[2] - rt->V[0]->FrameBufferCoord[2]);
-						rv[0].FrameBufferCoord[0] = (1 - a) * rt->V[2]->FrameBufferCoord[0] + a * rt->V[0]->FrameBufferCoord[0];
-						rv[0].FrameBufferCoord[1] = (1 - a) * rt->V[2]->FrameBufferCoord[1] + a * rt->V[0]->FrameBufferCoord[1];
-						rv[0].FrameBufferCoord[2] = 0;
-						rv[0].FrameBufferCoord[3] = (1 - a) * rt->V[2]->FrameBufferCoord[3] + a * rt->V[0]->FrameBufferCoord[3];
-						tmat_apply_transform_44dTrue(rv[0].GLocation, mv_inverse, rv[0].FrameBufferCoord);
+					} elif(In3) {
 
-						a = rt->V[2]->FrameBufferCoord[2] / (rt->V[2]->FrameBufferCoord[2] - rt->V[1]->FrameBufferCoord[2]);
-						rv[1].FrameBufferCoord[0] = (1 - a) * rt->V[2]->FrameBufferCoord[0] + a * rt->V[1]->FrameBufferCoord[0];
-						rv[1].FrameBufferCoord[1] = (1 - a) * rt->V[2]->FrameBufferCoord[1] + a * rt->V[1]->FrameBufferCoord[1];
-						rv[1].FrameBufferCoord[2] = 0;
-						rv[1].FrameBufferCoord[3] = (1 - a) * rt->V[2]->FrameBufferCoord[3] + a * rt->V[1]->FrameBufferCoord[3];
-						tmat_apply_transform_44dTrue(rv[1].GLocation, mv_inverse, rv[1].FrameBufferCoord);
+						tMatVectorMinus3d(vv1,rt->V[2]->GLocation,cam_pos);
+						tMatVectorMinus3d(vv2,cam_pos,rt->V[0]->GLocation);
+						dot1 = tmat_dot_3d(vv1,view_dir,0);
+						dot2 = tmat_dot_3d(vv2,view_dir,0);
+						a = dot1/(dot1+dot2);
+						rv[0].GLocation[0] = (1-a) * rt->V[2]->GLocation[0] + a * rt->V[0]->GLocation[0];
+						rv[0].GLocation[1] = (1-a) * rt->V[2]->GLocation[1] + a * rt->V[0]->GLocation[1];
+						rv[0].GLocation[2] = (1-a) * rt->V[2]->GLocation[2] + a * rt->V[0]->GLocation[2];
+						tmat_apply_transform_44d(rv[0].FrameBufferCoord,vp,rv[0].GLocation);
+
+						tMatVectorMinus3d(vv1,rt->V[2]->GLocation,cam_pos);
+						tMatVectorMinus3d(vv2,cam_pos,rt->V[1]->GLocation);
+						dot1 = tmat_dot_3d(vv1,view_dir,0);
+						dot2 = tmat_dot_3d(vv2,view_dir,0);
+						a = dot1/(dot1+dot2);
+						rv[1].GLocation[0] = (1-a) * rt->V[2]->GLocation[0] + a * rt->V[1]->GLocation[0];
+						rv[1].GLocation[1] = (1-a) * rt->V[2]->GLocation[1] + a * rt->V[1]->GLocation[1];
+						rv[1].GLocation[2] = (1-a) * rt->V[2]->GLocation[2] + a * rt->V[1]->GLocation[2];
+						tmat_apply_transform_44d(rv[1].FrameBufferCoord,vp,rv[1].GLocation);
 
 						BLI_remlink(&rb->AllRenderLines, (void *)rt->RL[1]); rt->RL[1]->Item.pNext = rt->RL[1]->Item.pPrev = 0;
 						BLI_remlink(&rb->AllRenderLines, (void *)rt->RL[2]); rt->RL[2]->Item.pNext = rt->RL[2]->Item.pPrev = 0;
@@ -3319,6 +3369,7 @@ int lanpr_compute_feature_lines_internal(Depsgraph *depsgraph, SceneLANPR *lanpr
 
 	lanpr_make_render_geometry_buffers(depsgraph, scene, scene->camera, rb);
 
+	lanpr_compute_view_vector(rb);
 	lanpr_cull_triangles(rb);
 
 	lanpr_perspective_division(rb);
