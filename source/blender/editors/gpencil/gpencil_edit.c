@@ -3798,14 +3798,14 @@ static int gpencil_cutter_exec(bContext *C, wmOperator *op)
 	bGPDstroke *gpsn = hit_stroke->next;
 
 	/* if only one point delete */
-	if (hit_stroke->totpoints == 1) {
+	if ((hit_stroke) && (hit_stroke->totpoints == 1)) {
 		BLI_remlink(&hit_layer->actframe->strokes, hit_stroke);
 		BKE_gpencil_free_stroke(hit_stroke);
 		hit_stroke = NULL;
 	}
 
 	/* if very small distance delete */
- 	if (hit_stroke->totpoints == 2) {
+ 	if ((hit_stroke) && (hit_stroke->totpoints == 2)) {
 		pt = &hit_stroke->points[0];
 		pt1 = &hit_stroke->points[1];
 		if (len_v3v3(&pt->x, &pt1->x) < 0.001f) {
