@@ -40,6 +40,7 @@
 
 #include "BLI_blenlib.h"
 #include "BLI_ghash.h"
+#include "BLI_lasso_2d.h"
 #include "BLI_math.h"
 #include "BLI_string.h"
 #include "BLI_string_utils.h"
@@ -86,6 +87,7 @@
 #include "ED_object.h"
 #include "ED_screen.h"
 #include "ED_view3d.h"
+#include "ED_select_utils.h"
 #include "ED_space_api.h"
 
 #include "DEG_depsgraph.h"
@@ -3709,7 +3711,155 @@ void GPENCIL_OT_stroke_smooth(wmOperatorType *ot)
 	RNA_def_boolean(ot->srna, "smooth_uv", false, "UV", "");
 }
 
-/* smart stroke knife */
+/* smart stroke cutter for trimming stroke ends */
+struct GP_SelectLassoUserData {
+	rcti rect;
+	const int(*mcords)[2];
+	int         mcords_len;
+};
+
+static bool gpencil_test_lasso(
+	bGPDstroke *gps, bGPDspoint *pt,
+	const GP_SpaceConversion *gsc, const float diff_mat[4][4],
+	void *user_data)
+{
+	const struct GP_SelectLassoUserData *data = user_data;
+	bGPDspoint pt2;
+	int x0, y0;
+	gp_point_to_parent_space(pt, diff_mat, &pt2);
+	gp_point_to_xy(gsc, gps, &pt2, &x0, &y0);
+	/* test if in lasso */
+	return ((!ELEM(V2D_IS_CLIPPED, x0, y0)) &&
+		BLI_rcti_isect_pt(&data->rect, x0, y0) &&
+		BLI_lasso_is_point_inside(data->mcords, data->mcords_len, x0, y0, INT_MAX));
+}
+
+typedef bool(*GPencilTestFn)(
+	bGPDstroke *gps, bGPDspoint *pt,
+	const GP_SpaceConversion *gsc, const float diff_mat[4][4], void *user_data);
+
+void gpencil_cutter_dissolve(bGPdata *gpd, bGPDlayer *hit_layer, bGPDstroke *hit_stroke, bGPDspoint *hit_point)
+{
+	bGPDspoint *pt = NULL;
+	bGPDspoint *pt1 = NULL;
+	int i;
+
+	bGPDstroke *gpsn = hit_stroke->next;
+
+	/* if only one point delete */
+	if ((hit_stroke) && (hit_stroke->totpoints == 1)) {
+		BLI_remlink(&hit_layer->actframe->strokes, hit_stroke);
+		BKE_gpencil_free_stroke(hit_stroke);
+		hit_stroke = NULL;
+	}
+
+	/* if very small distance delete */
+	if ((hit_stroke) && (hit_stroke->totpoints == 2)) {
+		pt = &hit_stroke->points[0];
+		pt1 = &hit_stroke->points[1];
+		if (len_v3v3(&pt->x, &pt1->x) < 0.001f) {
+			BLI_remlink(&hit_layer->actframe->strokes, hit_stroke);
+			BKE_gpencil_free_stroke(hit_stroke);
+			hit_stroke = NULL;
+		}
+	}
+
+	if (hit_stroke) {
+		/* tag and dissolve */
+		for (i = 0, pt = hit_stroke->points; i < hit_stroke->totpoints; i++, pt++) {
+			if (pt->flag & GP_SPOINT_SELECT) {
+				pt->flag &= ~GP_SPOINT_SELECT;
+				pt->flag |= GP_SPOINT_TAG;
+			}
+		}
+		gp_stroke_delete_tagged_points(
+			hit_layer->actframe, hit_stroke, gpsn, GP_SPOINT_TAG, false, 1);
+	}
+}
+
+static int gpencil_cutter_lasso_select(
+	bContext *C, wmOperator *op,
+	GPencilTestFn is_inside_fn, void *user_data)
+{
+	bGPdata *gpd = ED_gpencil_data_get_active(C);
+	ScrArea *sa = CTX_wm_area(C);
+
+	bGPDspoint *pt;
+	int i;
+	GP_SpaceConversion gsc = { NULL };
+
+	bool changed = false;
+
+	/* sanity checks */
+	if (sa == NULL) {
+		BKE_report(op->reports, RPT_ERROR, "No active area");
+		return OPERATOR_CANCELLED;
+	}
+
+	/* init space conversion stuff */
+	gp_point_conversion_init(C, &gsc);
+
+	/* deselect all strokes first */
+	CTX_DATA_BEGIN(C, bGPDstroke *, gps, editable_gpencil_strokes)
+	{
+		bGPDspoint *pt;
+		int i;
+
+		for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+			pt->flag &= ~GP_SPOINT_SELECT;
+		}
+
+		gps->flag &= ~GP_STROKE_SELECT;
+	}
+	CTX_DATA_END;
+
+	/* select points */
+	GP_EDITABLE_STROKES_BEGIN(gpstroke_iter, C, gpl, gps)
+	{
+		for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+			/* convert point coords to screenspace */
+			const bool is_inside = is_inside_fn(gps, pt, &gsc, gpstroke_iter.diff_mat, user_data);
+			if (is_inside) {
+				changed = true;
+				pt->flag |= GP_SPOINT_SELECT;
+				gps->flag |= GP_STROKE_SELECT;
+			}
+		}
+	}
+	GP_EDITABLE_STROKES_END(gpstroke_iter);
+
+	/* expand selection and delete */
+	bGPDstroke *gpsn;
+	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
+		bGPDframe *gpf = gpl->actframe;
+		for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gpsn) {
+			gpsn = gps->next;
+			if (gps->flag & GP_STROKE_SELECT) {
+				for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+					if (pt->flag & GP_SPOINT_SELECT) {
+						/* expand selection to segment */
+						float r_hita[3], r_hitb[3];
+						int hit = ED_gpencil_select_stroke_segment(
+							gpd, gpl, gps, pt, true, true, r_hita, r_hitb);
+						if (hit > 0) {
+							gpencil_cutter_dissolve(gpd, gpl, gps, pt);
+						}
+					}
+				}
+			}
+		}
+	}
+
+	/* updates */
+	if (changed) {
+		DEG_id_tag_update(&gpd->id, ID_RECALC_GEOMETRY | ID_RECALC_COPY_ON_WRITE);
+		WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
+		WM_event_add_notifier(C, NC_GEOM | ND_SELECT, NULL);
+	}
+
+	return OPERATOR_FINISHED;
+}
+
 static bool gpencil_cutter_poll(bContext *C)
 {
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
@@ -3725,158 +3875,47 @@ static bool gpencil_cutter_poll(bContext *C)
 static int gpencil_cutter_exec(bContext *C, wmOperator *op)
 {
 	ScrArea *sa = CTX_wm_area(C);
-	bGPdata *gpd = ED_gpencil_data_get_active(C);
-
-	/* "radius" is simply a threshold (screen space) to make it easier to test with a tolerance */
-	const float radius = 0.50f * U.widget_unit;
-	const int radius_squared = (int)(radius * radius);
-
-	int mval[2] = { 0 };
-
-	GP_SpaceConversion gsc = { NULL };
-
-	bGPDlayer *hit_layer = NULL;
-	bGPDstroke *hit_stroke = NULL;
-	bGPDspoint *hit_point = NULL;
-	bGPDspoint *pt = NULL;
-	bGPDspoint *pt1 = NULL;
-	int i = 0;
-	int hit_distance = radius_squared;
-
 	/* sanity checks */
 	if (sa == NULL) {
 		BKE_report(op->reports, RPT_ERROR, "No active area");
 		return OPERATOR_CANCELLED;
 	}
 
-	/* init space conversion stuff */
-	gp_point_conversion_init(C, &gsc);
+	struct GP_SelectLassoUserData data = { 0 };
+	data.mcords = WM_gesture_lasso_path_to_array(C, op, &data.mcords_len);
 
-	/* get mouse location */
-	RNA_int_get_array(op->ptr, "location", mval);
-
-	/* Find stroke point which gets hit */
-	GP_EDITABLE_STROKES_BEGIN(gpstroke_iter, C, gpl, gps)
-	{
-		/* deselect stroke */
-		gps->flag &= ~GP_STROKE_SELECT;
-
-		/* firstly, check for hit-point */
-		for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-			int xy[2];
-			/* deselect point */
-			pt->flag &= ~GP_SPOINT_SELECT;
-
-			bGPDspoint pt2;
-			gp_point_to_parent_space(pt, gpstroke_iter.diff_mat, &pt2);
-			gp_point_to_xy(&gsc, gps, &pt2, &xy[0], &xy[1]);
-
-			/* do boundbox check first */
-			if (!ELEM(V2D_IS_CLIPPED, xy[0], xy[1])) {
-				const int pt_distance = len_manhattan_v2v2_int(mval, xy);
-
-				/* check if point is inside */
-				if (pt_distance <= radius_squared) {
-					/* only use this point if it is a better match than the current hit - T44685 */
-					if (pt_distance < hit_distance) {
-						hit_layer = gpl;
-						hit_stroke = gps;
-						hit_point = pt;
-						hit_distance = pt_distance;
-					}
-				}
-			}
-		}
-	}
-	GP_EDITABLE_STROKES_END(gpstroke_iter);
-
-	/* if no stroke point selected or null data, exit */
-	if (ELEM(NULL, hit_layer, hit_layer->actframe, hit_stroke, hit_point)) {
-		return OPERATOR_CANCELLED;
+	/* Sanity check. */
+	if (data.mcords == NULL) {
+		return OPERATOR_PASS_THROUGH;
 	}
 
-	bGPDstroke *gpsn = hit_stroke->next;
+	/* Compute boundbox of lasso (for faster testing later). */
+	BLI_lasso_boundbox(&data.rect, data.mcords, data.mcords_len);
 
-	/* if only one point delete */
-	if ((hit_stroke) && (hit_stroke->totpoints == 1)) {
-		BLI_remlink(&hit_layer->actframe->strokes, hit_stroke);
-		BKE_gpencil_free_stroke(hit_stroke);
-		hit_stroke = NULL;
-	}
+	gpencil_cutter_lasso_select(C, op, gpencil_test_lasso, &data);
 
-	/* if very small distance delete */
- 	if ((hit_stroke) && (hit_stroke->totpoints == 2)) {
-		pt = &hit_stroke->points[0];
-		pt1 = &hit_stroke->points[1];
-		if (len_v3v3(&pt->x, &pt1->x) < 0.001f) {
-			BLI_remlink(&hit_layer->actframe->strokes, hit_stroke);
-			BKE_gpencil_free_stroke(hit_stroke);
-			hit_stroke = NULL;
-		}
-	}
-
-	if (hit_stroke) {
-		/* select segment */
-		hit_point->flag &= ~GP_SPOINT_SELECT;
-		hit_stroke->flag &= ~GP_STROKE_SELECT;
-		float r_hita[3], r_hitb[3];
-		int hit = ED_gpencil_select_stroke_segment(
-			gpd, hit_layer, hit_stroke, hit_point,
-			true, true, r_hita, r_hitb);
-		/* tag and dissolve */
-		if (hit > 0) {
-			/* deselect points and tag  */
-			for (i = 0, pt = hit_stroke->points; i < hit_stroke->totpoints; i++, pt++) {
-				if (pt->flag & GP_SPOINT_SELECT) {
-					pt->flag &= ~GP_SPOINT_SELECT;
-					pt->flag |= GP_SPOINT_TAG;
-				}
-			}
-			gp_stroke_delete_tagged_points(
-				hit_layer->actframe, hit_stroke, gpsn, GP_SPOINT_TAG, false, 1);
-		}
-	}
-
-	/* updates */
-	if (hit_point != NULL) {
-		DEG_id_tag_update(&gpd->id, ID_RECALC_GEOMETRY);
-
-		/* copy on write tag is needed, or else no refresh happens */
-		DEG_id_tag_update(&gpd->id, ID_RECALC_COPY_ON_WRITE);
-
-		WM_event_add_notifier(C, NC_GPENCIL | NA_SELECTED, NULL);
-		WM_event_add_notifier(C, NC_GEOM | ND_SELECT, NULL);
-	}
+	MEM_freeN((void *)data.mcords);
 
 	return OPERATOR_FINISHED;
 }
 
-static int gpencil_cutter_invoke(bContext *C, wmOperator *op, const wmEvent *event)
-{
-	RNA_int_set_array(op->ptr, "location", event->mval);
-	return gpencil_cutter_exec(C, op);
-}
-
 void GPENCIL_OT_stroke_cutter(wmOperatorType *ot)
 {
-	PropertyRNA *prop;
-
 	/* identifiers */
 	ot->name = "Stroke Cutter";
 	ot->description = "Select section and cut";
 	ot->idname = "GPENCIL_OT_stroke_cutter";
 
 	/* callbacks */
-	ot->invoke = gpencil_cutter_invoke;
+	ot->invoke = WM_gesture_lasso_invoke;
+	ot->modal = WM_gesture_lasso_modal;
 	ot->exec = gpencil_cutter_exec;
 	ot->poll = gpencil_cutter_poll;
+	ot->cancel = WM_gesture_lasso_cancel;
 
 	/* flag */
 	ot->flag = OPTYPE_UNDO | OPTYPE_USE_EVAL_DATA;
 
 	/* properties */
-	WM_operator_properties_mouse_select(ot);
-
-	prop = RNA_def_int_vector(ot->srna, "location", 2, NULL, INT_MIN, INT_MAX, "Location", "Mouse location", INT_MIN, INT_MAX);
-	RNA_def_property_flag(prop, PROP_HIDDEN);
+	WM_operator_properties_gesture_lasso(ot);
 }
