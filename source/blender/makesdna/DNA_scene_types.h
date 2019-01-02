@@ -1032,14 +1032,6 @@ typedef struct GP_Sculpt_Settings {
 	char pad[4];
 	struct CurveMapping *cur_falloff; /* multiframe edit falloff effect by frame */
 	struct CurveMapping *cur_primitive; /* Curve used for primitve tools */
-
-	/* guides */
-	char use_speed_guide;
-	char guide_type;
-	char guide_flip;
-	char _pad2[1];
-	float guide_angle;
-
 } GP_Sculpt_Settings;
 
 /* GP_Sculpt_Settings.flag */
@@ -2191,12 +2183,6 @@ typedef enum eGPencil_Selectmode_types {
 	GP_SELECTMODE_STROKE  = 1,
 	GP_SELECTMODE_SEGMENT = 2
 } eGPencil_Selectmode_types;
-
-/* ToolSettings.gpencil_guide_types */
-typedef enum eGPencil_GuideTypes {
-	GP_GUIDE_CIRCULAR = 0,
-	GP_GUIDE_PARALLEL
-} eGPencil_GuideTypes;
 
 /* ToolSettings.particle flag */
 #define PE_KEEP_LENGTHS         (1 << 0)

@@ -27,7 +27,6 @@
 
 #include <stdlib.h>
 
-#include "BLI_math.h"
 #include "BLI_utildefines.h"
 
 #include "RNA_define.h"
@@ -1277,41 +1276,6 @@ static void rna_def_gpencil_sculpt(BlenderRNA *brna)
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
 
-	/* guide */
-	static const EnumPropertyItem prop_gpencil_guidetypes[] = {
-		{GP_GUIDE_CIRCULAR, "CIRCULAR", 0, "Circular", "Use single point"},
-		{GP_GUIDE_PARALLEL, "PARALLEL", 0, "Parallel", "Parallel lines"},
-		{0, NULL, 0, NULL, NULL}
-	};
-
-	prop = RNA_def_property(srna, "use_speed_guide", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "use_speed_guide", false);
-	RNA_def_property_boolean_default(prop, false);
-	RNA_def_property_ui_text(prop, "Use Speed Guides", "Enable speed guide");
-	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
-	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
-
-	prop = RNA_def_property(srna, "guide_flip", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "guide_flip", false);
-	RNA_def_property_boolean_default(prop, false);
-	RNA_def_property_ui_text(prop, "Flip", "Use alternative direction");
-	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
-	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
-
-	prop = RNA_def_property(srna, "guide_type", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_sdna(prop, NULL, "guide_type");
-	RNA_def_property_enum_items(prop, prop_gpencil_guidetypes);
-	RNA_def_property_ui_text(prop, "Type", "Type of guide");
-	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
-	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
-
-	prop = RNA_def_property(srna, "guide_angle", PROP_FLOAT, PROP_ANGLE);
-	RNA_def_property_float_sdna(prop, NULL, "guide_angle");
-	RNA_def_property_range(prop, -(M_PI * 2.0f), (M_PI * 2.0f));
-	RNA_def_property_ui_text(prop, "Angle", "Direction of lines");
-	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
-	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
-	
 	/* lock axis */
 	prop = RNA_def_property(srna, "lock_axis", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "lock_axis");
