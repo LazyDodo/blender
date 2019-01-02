@@ -251,16 +251,16 @@ class USERPREF_PT_interface_viewports_3d_weight_paint(PreferencePanel):
 
     def draw_header(self, context):
         prefs = context.preferences
-        system = prefs.system
+        view = prefs.view
 
-        self.layout.prop(system, "use_weight_color_range", text="")
+        self.layout.prop(view, "use_weight_color_range", text="")
 
     def draw_props(self, context, layout):
         prefs = context.preferences
-        system = prefs.system
+        view = prefs.view
 
-        layout.active = system.use_weight_color_range
-        layout.template_color_ramp(system, "weight_color_range", expand=True)
+        layout.active = view.use_weight_color_range
+        layout.template_color_ramp(view, "weight_color_range", expand=True)
 
 
 class USERPREF_PT_interface_viewports_2d(PreferencePanel):
@@ -650,10 +650,11 @@ class USERPREF_PT_system_memory(PreferencePanel):
     def draw_props(self, context, layout):
         prefs = context.preferences
         system = prefs.system
+        edit = prefs.edit
 
-        layout.prop(system, "undo_steps", text="Undo Steps")
-        layout.prop(system, "undo_memory_limit", text="Undo Memory Limit")
-        layout.prop(system, "use_global_undo")
+        layout.prop(edit, "undo_steps", text="Undo Steps")
+        layout.prop(edit, "undo_memory_limit", text="Undo Memory Limit")
+        layout.prop(edit, "use_global_undo")
 
         layout.separator()
 

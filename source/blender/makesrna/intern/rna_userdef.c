@@ -3755,6 +3755,23 @@ static void rna_def_userdef_view(BlenderRNA *brna)
 	                         "Show the frames per second screen refresh rate, while animation is played back");
 	RNA_def_property_update(prop, 0, "rna_userdef_update");
 
+	/* Weight Paint */
+
+	prop = RNA_def_property(srna, "use_weight_color_range", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", USER_CUSTOM_RANGE);
+	RNA_def_property_ui_text(prop, "Use Weight Color Range",
+	                         "Enable color range used for weight visualization in weight painting mode");
+	RNA_def_property_update(prop, 0, "rna_UserDef_weight_color_update");
+
+	prop = RNA_def_property(srna, "weight_color_range", PROP_POINTER, PROP_NONE);
+	RNA_def_property_flag(prop, PROP_NEVER_NULL);
+	RNA_def_property_pointer_sdna(prop, NULL, "coba_weight");
+	RNA_def_property_struct_type(prop, "ColorRamp");
+	RNA_def_property_ui_text(prop, "Weight Color Range",
+	                         "Color range used for weight visualization in weight painting mode");
+	RNA_def_property_update(prop, 0, "rna_UserDef_weight_color_update");
+
+
 	/* app flags (use for app-templates) */
 	prop = RNA_def_property(srna, "show_layout_ui", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "app_flag", USER_APP_LOCK_UI_LAYOUT);
@@ -4065,6 +4082,25 @@ static void rna_def_userdef_edit(BlenderRNA *brna)
 	        "When entering numbers while transforming, "
 	        "default to advanced mode for full math expression evaluation");
 
+	/* Undo */
+
+	prop = RNA_def_property(srna, "undo_steps", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "undosteps");
+	RNA_def_property_range(prop, 0, 256);
+	RNA_def_property_int_funcs(prop, NULL, "rna_userdef_undo_steps_set", NULL);
+	RNA_def_property_ui_text(prop, "Undo Steps", "Number of undo steps available (smaller values conserve memory)");
+
+	prop = RNA_def_property(srna, "undo_memory_limit", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "undomemory");
+	RNA_def_property_range(prop, 0, max_memory_in_megabytes_int());
+	RNA_def_property_ui_text(prop, "Undo Memory Size", "Maximum memory usage in megabytes (0 means unlimited)");
+
+	prop = RNA_def_property(srna, "use_global_undo", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_GLOBALUNDO);
+	RNA_def_property_ui_text(prop, "Global Undo",
+	                         "Global undo works by keeping a full copy of the file itself in memory, "
+	                         "so takes extra memory");
+
 
 	/* auto keyframing */
 	prop = RNA_def_property(srna, "use_auto_keying", PROP_BOOLEAN, PROP_NONE);
@@ -4346,30 +4382,28 @@ static void rna_def_userdef_system(BlenderRNA *brna)
 	RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_float_sdna(prop, NULL, "pixelsize");
 
-	/* Undo */
 
-	prop = RNA_def_property(srna, "undo_steps", PROP_INT, PROP_NONE);
-	RNA_def_property_int_sdna(prop, NULL, "undosteps");
-	RNA_def_property_range(prop, 0, 256);
-	RNA_def_property_int_funcs(prop, NULL, "rna_userdef_undo_steps_set", NULL);
-	RNA_def_property_ui_text(prop, "Undo Steps", "Number of undo steps available (smaller values conserve memory)");
+	/* Memory */
 
-	prop = RNA_def_property(srna, "undo_memory_limit", PROP_INT, PROP_NONE);
-	RNA_def_property_int_sdna(prop, NULL, "undomemory");
+	prop = RNA_def_property(srna, "prefetch_frames", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "prefetchframes");
+	RNA_def_property_range(prop, 0, INT_MAX);
+	RNA_def_property_ui_range(prop, 0, 500, 1, -1);
+	RNA_def_property_ui_text(prop, "Prefetch Frames", "Number of frames to render ahead during playback (sequencer only)");
+
+	prop = RNA_def_property(srna, "memory_cache_limit", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "memcachelimit");
 	RNA_def_property_range(prop, 0, max_memory_in_megabytes_int());
-	RNA_def_property_ui_text(prop, "Undo Memory Size", "Maximum memory usage in megabytes (0 means unlimited)");
-
-	prop = RNA_def_property(srna, "use_global_undo", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "uiflag", USER_GLOBALUNDO);
-	RNA_def_property_ui_text(prop, "Global Undo",
-	                         "Global undo works by keeping a full copy of the file itself in memory, "
-	                         "so takes extra memory");
-
+	RNA_def_property_ui_text(prop, "Memory Cache Limit", "Memory cache limit (in megabytes)");
+	RNA_def_property_update(prop, 0, "rna_Userdef_memcache_update");
 
 	prop = RNA_def_property(srna, "scrollback", PROP_INT, PROP_UNSIGNED);
 	RNA_def_property_int_sdna(prop, NULL, "scrollback");
 	RNA_def_property_range(prop, 32, 32768);
 	RNA_def_property_ui_text(prop, "Scrollback", "Maximum number of lines to store for the console buffer");
+
+
+	/* System */
 
 	prop = RNA_def_property(srna, "author", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "author");
@@ -4377,7 +4411,48 @@ static void rna_def_userdef_system(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Author",
 	                         "Name that will be used in exported files when format supports such feature");
 
-	/* System & OpenGL */
+	prop = RNA_def_property(srna, "use_scripts_auto_execute", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_negative_sdna(prop, NULL, "flag", USER_SCRIPT_AUTOEXEC_DISABLE);
+	RNA_def_property_ui_text(prop, "Auto Run Python Scripts",
+	                         "Allow any .blend file to run scripts automatically "
+	                         "(unsafe with blend files from an untrusted source)");
+	RNA_def_property_update(prop, 0, "rna_userdef_script_autoexec_update");
+
+	prop = RNA_def_property(srna, "use_tabs_as_spaces", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_negative_sdna(prop, NULL, "flag", USER_TXT_TABSTOSPACES_DISABLE);
+	RNA_def_property_ui_text(prop, "Tabs as Spaces",
+	                         "Automatically convert all new tabs into spaces for new and loaded text files");
+
+	/* OpenGL */
+
+	/* Full scene anti-aliasing */
+	prop = RNA_def_property(srna, "multi_sample", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_bitflag_sdna(prop, NULL, "ogl_multisamples");
+	RNA_def_property_enum_items(prop, multi_sample_levels);
+	RNA_def_property_ui_text(prop, "MultiSample",
+	                         "Enable OpenGL multi-sampling, only for systems that support it, requires restart");
+	RNA_def_property_update(prop, 0, "rna_userdef_dpi_update");
+
+	/* grease pencil anti-aliasing */
+	prop = RNA_def_property(srna, "gpencil_multi_sample", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_bitflag_sdna(prop, NULL, "gpencil_multisamples");
+	RNA_def_property_enum_items(prop, multi_sample_levels);
+	RNA_def_property_ui_text(prop, "Gpencil MultiSample",
+	                         "Enable Grease Pencil OpenGL multi-sampling, only for systems that support it");
+	RNA_def_property_update(prop, 0, "rna_userdef_dpi_update");
+
+	prop = RNA_def_property(srna, "use_region_overlap", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "uiflag2", USER_REGION_OVERLAP);
+	RNA_def_property_ui_text(prop, "Region Overlap",
+	                         "Draw tool/property regions over the main region, when using Triple Buffer");
+	RNA_def_property_update(prop, 0, "rna_userdef_dpi_update");
+
+	prop = RNA_def_property(srna, "gpu_viewport_quality", PROP_FLOAT, PROP_FACTOR);
+	RNA_def_property_float_sdna(prop, NULL, "gpu_viewport_quality");
+	RNA_def_property_float_default(prop, 0.6f);
+	RNA_def_property_range(prop, 0.0f, 1.0f);
+	RNA_def_property_ui_text(prop, "Viewport Quality", "Quality setting for Solid mode rendering in the 3d viewport");
+	RNA_def_property_update(prop, 0, "rna_userdef_update");
 
 	prop = RNA_def_property(srna, "solid_lights", PROP_COLLECTION, PROP_NONE);
 	RNA_def_property_collection_sdna(prop, NULL, "light_param", "");
@@ -4396,50 +4471,13 @@ static void rna_def_userdef_system(BlenderRNA *brna)
 	                               "View the result of the studio light editor in the viewport");
 	RNA_def_property_update(prop, 0, "rna_UserDef_viewport_lights_update");
 
-	prop = RNA_def_property(srna, "use_weight_color_range", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", USER_CUSTOM_RANGE);
-	RNA_def_property_ui_text(prop, "Use Weight Color Range",
-	                         "Enable color range used for weight visualization in weight painting mode");
-	RNA_def_property_update(prop, 0, "rna_UserDef_weight_color_update");
-
-	prop = RNA_def_property(srna, "weight_color_range", PROP_POINTER, PROP_NONE);
-	RNA_def_property_flag(prop, PROP_NEVER_NULL);
-	RNA_def_property_pointer_sdna(prop, NULL, "coba_weight");
-	RNA_def_property_struct_type(prop, "ColorRamp");
-	RNA_def_property_ui_text(prop, "Weight Color Range",
-	                         "Color range used for weight visualization in weight painting mode");
-	RNA_def_property_update(prop, 0, "rna_UserDef_weight_color_update");
-
-
-	prop = RNA_def_property(srna, "use_scripts_auto_execute", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_negative_sdna(prop, NULL, "flag", USER_SCRIPT_AUTOEXEC_DISABLE);
-	RNA_def_property_ui_text(prop, "Auto Run Python Scripts",
-	                         "Allow any .blend file to run scripts automatically "
-	                         "(unsafe with blend files from an untrusted source)");
-	RNA_def_property_update(prop, 0, "rna_userdef_script_autoexec_update");
-
-	prop = RNA_def_property(srna, "use_tabs_as_spaces", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_negative_sdna(prop, NULL, "flag", USER_TXT_TABSTOSPACES_DISABLE);
-	RNA_def_property_ui_text(prop, "Tabs as Spaces",
-	                         "Automatically convert all new tabs into spaces for new and loaded text files");
-
-	prop = RNA_def_property(srna, "prefetch_frames", PROP_INT, PROP_NONE);
-	RNA_def_property_int_sdna(prop, NULL, "prefetchframes");
-	RNA_def_property_range(prop, 0, INT_MAX);
-	RNA_def_property_ui_range(prop, 0, 500, 1, -1);
-	RNA_def_property_ui_text(prop, "Prefetch Frames", "Number of frames to render ahead during playback (sequencer only)");
-
-	prop = RNA_def_property(srna, "memory_cache_limit", PROP_INT, PROP_NONE);
-	RNA_def_property_int_sdna(prop, NULL, "memcachelimit");
-	RNA_def_property_range(prop, 0, max_memory_in_megabytes_int());
-	RNA_def_property_ui_text(prop, "Memory Cache Limit", "Memory cache limit (in megabytes)");
-	RNA_def_property_update(prop, 0, "rna_Userdef_memcache_update");
-
 	prop = RNA_def_property(srna, "gl_clip_alpha", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "glalphaclip");
 	RNA_def_property_range(prop, 0.0f, 1.0f);
 	RNA_def_property_ui_text(prop, "Clip Alpha", "Clip alpha below this threshold in the 3D textured view");
 	RNA_def_property_update(prop, 0, "rna_userdef_update");
+
+	/* Textures */
 
 	prop = RNA_def_property(srna, "use_16bit_textures", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "use_16bit_textures", 1);
@@ -4485,6 +4523,20 @@ static void rna_def_userdef_system(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Texture Collection Rate",
 	                         "Number of seconds between each run of the GL texture garbage collector");
 
+	/* Select */
+
+	prop = RNA_def_property(srna, "select_method", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "gpu_select_method");
+	RNA_def_property_enum_items(prop, gpu_select_method_items);
+	RNA_def_property_ui_text(prop, "Selection Method",
+	                         "Use OpenGL occlusion queries or selection render mode to accelerate selection");
+
+	prop = RNA_def_property(srna, "use_select_pick_depth", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "gpu_select_pick_deph", 1);
+	RNA_def_property_ui_text(prop, "OpenGL Depth Picking", "Use the depth buffer for picking 3D View selection");
+
+	/* Audio */
+
 	prop = RNA_def_property(srna, "audio_mixing_buffer", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "mixbufsize");
 	RNA_def_property_enum_items(prop, audio_mixing_samples_items);
@@ -4515,46 +4567,6 @@ static void rna_def_userdef_system(BlenderRNA *brna)
 	RNA_def_property_enum_items(prop, audio_channel_items);
 	RNA_def_property_ui_text(prop, "Audio Channels", "Audio channel count");
 	RNA_def_property_update(prop, 0, "rna_UserDef_audio_update");
-
-
-	prop = RNA_def_property(srna, "select_method", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_sdna(prop, NULL, "gpu_select_method");
-	RNA_def_property_enum_items(prop, gpu_select_method_items);
-	RNA_def_property_ui_text(prop, "Selection Method",
-	                         "Use OpenGL occlusion queries or selection render mode to accelerate selection");
-
-	prop = RNA_def_property(srna, "use_select_pick_depth", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "gpu_select_pick_deph", 1);
-	RNA_def_property_ui_text(prop, "OpenGL Depth Picking", "Use the depth buffer for picking 3D View selection");
-
-	/* Full scene anti-aliasing */
-	prop = RNA_def_property(srna, "multi_sample", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_bitflag_sdna(prop, NULL, "ogl_multisamples");
-	RNA_def_property_enum_items(prop, multi_sample_levels);
-	RNA_def_property_ui_text(prop, "MultiSample",
-	                         "Enable OpenGL multi-sampling, only for systems that support it, requires restart");
-	RNA_def_property_update(prop, 0, "rna_userdef_dpi_update");
-
-	/* grease pencil anti-aliasing */
-	prop = RNA_def_property(srna, "gpencil_multi_sample", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_bitflag_sdna(prop, NULL, "gpencil_multisamples");
-	RNA_def_property_enum_items(prop, multi_sample_levels);
-	RNA_def_property_ui_text(prop, "Gpencil MultiSample",
-		"Enable Grease Pencil OpenGL multi-sampling, only for systems that support it");
-	RNA_def_property_update(prop, 0, "rna_userdef_dpi_update");
-
-	prop = RNA_def_property(srna, "use_region_overlap", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "uiflag2", USER_REGION_OVERLAP);
-	RNA_def_property_ui_text(prop, "Region Overlap",
-	                         "Draw tool/property regions over the main region, when using Triple Buffer");
-	RNA_def_property_update(prop, 0, "rna_userdef_dpi_update");
-
-	prop = RNA_def_property(srna, "gpu_viewport_quality", PROP_FLOAT, PROP_FACTOR);
-	RNA_def_property_float_sdna(prop, NULL, "gpu_viewport_quality");
-	RNA_def_property_float_default(prop, 0.6f);
-	RNA_def_property_range(prop, 0.0f, 1.0f);
-	RNA_def_property_ui_text(prop, "Viewport Quality", "Quality setting for Solid mode rendering in the 3d viewport");
-	RNA_def_property_update(prop, 0, "rna_userdef_update");
 
 
 #ifdef WITH_OPENSUBDIV
