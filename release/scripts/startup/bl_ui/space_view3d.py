@@ -245,6 +245,18 @@ class VIEW3D_HT_header(Header):
                 text=lk_name,
                 icon=lk_icon,
             )
+            
+        if object_mode in {'PAINT_GPENCIL'}:
+            if context.workspace.tools.from_space_view3d_mode(object_mode).name == "Draw":
+                settings = tool_settings.gpencil_sculpt
+                row = layout.row(align=True)
+                row.prop(settings, "use_speed_guide", text="", icon='GRID')
+                sub = row.row(align=True)
+                sub.enabled = settings.use_speed_guide
+                sub.popover(
+                    panel="VIEW3D_PT_gpencil_guide",
+                    text="Guides"
+                )
 
         layout.separator_spacer()
 
@@ -5320,7 +5332,30 @@ class VIEW3D_PT_gpencil_lock(Panel):
         col = row.column()
         col.prop(context.tool_settings.gpencil_sculpt, "lock_axis", expand=True)
 
+        
+class VIEW3D_PT_gpencil_guide(Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'HEADER'
+    bl_label = "Guides"
 
+    @staticmethod
+    def draw(self, context):
+        settings = context.tool_settings.gpencil_sculpt
+
+        layout = self.layout
+        layout.label(text="Guides")
+        
+        row = layout.row()
+        col = row.column()
+        col.prop(settings, "guide_type", expand=True)
+                
+        row = col.row(align=True)
+        row.active = bool(settings.guide_type == "PARALLEL");
+        row.prop(settings, "guide_angle")
+        
+        col.prop(settings, "guide_flip")
+
+        
 class VIEW3D_PT_overlay_gpencil_options(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
@@ -5790,6 +5825,7 @@ classes = (
     VIEW3D_PT_snapping,
     VIEW3D_PT_gpencil_origin,
     VIEW3D_PT_gpencil_lock,
+    VIEW3D_PT_gpencil_guide,
     VIEW3D_PT_transform_orientations,
     VIEW3D_PT_overlay_gpencil_options,
     VIEW3D_PT_context_properties,

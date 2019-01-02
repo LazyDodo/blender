@@ -157,6 +157,7 @@ typedef struct tGPsdata {
 
 	float mval[2];        /* current mouse-position */
 	float mvalo[2];       /* previous recorded mouse-position */
+	float mvali[2];       /* initial recorded mouse-position */
 
 	float pressure;     /* current stylus pressure */
 	float opressure;    /* previous stylus pressure */
@@ -182,7 +183,7 @@ typedef struct tGPsdata {
 
 	Brush *brush;    /* current drawing brush */
 	Brush *eraser;   /* default eraser brush */
-	short straight[2];   /* 1: line horizontal, 2: line vertical, other: not defined, second element position */
+	short straight[2];   /* 1: line horizontal, 2: line vertical, 3: speed lines, other: not defined, second element position */
 	int lock_axis;       /* lock drawing to one axis */
 	bool disable_fill;   /* the stroke is no fill mode */
 
@@ -2536,10 +2537,21 @@ static void gpencil_draw_apply(bContext *C, wmOperator *op, tGPsdata *p, Depsgra
 	}
 }
 
+/* Helper to rotate point around origin */
+static void gp_rotate_v2_v2v2fl(float v[2], const float p[2], const float origin[2], const float angle)
+{
+	float pt[2];
+	float r[2];
+	sub_v2_v2v2(pt, p, origin);
+	rotate_v2_v2fl(r, pt, angle);
+	add_v2_v2v2(v, r, origin);
+}
+
 /* handle draw event */
 static void gpencil_draw_apply_event(bContext *C, wmOperator *op, const wmEvent *event, Depsgraph *depsgraph, float x, float y)
 {
 	tGPsdata *p = op->customdata;
+	ToolSettings *ts = p->scene->toolsettings;
 	PointerRNA itemptr;
 	float mousef[2];
 	int tablet = 0;
@@ -2553,7 +2565,14 @@ static void gpencil_draw_apply_event(bContext *C, wmOperator *op, const wmEvent 
 	p->shift = event->shift;
 
 	/* verify key status for straight lines */
-	if ((event->alt > 0) && (RNA_boolean_get(op->ptr, "disable_straight") == false)) {
+	
+	if (ts->gp_sculpt.use_speed_guide) {
+		if (p->straight[0] == 0) {
+			p->straight[0] = 3;
+			p->straight[1] = ts->gp_sculpt.guide_type;
+		}
+	}
+	else if ((event->alt > 0) && (RNA_boolean_get(op->ptr, "disable_straight") == false)) {
 		if (p->straight[0] == 0) {
 			int dx = (int)fabsf(p->mval[0] - p->mvalo[0]);
 			int dy = (int)fabsf(p->mval[1] - p->mvalo[1]);
@@ -2622,12 +2641,12 @@ static void gpencil_draw_apply_event(bContext *C, wmOperator *op, const wmEvent 
 	if (p->flags & GP_PAINTFLAG_FIRSTRUN) {
 		p->flags &= ~GP_PAINTFLAG_FIRSTRUN;
 
-		p->mvalo[0] = p->mval[0];
-		p->mvalo[1] = p->mval[1];
+		copy_v2_v2(p->mvalo, p->mval);
 		p->opressure = p->pressure;
 		p->inittime = p->ocurtime = p->curtime;
 		p->straight[0] = 0;
 		p->straight[1] = 0;
+		copy_v2_v2(p->mvali, p->mval); /* save initial mouse */
 
 		/* special exception here for too high pressure values on first touch in
 		 * windows for some tablets, then we just skip first touch...
@@ -2638,7 +2657,40 @@ static void gpencil_draw_apply_event(bContext *C, wmOperator *op, const wmEvent 
 
 	/* check if alt key is pressed and limit to straight lines */
 	if ((p->paintmode != GP_PAINTMODE_ERASER) && (p->straight[0] != 0)) {
-		if (p->straight[0] == 1) {
+		if (p->straight[0] == 3) {
+			/* speed_guide */
+			int spdmode = p->straight[1];
+			bool flip = ts->gp_sculpt.guide_flip;
+			if (spdmode == 0) {
+				/* speed_guide - use single origin point */
+				float origin[2];
+				RNA_float_get_array(op->ptr, "guide_origin", origin);
+				if (!flip) {
+					/* speed_guide - constrain to rings (distance from origin) */
+					float distance;
+					distance = len_v2v2(p->mvali, origin);
+					dist_ensure_v2_v2fl(p->mval, origin, distance);
+				}
+				else {
+					/* speed_guide - constrain in lines (direction from origin) */
+					closest_to_line_v2(p->mval, p->mval, p->mvali, origin);
+				}
+			}
+			else if (spdmode == 1) {
+				/* speed_guide - use angle of direction */
+				float point[2];
+				float unit[2];
+				float angle;
+				copy_v2_v2(unit, p->mvali);
+				unit[0] += 1.0f; /* start from horizontal */
+				angle = ts->gp_sculpt.guide_angle;
+				if (flip)
+					angle += M_PI_2; /* rotate 90 degrees */
+				gp_rotate_v2_v2v2fl(point, unit, p->mvali, angle);
+				closest_to_line_v2(p->mval, p->mval, p->mvali, point);
+			}
+		}
+		else if (p->straight[0] == 1) {
 			/* horizontal */
 			p->mval[1] = p->straight[1]; /* replace y */
 		}
@@ -2743,6 +2795,74 @@ static int gpencil_draw_exec(bContext *C, wmOperator *op)
 
 /* ------------------------------- */
 
+static void gpencil_guide_event_handling(bContext *C, wmOperator *op, const wmEvent *event, tGPsdata *p)
+{
+	ToolSettings *ts = p->scene->toolsettings;
+	if ((event->type == VKEY) && (event->val == KM_PRESS)) {
+		/* Freehand mode, turn off speed guide */
+		ts->gp_sculpt.use_speed_guide = false;
+	}
+	else if ((event->type == MKEY) && (event->val == KM_PRESS)) {
+		/* Flip direction */
+		copy_v2_v2(p->mvali, p->mval);
+		ts->gp_sculpt.guide_flip ^= 1;
+	}
+	else if ((event->type == LKEY) && (event->val == KM_PRESS)) {
+		/* Line guides */
+		ts->gp_sculpt.use_speed_guide = true;
+		copy_v2_v2(p->mvali, p->mval);
+		if (event->ctrl) {
+			ts->gp_sculpt.guide_angle = 0.0f;
+			ts->gp_sculpt.guide_type = GP_GUIDE_PARALLEL;
+			ts->gp_sculpt.guide_flip = 0;
+		}
+		else if (event->alt) {
+			ts->gp_sculpt.guide_type = GP_GUIDE_PARALLEL;
+			ts->gp_sculpt.guide_angle = RNA_float_get(op->ptr, "guide_last_angle");
+			ts->gp_sculpt.guide_flip = 0;
+		}
+		else if (ts->gp_sculpt.guide_type == 1) {
+			ts->gp_sculpt.guide_flip ^= 1;
+		}
+		else {
+			ts->gp_sculpt.guide_type = GP_GUIDE_PARALLEL;
+			ts->gp_sculpt.guide_flip = 0;
+		}
+		
+	}
+	else if ((event->type == CKEY) && (event->val == KM_PRESS)) {
+		/* Point guide */
+		ts->gp_sculpt.use_speed_guide = true;
+		copy_v2_v2(p->mvali, p->mval);
+		if (event->alt) {
+			float origin[2];
+			copy_v2fl_v2i(origin, event->mval);
+			RNA_float_set_array(op->ptr, "guide_origin", origin);
+			ts->gp_sculpt.guide_type = GP_GUIDE_CIRCULAR;
+			ts->gp_sculpt.guide_flip = 0;
+		}
+		else if (ts->gp_sculpt.guide_type == 0) {
+			ts->gp_sculpt.guide_flip ^= 1;
+		}
+		else {
+			ts->gp_sculpt.guide_type = GP_GUIDE_CIRCULAR;
+			RNA_boolean_set(op->ptr, "guide_flip", false);
+		}
+	}
+	else if (ELEM(event->type, JKEY, KKEY) && (event->val == KM_PRESS)) {
+		/* Change line angle */
+		float angle = ts->gp_sculpt.guide_angle;
+		float adjust = (float)M_PI / 180.0f;
+		if (event->alt)
+			adjust *= 45.0f;
+		else if (!event->shift)
+			adjust *= 15.0f;
+		angle += (event->type == JKEY) ? adjust : -adjust;
+		angle = angle_wrap_rad(angle);
+		ts->gp_sculpt.guide_angle = angle;
+	}
+}
+
 /* start of interactive drawing part of operator */
 static int gpencil_draw_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 {
@@ -2803,6 +2923,12 @@ static int gpencil_draw_invoke(bContext *C, wmOperator *op, const wmEvent *event
 
 	/* enable paint mode */
 	if (p->sa->spacetype == SPACE_VIEW3D) {
+
+		/* handle speed guide events before drawing inside view3d */
+		if ((p->paintmode != GP_PAINTMODE_ERASER)) {
+			gpencil_guide_event_handling(C, op, event, p);
+		}
+
 		Object *ob = CTX_data_active_object(C);
 		if (ob && (ob->type == OB_GPENCIL) && ((p->gpd->flag & GP_DATA_STROKE_PAINTMODE) == 0)) {
 			/* FIXME: use the mode switching operator, this misses notifiers, messages. */
@@ -3022,6 +3148,10 @@ static int gpencil_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
 			WM_operator_name_call(C, "GPENCIL_OT_blank_frame_add", WM_OP_EXEC_DEFAULT, NULL);
 			estate = OPERATOR_RUNNING_MODAL;
 		}
+		else if ((p->paintmode != GP_PAINTMODE_ERASER)) {
+			gpencil_guide_event_handling(C, op, event, p);
+			estate = OPERATOR_RUNNING_MODAL;
+		}
 		else {
 			estate = OPERATOR_RUNNING_MODAL;
 		}
@@ -3046,6 +3176,7 @@ static int gpencil_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
 				}
 			}
 		}
+
 		p->status = GP_STATUS_DONE;
 		estate = OPERATOR_FINISHED;
 	}
@@ -3280,6 +3411,13 @@ static int gpencil_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
 	/* process last operations before exiting */
 	switch (estate) {
 		case OPERATOR_FINISHED:
+			/* store stroke angle for parallel guide */
+			if ((p->straight[0] == 0) || ((p->straight[0] == 3) && (p->straight[1] == 1))){
+				float xy[2];
+				sub_v2_v2v2(xy, p->mval, p->mvali);
+				float angle = atan2f(xy[1], xy[0]);
+				RNA_float_set(op->ptr, "guide_last_angle", angle);
+			}
 			/* one last flush before we're done */
 			gpencil_draw_exit(C, op);
 			WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
@@ -3309,6 +3447,12 @@ static const EnumPropertyItem prop_gpencil_drawmodes[] = {
 	{GP_PAINTMODE_DRAW_STRAIGHT, "DRAW_STRAIGHT", 0, "Draw Straight Lines", "Draw straight line segment(s)"},
 	{GP_PAINTMODE_DRAW_POLY, "DRAW_POLY", 0, "Draw Poly Line", "Click to place endpoints of straight line segments (connected)"},
 	{GP_PAINTMODE_ERASER, "ERASER", 0, "Eraser", "Erase Grease Pencil strokes"},
+	{0, NULL, 0, NULL, NULL}
+};
+
+static const EnumPropertyItem prop_gpencil_guidetypes[] = {
+	{GP_GUIDE_CIRCULAR, "CIRCULAR", 0, "Circular Guide", "Draw guided lines from point"},
+	{GP_GUIDE_PARALLEL, "PARALLEL", 0, "Draw Straight Lines", "Draw straight lines from angle"},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -3346,4 +3490,8 @@ void GPENCIL_OT_draw(wmOperatorType *ot)
 
 	prop = RNA_def_boolean(ot->srna, "disable_fill", false, "No Fill Areas", "Disable fill to use stroke as fill boundary");
 	RNA_def_property_flag(prop, PROP_SKIP_SAVE);
+	
+	/* guides */
+	prop = RNA_def_float(ot->srna, "guide_last_angle", 0.0f, -10000.0f, 10000.0f, "Angle", "Speed guide angle", -10000.0f, 10000.0f);
+	prop = RNA_def_float_vector(ot->srna, "guide_origin", 2, NULL, -10000.0f, 10000.0f, "Origin", "Speed guide origin", -10000.0f, 10000.0f);
 }

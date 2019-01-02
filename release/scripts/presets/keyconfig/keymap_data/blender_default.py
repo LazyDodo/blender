@@ -3039,7 +3039,24 @@ def km_grease_pencil_stroke_paint_draw_brush(params):
         # Erase
         ("gpencil.draw", {"type": 'LEFTMOUSE', "value": 'PRESS', "ctrl": True},
          {"properties": [("mode", 'ERASER'), ("wait_for_input", False)]}),
-
+        # Constrain Guides Speedlines
+		# Freehand
+        ("gpencil.draw", {"type": 'J', "value": 'PRESS'}, None),
+        ("gpencil.draw", {"type": 'J', "value": 'PRESS', "alt": True}, None),
+        ("gpencil.draw", {"type": 'J', "value": 'PRESS', "shift": True}, None),
+        ("gpencil.draw", {"type": 'K', "value": 'PRESS'}, None),
+        ("gpencil.draw", {"type": 'K', "value": 'PRESS', "alt": True}, None),
+        ("gpencil.draw", {"type": 'K', "value": 'PRESS', "shift": True}, None),
+        ("gpencil.draw", {"type": 'L', "value": 'PRESS'}, None),
+        ("gpencil.draw", {"type": 'L', "value": 'PRESS', "alt": True}, None),
+        ("gpencil.draw", {"type": 'L', "value": 'PRESS', "ctrl": True}, None),
+        ("gpencil.draw", {"type": 'V', "value": 'PRESS'}, None),
+		# Mirror or flip
+        ("gpencil.draw", {"type": 'M', "value": 'PRESS'}, None),
+		# Mode
+        ("gpencil.draw", {"type": 'C', "value": 'PRESS'}, None),
+		# Set reference point
+        ("gpencil.draw", {"type": 'C', "value": 'PRESS', "alt": True}, None),
         # Tablet Mappings for Drawing ------------------ */
         # For now, only support direct drawing using the eraser, as most users using a tablet
         # may still want to use that as their primary pointing device!
