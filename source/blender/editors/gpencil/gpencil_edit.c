@@ -3818,6 +3818,9 @@ static int gpencil_cutter_lasso_select(
 	{
 		for (i = 0; i < gps->totpoints; i++) {
 			pt = &gps->points[i];
+			if (pt->flag & GP_SPOINT_SELECT) {
+				continue;
+			}
 			/* convert point coords to screenspace */
 			const bool is_inside = is_inside_fn(gps, pt, &gsc, gpstroke_iter.diff_mat, user_data);
 			if (is_inside) {

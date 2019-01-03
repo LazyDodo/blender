@@ -173,7 +173,7 @@ void BKE_gpencil_stroke_2d_flat(
 void BKE_gpencil_stroke_2d_flat_ref(
 	const struct bGPDspoint *ref_points, int ref_totpoints,
 	const struct bGPDspoint *points, int totpoints,
-	float(*points2d)[2], int *r_direction);
+	float(*points2d)[2], const float scale, int *r_direction);
 
 void BKE_gpencil_transform(struct bGPdata *gpd, float mat[4][4]);
 

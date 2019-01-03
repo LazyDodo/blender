@@ -2087,8 +2087,6 @@ static float gp_calc_factor(float p2d_a1[2], float p2d_a2[2], float r_hit2d[2])
 	float f1 = dist1 > 0.0f ? dist3 / dist1 : 0.0f;
 	f = f + (f - f1);
 
-	interp_v2_v2v2(v1, p2d_a1, p2d_a2, f);
-
 	return f;
 }
 
@@ -2142,17 +2140,22 @@ int ED_gpencil_select_stroke_segment(
 
 	/* convert all gps points to 2d and save in a hash to avoid recalculation  */
 	int direction = 0;
+	const float scale = 0.5f;
 	float(*points2d)[2] = MEM_mallocN(sizeof(*points2d) * gps->totpoints, "GP Stroke temp 2d points");
-	BKE_gpencil_stroke_2d_flat(gps->points, gps->totpoints, points2d, &direction);
+	BKE_gpencil_stroke_2d_flat_ref(
+		gps->points, gps->totpoints,
+		gps->points, gps->totpoints, points2d, 0.0f, &direction);
 
 	GHash *all_2d = BLI_ghash_ptr_new(__func__);
 
 	for (int s = 0; s < totstrokes; s++) {
 		bGPDstroke *gps_iter = gps_array[s];
 		float(*points2d_iter)[2] = MEM_mallocN(sizeof(*points2d_iter) * gps_iter->totpoints, __func__);
+
+		/* the extremes of the stroke are scaled to improve collision detection for near lines */
 		BKE_gpencil_stroke_2d_flat_ref(
 			gps->points, gps->totpoints,
-			gps_iter->points, gps_iter->totpoints, points2d_iter, &direction);
+			gps_iter->points, gps_iter->totpoints, points2d_iter, scale, &direction);
 		BLI_ghash_insert(all_2d, gps_iter, points2d_iter);
 	}
 

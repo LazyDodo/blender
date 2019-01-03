@@ -1620,7 +1620,7 @@ void BKE_gpencil_stroke_2d_flat(const bGPDspoint *points, int totpoints, float(*
 void BKE_gpencil_stroke_2d_flat_ref(
 	const bGPDspoint *ref_points, int ref_totpoints,
 	const bGPDspoint *points, int totpoints,
-	float(*points2d)[2], int *r_direction)
+	float(*points2d)[2], const float scale, int *r_direction)
 {
 	BLI_assert(totpoints >= 2);
 
@@ -1661,9 +1661,26 @@ void BKE_gpencil_stroke_2d_flat_ref(
 	for (int i = 0; i < totpoints; i++) {
 		const bGPDspoint *pt = &points[i];
 		float loc[3];
+		float v1[3];
 
+		/* apply scale to extremes of the stroke to get better collision detection */
+		/* first point */
+		if (i == 0) {
+			const bGPDspoint *pt_next = &points[i + 1];
+			interp_v3_v3v3(v1, &pt->x, &pt_next->x, -scale);
+
+		}
+		/* last point */
+		else if (i == totpoints - 1) {
+			const bGPDspoint *pt_prev = &points[i - 1];
+			interp_v3_v3v3(v1, &pt_prev->x, &pt->x, 1.0f + scale);
+		}
+		else {
+			copy_v3_v3(v1, &pt->x);
+		}
+		
 		/* Get local space using first point as origin (ref stroke) */
-		sub_v3_v3v3(loc, &pt->x, &pt0->x);
+		sub_v3_v3v3(loc, v1, &pt0->x);
 
 		points2d[i][0] = dot_v3v3(loc, locx);
 		points2d[i][1] = dot_v3v3(loc, locy);
