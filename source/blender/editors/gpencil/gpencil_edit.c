@@ -3738,7 +3738,7 @@ typedef bool(*GPencilTestFn)(
 	bGPDstroke *gps, bGPDspoint *pt,
 	const GP_SpaceConversion *gsc, const float diff_mat[4][4], void *user_data);
 
-void gpencil_cutter_dissolve(bGPdata *gpd, bGPDlayer *hit_layer, bGPDstroke *hit_stroke)
+static void gpencil_cutter_dissolve(bGPdata *gpd, bGPDlayer *hit_layer, bGPDstroke *hit_stroke)
 {
 	bGPDspoint *pt = NULL;
 	bGPDspoint *pt1 = NULL;
@@ -3746,8 +3746,15 @@ void gpencil_cutter_dissolve(bGPdata *gpd, bGPDlayer *hit_layer, bGPDstroke *hit
 
 	bGPDstroke *gpsn = hit_stroke->next;
 
-	/* if only one point delete */
-	if ((hit_stroke) && (hit_stroke->totpoints == 1)) {
+	int totselect = 0;
+	for (i = 0, pt = hit_stroke->points; i < hit_stroke->totpoints; i++, pt++) {
+		if (pt->flag & GP_SPOINT_SELECT) {
+			totselect++;
+		}
+	}
+
+	/* if all points selected delete */
+	if (hit_stroke->totpoints == totselect) {
 		BLI_remlink(&hit_layer->actframe->strokes, hit_stroke);
 		BKE_gpencil_free_stroke(hit_stroke);
 		hit_stroke = NULL;
@@ -3765,11 +3772,14 @@ void gpencil_cutter_dissolve(bGPdata *gpd, bGPDlayer *hit_layer, bGPDstroke *hit
 	}
 
 	if (hit_stroke) {
-		/* tag and dissolve */
+		/* tag and dissolve (untag new points) */
 		for (i = 0, pt = hit_stroke->points; i < hit_stroke->totpoints; i++, pt++) {
 			if (pt->flag & GP_SPOINT_SELECT) {
 				pt->flag &= ~GP_SPOINT_SELECT;
 				pt->flag |= GP_SPOINT_TAG;
+			}
+			else if (pt->flag & GP_SPOINT_TAG) {
+				pt->flag &= ~GP_SPOINT_TAG;
 			}
 		}
 		gp_stroke_delete_tagged_points(
@@ -3816,20 +3826,31 @@ static int gpencil_cutter_lasso_select(
 	/* select points */
 	GP_EDITABLE_STROKES_BEGIN(gpstroke_iter, C, gpl, gps)
 	{
+		int tot_inside = 0;
 		for (i = 0; i < gps->totpoints; i++) {
 			pt = &gps->points[i];
-			if (pt->flag & GP_SPOINT_SELECT) {
+			if ((pt->flag & GP_SPOINT_SELECT) || (pt->flag & GP_SPOINT_TAG)) {
 				continue;
 			}
 			/* convert point coords to screenspace */
 			const bool is_inside = is_inside_fn(gps, pt, &gsc, gpstroke_iter.diff_mat, user_data);
 			if (is_inside) {
+				tot_inside++;
 				changed = true;
 				pt->flag |= GP_SPOINT_SELECT;
 				gps->flag |= GP_STROKE_SELECT;
 				float r_hita[3], r_hitb[3];
-				ED_gpencil_select_stroke_segment(
-					gpd, gpl, gps, pt, true, true, r_hita, r_hitb);
+				if (gps->totpoints > 1) {
+					ED_gpencil_select_stroke_segment(
+						gpd, gpl, gps, pt, true, true, r_hita, r_hitb);
+				}
+			}
+		}
+		/* if mark all points inside lasso set to remove all stroke */
+		if (tot_inside == gps->totpoints) {
+			for (i = 0; i < gps->totpoints; i++) {
+				pt = &gps->points[i];
+				pt->flag |= GP_SPOINT_SELECT;
 			}
 		}
 	}

@@ -2066,6 +2066,8 @@ void static gp_insert_point(
 
 			/* unselect */
 			pt_final->flag &= ~GP_SPOINT_SELECT;
+			/* tag to avoid more checking with this point */
+			pt_final->flag |= GP_SPOINT_TAG;
 		}
 
 		i2++;
