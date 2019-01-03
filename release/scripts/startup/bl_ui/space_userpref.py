@@ -1146,7 +1146,10 @@ class USERPREF_PT_file_paths(PreferencePanel):
         layout.prop(paths, "i18n_branches_directory", text="I18n Branches")
         layout.prop(paths, "image_editor", text="Image Editor")
         layout.prop(paths, "animation_player_preset", text="Playback Preset")
-        layout.prop(paths, "animation_player", text="Animation Player")
+
+        row = layout.row()
+        row.enabled = paths.animation_player_preset == 'CUSTOM'
+        row.prop(paths, "animation_player", text="Animation Player")
 
 
 class USERPREF_PT_file_autorun(PreferencePanel):
