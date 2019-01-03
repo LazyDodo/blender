@@ -3832,6 +3832,9 @@ static int gpencil_cutter_lasso_select(
 	bGPDstroke *gpsn;
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		bGPDframe *gpf = gpl->actframe;
+		if (gpf == NULL) {
+			continue;
+		}
 		for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gpsn) {
 			gpsn = gps->next;
 			if (gps->flag & GP_STROKE_SELECT) {
