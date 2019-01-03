@@ -5729,6 +5729,7 @@ def km_3d_view_tool_paint_gpencil_arc(params):
         ]},
     )
 
+
 def km_3d_view_tool_paint_gpencil_curve(params):
     return (
         "3D View Tool: Paint Gpencil, Curve",
@@ -5741,14 +5742,18 @@ def km_3d_view_tool_paint_gpencil_curve(params):
         ]},
     )
 
+
 def km_3d_view_tool_paint_gpencil_cutter(params):
     return (
         "3D View Tool: Paint Gpencil, Cutter",
         {"space_type": 'VIEW_3D', "region_type": 'WINDOW'},
         {"items": [
             ("gpencil.stroke_cutter", {"type": params.tool_mouse, "value": 'PRESS'}, None),
+            # Lasso select
+            ("gpencil.select_lasso", {"type": params.action_tweak, "value": 'ANY', "ctrl": True, "alt": True}, None),
         ]},
     )
+
 
 def km_3d_view_tool_edit_gpencil_select(params):
     return (
