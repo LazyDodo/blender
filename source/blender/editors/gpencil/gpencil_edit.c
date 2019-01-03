@@ -3738,7 +3738,7 @@ typedef bool(*GPencilTestFn)(
 	bGPDstroke *gps, bGPDspoint *pt,
 	const GP_SpaceConversion *gsc, const float diff_mat[4][4], void *user_data);
 
-void gpencil_cutter_dissolve(bGPdata *gpd, bGPDlayer *hit_layer, bGPDstroke *hit_stroke, bGPDspoint *hit_point)
+void gpencil_cutter_dissolve(bGPdata *gpd, bGPDlayer *hit_layer, bGPDstroke *hit_stroke)
 {
 	bGPDspoint *pt = NULL;
 	bGPDspoint *pt1 = NULL;
@@ -3816,19 +3816,23 @@ static int gpencil_cutter_lasso_select(
 	/* select points */
 	GP_EDITABLE_STROKES_BEGIN(gpstroke_iter, C, gpl, gps)
 	{
-		for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+		for (i = 0; i < gps->totpoints; i++) {
+			pt = &gps->points[i];
 			/* convert point coords to screenspace */
 			const bool is_inside = is_inside_fn(gps, pt, &gsc, gpstroke_iter.diff_mat, user_data);
 			if (is_inside) {
 				changed = true;
 				pt->flag |= GP_SPOINT_SELECT;
 				gps->flag |= GP_STROKE_SELECT;
+				float r_hita[3], r_hitb[3];
+				ED_gpencil_select_stroke_segment(
+					gpd, gpl, gps, pt, true, true, r_hita, r_hitb);
 			}
 		}
 	}
 	GP_EDITABLE_STROKES_END(gpstroke_iter);
 
-	/* expand selection and delete */
+	/* dissolve selected points */
 	bGPDstroke *gpsn;
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		bGPDframe *gpf = gpl->actframe;
@@ -3838,17 +3842,7 @@ static int gpencil_cutter_lasso_select(
 		for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gpsn) {
 			gpsn = gps->next;
 			if (gps->flag & GP_STROKE_SELECT) {
-				for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-					if (pt->flag & GP_SPOINT_SELECT) {
-						/* expand selection to segment */
-						float r_hita[3], r_hitb[3];
-						int hit = ED_gpencil_select_stroke_segment(
-							gpd, gpl, gps, pt, true, true, r_hita, r_hitb);
-						if (hit > 0) {
-							gpencil_cutter_dissolve(gpd, gpl, gps, pt);
-						}
-					}
-				}
+				gpencil_cutter_dissolve(gpd, gpl, gps);
 			}
 		}
 	}
