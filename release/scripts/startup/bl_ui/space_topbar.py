@@ -299,9 +299,11 @@ class _draw_left_context_mode:
                 return
 
             is_paint = True
-            if (tool.name in {"Line", "Box", "Circle", "Arc", "Curve", "Cutter"}):
+            if tool.name in {"Line", "Box", "Circle", "Arc", "Curve"}:
                 is_paint = False
-            elif (not tool.has_datablock):
+            elif not tool.has_datablock:
+                return
+            elif tool.name == "Cutter":
                 return
 
             paint = context.tool_settings.gpencil_paint
