@@ -152,6 +152,12 @@ def _template_items_select_actions(params, operator):
             (operator, {"type": 'I', "value": 'PRESS', "ctrl": True}, {"properties": [("action", 'INVERT')]}),
             (operator, {"type": 'A', "value": 'DOUBLE_CLICK'}, {"properties": [("action", 'DESELECT')]}),
         ]
+    elif params.legacy:
+        # Alt+A is for playback in legacy keymap.
+        return [
+            (operator, {"type": 'A', "value": 'PRESS'}, {"properties": [("action", 'TOGGLE')]}),
+            (operator, {"type": 'I', "value": 'PRESS', "ctrl": True}, {"properties": [("action", 'INVERT')]}),
+        ]
     else:
         return [
             (operator, {"type": 'A', "value": 'PRESS'}, {"properties": [("action", 'TOGGLE')]}),
@@ -767,6 +773,7 @@ def km_uv_editor(params):
          {"properties": [("data_path", 'tool_settings.use_snap')]}),
         ("wm.context_menu_enum", {"type": 'TAB', "value": 'PRESS', "shift": True, "ctrl": True},
          {"properties": [("data_path", 'tool_settings.snap_uv_element')]}),
+        op_menu("IMAGE_MT_uvs_specials", params.context_menu_event),
     ])
 
     # 3D cursor
@@ -1411,7 +1418,6 @@ def km_image_generic(params):
         ("image.save_as", {"type": 'S', "value": 'PRESS', "shift": True}, None),
         ("image.properties", {"type": 'N', "value": 'PRESS'}, None),
         ("image.toolshelf", {"type": 'T', "value": 'PRESS'}, None),
-        op_menu("IMAGE_MT_specials", params.context_menu_event),
         ("image.cycle_render_slot", {"type": 'J', "value": 'PRESS'}, None),
         ("image.cycle_render_slot", {"type": 'J', "value": 'PRESS', "alt": True},
          {"properties": [("reverse", True)]}),
