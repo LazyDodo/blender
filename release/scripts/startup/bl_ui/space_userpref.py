@@ -1125,7 +1125,9 @@ class ThemeGenericClassGenerator():
                 theme_area, theme_area.identifier.lower())
 
 
-class USERPREF_PT_file_paths(PreferencePanel):
+class USERPREF_PT_file_paths(Panel):
+    bl_space_type = 'PREFERENCES'
+    bl_region_type = 'WINDOW'
     bl_label = "File Paths"
 
     @classmethod
@@ -1133,10 +1135,14 @@ class USERPREF_PT_file_paths(PreferencePanel):
         prefs = context.preferences
         return (prefs.active_section == 'SYSTEM_FILES')
 
-    def draw_props(self, context, layout):
+    def draw(self, context):
+        layout = self.layout
         prefs = context.preferences
         paths = prefs.filepaths
         system = prefs.system
+
+        layout.use_property_split = True
+        layout.use_property_decorate = False  # No animation.
 
         layout.prop(paths, "render_output_directory", text="Render Output")
         layout.prop(paths, "render_cache_directory", text="Render Cache")
@@ -1154,7 +1160,9 @@ class USERPREF_PT_file_paths(PreferencePanel):
         row.prop(paths, "animation_player", text="Animation Player")
 
 
-class USERPREF_PT_file_autorun(PreferencePanel):
+class USERPREF_PT_file_autorun(Panel):
+    bl_space_type = 'PREFERENCES'
+    bl_region_type = 'WINDOW'
     bl_label = "Auto Run Python Scripts"
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -1169,9 +1177,13 @@ class USERPREF_PT_file_autorun(PreferencePanel):
 
         self.layout.prop(paths, "use_scripts_auto_execute", text="")
 
-    def draw_props(self, context, layout):
+    def draw(self, context):
+        layout = self.layout
         prefs = context.preferences
         paths = prefs.filepaths
+
+        layout.use_property_split = True
+        layout.use_property_decorate = False  # No animation.
 
         layout.active = paths.use_scripts_auto_execute
 
