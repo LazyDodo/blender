@@ -2144,7 +2144,7 @@ int ED_gpencil_select_stroke_segment(
 	float(*points2d)[2] = MEM_mallocN(sizeof(*points2d) * gps->totpoints, "GP Stroke temp 2d points");
 	BKE_gpencil_stroke_2d_flat_ref(
 		gps->points, gps->totpoints,
-		gps->points, gps->totpoints, points2d, 0.0f, &direction);
+		gps->points, gps->totpoints, points2d, scale, &direction);
 
 	GHash *all_2d = BLI_ghash_ptr_new(__func__);
 
