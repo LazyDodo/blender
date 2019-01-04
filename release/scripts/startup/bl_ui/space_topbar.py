@@ -301,9 +301,11 @@ class _draw_left_context_mode:
             is_paint = True
             if tool.name in {"Line", "Box", "Circle", "Arc", "Curve"}:
                 is_paint = False
-            elif not tool.has_datablock:
-                return
             elif tool.name == "Cutter":
+                row = layout.row(align=True)
+                row.prop(context.tool_settings.gpencil_sculpt, "isect_threshold")
+                return
+            elif not tool.has_datablock:
                 return
 
             paint = context.tool_settings.gpencil_paint

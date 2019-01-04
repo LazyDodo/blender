@@ -269,7 +269,7 @@ void ED_gpencil_update_color_uv(struct Main *bmain, struct Material *mat);
 int ED_gpencil_select_stroke_segment(
 	struct bGPDlayer *gpl,
 	struct bGPDstroke *gps, struct bGPDspoint *pt,
-	bool select, bool insert,
+	bool select, bool insert, const float scale,
 	float r_hita[3], float r_hitb[3]);
 
 #endif /*  __ED_GPENCIL_H__ */

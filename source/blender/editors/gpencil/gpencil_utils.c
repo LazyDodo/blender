@@ -2094,7 +2094,7 @@ static float gp_calc_factor(float p2d_a1[2], float p2d_a2[2], float r_hit2d[2])
 /* extend selection to stroke intersections */
 int ED_gpencil_select_stroke_segment(
 	bGPDlayer *gpl, bGPDstroke *gps, bGPDspoint *pt,
-	bool select, bool insert,
+	bool select, bool insert, const float scale,
 	float r_hita[3], float r_hitb[3])
 {
 	const float min_factor = 0.0015f;
@@ -2141,7 +2141,6 @@ int ED_gpencil_select_stroke_segment(
 
 	/* convert all gps points to 2d and save in a hash to avoid recalculation  */
 	int direction = 0;
-	const float scale = 0.5f;
 	float(*points2d)[2] = MEM_mallocN(sizeof(*points2d) * gps->totpoints, "GP Stroke temp 2d points");
 	BKE_gpencil_stroke_2d_flat_ref(
 		gps->points, gps->totpoints,

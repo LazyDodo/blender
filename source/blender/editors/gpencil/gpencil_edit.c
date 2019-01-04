@@ -3793,6 +3793,8 @@ static int gpencil_cutter_lasso_select(
 {
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	ScrArea *sa = CTX_wm_area(C);
+	ToolSettings *ts = CTX_data_tool_settings(C);
+	const float scale = ts->gp_sculpt.isect_threshold;
 
 	bGPDspoint *pt;
 	int i;
@@ -3839,7 +3841,7 @@ static int gpencil_cutter_lasso_select(
 				float r_hita[3], r_hitb[3];
 				if (gps->totpoints > 1) {
 					ED_gpencil_select_stroke_segment(
-						gpl, gps, pt, true, true, r_hita, r_hitb);
+						gpl, gps, pt, true, true, scale, r_hita, r_hitb);
 				}
 			}
 		}
