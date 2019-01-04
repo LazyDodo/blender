@@ -2224,7 +2224,7 @@ int ED_gpencil_select_stroke_segment(
 
 		if (hit_b) {
 			f = gp_calc_factor(p2d_a1, p2d_a2, r_hit2d);
-			interp_v3_v3v3(r_hitb, &pta1->x, &pta2->x, f + 0.1f);
+			interp_v3_v3v3(r_hitb, &pta1->x, &pta2->x, f);
 			if (f > min_factor) {
 				hit_pointb = pta1;
 			}
