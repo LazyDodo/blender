@@ -1134,7 +1134,7 @@ class _defs_gpencil_edit:
     @ToolDef.from_fn
     def select():
         def draw_settings(context, layout, tool):
-            pass
+            layout.prop(context.tool_settings.gpencil_sculpt, "isect_threshold")
         return dict(
             text="Select",
             icon="ops.generic.select",
@@ -1148,6 +1148,7 @@ class _defs_gpencil_edit:
         def draw_settings(context, layout, tool):
             props = tool.operator_properties("gpencil.select_box")
             layout.prop(props, "mode", expand=True)
+            layout.prop(context.tool_settings.gpencil_sculpt, "isect_threshold")
         return dict(
             text="Select Box",
             icon="ops.generic.select_box",
@@ -1161,6 +1162,7 @@ class _defs_gpencil_edit:
         def draw_settings(context, layout, tool):
             props = tool.operator_properties("gpencil.select_lasso")
             layout.prop(props, "mode", expand=True)
+            layout.prop(context.tool_settings.gpencil_sculpt, "isect_threshold")
         return dict(
             text="Select Lasso",
             icon="ops.generic.select_lasso",
@@ -1171,11 +1173,14 @@ class _defs_gpencil_edit:
 
     @ToolDef.from_fn
     def circle_select():
+        def draw_settings(context, layout, tool):
+            layout.prop(context.tool_settings.gpencil_sculpt, "isect_threshold")
         return dict(
             text="Select Circle",
             icon="ops.generic.select_circle",
             widget=None,
             keymap=(),
+            draw_settings=draw_settings,
         )
 
     @ToolDef.from_fn

@@ -1023,13 +1023,13 @@ typedef struct GP_Sculpt_Settings {
 	int brushtype;                /* eGP_Sculpt_Types (sculpt) */
 	int flag;                     /* eGP_Sculpt_SettingsFlag */
 	int lock_axis;                /* eGP_Lockaxis_Types lock drawing to one axis */
-	char pad1[4];
+	float isect_threshold;       /* threshold for intersections */
 
 	/* weight paint is a submode of sculpt but use its own index. All weight paint
 	 * brushes must be defined at the end of the brush array.
 	 */
 	int weighttype;               /* eGP_Sculpt_Types (weight paint) */
-	char pad[4];
+	char _pad[4];
 	struct CurveMapping *cur_falloff; /* multiframe edit falloff effect by frame */
 	struct CurveMapping *cur_primitive; /* Curve used for primitve tools */
 

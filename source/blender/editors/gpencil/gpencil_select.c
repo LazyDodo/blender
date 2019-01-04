@@ -864,7 +864,8 @@ static bool gp_stroke_do_circle_sel(
 		bGPDlayer *gpl,
         bGPDstroke *gps, GP_SpaceConversion *gsc,
         const int mx, const int my, const int radius,
-        const bool select, rcti *rect, float diff_mat[4][4], const int selectmode)
+        const bool select, rcti *rect, float diff_mat[4][4], const int selectmode,
+		const float scale)
 {
 	bGPDspoint *pt1 = NULL;
 	bGPDspoint *pt2 = NULL;
@@ -965,7 +966,7 @@ static bool gp_stroke_do_circle_sel(
 			float r_hita[3], r_hitb[3];
 			bool hit_select = (bool)(pt1->flag & GP_SPOINT_SELECT);
 			ED_gpencil_select_stroke_segment(
-				gpl, gps, pt1, hit_select, false, r_hita, r_hitb);
+				gpl, gps, pt1, hit_select, false, scale, r_hita, r_hitb);
 		}
 
 		/* Ensure that stroke selection is in sync with its points */
@@ -981,6 +982,7 @@ static int gpencil_circle_select_exec(bContext *C, wmOperator *op)
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
 	const int selectmode = ts->gpencil_selectmode;
+	const float scale = ts->gp_sculpt.isect_threshold;
 
 	/* if not edit/sculpt mode, the event is catched but not processed */
 	if (GPENCIL_NONE_EDIT_MODE(gpd)) {
@@ -1023,7 +1025,7 @@ static int gpencil_circle_select_exec(bContext *C, wmOperator *op)
 	{
 		changed |= gp_stroke_do_circle_sel(
 			gpl, gps, &gsc, mx, my, radius, select, &rect,
-			gpstroke_iter.diff_mat, selectmode);
+			gpstroke_iter.diff_mat, selectmode, scale);
 	}
 	GP_EDITABLE_STROKES_END(gpstroke_iter);
 
@@ -1089,6 +1091,7 @@ static int gpencil_generic_select_exec(
 			(ts->gpencil_selectmode == GP_SELECTMODE_SEGMENT) &&
 			((gpd->flag & GP_DATA_STROKE_PAINTMODE) == 0));
 	const eSelectOp sel_op = RNA_enum_get(op->ptr, "mode");
+	const float scale = ts->gp_sculpt.isect_threshold;
 
 
 	GP_SpaceConversion gsc = {NULL};
@@ -1146,7 +1149,7 @@ static int gpencil_generic_select_exec(
 						bool hit_select = (bool)(pt->flag & GP_SPOINT_SELECT);
 						float r_hita[3], r_hitb[3];
 						ED_gpencil_select_stroke_segment(
-							gpl, gps, pt, hit_select, false, r_hita, r_hitb);
+							gpl, gps, pt, hit_select, false, scale, r_hita, r_hitb);
 					}
 
 				}
@@ -1361,6 +1364,7 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
 	ScrArea *sa = CTX_wm_area(C);
 	bGPdata *gpd = ED_gpencil_data_get_active(C);
 	ToolSettings *ts = CTX_data_tool_settings(C);
+	const float scale = ts->gp_sculpt.isect_threshold;
 
 	/* "radius" is simply a threshold (screen space) to make it easier to test with a tolerance */
 	const float radius = 0.50f * U.widget_unit;
@@ -1488,7 +1492,7 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
 				bool hit_select = (bool)(hit_point->flag & GP_SPOINT_SELECT);
 				ED_gpencil_select_stroke_segment(
 						hit_layer, hit_stroke, hit_point, hit_select,
-						false, r_hita, r_hitb);
+						false, scale, r_hita, r_hitb);
 			}
 		}
 		else {

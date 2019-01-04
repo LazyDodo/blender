@@ -1662,18 +1662,26 @@ void BKE_gpencil_stroke_2d_flat_ref(
 		const bGPDspoint *pt = &points[i];
 		float loc[3];
 		float v1[3];
+		float vn[3] = { 0.0f, 0.0f, 0.0f };
 
-		/* apply scale to extremes of the stroke to get better collision detection */
+		/* apply scale to extremes of the stroke to get better collision detection
+		 * the scale is divided to get more control in the UI parameter
+		 */
 		/* first point */
 		if (i == 0) {
 			const bGPDspoint *pt_next = &points[i + 1];
-			interp_v3_v3v3(v1, &pt->x, &pt_next->x, -scale);
-
+			sub_v3_v3v3(vn, &pt->x, &pt_next->x);
+			normalize_v3(vn);
+			mul_v3_fl(vn, scale / 10.0f);
+			add_v3_v3v3(v1, &pt->x, vn);
 		}
 		/* last point */
 		else if (i == totpoints - 1) {
 			const bGPDspoint *pt_prev = &points[i - 1];
-			interp_v3_v3v3(v1, &pt_prev->x, &pt->x, 1.0f + scale);
+			sub_v3_v3v3(vn, &pt->x, &pt_prev->x);
+			normalize_v3(vn);
+			mul_v3_fl(vn, scale / 10.0f);
+			add_v3_v3v3(v1, &pt->x, vn);
 		}
 		else {
 			copy_v3_v3(v1, &pt->x);
