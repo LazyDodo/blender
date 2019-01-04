@@ -4402,27 +4402,6 @@ static void rna_def_userdef_system(BlenderRNA *brna)
 	RNA_def_property_range(prop, 32, 32768);
 	RNA_def_property_ui_text(prop, "Scrollback", "Maximum number of lines to store for the console buffer");
 
-
-	/* System */
-
-	prop = RNA_def_property(srna, "author", PROP_STRING, PROP_NONE);
-	RNA_def_property_string_sdna(prop, NULL, "author");
-	RNA_def_property_string_maxlength(prop, 80);
-	RNA_def_property_ui_text(prop, "Author",
-	                         "Name that will be used in exported files when format supports such feature");
-
-	prop = RNA_def_property(srna, "use_scripts_auto_execute", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_negative_sdna(prop, NULL, "flag", USER_SCRIPT_AUTOEXEC_DISABLE);
-	RNA_def_property_ui_text(prop, "Auto Run Python Scripts",
-	                         "Allow any .blend file to run scripts automatically "
-	                         "(unsafe with blend files from an untrusted source)");
-	RNA_def_property_update(prop, 0, "rna_userdef_script_autoexec_update");
-
-	prop = RNA_def_property(srna, "use_tabs_as_spaces", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_negative_sdna(prop, NULL, "flag", USER_TXT_TABSTOSPACES_DISABLE);
-	RNA_def_property_ui_text(prop, "Tabs as Spaces",
-	                         "Automatically convert all new tabs into spaces for new and loaded text files");
-
 	/* OpenGL */
 
 	/* Full scene anti-aliasing */
@@ -4929,6 +4908,27 @@ static void rna_def_userdef_filepaths(BlenderRNA *brna)
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "flag", USER_FILENOUI);
 	RNA_def_property_ui_text(prop, "Load UI", "Load user interface setup when loading .blend files");
 	RNA_def_property_update(prop, 0, "rna_userdef_load_ui_update");
+
+
+	prop = RNA_def_property(srna, "use_scripts_auto_execute", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_negative_sdna(prop, NULL, "flag", USER_SCRIPT_AUTOEXEC_DISABLE);
+	RNA_def_property_ui_text(prop, "Auto Run Python Scripts",
+	                         "Allow any .blend file to run scripts automatically "
+	                         "(unsafe with blend files from an untrusted source)");
+	RNA_def_property_update(prop, 0, "rna_userdef_script_autoexec_update");
+
+	prop = RNA_def_property(srna, "author", PROP_STRING, PROP_NONE);
+	RNA_def_property_string_sdna(prop, NULL, "author");
+	RNA_def_property_string_maxlength(prop, 80);
+	RNA_def_property_ui_text(prop, "Author",
+	                         "Name that will be used in exported files when format supports such feature");
+
+	prop = RNA_def_property(srna, "use_tabs_as_spaces", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_negative_sdna(prop, NULL, "flag", USER_TXT_TABSTOSPACES_DISABLE);
+	RNA_def_property_ui_text(prop, "Tabs as Spaces",
+	                         "Automatically convert all new tabs into spaces for new and loaded text files");
+
+	/* Directories  */
 
 	prop = RNA_def_property(srna, "font_directory", PROP_STRING, PROP_DIRPATH);
 	RNA_def_property_string_sdna(prop, NULL, "fontdir");

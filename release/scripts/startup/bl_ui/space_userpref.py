@@ -1166,16 +1166,14 @@ class USERPREF_PT_file_autorun(PreferencePanel):
     def draw_header(self, context):
         prefs = context.preferences
         paths = prefs.filepaths
-        system = prefs.system
 
-        self.layout.prop(system, "use_scripts_auto_execute", text="")
+        self.layout.prop(paths, "use_scripts_auto_execute", text="")
 
     def draw_props(self, context, layout):
         prefs = context.preferences
         paths = prefs.filepaths
-        system = prefs.system
 
-        layout.active = system.use_scripts_auto_execute
+        layout.active = paths.use_scripts_auto_execute
 
         box = layout.box()
         row = box.row()
@@ -1245,10 +1243,9 @@ class USERPREF_PT_file_saveload_texteditor(PreferencePanel):
     def draw_props(self, context, layout):
         prefs = context.preferences
         paths = prefs.filepaths
-        system = prefs.system
 
-        layout.prop(system, "use_tabs_as_spaces")
-        layout.prop(system, "author", text="Author")
+        layout.prop(paths, "use_tabs_as_spaces")
+        layout.prop(paths, "author", text="Author")
 
 
 class USERPREF_MT_ndof_settings(Menu):
