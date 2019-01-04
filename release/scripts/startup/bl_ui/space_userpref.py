@@ -91,8 +91,8 @@ class PreferencePanel(Panel):
         layout.use_property_decorate = False  # No animation.
 
         row = layout.row()
-        if width > (350 * pixel_size): # No horizontal margin if region is rather small.
-            row.label() # Needed so col below is centered.
+        if width > (350 * pixel_size):  # No horizontal margin if region is rather small.
+            row.label()  # Needed so col below is centered.
 
         col = row.column()
         col.ui_units_x = 50
@@ -100,8 +100,8 @@ class PreferencePanel(Panel):
         # draw_props implemented by deriving classes.
         self.draw_props(context, col)
 
-        if width > (350 * pixel_size): # No horizontal margin if region is rather small.
-            row.label() # Needed so col above is centered.
+        if width > (350 * pixel_size):  # No horizontal margin if region is rather small.
+            row.label()  # Needed so col above is centered.
 
 
 class USERPREF_PT_interface_display(PreferencePanel):
@@ -320,6 +320,7 @@ class USERPREF_PT_interface_menus_mouse_over(PreferencePanel):
         layout.prop(view, "open_toplevel_delay", text="Top Level")
         layout.prop(view, "open_sublevel_delay", text="Sub Level")
 
+
 class USERPREF_PT_interface_menus_pie(PreferencePanel):
     bl_label = "Pie Menus"
     bl_parent_id = "USERPREF_PT_interface_menus"
@@ -462,7 +463,7 @@ class USERPREF_PT_edit_duplicate_data(PreferencePanel):
         col.prop(edit, "use_duplicate_action", text="Action")
         col.prop(edit, "use_duplicate_armature", text="Armature")
         col.prop(edit, "use_duplicate_curve", text="Curve")
-        #col.prop(edit, "use_duplicate_fcurve", text="F-Curve")
+        # col.prop(edit, "use_duplicate_fcurve", text="F-Curve")
         col.prop(edit, "use_duplicate_light", text="Light")
         col = flow.column()
         col.prop(edit, "use_duplicate_material", text="Material")
@@ -866,6 +867,7 @@ class USERPREF_PT_theme_interface_icons(PreferencePanel):
         flow.prop(ui, "icon_modifier")
         flow.prop(ui, "icon_shading")
 
+
 class USERPREF_PT_theme_text_style(PreferencePanel):
     bl_label = "Text Style"
     bl_options = {'DEFAULT_CLOSED'}
@@ -1063,7 +1065,7 @@ class ThemeGenericClassGenerator():
                 "bl_options": {'DEFAULT_CLOSED'},
                 "draw": PreferenceThemeWidgetColorPanel.draw,
                 "wcol": wcol,
-                })
+            })
 
             ThemeGenericClassGenerator.generated_classes.append(paneltype)
 
@@ -1090,7 +1092,7 @@ class ThemeGenericClassGenerator():
                             "draw": PreferenceThemeSpacePanel.draw,
                             "theme_area": theme_area.identifier,
                             "datapath": new_datapath,
-                            })
+                        })
 
                         ThemeGenericClassGenerator.generated_classes.append(paneltype)
                         generate_child_panel_classes_recurse(panel_id, prop.fixed_type, theme_area, new_datapath)
@@ -1115,12 +1117,12 @@ class ThemeGenericClassGenerator():
                 "theme_area": theme_area.identifier,
                 "icon": theme_area.icon,
                 "datapath": theme_area.identifier.lower(),
-                })
+            })
 
             ThemeGenericClassGenerator.generated_classes.append(paneltype)
             ThemeGenericClassGenerator.generate_theme_area_child_panel_classes(
-                    panel_id, Theme.bl_rna.properties[theme_area.identifier.lower()].fixed_type,
-                    theme_area, theme_area.identifier.lower())
+                panel_id, Theme.bl_rna.properties[theme_area.identifier.lower()].fixed_type,
+                theme_area, theme_area.identifier.lower())
 
 
 class USERPREF_PT_file_paths(PreferencePanel):
@@ -1381,7 +1383,7 @@ class USERPREF_PT_input_view_zoom(PreferencePanel):
             layout.prop(inputs, "invert_mouse_zoom", text="Invert Mouse Zoom Direction")
 
         layout.prop(inputs, "invert_zoom_wheel", text="Invert Wheel Zoom Direction")
-        #sub.prop(view, "wheel_scroll_lines", text="Scroll Lines")
+        # sub.prop(view, "wheel_scroll_lines", text="Scroll Lines")
         layout.prop(inputs, "use_zoom_to_mouse")
 
 
@@ -1508,9 +1510,9 @@ class USERPREF_PT_keymap(Panel):
 
         layout = self.layout
 
-        #import time
+        # import time
 
-        #start = time.time()
+        # start = time.time()
 
         prefs = context.preferences
         keymappref = prefs.keymap
@@ -1520,7 +1522,7 @@ class USERPREF_PT_keymap(Panel):
         # Keymap Settings
         draw_keymaps(context, col)
 
-        #print("runtime", time.time() - start)
+        # print("runtime", time.time() - start)
 
 
 class USERPREF_MT_addons_online_resources(Menu):
