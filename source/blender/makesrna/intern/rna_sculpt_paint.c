@@ -1288,7 +1288,7 @@ static void rna_def_gpencil_sculpt(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "isect_threshold", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "isect_threshold");
 	RNA_def_property_range(prop, 0.0f, 10.0f);
-	RNA_def_property_float_default(prop, 0.0f);
+	RNA_def_property_float_default(prop, 0.1f);
 	RNA_def_property_ui_text(prop, "Threshold", "Threshold for stroke intersections");
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 
