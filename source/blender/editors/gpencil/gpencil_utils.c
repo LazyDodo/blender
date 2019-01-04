@@ -1949,7 +1949,7 @@ void ED_gpencil_update_color_uv(Main *bmain, Material *mat)
 }
 
 static bool gpencil_check_collision(
-	bGPDstroke *gps, bGPDstroke **gps_array, GHash *all_2d,
+	bGPDstroke **gps_array, GHash *all_2d,
 	int totstrokes,	float p2d_a1[2], float p2d_a2[2], float r_hit[2])
 {
 	bool hit = false;
@@ -2093,7 +2093,7 @@ static float gp_calc_factor(float p2d_a1[2], float p2d_a2[2], float r_hit2d[2])
 
 /* extend selection to stroke intersections */
 int ED_gpencil_select_stroke_segment(
-	bGPdata *gpd, bGPDlayer *gpl, bGPDstroke *gps, bGPDspoint *pt,
+	bGPDlayer *gpl, bGPDstroke *gps, bGPDspoint *pt,
 	bool select, bool insert,
 	float r_hita[3], float r_hitb[3])
 {
@@ -2180,7 +2180,7 @@ int ED_gpencil_select_stroke_segment(
 			copy_v2_v2(p2d_a2, points2d[i2]);
 
 			hit_a = gpencil_check_collision(
-				gps, gps_array, all_2d, totstrokes, p2d_a1, p2d_a2, r_hit2d);
+				gps_array, all_2d, totstrokes, p2d_a1, p2d_a2, r_hit2d);
 
 			if (select) {
 				pta1->flag |= GP_SPOINT_SELECT;
@@ -2214,7 +2214,7 @@ int ED_gpencil_select_stroke_segment(
 		copy_v2_v2(p2d_a2, points2d[i2]);
 
 		hit_b = gpencil_check_collision(
-			gps, gps_array, all_2d, totstrokes, p2d_a1, p2d_a2, r_hit2d);
+			gps_array, all_2d, totstrokes, p2d_a1, p2d_a2, r_hit2d);
 
 		if (select) {
 			pta1->flag |= GP_SPOINT_SELECT;

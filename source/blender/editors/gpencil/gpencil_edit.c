@@ -3738,7 +3738,7 @@ typedef bool(*GPencilTestFn)(
 	bGPDstroke *gps, bGPDspoint *pt,
 	const GP_SpaceConversion *gsc, const float diff_mat[4][4], void *user_data);
 
-static void gpencil_cutter_dissolve(bGPdata *gpd, bGPDlayer *hit_layer, bGPDstroke *hit_stroke)
+static void gpencil_cutter_dissolve(bGPDlayer *hit_layer, bGPDstroke *hit_stroke)
 {
 	bGPDspoint *pt = NULL;
 	bGPDspoint *pt1 = NULL;
@@ -3812,9 +3812,6 @@ static int gpencil_cutter_lasso_select(
 	/* deselect all strokes first */
 	CTX_DATA_BEGIN(C, bGPDstroke *, gps, editable_gpencil_strokes)
 	{
-		bGPDspoint *pt;
-		int i;
-
 		for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
 			pt->flag &= ~GP_SPOINT_SELECT;
 		}
@@ -3842,7 +3839,7 @@ static int gpencil_cutter_lasso_select(
 				float r_hita[3], r_hitb[3];
 				if (gps->totpoints > 1) {
 					ED_gpencil_select_stroke_segment(
-						gpd, gpl, gps, pt, true, true, r_hita, r_hitb);
+						gpl, gps, pt, true, true, r_hita, r_hitb);
 				}
 			}
 		}
@@ -3866,7 +3863,7 @@ static int gpencil_cutter_lasso_select(
 		for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gpsn) {
 			gpsn = gps->next;
 			if (gps->flag & GP_STROKE_SELECT) {
-				gpencil_cutter_dissolve(gpd, gpl, gps);
+				gpencil_cutter_dissolve(gpl, gps);
 			}
 		}
 	}

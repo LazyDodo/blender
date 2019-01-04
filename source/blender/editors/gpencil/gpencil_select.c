@@ -861,12 +861,13 @@ void GPENCIL_OT_select_less(wmOperatorType *ot)
  *       It would be great to de-duplicate the logic here sometime, but that can wait...
  */
 static bool gp_stroke_do_circle_sel(
-		bGPdata *gpd, bGPDlayer *gpl,
+		bGPDlayer *gpl,
         bGPDstroke *gps, GP_SpaceConversion *gsc,
         const int mx, const int my, const int radius,
         const bool select, rcti *rect, float diff_mat[4][4], const int selectmode)
 {
-	bGPDspoint *pt1, *pt2;
+	bGPDspoint *pt1 = NULL;
+	bGPDspoint *pt2 = NULL;
 	int x0 = 0, y0 = 0, x1 = 0, y1 = 0;
 	int i;
 	bool changed = false;
@@ -964,7 +965,7 @@ static bool gp_stroke_do_circle_sel(
 			float r_hita[3], r_hitb[3];
 			bool hit_select = (bool)(pt1->flag & GP_SPOINT_SELECT);
 			ED_gpencil_select_stroke_segment(
-				gpd, gpl, gps, pt1, hit_select, false, r_hita, r_hitb);
+				gpl, gps, pt1, hit_select, false, r_hita, r_hitb);
 		}
 
 		/* Ensure that stroke selection is in sync with its points */
@@ -1021,7 +1022,7 @@ static int gpencil_circle_select_exec(bContext *C, wmOperator *op)
 	GP_EDITABLE_STROKES_BEGIN(gpstroke_iter, C, gpl, gps)
 	{
 		changed |= gp_stroke_do_circle_sel(
-			gpd, gpl, gps, &gsc, mx, my, radius, select, &rect,
+			gpl, gps, &gsc, mx, my, radius, select, &rect,
 			gpstroke_iter.diff_mat, selectmode);
 	}
 	GP_EDITABLE_STROKES_END(gpstroke_iter);
@@ -1145,7 +1146,7 @@ static int gpencil_generic_select_exec(
 						bool hit_select = (bool)(pt->flag & GP_SPOINT_SELECT);
 						float r_hita[3], r_hitb[3];
 						ED_gpencil_select_stroke_segment(
-							gpd, gpl, gps, pt, hit_select, false, r_hita, r_hitb);
+							gpl, gps, pt, hit_select, false, r_hita, r_hitb);
 					}
 
 				}
@@ -1486,7 +1487,7 @@ static int gpencil_select_exec(bContext *C, wmOperator *op)
 				float r_hita[3], r_hitb[3];
 				bool hit_select = (bool)(hit_point->flag & GP_SPOINT_SELECT);
 				ED_gpencil_select_stroke_segment(
-						gpd, hit_layer, hit_stroke, hit_point, hit_select,
+						hit_layer, hit_stroke, hit_point, hit_select,
 						false, r_hita, r_hitb);
 			}
 		}
