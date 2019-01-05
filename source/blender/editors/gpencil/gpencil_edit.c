@@ -262,7 +262,7 @@ void GPENCIL_OT_selectmode_toggle(wmOperatorType *ot)
 	ot->flag = OPTYPE_UNDO | OPTYPE_REGISTER;
 
 	/* properties */
-	prop = RNA_def_int(ot->srna, "mode", 0, 0, 1, "Select mode", "Select mode", 0, 1);
+	prop = RNA_def_int(ot->srna, "mode", 0, 0, 2, "Select mode", "Select mode", 0, 2);
 	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 }
 
