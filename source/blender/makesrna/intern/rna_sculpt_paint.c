@@ -1347,7 +1347,7 @@ static void rna_def_gpencil_sculpt(BlenderRNA *brna)
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	/* threshold for cutter */
-	prop = RNA_def_property(srna, "isect_threshold", PROP_FLOAT, PROP_NONE);
+	prop = RNA_def_property(srna, "intersection_threshold", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "isect_threshold");
 	RNA_def_property_range(prop, 0.0f, 10.0f);
 	RNA_def_property_float_default(prop, 0.1f);

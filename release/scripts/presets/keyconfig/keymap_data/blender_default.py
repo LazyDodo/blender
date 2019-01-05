@@ -2983,6 +2983,8 @@ def km_grease_pencil_stroke_edit_mode(params):
          {"properties": [("mode", 0)]}),
         ("gpencil.selectmode_toggle", {"type": 'TWO', "value": 'PRESS'},
          {"properties": [("mode", 1)]}),
+        ("gpencil.selectmode_toggle", {"type": 'THREE', "value": 'PRESS'},
+         {"properties": [("mode", 2)]}),
     ])
 
     if params.apple:

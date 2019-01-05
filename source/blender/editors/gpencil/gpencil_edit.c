@@ -262,7 +262,7 @@ void GPENCIL_OT_selectmode_toggle(wmOperatorType *ot)
 	ot->flag = OPTYPE_UNDO | OPTYPE_REGISTER;
 
 	/* properties */
-	prop = RNA_def_int(ot->srna, "mode", 0, 0, 1, "Select mode", "Select mode", 0, 1);
+	prop = RNA_def_int(ot->srna, "mode", 0, 0, 2, "Select mode", "Select mode", 0, 2);
 	RNA_def_property_flag(prop, PROP_HIDDEN | PROP_SKIP_SAVE);
 }
 
@@ -2513,6 +2513,101 @@ void GPENCIL_OT_stroke_cyclical_set(wmOperatorType *ot)
 
 	/* properties */
 	ot->prop = RNA_def_enum(ot->srna, "type", cyclic_type, GP_STROKE_CYCLIC_TOGGLE, "Type", "");
+}
+
+/* ******************* Flat Stroke Caps ************************** */
+
+enum {
+	GP_STROKE_CAPS_TOGGLE_BOTH    = 0,
+	GP_STROKE_CAPS_TOGGLE_START   = 1,
+	GP_STROKE_CAPS_TOGGLE_END     = 2,
+	GP_STROKE_CAPS_TOGGLE_DEFAULT = 3
+};
+
+static int gp_stroke_caps_set_exec(bContext *C, wmOperator *op)
+{
+	bGPdata *gpd = ED_gpencil_data_get_active(C);
+	Object *ob = CTX_data_active_object(C);
+
+	const int type = RNA_enum_get(op->ptr, "type");
+
+	/* sanity checks */
+	if (ELEM(NULL, gpd))
+		return OPERATOR_CANCELLED;
+
+	/* loop all selected strokes */
+	CTX_DATA_BEGIN(C, bGPDlayer *, gpl, editable_gpencil_layers)
+	{
+		if (gpl->actframe == NULL)
+			continue;
+
+		for (bGPDstroke *gps = gpl->actframe->strokes.last; gps; gps = gps->prev) {
+			MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+
+			/* skip strokes that are not selected or invalid for current view */
+			if (((gps->flag & GP_STROKE_SELECT) == 0) || ED_gpencil_stroke_can_use(C, gps) == false)
+				continue;
+			/* skip hidden or locked colors */
+			if (!gp_style || (gp_style->flag & GP_STYLE_COLOR_HIDE) || (gp_style->flag & GP_STYLE_COLOR_LOCKED))
+				continue;
+
+			switch (type) {
+				case GP_STROKE_CAPS_TOGGLE_BOTH:
+					gps->flag ^= GP_STROKE_FLATCAPS_START;
+					gps->flag ^= GP_STROKE_FLATCAPS_END;
+					break;
+				case GP_STROKE_CAPS_TOGGLE_START:
+					gps->flag ^= GP_STROKE_FLATCAPS_START;
+					break;
+				case GP_STROKE_CAPS_TOGGLE_END:
+					gps->flag ^= GP_STROKE_FLATCAPS_END;
+					break;
+				case GP_STROKE_CAPS_TOGGLE_DEFAULT:
+					gps->flag &= ~GP_STROKE_FLATCAPS_START;
+					gps->flag &= ~GP_STROKE_FLATCAPS_END;
+					break;
+				default:
+					BLI_assert(0);
+					break;
+			}
+		}
+	}
+	CTX_DATA_END;
+
+	/* notifiers */
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+
+	return OPERATOR_FINISHED;
+}
+
+/**
+ * Change Stroke caps mode Rounded or Flat
+ */
+void GPENCIL_OT_stroke_caps_set(wmOperatorType *ot)
+{
+	static const EnumPropertyItem toggle_type[] = {
+		{GP_STROKE_CAPS_TOGGLE_BOTH, "TOGGLE", 0, "Both", ""},
+		{GP_STROKE_CAPS_TOGGLE_START, "START", 0, "Start", ""},
+		{GP_STROKE_CAPS_TOGGLE_END, "END", 0, "End", ""},
+		{GP_STROKE_CAPS_TOGGLE_DEFAULT, "TOGGLE", 0, "Default", "Set as default rounded"},
+		{0, NULL, 0, NULL, NULL}
+	};
+
+	/* identifiers */
+	ot->name = "Set Caps Mode";
+	ot->idname = "GPENCIL_OT_stroke_caps_set";
+	ot->description = "Change Stroke caps mode (rounded or flat)";
+
+	/* api callbacks */
+	ot->exec = gp_stroke_caps_set_exec;
+	ot->poll = gp_active_layer_poll;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+	/* properties */
+	ot->prop = RNA_def_enum(ot->srna, "type", toggle_type, GP_STROKE_CAPS_TOGGLE_BOTH, "Type", "");
 }
 
 /* ******************* Stroke join ************************** */

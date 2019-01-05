@@ -301,6 +301,7 @@ void ED_operatortypes_gpencil(void)
 	WM_operatortype_append(GPENCIL_OT_stroke_lock_color);
 	WM_operatortype_append(GPENCIL_OT_stroke_apply_thickness);
 	WM_operatortype_append(GPENCIL_OT_stroke_cyclical_set);
+	WM_operatortype_append(GPENCIL_OT_stroke_caps_set);
 	WM_operatortype_append(GPENCIL_OT_stroke_join);
 	WM_operatortype_append(GPENCIL_OT_stroke_flip);
 	WM_operatortype_append(GPENCIL_OT_stroke_subdivide);

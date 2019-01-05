@@ -303,7 +303,7 @@ class _draw_left_context_mode:
                 is_paint = False
             elif tool.name == "Cutter":
                 row = layout.row(align=True)
-                row.prop(context.tool_settings.gpencil_sculpt, "isect_threshold")
+                row.prop(context.tool_settings.gpencil_sculpt, "intersection_threshold")
                 return
             elif not tool.has_datablock:
                 return
