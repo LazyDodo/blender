@@ -5343,6 +5343,7 @@ class VIEW3D_PT_gpencil_guide(Panel):
 
     @staticmethod
     def draw(self, context):
+        from math import pi
         settings = context.tool_settings.gpencil_sculpt
 
         layout = self.layout
@@ -5353,21 +5354,25 @@ class VIEW3D_PT_gpencil_guide(Panel):
 
         col = col.column()
         col.active = settings.use_speed_guide
+        
         col.prop(settings, "guide_type", expand=True)
-        col.prop(settings, "use_snapping")
-
-        row = col.row(align=True)
-        row.active = settings.guide_type in {'PARALLEL', 'RADIAL'}
-        row.prop(settings, "guide_angle")
-
-        row = col.row(align=True)
-        row.active = settings.use_snapping
-        row.prop(settings, "guide_spacing")
+        
+        if settings.guide_type in {'PARALLEL'}:
+            col.prop(settings, "guide_angle")
+            row = col.row(align=True)
+            op = row.operator("gpencil.guide_rotate", text="0", emboss=True)
+            op.increment = False
+            op.angle = 0.0            
+            row.operator("gpencil.guide_rotate", text="+90", emboss=True).angle = pi * 0.5
+            row.operator("gpencil.guide_rotate", text="+45", emboss=True).angle = pi * 0.25
+        
+        col.prop(settings, "use_snapping")        
+        if settings.use_snapping:
+            col.prop(settings, "guide_spacing")
+            col.prop(settings, "guide_angle_snap")
         
         col.prop(settings, "use_cursor")       
         if not settings.use_cursor:
-            row = col.row(align=True)
-            col = row.column()
             col.prop(settings, "guide_origin")        
 
         

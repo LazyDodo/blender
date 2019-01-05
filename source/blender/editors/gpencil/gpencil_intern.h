@@ -293,6 +293,10 @@ void GPENCIL_OT_annotate(struct wmOperatorType *ot);
 void GPENCIL_OT_draw(struct wmOperatorType *ot);
 void GPENCIL_OT_fill(struct wmOperatorType *ot);
 
+/* Guides ----------------------- */
+
+void GPENCIL_OT_guide_rotate(struct wmOperatorType *ot);
+
 /* Paint Modes for operator */
 typedef enum eGPencil_PaintModes {
 	GP_PAINTMODE_DRAW = 0,

@@ -1040,9 +1040,9 @@ typedef struct GP_Sculpt_Settings {
 	char guide_type;
 	char _pad2[4];
 	float guide_angle;
+	float guide_angle_snap;
 	float guide_spacing;
 	float guide_origin[3];
-	float _pad3;
 
 } GP_Sculpt_Settings;
 
