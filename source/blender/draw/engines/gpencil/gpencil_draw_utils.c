@@ -1475,7 +1475,7 @@ void DRW_gpencil_populate_multiedit(
 	ToolSettings *ts = scene->toolsettings;
 
 	/* check if playing animation */
-	bool playing = stl->storage->is_playing;
+	const bool playing = stl->storage->is_playing;
 
 	/* calc max size of VBOs */
 	gpencil_calc_vertex(stl, cache_ob, cache, gpd, cfra_eval);
@@ -1544,7 +1544,10 @@ void DRW_gpencil_populate_datablock(
 	bGPDlayer *gpl_active = BKE_gpencil_layer_getactive(gpd);
 
 	/* check if playing animation */
-	bool playing = stl->storage->is_playing;
+	const bool playing = stl->storage->is_playing;
+	const bool is_solomode = GPENCIL_PAINT_MODE(gpd) &&
+							(!playing) && (!stl->storage->is_render) &&
+							(ts->gpencil_flags & GP_TOOL_FLAG_SOLO_MODE);
 
 	GpencilBatchCache *cache = gpencil_batch_cache_get(ob, cfra_eval);
 
@@ -1588,6 +1591,11 @@ void DRW_gpencil_populate_datablock(
 		gpf = BKE_gpencil_layer_getframe(gpl, remap_cfra, GP_GETFRAME_USE_PREV);
 		if (gpf == NULL)
 			continue;
+
+		/* if solo mode, display only frames with keyframe in the current frame */
+		if ((is_solomode) && (gpf->framenum != remap_cfra)) {
+			continue;
+		}
 
 		opacity = gpl->opacity;
 		/* if pose mode, maybe the overlay to fade geometry is enabled */
