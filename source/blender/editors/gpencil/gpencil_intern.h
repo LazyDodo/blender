@@ -397,6 +397,7 @@ void GPENCIL_OT_stroke_change_color(struct wmOperatorType *ot);
 void GPENCIL_OT_stroke_lock_color(struct wmOperatorType *ot);
 void GPENCIL_OT_stroke_apply_thickness(struct wmOperatorType *ot);
 void GPENCIL_OT_stroke_cyclical_set(struct wmOperatorType *ot);
+void GPENCIL_OT_stroke_caps_set(struct wmOperatorType *ot);
 void GPENCIL_OT_stroke_join(struct wmOperatorType *ot);
 void GPENCIL_OT_stroke_flip(struct wmOperatorType *ot);
 void GPENCIL_OT_stroke_subdivide(struct wmOperatorType *ot);

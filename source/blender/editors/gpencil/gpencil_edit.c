@@ -2515,6 +2515,97 @@ void GPENCIL_OT_stroke_cyclical_set(wmOperatorType *ot)
 	ot->prop = RNA_def_enum(ot->srna, "type", cyclic_type, GP_STROKE_CYCLIC_TOGGLE, "Type", "");
 }
 
+/* ******************* Flat Stroke Caps ************************** */
+
+enum {
+	GP_STROKE_CAPS_ROUND = 0,
+	GP_STROKE_CAPS_FLAT = 1,
+	GP_STROKE_CAPS_TOGGLE = 2
+};
+
+static int gp_stroke_caps_set_exec(bContext *C, wmOperator *op)
+{
+	bGPdata *gpd = ED_gpencil_data_get_active(C);
+	Object *ob = CTX_data_active_object(C);
+
+	const int type = RNA_enum_get(op->ptr, "type");
+
+	/* sanity checks */
+	if (ELEM(NULL, gpd))
+		return OPERATOR_CANCELLED;
+
+	/* loop all selected strokes */
+	CTX_DATA_BEGIN(C, bGPDlayer *, gpl, editable_gpencil_layers)
+	{
+		if (gpl->actframe == NULL)
+			continue;
+
+		for (bGPDstroke *gps = gpl->actframe->strokes.last; gps; gps = gps->prev) {
+			MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
+
+			/* skip strokes that are not selected or invalid for current view */
+			if (((gps->flag & GP_STROKE_SELECT) == 0) || ED_gpencil_stroke_can_use(C, gps) == false)
+				continue;
+			/* skip hidden or locked colors */
+			if (!gp_style || (gp_style->flag & GP_STYLE_COLOR_HIDE) || (gp_style->flag & GP_STYLE_COLOR_LOCKED))
+				continue;
+
+			switch (type) {
+				case GP_STROKE_CAPS_ROUND:
+					/* Disable */
+					gps->flag &= ~GP_STROKE_FLATCAPS;
+					break;
+				case GP_STROKE_CAPS_FLAT:
+					/* Enable */
+					gps->flag |= GP_STROKE_FLATCAPS;
+					break;
+				case GP_STROKE_CAPS_TOGGLE:
+					/* Just toggle flag... */
+					gps->flag ^= GP_STROKE_FLATCAPS;
+					break;
+				default:
+					BLI_assert(0);
+					break;
+			}
+		}
+	}
+	CTX_DATA_END;
+
+	/* notifiers */
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
+	WM_event_add_notifier(C, NC_GPENCIL | ND_DATA | NA_EDITED, NULL);
+
+	return OPERATOR_FINISHED;
+}
+
+/**
+ * Change Stroke caps mode Rounded or Flat
+ */
+void GPENCIL_OT_stroke_caps_set(wmOperatorType *ot)
+{
+	static const EnumPropertyItem cyclic_type[] = {
+		{GP_STROKE_CAPS_ROUND, "ROUND", 0, "Rounded caps", ""},
+		{GP_STROKE_CAPS_FLAT, "FLAT", 0, "Flat caps", ""},
+		{GP_STROKE_CAPS_TOGGLE, "TOGGLE", 0, "Toggle", ""},
+		{0, NULL, 0, NULL, NULL}
+	};
+
+	/* identifiers */
+	ot->name = "Set Caps Mode";
+	ot->idname = "GPENCIL_OT_stroke_caps_set";
+	ot->description = "Change Stroke caps mode (rounded or flat)";
+
+	/* api callbacks */
+	ot->exec = gp_stroke_caps_set_exec;
+	ot->poll = gp_active_layer_poll;
+
+	/* flags */
+	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+
+	/* properties */
+	ot->prop = RNA_def_enum(ot->srna, "type", cyclic_type, GP_STROKE_CAPS_TOGGLE, "Type", "");
+}
+
 /* ******************* Stroke join ************************** */
 
 /* Helper: flip stroke */

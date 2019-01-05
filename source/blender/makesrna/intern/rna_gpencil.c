@@ -968,6 +968,12 @@ static void rna_def_gpencil_stroke(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Cyclic", "Enable cyclic drawing, closing the stroke");
 	RNA_def_property_update(prop, 0, "rna_GPencil_update");
 
+	/* Enable Flat Caps mode */
+	prop = RNA_def_property(srna, "is_flat_caps", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STROKE_FLATCAPS);
+	RNA_def_property_ui_text(prop, "Flat", "Stroke caps are flat (rounded by default)");
+	RNA_def_property_update(prop, 0, "rna_GPencil_update");
+
 	/* No fill: The stroke never must fill area and must use fill color as stroke color (this is a special flag for fill brush) */
 	prop = RNA_def_property(srna, "is_nofill_stroke", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STROKE_NOFILL);

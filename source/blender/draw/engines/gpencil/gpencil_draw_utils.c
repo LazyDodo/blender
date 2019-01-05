@@ -352,7 +352,7 @@ bool DRW_gpencil_onion_active(bGPdata *gpd)
 /* create shading group for strokes */
 DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(
         GPENCIL_e_data *e_data, GPENCIL_Data *vedata, DRWPass *pass, GPUShader *shader, Object *ob,
-        bGPdata *gpd, MaterialGPencilStyle *gp_style, int id, bool onion)
+        bGPdata *gpd, bGPDstroke *gps, MaterialGPencilStyle *gp_style, int id, bool onion)
 {
 	GPENCIL_StorageList *stl = ((GPENCIL_Data *)vedata)->stl;
 	const float *viewport_size = DRW_viewport_size_get();
@@ -386,6 +386,9 @@ DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(
 		}
 		DRW_shgroup_uniform_int(grp, "color_type", &stl->shgroups[id].color_type, 1);
 		DRW_shgroup_uniform_float(grp, "pixfactor", &gpd->pixfactor, 1);
+
+		stl->shgroups[id].caps_mode = ((gps) && (gps->flag & GP_STROKE_FLATCAPS)) ? 1 : 0;
+		DRW_shgroup_uniform_int(grp, "caps_mode", &stl->shgroups[id].caps_mode, 1);
 	}
 	else {
 		stl->storage->obj_scale = 1.0f;
@@ -400,6 +403,8 @@ DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(
 		else {
 			DRW_shgroup_uniform_float(grp, "pixfactor", &stl->storage->pixfactor, 1);
 		}
+		const int zero = 0;
+		DRW_shgroup_uniform_int(grp, "caps_mode", &zero, 1);
 	}
 
 	if ((gpd) && (id > -1)) {
@@ -1172,7 +1177,8 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 			if (gpd->runtime.sbuffer_size > 1) {
 				if ((gp_style) && (gp_style->mode == GP_STYLE_MODE_LINE)) {
 					stl->g_data->shgrps_drawing_stroke = DRW_gpencil_shgroup_stroke_create(
-						e_data, vedata, psl->drawing_pass, e_data->gpencil_stroke_sh, NULL, gpd, gp_style, -1, false);
+						e_data, vedata, psl->drawing_pass, e_data->gpencil_stroke_sh, NULL,
+						gpd, NULL, gp_style, -1, false);
 				}
 				else {
 					stl->g_data->shgrps_drawing_stroke = DRW_gpencil_shgroup_point_create(
@@ -1352,7 +1358,7 @@ static void DRW_gpencil_shgroups_create(
 
 				shgrp = DRW_gpencil_shgroup_stroke_create(
 				        e_data, vedata, psl->stroke_pass, e_data->gpencil_stroke_sh,
-				        ob, gpd, gp_style, stl->storage->shgroup_id, elm->onion);
+				        ob, gpd, gps, gp_style, stl->storage->shgroup_id, elm->onion);
 
 				DRW_shgroup_call_range_add(
 				        shgrp, cache->b_stroke.batch,

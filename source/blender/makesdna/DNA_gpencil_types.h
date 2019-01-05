@@ -202,6 +202,8 @@ typedef enum eGPDstroke_Flag {
 	GP_STROKE_CYCLIC = (1 << 7),
 	/* Flag used to indicate that stroke is used for fill close and must use fill color for stroke and no fill area */
 	GP_STROKE_NOFILL = (1 << 8),
+	/* Flag used to indicate if the stroke has flat caps (by default rounded) */
+	GP_STROKE_FLATCAPS = (1 << 9),
 	/* only for use with stroke-buffer (while drawing eraser) */
 	GP_STROKE_ERASER		= (1 << 15)
 } eGPDstroke_Flag;
