@@ -387,8 +387,9 @@ DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(
 		DRW_shgroup_uniform_int(grp, "color_type", &stl->shgroups[id].color_type, 1);
 		DRW_shgroup_uniform_float(grp, "pixfactor", &gpd->pixfactor, 1);
 
-		stl->shgroups[id].caps_mode = ((gps) && (gps->flag & GP_STROKE_FLATCAPS)) ? 1 : 0;
-		DRW_shgroup_uniform_int(grp, "caps_mode", &stl->shgroups[id].caps_mode, 1);
+		stl->shgroups[id].caps_mode[0] = ((gps) && (gps->flag & GP_STROKE_FLATCAPS_START)) ? 1 : 0;
+		stl->shgroups[id].caps_mode[1] = ((gps) && (gps->flag & GP_STROKE_FLATCAPS_END)) ? 1 : 0;
+		DRW_shgroup_uniform_int(grp, "caps_mode", &stl->shgroups[id].caps_mode[0], 2);
 	}
 	else {
 		stl->storage->obj_scale = 1.0f;
@@ -403,8 +404,8 @@ DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(
 		else {
 			DRW_shgroup_uniform_float(grp, "pixfactor", &stl->storage->pixfactor, 1);
 		}
-		const int zero = 0;
-		DRW_shgroup_uniform_int(grp, "caps_mode", &zero, 1);
+		const int zero[2] = { 0, 0 };
+		DRW_shgroup_uniform_int(grp, "caps_mode", &zero[0], 2);
 	}
 
 	if ((gpd) && (id > -1)) {

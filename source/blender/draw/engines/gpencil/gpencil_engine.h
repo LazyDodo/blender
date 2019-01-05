@@ -114,7 +114,7 @@ typedef struct GPENCIL_shgroup {
 	int texture_clamp;
 	int fill_style;
 	int keep_size;
-	int caps_mode;
+	int caps_mode[2];
 	float obj_scale;
 } GPENCIL_shgroup;
 

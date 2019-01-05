@@ -2,7 +2,7 @@ uniform mat4 ModelViewProjectionMatrix;
 uniform vec2 Viewport;
 uniform int xraymode;
 uniform int color_type;
-uniform int caps_mode;
+uniform int caps_mode[2];
 
 layout(lines_adjacency) in;
 layout(triangle_strip, max_vertices = 13) out;
@@ -162,7 +162,7 @@ void main(void)
 	}
 
 	/* generate the start endcap (alpha < 0 used as endcap flag)*/
-	if ((caps_mode != GPENCIL_FLATCAP) && is_equal(P0,P2) && 
+	if ((caps_mode[0] != GPENCIL_FLATCAP) && is_equal(P0,P2) && 
 		(color_type == GPENCIL_COLOR_SOLID))
 	{
 		mTexCoord = vec2(2, 1);
@@ -204,7 +204,7 @@ void main(void)
 	EmitVertex();
 
 	/* generate the end endcap (alpha < 0 used as endcap flag)*/
-	if ((caps_mode != GPENCIL_FLATCAP) && is_equal(P1,P3) && 
+	if ((caps_mode[1] != GPENCIL_FLATCAP) && is_equal(P1,P3) && 
 		(color_type == GPENCIL_COLOR_SOLID) && (finaluvdata[2].x > 0))
 	{
 		mTexCoord = vec2(finaluvdata[2].x, 2);

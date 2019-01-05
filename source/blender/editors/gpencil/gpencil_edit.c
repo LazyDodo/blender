@@ -2518,9 +2518,10 @@ void GPENCIL_OT_stroke_cyclical_set(wmOperatorType *ot)
 /* ******************* Flat Stroke Caps ************************** */
 
 enum {
-	GP_STROKE_CAPS_ROUND = 0,
-	GP_STROKE_CAPS_FLAT = 1,
-	GP_STROKE_CAPS_TOGGLE = 2
+	GP_STROKE_CAPS_TOGGLE_BOTH    = 0,
+	GP_STROKE_CAPS_TOGGLE_START   = 1,
+	GP_STROKE_CAPS_TOGGLE_END     = 2,
+	GP_STROKE_CAPS_TOGGLE_DEFAULT = 3
 };
 
 static int gp_stroke_caps_set_exec(bContext *C, wmOperator *op)
@@ -2551,17 +2552,19 @@ static int gp_stroke_caps_set_exec(bContext *C, wmOperator *op)
 				continue;
 
 			switch (type) {
-				case GP_STROKE_CAPS_ROUND:
-					/* Disable */
-					gps->flag &= ~GP_STROKE_FLATCAPS;
+				case GP_STROKE_CAPS_TOGGLE_BOTH:
+					gps->flag ^= GP_STROKE_FLATCAPS_START;
+					gps->flag ^= GP_STROKE_FLATCAPS_END;
 					break;
-				case GP_STROKE_CAPS_FLAT:
-					/* Enable */
-					gps->flag |= GP_STROKE_FLATCAPS;
+				case GP_STROKE_CAPS_TOGGLE_START:
+					gps->flag ^= GP_STROKE_FLATCAPS_START;
 					break;
-				case GP_STROKE_CAPS_TOGGLE:
-					/* Just toggle flag... */
-					gps->flag ^= GP_STROKE_FLATCAPS;
+				case GP_STROKE_CAPS_TOGGLE_END:
+					gps->flag ^= GP_STROKE_FLATCAPS_END;
+					break;
+				case GP_STROKE_CAPS_TOGGLE_DEFAULT:
+					gps->flag &= ~GP_STROKE_FLATCAPS_START;
+					gps->flag &= ~GP_STROKE_FLATCAPS_END;
 					break;
 				default:
 					BLI_assert(0);
@@ -2583,10 +2586,11 @@ static int gp_stroke_caps_set_exec(bContext *C, wmOperator *op)
  */
 void GPENCIL_OT_stroke_caps_set(wmOperatorType *ot)
 {
-	static const EnumPropertyItem cyclic_type[] = {
-		{GP_STROKE_CAPS_ROUND, "ROUND", 0, "Rounded caps", ""},
-		{GP_STROKE_CAPS_FLAT, "FLAT", 0, "Flat caps", ""},
-		{GP_STROKE_CAPS_TOGGLE, "TOGGLE", 0, "Toggle", ""},
+	static const EnumPropertyItem toggle_type[] = {
+		{GP_STROKE_CAPS_TOGGLE_BOTH, "TOGGLE", 0, "Both", ""},
+		{GP_STROKE_CAPS_TOGGLE_START, "START", 0, "Start", ""},
+		{GP_STROKE_CAPS_TOGGLE_END, "END", 0, "End", ""},
+		{GP_STROKE_CAPS_TOGGLE_DEFAULT, "TOGGLE", 0, "Default", "Set as default rounded"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
@@ -2603,7 +2607,7 @@ void GPENCIL_OT_stroke_caps_set(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	/* properties */
-	ot->prop = RNA_def_enum(ot->srna, "type", cyclic_type, GP_STROKE_CAPS_TOGGLE, "Type", "");
+	ot->prop = RNA_def_enum(ot->srna, "type", toggle_type, GP_STROKE_CAPS_TOGGLE_BOTH, "Type", "");
 }
 
 /* ******************* Stroke join ************************** */
