@@ -2139,6 +2139,8 @@ typedef enum eGPencil_Flags {
 	GP_TOOL_FLAG_THUMBNAIL_LIST         = (1 << 3),
 	/* Generate wheight data for new strokes */
 	GP_TOOL_FLAG_CREATE_WEIGHTS         = (1 << 4),
+	/* Display in Paint mode only layers with keyframe */
+	GP_TOOL_FLAG_SOLO_MODE              = (1 << 5),
 } eGPencil_Flags;
 
 /* scene->r.simplify_gpencil */
