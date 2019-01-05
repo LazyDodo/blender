@@ -234,6 +234,8 @@ void gp_apply_parent(struct Depsgraph *depsgraph, struct Object *obact, bGPdata 
  */
 void gp_apply_parent_point(struct Depsgraph *depsgraph, struct Object *obact, bGPdata *gpd, bGPDlayer *gpl, bGPDspoint *pt);
 
+void gp_point_3d_to_xy(GP_SpaceConversion *gsc, const short flag, const float pt[3], float xy[2]);
+
 bool gp_point_xy_to_3d(GP_SpaceConversion *gsc, struct Scene *scene, const float screen_co[2], float r_out[3]);
 
 /* helper to convert 2d to 3d */
@@ -296,7 +298,8 @@ typedef enum eGPencil_PaintModes {
 	GP_PAINTMODE_DRAW = 0,
 	GP_PAINTMODE_ERASER,
 	GP_PAINTMODE_DRAW_STRAIGHT,
-	GP_PAINTMODE_DRAW_POLY
+	GP_PAINTMODE_DRAW_POLY,
+	GP_PAINTMODE_SET_CP
 } eGPencil_PaintModes;
 
 /* maximum sizes of gp-session buffer */

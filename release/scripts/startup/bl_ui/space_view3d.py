@@ -252,7 +252,7 @@ class VIEW3D_HT_header(Header):
                 row = layout.row(align=True)
                 row.prop(settings, "use_speed_guide", text="", icon='GRID')
                 sub = row.row(align=True)
-                sub.enabled = settings.use_speed_guide
+                sub.active = settings.use_speed_guide
                 sub.popover(
                     panel="VIEW3D_PT_gpencil_guide",
                     text="Guides"
@@ -5345,15 +5345,27 @@ class VIEW3D_PT_gpencil_guide(Panel):
         layout = self.layout
         layout.label(text="Guides")
         
-        row = layout.row()
-        col = row.column()
+        col = layout.column()
+        col.prop(settings, "use_speed_guide")
+
+        col = col.column()
+        col.active = settings.use_speed_guide
         col.prop(settings, "guide_type", expand=True)
-                
+        col.prop(settings, "use_snapping")
+
         row = col.row(align=True)
-        row.active = bool(settings.guide_type == "PARALLEL");
+        row.active = settings.guide_type in {'PARALLEL', 'RADIAL'}
         row.prop(settings, "guide_angle")
+
+        row = col.row(align=True)
+        row.active = settings.use_snapping
+        row.prop(settings, "guide_spacing")
         
-        col.prop(settings, "guide_flip")
+        col.prop(settings, "use_cursor")       
+        if not settings.use_cursor:
+            row = col.row(align=True)
+            col = row.column()
+            col.prop(settings, "guide_origin")        
 
         
 class VIEW3D_PT_overlay_gpencil_options(Panel):

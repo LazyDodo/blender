@@ -1280,21 +1280,30 @@ static void rna_def_gpencil_sculpt(BlenderRNA *brna)
 	/* guide */
 	static const EnumPropertyItem prop_gpencil_guidetypes[] = {
 		{GP_GUIDE_CIRCULAR, "CIRCULAR", 0, "Circular", "Use single point"},
+		{GP_GUIDE_RADIAL, "RADIAL", 0, "Radial", "Use single direction"},
 		{GP_GUIDE_PARALLEL, "PARALLEL", 0, "Parallel", "Parallel lines"},
+		{GP_GUIDE_GRID, "GRID", 0, "Grid", "Grid"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
 	prop = RNA_def_property(srna, "use_speed_guide", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "use_speed_guide", false);
 	RNA_def_property_boolean_default(prop, false);
-	RNA_def_property_ui_text(prop, "Use Speed Guides", "Enable speed guide");
+	RNA_def_property_ui_text(prop, "Use Speed Guides", "Enable speed guides");
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
 
-	prop = RNA_def_property(srna, "guide_flip", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "guide_flip", false);
+	prop = RNA_def_property(srna, "use_snapping", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "use_snapping", false);
 	RNA_def_property_boolean_default(prop, false);
-	RNA_def_property_ui_text(prop, "Flip", "Use alternative direction");
+	RNA_def_property_ui_text(prop, "Use snapping", "Snap to angle or spacing depending on guide type");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
+
+	prop = RNA_def_property(srna, "use_cursor", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "use_cursor", false);
+	RNA_def_property_boolean_default(prop, false);
+	RNA_def_property_ui_text(prop, "Use 3D Cursor", "Use 3D cursor as origin for guides");
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
 
@@ -1311,6 +1320,23 @@ static void rna_def_gpencil_sculpt(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Angle", "Direction of lines");
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
+
+	prop = RNA_def_property(srna, "guide_spacing", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "guide_spacing");
+	RNA_def_property_float_default(prop, 25.0f);
+	RNA_def_property_range(prop, 1.0, FLT_MAX);
+	RNA_def_property_ui_range(prop, 1.0, 1000.0, 10, 2);
+	RNA_def_property_ui_text(prop, "Spacing", "Guide spacing");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
+
+	prop = RNA_def_property(srna, "guide_origin", PROP_FLOAT, PROP_XYZ);
+	RNA_def_property_float_sdna(prop, NULL, "guide_origin");
+	RNA_def_property_array(prop, 3);
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+	RNA_def_property_ui_text(prop, "Origin", "Location of origin for guides");
+	RNA_def_property_range(prop, -FLT_MAX, FLT_MAX);
+	RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, 3);
 	
 	/* lock axis */
 	prop = RNA_def_property(srna, "lock_axis", PROP_ENUM, PROP_NONE);

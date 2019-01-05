@@ -1236,7 +1236,8 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 	}
 
 	/* control points */
-	if ((overlay) && (gpd->runtime.tot_cp_points > 0) &&
+	if ((overlay) && ((gpd->runtime.tot_cp_points > 0) ||
+		(ts->gp_sculpt.use_speed_guide && (draw_ctx->object_mode == OB_MODE_PAINT_GPENCIL))) &&
 	    ((gpd->runtime.sbuffer_sflag & GP_STROKE_ERASER) == 0) &&
 	    ((v3d->gizmo_flag & V3D_GIZMO_HIDE) == 0) &&
 	    ((v3d->gizmo_flag & V3D_GIZMO_HIDE_TOOL) == 0))

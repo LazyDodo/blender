@@ -3047,6 +3047,7 @@ def km_grease_pencil_stroke_paint_draw_brush(params):
          {"properties": [("mode", 'ERASER'), ("wait_for_input", False)]}),
         # Constrain Guides Speedlines
 		# Freehand
+        ("gpencil.draw", {"type": 'O', "value": 'PRESS'}, None),
         ("gpencil.draw", {"type": 'J', "value": 'PRESS'}, None),
         ("gpencil.draw", {"type": 'J', "value": 'PRESS', "alt": True}, None),
         ("gpencil.draw", {"type": 'J', "value": 'PRESS', "shift": True}, None),

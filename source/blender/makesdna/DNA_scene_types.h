@@ -1035,10 +1035,14 @@ typedef struct GP_Sculpt_Settings {
 
 	/* guides */
 	char use_speed_guide;
+	char use_snapping;
+	char use_cursor;
 	char guide_type;
-	char guide_flip;
-	char _pad2[1];
+	char _pad2[4];
 	float guide_angle;
+	float guide_spacing;
+	float guide_origin[3];
+	float _pad3;
 
 } GP_Sculpt_Settings;
 
@@ -2195,7 +2199,9 @@ typedef enum eGPencil_Selectmode_types {
 /* ToolSettings.gpencil_guide_types */
 typedef enum eGPencil_GuideTypes {
 	GP_GUIDE_CIRCULAR = 0,
-	GP_GUIDE_PARALLEL
+	GP_GUIDE_RADIAL,
+	GP_GUIDE_PARALLEL,
+	GP_GUIDE_GRID
 } eGPencil_GuideTypes;
 
 /* ToolSettings.particle flag */
