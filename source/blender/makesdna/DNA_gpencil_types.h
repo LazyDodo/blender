@@ -178,7 +178,7 @@ typedef struct bGPDstroke {
 	char colorname[128] DNA_DEPRECATED;    /* color name */
 
 	int mat_nr;             /* material index */
-	char _pad1[4];
+	short caps[2];          /* caps mode for each extrem */
 
 	struct MDeformVert *dvert;    /* vertex weight data */
 
@@ -202,12 +202,18 @@ typedef enum eGPDstroke_Flag {
 	GP_STROKE_CYCLIC = (1 << 7),
 	/* Flag used to indicate that stroke is used for fill close and must use fill color for stroke and no fill area */
 	GP_STROKE_NOFILL = (1 << 8),
-	/* Flag used to indicate if the stroke has flat caps (by default rounded) */
-	GP_STROKE_FLATCAPS_START = (1 << 9),
-	GP_STROKE_FLATCAPS_END   = (1 << 10),
 	/* only for use with stroke-buffer (while drawing eraser) */
 	GP_STROKE_ERASER		= (1 << 15)
 } eGPDstroke_Flag;
+
+/* bGPDstroke->caps */
+typedef enum eGPDstroke_Caps {
+	/* type of extreme */
+	GP_STROKE_CAP_ROUND = 0,
+	GP_STROKE_CAP_FLAT  = 1,
+
+	GP_STROKE_CAP_MAX
+} GPDstroke_Caps;
 
 /* ***************************************** */
 /* GP Frame */
