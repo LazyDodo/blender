@@ -5357,23 +5357,33 @@ class VIEW3D_PT_gpencil_guide(Panel):
         
         col.prop(settings, "guide_type", expand=True)
         
+        
         if settings.guide_type in {'PARALLEL'}:
             col.prop(settings, "guide_angle")
             row = col.row(align=True)
-            op = row.operator("gpencil.guide_rotate", text="0", emboss=True)
-            op.increment = False
-            op.angle = 0.0            
-            row.operator("gpencil.guide_rotate", text="+90", emboss=True).angle = pi * 0.5
-            row.operator("gpencil.guide_rotate", text="+45", emboss=True).angle = pi * 0.25
+            #op = row.operator("gpencil.guide_rotate", text="0", emboss=True)
+            #op.increment = False
+            #op.angle = 0.0            
+            #row.operator("gpencil.guide_rotate", text="+90", emboss=True).angle = pi * 0.5
+            #row.operator("gpencil.guide_rotate", text="+45", emboss=True).angle = pi * 0.25
         
         col.prop(settings, "use_snapping")        
         if settings.use_snapping:
-            col.prop(settings, "guide_spacing")
-            col.prop(settings, "guide_angle_snap")
+            
+            if settings.guide_type in {'RADIAL'}:
+                col.prop(settings, "guide_angle_snap")
+            else:
+                col.prop(settings, "guide_spacing")
         
-        col.prop(settings, "use_cursor")       
-        if not settings.use_cursor:
-            col.prop(settings, "guide_origin")        
+        col.label(text="Reference Point")
+        row = col.row(align=True)
+        row.prop(settings, "guide_reference_point", expand=True)    
+        if settings.guide_reference_point in {'CUSTOM'}:
+            col.prop(settings, "guide_origin", text="Custom Location")        
+        if settings.guide_reference_point in {'OBJECT'}:
+            col.prop(settings, "guide_reference_object", text="Object Location")
+        if settings.guide_reference_point in {'CURSOR'}:
+            col.prop(context.scene, "cursor_location", text="Cursor Location")
 
         
 class VIEW3D_PT_overlay_gpencil_options(Panel):

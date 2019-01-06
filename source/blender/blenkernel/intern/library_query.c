@@ -471,6 +471,7 @@ void BKE_library_foreach_ID_link(Main *bmain, ID *id, LibraryIDLinkCallback call
 					CALLBACK_INVOKE(toolsett->particle.scene, IDWALK_CB_NOP);
 					CALLBACK_INVOKE(toolsett->particle.object, IDWALK_CB_NOP);
 					CALLBACK_INVOKE(toolsett->particle.shape_object, IDWALK_CB_NOP);
+					CALLBACK_INVOKE(toolsett->gp_sculpt.guide_reference_object, IDWALK_CB_NOP);
 
 					library_foreach_paint(&data, &toolsett->imapaint.paint);
 					CALLBACK_INVOKE(toolsett->imapaint.stencil, IDWALK_CB_USER);

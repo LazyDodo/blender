@@ -1286,6 +1286,13 @@ static void rna_def_gpencil_sculpt(BlenderRNA *brna)
 		{0, NULL, 0, NULL, NULL}
 	};
 
+	static const EnumPropertyItem prop_gpencil_guide_references[] = {
+		{0, "CURSOR", 0, "Cursor", "Use cursor as reference point"},
+		{1, "CUSTOM", 0, "Custom", "Use custom reference point"},
+		{2, "OBJECT", 0, "Object", "Use object as reference point"},
+		{0, NULL, 0, NULL, NULL}
+	};
+
 	prop = RNA_def_property(srna, "use_speed_guide", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "use_speed_guide", false);
 	RNA_def_property_boolean_default(prop, false);
@@ -1300,10 +1307,16 @@ static void rna_def_gpencil_sculpt(BlenderRNA *brna)
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
 
-	prop = RNA_def_property(srna, "use_cursor", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "use_cursor", false);
-	RNA_def_property_boolean_default(prop, false);
-	RNA_def_property_ui_text(prop, "Use 3D Cursor", "Use 3D cursor as origin for guides");
+	prop = RNA_def_property(srna, "guide_reference_object", PROP_POINTER, PROP_NONE);
+	RNA_def_property_pointer_sdna(prop, NULL, "guide_reference_object");
+	RNA_def_property_ui_text(prop, "Object", "Object used for reference point");
+	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_SELF_CHECK);
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);	
+
+	prop = RNA_def_property(srna, "guide_reference_point", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "guide_reference_point");
+	RNA_def_property_enum_items(prop, prop_gpencil_guide_references);
+	RNA_def_property_ui_text(prop, "Type", "Type of speed guide");
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
 

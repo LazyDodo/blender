@@ -6001,6 +6001,7 @@ static void lib_link_scene(FileData *fd, Main *main)
 				        newlibadr_us(fd, sce->id.lib, sce->toolsettings->imapaint.canvas);
 
 			sce->toolsettings->particle.shape_object = newlibadr(fd, sce->id.lib, sce->toolsettings->particle.shape_object);
+			sce->toolsettings->gp_sculpt.guide_reference_object = newlibadr(fd, sce->id.lib, sce->toolsettings->gp_sculpt.guide_reference_object);
 
 			for (Base *base_legacy_next, *base_legacy = sce->base.first; base_legacy; base_legacy = base_legacy_next) {
 				base_legacy_next = base_legacy->next;

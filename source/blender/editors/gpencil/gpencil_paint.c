@@ -122,6 +122,13 @@ typedef enum eGPencil_PaintFlags {
 	GP_PAINTFLAG_REQ_VECTOR     = (1 << 6),
 } eGPencil_PaintFlags;
 
+/* Runtime flags */
+typedef enum eGPencil_Guide_Reference {
+	GP_GUIDE_REF_CURSOR = 0,
+	GP_GUIDE_REF_CUSTOM,
+	GP_GUIDE_REF_OBJECT
+} eGPencil_Guide_Reference;
+
 
 /* Temporary 'Stroke' Operation data
  *   "p" = op->customdata
@@ -2577,10 +2584,10 @@ static void gp_origin_set(wmOperator *op, const int mval[2])
 	float point[3];
 	copy_v2fl_v2i(origin, mval);
 	gp_stroke_convertcoords(p, origin, point, NULL);
-	if (ts->gp_sculpt.use_cursor)
-		copy_v3_v3(p->scene->cursor.location, point);
-	else
+	if (ts->gp_sculpt.guide_reference_point == GP_GUIDE_REF_CUSTOM)
 		copy_v3_v3(ts->gp_sculpt.guide_origin, point);
+	else if (ts->gp_sculpt.guide_reference_point == GP_GUIDE_REF_CURSOR)
+		copy_v3_v3(p->scene->cursor.location, point);
 }
 
 /* get reference point - buffer coords to screen coords */
@@ -2589,10 +2596,12 @@ static void gp_origin_get(wmOperator *op, float origin[2])
 	tGPsdata *p = op->customdata;
 	ToolSettings *ts = p->scene->toolsettings;
 	float location[3];
-	if (ts->gp_sculpt.use_cursor)
-		copy_v3_v3(location, p->scene->cursor.location);
-	else 
+	if (ts->gp_sculpt.guide_reference_point == GP_GUIDE_REF_CUSTOM)
 		copy_v3_v3(location, ts->gp_sculpt.guide_origin);
+	else if (ts->gp_sculpt.guide_reference_point == GP_GUIDE_REF_OBJECT && ts->gp_sculpt.guide_reference_object != NULL)
+		copy_v3_v3(location, ts->gp_sculpt.guide_reference_object->loc);
+	else 
+		copy_v3_v3(location, p->scene->cursor.location);
 	GP_SpaceConversion *gsc = &p->gsc;
 	gp_point_3d_to_xy(gsc, p->gpd->runtime.sbuffer_sflag, location, origin);
 }
@@ -2960,7 +2969,7 @@ static void gpencil_guide_event_handling(bContext *C, wmOperator *op, const wmEv
 
 	/* Enter or exit set center point mode */
 	if ((event->type == OKEY) && (event->val == KM_RELEASE)) {
-		if (p->paintmode == GP_PAINTMODE_DRAW) {
+		if (p->paintmode == GP_PAINTMODE_DRAW && ts->gp_sculpt.guide_reference_point != GP_GUIDE_REF_OBJECT) {
 			add_notifier = true; 
 			p->paintmode = GP_PAINTMODE_SET_CP;
 			ED_gpencil_toggle_brush_cursor(C, false, NULL);			
@@ -3216,12 +3225,19 @@ static void gpencil_move_last_stroke_to_back(bContext *C)
 static void gpencil_add_missing_events(bContext *C, wmOperator *op, const wmEvent *event, tGPsdata *p)
 {
 	Brush *brush = p->brush;
-	if (brush->gpencil_settings->input_samples == 0) {
+	ToolSettings *ts = p->scene->toolsettings;
+	int input_samples = brush->gpencil_settings->input_samples;
+
+	/* ensure sampling when using circular guide */
+	if (ts->gp_sculpt.use_speed_guide && (ts->gp_sculpt.guide_type == GP_GUIDE_CIRCULAR))
+		input_samples = GP_MAX_INPUT_SAMPLES;
+
+	if (input_samples == 0)
 		return;
-	}
+		
 	RegionView3D *rv3d = p->ar->regiondata;
 	float defaultpixsize = rv3d->pixsize * 1000.0f;
-	int samples = (GP_MAX_INPUT_SAMPLES - brush->gpencil_settings->input_samples + 1);
+	int samples = (GP_MAX_INPUT_SAMPLES - input_samples + 1);
 	float thickness = (float)brush->size;
 
 	float pt[2], a[2], b[2];

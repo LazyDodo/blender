@@ -427,13 +427,17 @@ GPUBatch *DRW_gpencil_get_buffer_ctrlpoint_geom(bGPdata *gpd)
 		float size = 10 * 0.8f;
 		float color[4];
 		float position[3];
-		if (ts->gp_sculpt.use_cursor) {
-			UI_GetThemeColor4fv(TH_REDALERT, color);
-			copy_v3_v3(position, scene->cursor.location);
-		}
-		else {
+		if (ts->gp_sculpt.guide_reference_point == 1) {			
 			UI_GetThemeColor4fv(TH_GIZMO_PRIMARY, color);
 			copy_v3_v3(position, ts->gp_sculpt.guide_origin);
+		}
+		else if (ts->gp_sculpt.guide_reference_point == 2 && ts->gp_sculpt.guide_reference_object != NULL) {
+			UI_GetThemeColor4fv(TH_GIZMO_SECONDARY, color);
+			copy_v3_v3(position, ts->gp_sculpt.guide_reference_object->loc);
+		}
+		else {
+			UI_GetThemeColor4fv(TH_REDALERT, color);
+			copy_v3_v3(position, scene->cursor.location);
 		}
 		GPU_vertbuf_attr_set(vbo, pos_id, idx, position);
 		GPU_vertbuf_attr_set(vbo, size_id, idx, &size);
