@@ -122,14 +122,6 @@ typedef enum eGPencil_PaintFlags {
 	GP_PAINTFLAG_REQ_VECTOR     = (1 << 6),
 } eGPencil_PaintFlags;
 
-/* Runtime flags */
-typedef enum eGPencil_Guide_Reference {
-	GP_GUIDE_REF_CURSOR = 0,
-	GP_GUIDE_REF_CUSTOM,
-	GP_GUIDE_REF_OBJECT
-} eGPencil_Guide_Reference;
-
-
 /* Temporary 'Stroke' Operation data
  *   "p" = op->customdata
  */
@@ -2445,7 +2437,14 @@ static void gpencil_draw_status_indicators(bContext *C, tGPsdata *p)
 						"Esc/RMB to cancel"));
 					break;
 				case GP_PAINTMODE_DRAW:
-					ED_workspace_status_text(C, IFACE_("Grease Pencil Freehand Session: Hold and drag LMB to draw"));
+					GP_Sculpt_Guide guide = p->scene->toolsettings->gp_sculpt.guide;
+					if (guide.use_guide) {
+						ED_workspace_status_text(C, IFACE_("Grease Pencil Freehand Session: Hold and drag LMB to draw | "
+							"M key to flip guide | O key to move reference point"));
+					}
+					else {
+						ED_workspace_status_text(C, IFACE_("Grease Pencil Freehand Session: Hold and drag LMB to draw"));
+					}
 					break;
 				case GP_PAINTMODE_DRAW_POLY:
 					ED_workspace_status_text(C, IFACE_("Grease Pencil Poly Session: LMB click to place next stroke vertex | "
@@ -2579,29 +2578,35 @@ static void gp_snap_to_grid_v2(float v[2], const float offset[2], const float sp
 static void gp_origin_set(wmOperator *op, const int mval[2])
 {
 	tGPsdata *p = op->customdata;
-	ToolSettings *ts = p->scene->toolsettings;
+	GP_Sculpt_Guide guide = p->scene->toolsettings->gp_sculpt.guide;
 	float origin[2];
 	float point[3];
 	copy_v2fl_v2i(origin, mval);
 	gp_stroke_convertcoords(p, origin, point, NULL);
-	if (ts->gp_sculpt.guide_reference_point == GP_GUIDE_REF_CUSTOM)
-		copy_v3_v3(ts->gp_sculpt.guide_origin, point);
-	else if (ts->gp_sculpt.guide_reference_point == GP_GUIDE_REF_CURSOR)
+	if (guide.reference_point == GP_GUIDE_REF_CUSTOM) {
+		copy_v3_v3(guide.location, point);
+	}
+	else if (guide.reference_point == GP_GUIDE_REF_CURSOR) {
 		copy_v3_v3(p->scene->cursor.location, point);
+	}
 }
 
 /* get reference point - buffer coords to screen coords */
 static void gp_origin_get(wmOperator *op, float origin[2])
 {
 	tGPsdata *p = op->customdata;
-	ToolSettings *ts = p->scene->toolsettings;
+	GP_Sculpt_Guide guide = p->scene->toolsettings->gp_sculpt.guide;
 	float location[3];
-	if (ts->gp_sculpt.guide_reference_point == GP_GUIDE_REF_CUSTOM)
-		copy_v3_v3(location, ts->gp_sculpt.guide_origin);
-	else if (ts->gp_sculpt.guide_reference_point == GP_GUIDE_REF_OBJECT && ts->gp_sculpt.guide_reference_object != NULL)
-		copy_v3_v3(location, ts->gp_sculpt.guide_reference_object->loc);
-	else 
+	if (guide.reference_point == GP_GUIDE_REF_CUSTOM) {
+		copy_v3_v3(location, guide.location);
+	}
+	else if (guide.reference_point == GP_GUIDE_REF_OBJECT &&
+		guide.reference_object != NULL) {
+		copy_v3_v3(location, guide.reference_object->loc);
+	}
+	else {
 		copy_v3_v3(location, p->scene->cursor.location);
+	}
 	GP_SpaceConversion *gsc = &p->gsc;
 	gp_point_3d_to_xy(gsc, p->gpd->runtime.sbuffer_sflag, location, origin);
 }
@@ -2620,7 +2625,7 @@ static float gp_float_to_pixel(wmOperator *op, const float v)
 static void gpencil_draw_apply_event(bContext *C, wmOperator *op, const wmEvent *event, Depsgraph *depsgraph, float x, float y)
 {
 	tGPsdata *p = op->customdata;
-	ToolSettings *ts = p->scene->toolsettings;
+	GP_Sculpt_Guide guide = p->scene->toolsettings->gp_sculpt.guide;
 	PointerRNA itemptr;
 	float mousef[2];
 	int tablet = 0;
@@ -2633,7 +2638,7 @@ static void gpencil_draw_apply_event(bContext *C, wmOperator *op, const wmEvent 
 	p->shift = event->shift;
 
 	/* verify direction for straight lines */
-	if ((ts->gp_sculpt.use_speed_guide) || ((event->alt > 0) && (RNA_boolean_get(op->ptr, "disable_straight") == false))) {
+	if ((guide.use_guide) || ((event->alt > 0) && (RNA_boolean_get(op->ptr, "disable_straight") == false))) {
 		if (p->straight == 0) {
 			int dx = (int)fabsf(p->mval[0] - p->mvali[0]);
 			int dy = (int)fabsf(p->mval[1] - p->mvali[1]);
@@ -2712,9 +2717,9 @@ static void gpencil_draw_apply_event(bContext *C, wmOperator *op, const wmEvent 
 		 * it requires direction which needs at least two points
 		 */
 		if (!ELEM(p->paintmode, GP_PAINTMODE_ERASER, GP_PAINTMODE_SET_CP) &&
-			ts->gp_sculpt.use_speed_guide &&
-			ts->gp_sculpt.use_snapping &&
-			(ts->gp_sculpt.guide_type == GP_GUIDE_GRID)) {
+			guide.use_guide &&
+			guide.use_snapping &&
+			(guide.type == GP_GUIDE_GRID)) {
 			p->flags |= GP_PAINTFLAG_REQ_VECTOR;
 		}
 	}
@@ -2741,10 +2746,10 @@ static void gpencil_draw_apply_event(bContext *C, wmOperator *op, const wmEvent 
 
 	/* check if stroke is straight or guided */
 	if ((p->paintmode != GP_PAINTMODE_ERASER)
-		&& ((p->straight) || (ts->gp_sculpt.use_speed_guide))) {
+		&& ((p->straight) || (guide.use_guide))) {
 		/* guided stroke */
-		if (ts->gp_sculpt.use_speed_guide) {
-			switch (ts->gp_sculpt.guide_type) {
+		if (guide.use_guide) {
+			switch (guide.type) {
 				default:
 				case GP_GUIDE_CIRCULAR:
 				{
@@ -2752,8 +2757,8 @@ static void gpencil_draw_apply_event(bContext *C, wmOperator *op, const wmEvent 
 					gp_origin_get(op, origin);
 					float distance;
 					distance = len_v2v2(p->mvali, origin);
-					if (ts->gp_sculpt.use_snapping) {
-						float guide_spacing = gp_float_to_pixel(op, ts->gp_sculpt.guide_spacing);
+					if (guide.use_snapping) {
+						float guide_spacing = gp_float_to_pixel(op, guide.spacing);
 						distance = gp_snap_to_grid_fl(distance, 0.0f, guide_spacing);
 					}
 					dist_ensure_v2_v2fl(p->mval, origin, distance);				
@@ -2763,16 +2768,16 @@ static void gpencil_draw_apply_event(bContext *C, wmOperator *op, const wmEvent 
 				{
 					float origin[2];
 					gp_origin_get(op, origin);
-					if (ts->gp_sculpt.use_snapping &&
-						(ts->gp_sculpt.guide_angle_snap > 0.0f)) {
+					if (guide.use_snapping &&
+						(guide.angle_snap > 0.0f)) {
 						float xy[2];
 						sub_v2_v2v2(xy, p->mvali, origin);
 						float angle = atan2f(xy[1], xy[0]);
 						angle += (M_PI * 2.0f);
 
 						/* half angle used so stroke aligns with mouse */
-						float half = ts->gp_sculpt.guide_angle_snap * 0.5f;
-						angle = fmodf(angle + half, ts->gp_sculpt.guide_angle_snap);
+						float half = guide.angle_snap * 0.5f;
+						angle = fmodf(angle + half, guide.angle_snap);
 						angle -= half;
 
 						float point[2];
@@ -2794,14 +2799,14 @@ static void gpencil_draw_apply_event(bContext *C, wmOperator *op, const wmEvent 
 					float angle;
 					copy_v2_v2(unit, p->mvali);
 					unit[0] += 1.0f; /* start from horizontal */
-					angle = ts->gp_sculpt.guide_angle;
+					angle = guide.angle;
 					gp_rotate_v2_v2v2fl(point, unit, p->mvali, angle);
 					closest_to_line_v2(p->mval, p->mval, p->mvali, point);
 					
-					if (ts->gp_sculpt.use_snapping &&
-						(ts->gp_sculpt.guide_spacing > 0.0f)) {
+					if (guide.use_snapping &&
+						(guide.spacing > 0.0f)) {
 
-						float guide_spacing = gp_float_to_pixel(op, ts->gp_sculpt.guide_spacing);
+						float guide_spacing = gp_float_to_pixel(op, guide.spacing);
 						float half = guide_spacing * 0.5f;
 
 						/* rotate */
@@ -2818,12 +2823,12 @@ static void gpencil_draw_apply_event(bContext *C, wmOperator *op, const wmEvent 
 				break;
 				case GP_GUIDE_GRID:
 				{
-					if (ts->gp_sculpt.use_snapping &&
-						(ts->gp_sculpt.guide_spacing > 0.0f)) {
+					if (guide.use_snapping &&
+						(guide.spacing > 0.0f)) {
 						float origin[2];
 						gp_origin_get(op, origin);
 
-						float guide_spacing = gp_float_to_pixel(op, ts->gp_sculpt.guide_spacing);
+						float guide_spacing = gp_float_to_pixel(op, guide.spacing);
 						float half = guide_spacing * 0.5f;
 						
 						float point[2];
@@ -2965,11 +2970,11 @@ static int gpencil_draw_exec(bContext *C, wmOperator *op)
 static void gpencil_guide_event_handling(bContext *C, wmOperator *op, const wmEvent *event, tGPsdata *p)
 {
 	bool add_notifier = false;
-	ToolSettings *ts = p->scene->toolsettings;
+	GP_Sculpt_Guide guide = p->scene->toolsettings->gp_sculpt.guide;
 
 	/* Enter or exit set center point mode */
 	if ((event->type == OKEY) && (event->val == KM_RELEASE)) {
-		if (p->paintmode == GP_PAINTMODE_DRAW && ts->gp_sculpt.guide_reference_point != GP_GUIDE_REF_OBJECT) {
+		if (p->paintmode == GP_PAINTMODE_DRAW && guide.reference_point != GP_GUIDE_REF_OBJECT) {
 			add_notifier = true; 
 			p->paintmode = GP_PAINTMODE_SET_CP;
 			ED_gpencil_toggle_brush_cursor(C, false, NULL);			
@@ -2977,23 +2982,23 @@ static void gpencil_guide_event_handling(bContext *C, wmOperator *op, const wmEv
 	}
 	/* Freehand mode, turn off speed guide */
 	else if ((event->type == VKEY) && (event->val == KM_PRESS)) {
-		ts->gp_sculpt.use_speed_guide = false;
+		guide.use_guide = false;
 		add_notifier = true;
 	}
 	/* Alternate or flip direction */
 	else if ((event->type == MKEY) && (event->val == KM_PRESS)) {
-		if (ts->gp_sculpt.guide_type == GP_GUIDE_CIRCULAR) {
+		if (guide.type == GP_GUIDE_CIRCULAR) {
 			add_notifier = true;
-			ts->gp_sculpt.guide_type = GP_GUIDE_RADIAL;
+			guide.type = GP_GUIDE_RADIAL;
 		}
-		else if (ts->gp_sculpt.guide_type == GP_GUIDE_RADIAL) {
+		else if (guide.type == GP_GUIDE_RADIAL) {
 			add_notifier = true;
-			ts->gp_sculpt.guide_type = GP_GUIDE_CIRCULAR;
+			guide.type = GP_GUIDE_CIRCULAR;
 		}
-		else if (ts->gp_sculpt.guide_type == GP_GUIDE_PARALLEL) {
+		else if (guide.type == GP_GUIDE_PARALLEL) {
 			add_notifier = true;
-			ts->gp_sculpt.guide_angle += M_PI_2;
-			ts->gp_sculpt.guide_angle = angle_compat_rad(ts->gp_sculpt.guide_angle, M_PI);
+			guide.angle += M_PI_2;
+			guide.angle = angle_compat_rad(guide.angle, M_PI);
 		}
 		else {
 			add_notifier = false;
@@ -3006,39 +3011,39 @@ static void gpencil_guide_event_handling(bContext *C, wmOperator *op, const wmEv
 	/* Line guides */
 	else if ((event->type == LKEY) && (event->val == KM_PRESS)) {
 		add_notifier = true;
-		ts->gp_sculpt.use_speed_guide = true;		
+		guide.use_guide = true;		
 		copy_v2_v2(p->mvali, p->mval);
 		if (event->ctrl) {
-			ts->gp_sculpt.guide_angle = 0.0f;
-			ts->gp_sculpt.guide_type = GP_GUIDE_PARALLEL;
+			guide.angle = 0.0f;
+			guide.type = GP_GUIDE_PARALLEL;
 		}
 		else if (event->alt) {
-			ts->gp_sculpt.guide_type = GP_GUIDE_PARALLEL;
-			ts->gp_sculpt.guide_angle = RNA_float_get(op->ptr, "guide_last_angle");
+			guide.type = GP_GUIDE_PARALLEL;
+			guide.angle = RNA_float_get(op->ptr, "guide_last_angle");
 		}
 		else {
-			ts->gp_sculpt.guide_type = GP_GUIDE_PARALLEL;
+			guide.type = GP_GUIDE_PARALLEL;
 		}
 	}
 	/* Point guide */
 	else if ((event->type == CKEY) && (event->val == KM_PRESS)) {
 		add_notifier = true;
-		ts->gp_sculpt.use_speed_guide = true;
+		guide.use_guide = true;
 		copy_v2_v2(p->mvali, p->mval);
-		if (ts->gp_sculpt.guide_type == GP_GUIDE_CIRCULAR) {
-			ts->gp_sculpt.guide_type = GP_GUIDE_RADIAL;
+		if (guide.type == GP_GUIDE_CIRCULAR) {
+			guide.type = GP_GUIDE_RADIAL;
 		}
-		else if (ts->gp_sculpt.guide_type == GP_GUIDE_RADIAL) {
-			ts->gp_sculpt.guide_type = GP_GUIDE_CIRCULAR;
+		else if (guide.type == GP_GUIDE_RADIAL) {
+			guide.type = GP_GUIDE_CIRCULAR;
 		}
 		else {
-			ts->gp_sculpt.guide_type = GP_GUIDE_CIRCULAR;
+			guide.type = GP_GUIDE_CIRCULAR;
 		}
 	}
 	/* Change line angle xxx maybe use LEFTBRACKETKEY & RIGHTBRACKETKEY */
 	else if (ELEM(event->type, JKEY, KKEY) && (event->val == KM_PRESS)) {
 		add_notifier = true;
-		float angle = ts->gp_sculpt.guide_angle;
+		float angle = guide.angle;
 		float adjust = (float)M_PI / 180.0f;
 		if (event->alt)
 			adjust *= 45.0f;
@@ -3046,7 +3051,7 @@ static void gpencil_guide_event_handling(bContext *C, wmOperator *op, const wmEv
 			adjust *= 15.0f;
 		angle += (event->type == JKEY) ? adjust : -adjust;
 		angle = angle_compat_rad(angle, M_PI);
-		ts->gp_sculpt.guide_angle = angle;
+		guide.angle = angle;
 	}
 
 	if (add_notifier) {
@@ -3225,15 +3230,17 @@ static void gpencil_move_last_stroke_to_back(bContext *C)
 static void gpencil_add_missing_events(bContext *C, wmOperator *op, const wmEvent *event, tGPsdata *p)
 {
 	Brush *brush = p->brush;
-	ToolSettings *ts = p->scene->toolsettings;
+	GP_Sculpt_Guide guide = p->scene->toolsettings->gp_sculpt.guide;
 	int input_samples = brush->gpencil_settings->input_samples;
 
 	/* ensure sampling when using circular guide */
-	if (ts->gp_sculpt.use_speed_guide && (ts->gp_sculpt.guide_type == GP_GUIDE_CIRCULAR))
+	if (guide.use_guide && (guide.type == GP_GUIDE_CIRCULAR)) {
 		input_samples = GP_MAX_INPUT_SAMPLES;
+	}
 
-	if (input_samples == 0)
+	if (input_samples == 0) {
 		return;
+	}
 		
 	RegionView3D *rv3d = p->ar->regiondata;
 	float defaultpixsize = rv3d->pixsize * 1000.0f;
@@ -3303,6 +3310,7 @@ static int gpencil_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
 {
 	tGPsdata *p = op->customdata;
 	ToolSettings *ts = CTX_data_tool_settings(C);
+	GP_Sculpt_Guide guide = p->scene->toolsettings->gp_sculpt.guide;
 	int estate = OPERATOR_PASS_THROUGH; /* default exit state - pass through to support MMB view nav, etc. */
 
 	/* if (event->type == NDOF_MOTION)
@@ -3648,7 +3656,7 @@ static int gpencil_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
 	switch (estate) {
 		case OPERATOR_FINISHED:
 			/* store stroke angle for parallel guide */
-			if ((p->straight == 0) || (ts->gp_sculpt.use_speed_guide && (ts->gp_sculpt.guide_type == GP_GUIDE_CIRCULAR))){
+			if ((p->straight == 0) || (guide.use_guide && (guide.type == GP_GUIDE_CIRCULAR))){
 				float xy[2];
 				sub_v2_v2v2(xy, p->mval, p->mvali);
 				float angle = atan2f(xy[1], xy[0]);
@@ -3731,16 +3739,16 @@ void GPENCIL_OT_draw(wmOperatorType *ot)
 static int gpencil_guide_rotate(bContext *C, wmOperator *op)
 {
 	ToolSettings *ts = CTX_data_tool_settings(C);
-	
+	GP_Sculpt_Guide guide = ts->gp_sculpt.guide;
 	float angle = RNA_float_get(op->ptr, "angle");
 	bool increment = RNA_boolean_get(op->ptr, "increment");
 	if (increment) {
-		float oldangle = ts->gp_sculpt.guide_angle;
+		float oldangle = guide.angle;
 		oldangle += angle;
-		ts->gp_sculpt.guide_angle = angle_compat_rad(oldangle, M_PI);
+		guide.angle = angle_compat_rad(oldangle, M_PI);
 	}
 	else {
-		ts->gp_sculpt.guide_angle = angle_compat_rad(angle, M_PI);
+		guide.angle = angle_compat_rad(angle, M_PI);
 	}
 	
 	return OPERATOR_FINISHED;

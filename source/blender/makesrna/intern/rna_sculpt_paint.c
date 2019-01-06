@@ -545,6 +545,10 @@ static char *rna_GPencilSculptBrush_path(PointerRNA *UNUSED(ptr))
 	return BLI_strdup("tool_settings.gpencil_sculpt.brush");
 }
 
+static char *rna_GPencilSculptGuide_path(PointerRNA *UNUSED(ptr))
+{
+	return BLI_strdup("tool_settings.gpencil_sculpt.guide");
+}
 
 #else
 
@@ -1216,6 +1220,11 @@ static void rna_def_gpencil_sculpt(BlenderRNA *brna)
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_ui_text(prop, "Brush", "");
 
+	prop = RNA_def_property(srna, "guide", PROP_POINTER, PROP_NONE);
+	RNA_def_property_struct_type(prop, "GPencilSculptGuide");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+	RNA_def_property_ui_text(prop, "Guide", "");
+
 	prop = RNA_def_property(srna, "use_select_mask", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_SCULPT_SETT_FLAG_SELECT_MASK);
 	RNA_def_property_ui_text(prop, "Selection Mask", "Only sculpt selected stroke points");
@@ -1277,86 +1286,7 @@ static void rna_def_gpencil_sculpt(BlenderRNA *brna)
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
 
-	/* guide */
-	static const EnumPropertyItem prop_gpencil_guidetypes[] = {
-		{GP_GUIDE_CIRCULAR, "CIRCULAR", 0, "Circular", "Use single point to create rings"},
-		{GP_GUIDE_RADIAL, "RADIAL", 0, "Radial", "Use single point as direction"},
-		{GP_GUIDE_PARALLEL, "PARALLEL", 0, "Parallel", "Parallel lines"},
-		{GP_GUIDE_GRID, "GRID", 0, "Grid", "Grid allows horizontal and vertical lines"},
-		{0, NULL, 0, NULL, NULL}
-	};
-
-	static const EnumPropertyItem prop_gpencil_guide_references[] = {
-		{0, "CURSOR", 0, "Cursor", "Use cursor as reference point"},
-		{1, "CUSTOM", 0, "Custom", "Use custom reference point"},
-		{2, "OBJECT", 0, "Object", "Use object as reference point"},
-		{0, NULL, 0, NULL, NULL}
-	};
-
-	prop = RNA_def_property(srna, "use_speed_guide", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "use_speed_guide", false);
-	RNA_def_property_boolean_default(prop, false);
-	RNA_def_property_ui_text(prop, "Use Speed Guides", "Enable speed guides");
-	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
-	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
-
-	prop = RNA_def_property(srna, "use_snapping", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "use_snapping", false);
-	RNA_def_property_boolean_default(prop, false);
-	RNA_def_property_ui_text(prop, "Use Snapping", "Enable snapping to guides angle or spacing options");
-	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
-	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
-
-	prop = RNA_def_property(srna, "guide_reference_object", PROP_POINTER, PROP_NONE);
-	RNA_def_property_pointer_sdna(prop, NULL, "guide_reference_object");
-	RNA_def_property_ui_text(prop, "Object", "Object used for reference point");
-	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_SELF_CHECK);
-	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);	
-
-	prop = RNA_def_property(srna, "guide_reference_point", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_sdna(prop, NULL, "guide_reference_point");
-	RNA_def_property_enum_items(prop, prop_gpencil_guide_references);
-	RNA_def_property_ui_text(prop, "Type", "Type of speed guide");
-	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
-	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
-
-	prop = RNA_def_property(srna, "guide_type", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_sdna(prop, NULL, "guide_type");
-	RNA_def_property_enum_items(prop, prop_gpencil_guidetypes);
-	RNA_def_property_ui_text(prop, "Type", "Type of speed guide");
-	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
-	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
-
-	prop = RNA_def_property(srna, "guide_angle", PROP_FLOAT, PROP_ANGLE);
-	RNA_def_property_float_sdna(prop, NULL, "guide_angle");
-	RNA_def_property_range(prop, -(M_PI * 2.0f), (M_PI * 2.0f));
-	RNA_def_property_ui_text(prop, "Angle", "Direction of lines");
-	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
-	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
-
-	prop = RNA_def_property(srna, "guide_angle_snap", PROP_FLOAT, PROP_ANGLE);
-	RNA_def_property_float_sdna(prop, NULL, "guide_angle_snap");
-	RNA_def_property_range(prop, -(M_PI * 2.0f), (M_PI * 2.0f));
-	RNA_def_property_ui_text(prop, "Angle Snap", "Angle snapping");
-	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
-	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
-
-	prop = RNA_def_property(srna, "guide_spacing", PROP_FLOAT, PROP_NONE);
-	RNA_def_property_float_sdna(prop, NULL, "guide_spacing");
-	RNA_def_property_float_default(prop, 25.0f);
-	RNA_def_property_range(prop, 1.0, FLT_MAX);
-	RNA_def_property_ui_range(prop, 1.0, 1000.0, 10, 2);
-	RNA_def_property_ui_text(prop, "Spacing", "Guide spacing");
-	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
-	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
-
-	prop = RNA_def_property(srna, "guide_origin", PROP_FLOAT, PROP_XYZ);
-	RNA_def_property_float_sdna(prop, NULL, "guide_origin");
-	RNA_def_property_array(prop, 3);
-	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
-	RNA_def_property_ui_text(prop, "Origin", "Location of origin for guides");
-	RNA_def_property_range(prop, -FLT_MAX, FLT_MAX);
-	RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, 3);
+	
 	
 	/* lock axis */
 	prop = RNA_def_property(srna, "lock_axis", PROP_ENUM, PROP_NONE);
@@ -1459,6 +1389,94 @@ static void rna_def_gpencil_sculpt(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Enable Cursor", "Enable cursor on screen");
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 
+	/* srna -- gpencil speed guides */
+	srna = RNA_def_struct(brna, "GPencilSculptGuide", NULL);
+	RNA_def_struct_sdna(srna, "GP_Sculpt_Guide");
+	RNA_def_struct_path_func(srna, "rna_GPencilSculptGuide_path");
+	RNA_def_struct_ui_text(srna, "GPencil Sculpt Guide", "Guides for drawing");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+
+	static const EnumPropertyItem prop_gpencil_guidetypes[] = {
+		{GP_GUIDE_CIRCULAR, "CIRCULAR", 0, "Circular", "Use single point to create rings"},
+		{GP_GUIDE_RADIAL, "RADIAL", 0, "Radial", "Use single point as direction"},
+		{GP_GUIDE_PARALLEL, "PARALLEL", 0, "Parallel", "Parallel lines"},
+		{GP_GUIDE_GRID, "GRID", 0, "Grid", "Grid allows horizontal and vertical lines"},
+		{0, NULL, 0, NULL, NULL}
+	};
+
+	static const EnumPropertyItem prop_gpencil_guide_references[] = {
+		{GP_GUIDE_REF_CURSOR, "CURSOR", 0, "Cursor", "Use cursor as reference point"},
+		{GP_GUIDE_REF_CUSTOM, "CUSTOM", 0, "Custom", "Use custom reference point"},
+		{GP_GUIDE_REF_OBJECT, "OBJECT", 0, "Object", "Use object as reference point"},
+		{0, NULL, 0, NULL, NULL}
+	};
+
+	prop = RNA_def_property(srna, "use_guide", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "use_guide", false);
+	RNA_def_property_boolean_default(prop, false);
+	RNA_def_property_ui_text(prop, "Use Guides", "Enable speed guides");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
+
+	prop = RNA_def_property(srna, "use_snapping", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "use_snapping", false);
+	RNA_def_property_boolean_default(prop, false);
+	RNA_def_property_ui_text(prop, "Use Snapping", "Enable snapping to guides angle or spacing options");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
+
+	prop = RNA_def_property(srna, "reference_object", PROP_POINTER, PROP_NONE);
+	RNA_def_property_pointer_sdna(prop, NULL, "reference_object");
+	RNA_def_property_ui_text(prop, "Object", "Object used for reference point");
+	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_SELF_CHECK);
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, "rna_ImaPaint_viewport_update");
+
+	prop = RNA_def_property(srna, "reference_point", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "reference_point");
+	RNA_def_property_enum_items(prop, prop_gpencil_guide_references);
+	RNA_def_property_ui_text(prop, "Type", "Type of speed guide");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, "rna_ImaPaint_viewport_update");
+
+	prop = RNA_def_property(srna, "type", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "type");
+	RNA_def_property_enum_items(prop, prop_gpencil_guidetypes);
+	RNA_def_property_ui_text(prop, "Type", "Type of speed guide");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
+
+	prop = RNA_def_property(srna, "angle", PROP_FLOAT, PROP_ANGLE);
+	RNA_def_property_float_sdna(prop, NULL, "angle");
+	RNA_def_property_range(prop, -(M_PI * 2.0f), (M_PI * 2.0f));
+	RNA_def_property_ui_text(prop, "Angle", "Direction of lines");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
+
+	prop = RNA_def_property(srna, "angle_snap", PROP_FLOAT, PROP_ANGLE);
+	RNA_def_property_float_sdna(prop, NULL, "angle_snap");
+	RNA_def_property_range(prop, -(M_PI * 2.0f), (M_PI * 2.0f));
+	RNA_def_property_ui_text(prop, "Angle Snap", "Angle snapping");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
+
+	prop = RNA_def_property(srna, "spacing", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "spacing");
+	RNA_def_property_float_default(prop, 25.0f);
+	RNA_def_property_range(prop, 1.0, FLT_MAX);
+	RNA_def_property_ui_range(prop, 1.0, 1000.0, 10, 2);
+	RNA_def_property_ui_text(prop, "Spacing", "Guide spacing");
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
+
+	prop = RNA_def_property(srna, "location", PROP_FLOAT, PROP_XYZ);
+	RNA_def_property_float_sdna(prop, NULL, "location");
+	RNA_def_property_array(prop, 3);
+	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
+	RNA_def_property_ui_text(prop, "Location", "Custom reference point for guides");
+	RNA_def_property_range(prop, -FLT_MAX, FLT_MAX);
+	RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, 3);
+	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, "rna_ImaPaint_viewport_update");
+	
 }
 
 void RNA_def_sculpt_paint(BlenderRNA *brna)

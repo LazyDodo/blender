@@ -394,7 +394,7 @@ GPUBatch *DRW_gpencil_get_buffer_ctrlpoint_geom(bGPdata *gpd)
 	Scene *scene = draw_ctx->scene;
 	ToolSettings *ts = scene->toolsettings;
 
-	if (ts->gp_sculpt.use_speed_guide) {
+	if (ts->gp_sculpt.guide.use_guide) {
 		totpoints++;
 	}
 	
@@ -423,17 +423,17 @@ GPUBatch *DRW_gpencil_get_buffer_ctrlpoint_geom(bGPdata *gpd)
 		idx++;
 	}
 
-	if (ts->gp_sculpt.use_speed_guide) {
+	if (ts->gp_sculpt.guide.use_guide) {
 		float size = 10 * 0.8f;
 		float color[4];
 		float position[3];
-		if (ts->gp_sculpt.guide_reference_point == 1) {			
+		if (ts->gp_sculpt.guide.reference_point == GP_GUIDE_REF_CUSTOM) {
 			UI_GetThemeColor4fv(TH_GIZMO_PRIMARY, color);
-			copy_v3_v3(position, ts->gp_sculpt.guide_origin);
+			copy_v3_v3(position, ts->gp_sculpt.guide.location);
 		}
-		else if (ts->gp_sculpt.guide_reference_point == 2 && ts->gp_sculpt.guide_reference_object != NULL) {
+		else if (ts->gp_sculpt.guide.reference_point == GP_GUIDE_REF_OBJECT && ts->gp_sculpt.guide.reference_object != NULL) {
 			UI_GetThemeColor4fv(TH_GIZMO_SECONDARY, color);
-			copy_v3_v3(position, ts->gp_sculpt.guide_reference_object->loc);
+			copy_v3_v3(position, ts->gp_sculpt.guide.reference_object->loc);
 		}
 		else {
 			UI_GetThemeColor4fv(TH_REDALERT, color);

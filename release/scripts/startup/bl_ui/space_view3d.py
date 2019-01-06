@@ -248,11 +248,11 @@ class VIEW3D_HT_header(Header):
             
         if object_mode in {'PAINT_GPENCIL'}:
             if context.workspace.tools.from_space_view3d_mode(object_mode).name == "Draw":
-                settings = tool_settings.gpencil_sculpt
+                settings = tool_settings.gpencil_sculpt.guide
                 row = layout.row(align=True)
-                row.prop(settings, "use_speed_guide", text="", icon='GRID')
+                row.prop(settings, "use_guide", text="", icon='GRID')
                 sub = row.row(align=True)
-                sub.active = settings.use_speed_guide
+                sub.active = settings.use_guide
                 sub.popover(
                     panel="VIEW3D_PT_gpencil_guide",
                     text="Guides"
@@ -5342,22 +5342,21 @@ class VIEW3D_PT_gpencil_guide(Panel):
     @staticmethod
     def draw(self, context):
         from math import pi
-        settings = context.tool_settings.gpencil_sculpt
+        settings = context.tool_settings.gpencil_sculpt.guide
 
         layout = self.layout
         layout.label(text="Guides")
         
         col = layout.column()
-        col.prop(settings, "use_speed_guide")
+        col.prop(settings, "use_guide")
 
         col = col.column()
-        col.active = settings.use_speed_guide
+        col.active = settings.use_guide
         
-        col.prop(settings, "guide_type", expand=True)
-        
-        
-        if settings.guide_type in {'PARALLEL'}:
-            col.prop(settings, "guide_angle")
+        col.prop(settings, "type", expand=True)
+                
+        if settings.type in {'PARALLEL'}:
+            col.prop(settings, "angle")
             row = col.row(align=True)
             #op = row.operator("gpencil.guide_rotate", text="0", emboss=True)
             #op.increment = False
@@ -5368,19 +5367,19 @@ class VIEW3D_PT_gpencil_guide(Panel):
         col.prop(settings, "use_snapping")        
         if settings.use_snapping:
             
-            if settings.guide_type in {'RADIAL'}:
-                col.prop(settings, "guide_angle_snap")
+            if settings.type in {'RADIAL'}:
+                col.prop(settings, "angle_snap")
             else:
-                col.prop(settings, "guide_spacing")
+                col.prop(settings, "spacing")
         
         col.label(text="Reference Point")
         row = col.row(align=True)
-        row.prop(settings, "guide_reference_point", expand=True)    
-        if settings.guide_reference_point in {'CUSTOM'}:
-            col.prop(settings, "guide_origin", text="Custom Location")        
-        if settings.guide_reference_point in {'OBJECT'}:
-            col.prop(settings, "guide_reference_object", text="Object Location")
-        if settings.guide_reference_point in {'CURSOR'}:
+        row.prop(settings, "reference_point", expand=True)    
+        if settings.reference_point in {'CUSTOM'}:
+            col.prop(settings, "location", text="Custom Location")        
+        if settings.reference_point in {'OBJECT'}:
+            col.prop(settings, "reference_object", text="Object Location")
+        if settings.reference_point in {'CURSOR'}:
             col.prop(context.scene, "cursor_location", text="Cursor Location")
 
         

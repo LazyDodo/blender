@@ -995,6 +995,20 @@ typedef struct GP_Sculpt_Data {
 	char _pad[4];
 } GP_Sculpt_Data;
 
+/* Settings for a GPencil Speed Guide */
+typedef struct GP_Sculpt_Guide {
+	char use_guide;
+	char use_snapping;
+	char reference_point;
+	char type;
+	char _pad2[4];
+	float angle;
+	float angle_snap;
+	float spacing;
+	float location[3];
+	struct Object *reference_object;
+} GP_Sculpt_Guide;
+
 /* GP_Sculpt_Data.flag */
 typedef enum eGP_Sculpt_Flag {
 	/* invert the effect of the brush */
@@ -1032,19 +1046,7 @@ typedef struct GP_Sculpt_Settings {
 	char _pad[4];
 	struct CurveMapping *cur_falloff; /* multiframe edit falloff effect by frame */
 	struct CurveMapping *cur_primitive; /* Curve used for primitve tools */
-
-	/* guides */
-	char use_speed_guide;
-	char use_snapping;
-	char guide_reference_point;
-	char guide_type;
-	char _pad2[4];
-	float guide_angle;
-	float guide_angle_snap;
-	float guide_spacing;
-	float guide_origin[3];
-	struct Object *guide_reference_object;
-
+	struct GP_Sculpt_Guide guide; /* Guides used for paint tools */
 } GP_Sculpt_Settings;
 
 /* GP_Sculpt_Settings.flag */
@@ -2204,6 +2206,13 @@ typedef enum eGPencil_GuideTypes {
 	GP_GUIDE_PARALLEL,
 	GP_GUIDE_GRID
 } eGPencil_GuideTypes;
+
+/* ToolSettings.gpencil_guide_references */
+typedef enum eGPencil_Guide_Reference {
+	GP_GUIDE_REF_CURSOR = 0,
+	GP_GUIDE_REF_CUSTOM,
+	GP_GUIDE_REF_OBJECT
+} eGPencil_Guide_Reference;
 
 /* ToolSettings.particle flag */
 #define PE_KEEP_LENGTHS         (1 << 0)

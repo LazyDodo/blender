@@ -189,7 +189,6 @@ ToolSettings *BKE_toolsettings_copy(ToolSettings *toolsettings, const int flag)
 	/* duplicate Grease Pencil multiframe fallof */
 	ts->gp_sculpt.cur_falloff = curvemapping_copy(ts->gp_sculpt.cur_falloff);
 	ts->gp_sculpt.cur_primitive = curvemapping_copy(ts->gp_sculpt.cur_primitive);
-	ts->gp_sculpt.guide_reference_object = NULL;
 	return ts;
 }
 
@@ -716,7 +715,7 @@ void BKE_scene_init(Scene *sce)
 	        CURVE_PRESET_BELL,
 	        CURVEMAP_SLOPE_POSITIVE);
 
-	sce->toolsettings->gp_sculpt.guide_reference_object = NULL;
+	sce->toolsettings->gp_sculpt.guide.spacing = 20.0f;
 
 	sce->physics_settings.gravity[0] = 0.0f;
 	sce->physics_settings.gravity[1] = 0.0f;
