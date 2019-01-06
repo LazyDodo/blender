@@ -2551,24 +2551,25 @@ static int gp_stroke_caps_set_exec(bContext *C, wmOperator *op)
 			if (!gp_style || (gp_style->flag & GP_STYLE_COLOR_HIDE) || (gp_style->flag & GP_STYLE_COLOR_LOCKED))
 				continue;
 
-			switch (type) {
-				case GP_STROKE_CAPS_TOGGLE_BOTH:
-					gps->flag ^= GP_STROKE_FLATCAPS_START;
-					gps->flag ^= GP_STROKE_FLATCAPS_END;
-					break;
-				case GP_STROKE_CAPS_TOGGLE_START:
-					gps->flag ^= GP_STROKE_FLATCAPS_START;
-					break;
-				case GP_STROKE_CAPS_TOGGLE_END:
-					gps->flag ^= GP_STROKE_FLATCAPS_END;
-					break;
-				case GP_STROKE_CAPS_TOGGLE_DEFAULT:
-					gps->flag &= ~GP_STROKE_FLATCAPS_START;
-					gps->flag &= ~GP_STROKE_FLATCAPS_END;
-					break;
-				default:
-					BLI_assert(0);
-					break;
+			if ((type == GP_STROKE_CAPS_TOGGLE_BOTH) ||
+				(type == GP_STROKE_CAPS_TOGGLE_START))
+			{
+				++gps->caps[0];
+				if (gps->caps[0] >= GP_STROKE_CAP_MAX) {
+					gps->caps[0] = GP_STROKE_CAP_ROUND;
+				}
+			}
+			if ((type == GP_STROKE_CAPS_TOGGLE_BOTH) ||
+				(type == GP_STROKE_CAPS_TOGGLE_END))
+			{
+				++gps->caps[1];
+				if (gps->caps[1] >= GP_STROKE_CAP_MAX) {
+					gps->caps[1] = GP_STROKE_CAP_ROUND;
+				}
+			}
+			if (type == GP_STROKE_CAPS_TOGGLE_DEFAULT) {
+				gps->caps[0] = GP_STROKE_CAP_ROUND;
+				gps->caps[1] = GP_STROKE_CAP_ROUND;
 			}
 		}
 	}

@@ -387,8 +387,8 @@ DRWShadingGroup *DRW_gpencil_shgroup_stroke_create(
 		DRW_shgroup_uniform_int(grp, "color_type", &stl->shgroups[id].color_type, 1);
 		DRW_shgroup_uniform_float(grp, "pixfactor", &gpd->pixfactor, 1);
 
-		stl->shgroups[id].caps_mode[0] = ((gps) && (gps->flag & GP_STROKE_FLATCAPS_START)) ? 1 : 0;
-		stl->shgroups[id].caps_mode[1] = ((gps) && (gps->flag & GP_STROKE_FLATCAPS_END)) ? 1 : 0;
+		stl->shgroups[id].caps_mode[0] = gps->caps[0];
+		stl->shgroups[id].caps_mode[1] = gps->caps[1];
 		DRW_shgroup_uniform_int(grp, "caps_mode", &stl->shgroups[id].caps_mode[0], 2);
 	}
 	else {
@@ -1545,9 +1545,6 @@ void DRW_gpencil_populate_datablock(
 
 	/* check if playing animation */
 	const bool playing = stl->storage->is_playing;
-	const bool is_solomode = GPENCIL_PAINT_MODE(gpd) &&
-							(!playing) && (!stl->storage->is_render) &&
-							(ts->gpencil_flags & GP_TOOL_FLAG_SOLO_MODE);
 
 	GpencilBatchCache *cache = gpencil_batch_cache_get(ob, cfra_eval);
 
@@ -1572,6 +1569,10 @@ void DRW_gpencil_populate_datablock(
 		if (gpl->flag & GP_LAYER_HIDE) {
 			continue;
 		}
+
+		const bool is_solomode = GPENCIL_PAINT_MODE(gpd) &&
+			(!playing) && (!stl->storage->is_render) &&
+			(gpl->flag & GP_LAYER_SOLO_MODE);
 
 		/* filter view layer to gp layers in the same view layer (for compo) */
 		if ((stl->storage->is_render) && (gpl->viewlayername[0] != '\0')) {

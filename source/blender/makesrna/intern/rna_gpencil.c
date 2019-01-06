@@ -87,6 +87,12 @@ static const EnumPropertyItem rna_enum_layer_blend_modes_items[] = {
 	{eGplBlendMode_Divide, "DIVIDE", 0, "Divide", "" },
 	{0, NULL, 0, NULL, NULL }
 };
+
+static EnumPropertyItem rna_enum_gpencil_caps_modes_items[] = {
+	{GP_STROKE_CAP_ROUND, "ROUND", 0, "Rounded", ""},
+	{GP_STROKE_CAP_FLAT, "FLAT", 0, "Flat", ""},
+	{0, NULL, 0, NULL, NULL}
+};
 #endif
 
 #ifdef RNA_RUNTIME
@@ -968,16 +974,18 @@ static void rna_def_gpencil_stroke(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Cyclic", "Enable cyclic drawing, closing the stroke");
 	RNA_def_property_update(prop, 0, "rna_GPencil_update");
 
-	/* Enable Flat Caps mode */
-	prop = RNA_def_property(srna, "is_start_flat_caps", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STROKE_FLATCAPS_START);
-	RNA_def_property_ui_text(prop, "Flat", "Stroke caps are flat (rounded by default)");
-	RNA_def_property_update(prop, 0, "rna_GPencil_update");
+	/* Caps mode */
+	prop = RNA_def_property(srna, "start_cap_mode", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "caps[0]");
+	RNA_def_property_enum_items(prop, rna_enum_gpencil_caps_modes_items);
+	RNA_def_property_ui_text(prop, "Start Cap", "Stroke start extreme cap style");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
-	prop = RNA_def_property(srna, "is_end_flat_caps", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_STROKE_FLATCAPS_END);
-	RNA_def_property_ui_text(prop, "Flat", "Stroke caps are flat (rounded by default)");
-	RNA_def_property_update(prop, 0, "rna_GPencil_update");
+	prop = RNA_def_property(srna, "end_cap_mode", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "caps[1]");
+	RNA_def_property_enum_items(prop, rna_enum_gpencil_caps_modes_items);
+	RNA_def_property_ui_text(prop, "End Cap", "Stroke end extreme cap style");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	/* No fill: The stroke never must fill area and must use fill color as stroke color (this is a special flag for fill brush) */
 	prop = RNA_def_property(srna, "is_nofill_stroke", PROP_BOOLEAN, PROP_NONE);
@@ -1271,6 +1279,13 @@ static void rna_def_gpencil_layer(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Clamp Layer",
 		"Clamp any pixel outside underlying layers drawing");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
+
+	/* solo mode: Only display frames with keyframe */
+	prop = RNA_def_property(srna, "use_solo_mode", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_LAYER_SOLO_MODE);
+	RNA_def_property_ui_text(prop, "Solo Mode",
+		"In Paint mode display only layers with keyframe in current frame");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
 
 	/* exposed as layers.active */
 #if 0
