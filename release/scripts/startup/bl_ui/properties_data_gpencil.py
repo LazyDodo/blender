@@ -146,7 +146,7 @@ class DATA_PT_gpencil_datapanel(Panel):
                       icon='MOD_MASK' if gpl.clamp_layer else 'LAYER_ACTIVE')
 
             srow = col.row(align=True)
-            srow.prop(gpl, "use_solo_mode", text="Display Only Keyframes", icon='TIME')
+            srow.prop(gpl, "use_solo_mode", text="Show Only On Keyframed")
 
         col = row.column()
 
