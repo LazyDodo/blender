@@ -2554,7 +2554,6 @@ static void gp_rotate_v2_v2v2fl(float v[2], const float p[2], const float origin
 }
 
 /* Helper to snap value to grid */
-
 static float gp_snap_to_grid_fl(float v, const float offset, const float spacing)
 {
 	if (spacing > 0.0f)
@@ -2755,8 +2754,8 @@ static void gpencil_draw_apply_event(bContext *C, wmOperator *op, const wmEvent 
 				{
 					float origin[2];
 					gp_origin_get(op, origin);
-					if (ts->gp_sculpt.use_snapping
-						&& (ts->gp_sculpt.guide_angle_snap > 0.0f)) {
+					if (ts->gp_sculpt.use_snapping &&
+						(ts->gp_sculpt.guide_angle_snap > 0.0f)) {
 						float xy[2];
 						sub_v2_v2v2(xy, p->mvali, origin);
 						float angle = atan2f(xy[1], xy[0]);
@@ -2780,6 +2779,7 @@ static void gpencil_draw_apply_event(bContext *C, wmOperator *op, const wmEvent 
 				{
 					float origin[2];
 					gp_origin_get(op, origin);
+
 					float point[2];
 					float unit[2];
 					float angle;
@@ -2788,6 +2788,23 @@ static void gpencil_draw_apply_event(bContext *C, wmOperator *op, const wmEvent 
 					angle = ts->gp_sculpt.guide_angle;
 					gp_rotate_v2_v2v2fl(point, unit, p->mvali, angle);
 					closest_to_line_v2(p->mval, p->mval, p->mvali, point);
+					
+					if (ts->gp_sculpt.use_snapping &&
+						(ts->gp_sculpt.guide_spacing > 0.0f)) {
+
+						float guide_spacing = gp_float_to_pixel(op, ts->gp_sculpt.guide_spacing);
+						float half = guide_spacing * 0.5f;
+
+						/* rotate */
+						gp_rotate_v2_v2v2fl(p->mval, p->mval, origin, -angle);
+
+						/* snap */
+						p->mval[1] = gp_snap_to_grid_fl(p->mval[1], origin[1] + half, guide_spacing);
+						p->mval[1] -= half;
+
+						/* rotate back */
+						gp_rotate_v2_v2v2fl(p->mval, p->mval, origin, angle);
+					}
 				}
 				break;
 				case GP_GUIDE_GRID:
