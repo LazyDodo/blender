@@ -315,6 +315,8 @@ typedef enum eGPDlayer_Flag {
 	GP_LAYER_UNLOCK_COLOR 	= (1 << 12),
 	/* Mask Layer */
 	GP_LAYER_USE_MASK = (1 << 13),
+	/* Flag used to display in Paint mode only layers with keyframe */
+	GP_LAYER_SOLO_MODE = (1 << 4),
 } eGPDlayer_Flag;
 
 /* bGPDlayer->onion_flag */

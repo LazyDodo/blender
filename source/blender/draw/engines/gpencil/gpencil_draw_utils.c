@@ -1544,9 +1544,6 @@ void DRW_gpencil_populate_datablock(
 
 	/* check if playing animation */
 	const bool playing = stl->storage->is_playing;
-	const bool is_solomode = GPENCIL_PAINT_MODE(gpd) &&
-							(!playing) && (!stl->storage->is_render) &&
-							(ts->gpencil_flags & GP_TOOL_FLAG_SOLO_MODE);
 
 	GpencilBatchCache *cache = gpencil_batch_cache_get(ob, cfra_eval);
 
@@ -1571,6 +1568,10 @@ void DRW_gpencil_populate_datablock(
 		if (gpl->flag & GP_LAYER_HIDE) {
 			continue;
 		}
+
+		const bool is_solomode = GPENCIL_PAINT_MODE(gpd) &&
+			(!playing) && (!stl->storage->is_render) &&
+			(gpl->flag & GP_LAYER_SOLO_MODE);
 
 		/* filter view layer to gp layers in the same view layer (for compo) */
 		if ((stl->storage->is_render) && (gpl->viewlayername[0] != '\0')) {

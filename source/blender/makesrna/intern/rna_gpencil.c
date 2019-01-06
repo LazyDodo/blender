@@ -1272,6 +1272,13 @@ static void rna_def_gpencil_layer(BlenderRNA *brna)
 		"Clamp any pixel outside underlying layers drawing");
 	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, NULL);
 
+	/* solo mode: Only display frames with keyframe */
+	prop = RNA_def_property(srna, "use_solo_mode", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_LAYER_SOLO_MODE);
+	RNA_def_property_ui_text(prop, "Solo Mode",
+		"In Paint mode display only layers with keyframe in current frame");
+	RNA_def_property_update(prop, NC_GPENCIL | ND_DATA, "rna_GPencil_update");
+
 	/* exposed as layers.active */
 #if 0
 	prop = RNA_def_property(srna, "active", PROP_BOOLEAN, PROP_NONE);
