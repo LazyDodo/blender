@@ -228,6 +228,10 @@ void ED_operatortypes_gpencil(void)
 	WM_operatortype_append(GPENCIL_OT_draw);
 	WM_operatortype_append(GPENCIL_OT_fill);
 
+	/* Guides ----------------------- */
+
+	WM_operatortype_append(GPENCIL_OT_guide_rotate);
+
 	/* Editing (Strokes) ------------ */
 
 	WM_operatortype_append(GPENCIL_OT_editmode_toggle);

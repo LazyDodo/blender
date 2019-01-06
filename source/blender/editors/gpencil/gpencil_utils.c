@@ -724,6 +724,62 @@ void gp_point_to_xy_fl(
 	}
 }
 
+
+/**
+* generic based on gp_point_to_xy_fl
+*/
+void gp_point_3d_to_xy(const GP_SpaceConversion *gsc, const short flag, const float pt[3], float xy[2])
+{
+	const ARegion *ar = gsc->ar;
+	const View2D *v2d = gsc->v2d;
+	const rctf *subrect = gsc->subrect;
+	float xyval[2];
+
+	/* sanity checks */
+	BLI_assert((gsc->sa->spacetype == SPACE_VIEW3D));
+
+	if (flag & GP_STROKE_3DSPACE) {
+		if (ED_view3d_project_float_global(ar, pt, xyval, V3D_PROJ_TEST_NOP) == V3D_PROJ_RET_OK) {
+			xy[0] = xyval[0];
+			xy[1] = xyval[1];
+		}
+		else {
+			xy[0] = 0.0f;
+			xy[1] = 0.0f;
+		}
+	}
+	else if (flag & GP_STROKE_2DSPACE) {
+		float vec[3] = { pt[0], pt[1], 0.0f };
+		int t_x, t_y;
+
+		mul_m4_v3(gsc->mat, vec);
+		UI_view2d_view_to_region_clip(v2d, vec[0], vec[1], &t_x, &t_y);
+
+		if ((t_x == t_y) && (t_x == V2D_IS_CLIPPED)) {
+			/* XXX: Or should we just always use the values as-is? */
+			xy[0] = 0.0f;
+			xy[1] = 0.0f;
+		}
+		else {
+			xy[0] = (float)t_x;
+			xy[1] = (float)t_y;
+		}
+	}
+	else {
+		if (subrect == NULL) {
+			/* normal 3D view (or view space) */
+			xy[0] = (pt[0] / 100.0f * ar->winx);
+			xy[1] = (pt[1] / 100.0f * ar->winy);
+		}
+		else {
+			/* camera view, use subrect */
+			xy[0] = ((pt[0] / 100.0f) * BLI_rctf_size_x(subrect)) + subrect->xmin;
+			xy[1] = ((pt[1] / 100.0f) * BLI_rctf_size_y(subrect)) + subrect->ymin;
+		}
+	}
+}
+
+
 /**
  * Project screenspace coordinates to 3D-space
  *

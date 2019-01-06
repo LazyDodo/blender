@@ -1242,13 +1242,14 @@ void DRW_gpencil_populate_buffer_strokes(GPENCIL_e_data *e_data, void *vedata, T
 		}
 	}
 
-	/* control points */
-	if ((overlay) && (gpd->runtime.tot_cp_points > 0) &&
-	    ((gpd->runtime.sbuffer_sflag & GP_STROKE_ERASER) == 0) &&
-	    ((v3d->gizmo_flag & V3D_GIZMO_HIDE) == 0) &&
-	    ((v3d->gizmo_flag & V3D_GIZMO_HIDE_TOOL) == 0))
-	{
+	/* control points for primitives and speed guide */
+	const bool is_cppoint = (gpd->runtime.tot_cp_points > 0);
+	const bool is_speed_guide = (ts->gp_sculpt.guide.use_guide && (draw_ctx->object_mode == OB_MODE_PAINT_GPENCIL));
+	const bool is_show_gizmo = (((v3d->gizmo_flag & V3D_GIZMO_HIDE) == 0) && ((v3d->gizmo_flag & V3D_GIZMO_HIDE_TOOL) == 0));
 
+	if ((overlay) && (is_cppoint || is_speed_guide) && (is_show_gizmo) &&
+		((gpd->runtime.sbuffer_sflag & GP_STROKE_ERASER) == 0))
+	{
 		DRWShadingGroup *shgrp = DRW_shgroup_create(
 			e_data->gpencil_edit_point_sh, psl->drawing_pass);
 		const float *viewport_size = DRW_viewport_size_get();

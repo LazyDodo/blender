@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2017, Blender Foundation
  * This is a new part of Blender
  *
- * Contributor(s): Antonio Vazquez
+ * Contributor(s): Antonio Vazquez, Charlie Jolly
  *
  * ***** END GPL LICENSE BLOCK *****
  *

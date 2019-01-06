@@ -245,6 +245,18 @@ class VIEW3D_HT_header(Header):
                 text=lk_name,
                 icon=lk_icon,
             )
+            
+        if object_mode in {'PAINT_GPENCIL'}:
+            if context.workspace.tools.from_space_view3d_mode(object_mode).name == "Draw":
+                settings = tool_settings.gpencil_sculpt.guide
+                row = layout.row(align=True)
+                row.prop(settings, "use_guide", text="", icon='GRID')
+                sub = row.row(align=True)
+                sub.active = settings.use_guide
+                sub.popover(
+                    panel="VIEW3D_PT_gpencil_guide",
+                    text="Guides"
+                )
 
         layout.separator_spacer()
 
@@ -5321,7 +5333,56 @@ class VIEW3D_PT_gpencil_lock(Panel):
         col = row.column()
         col.prop(context.tool_settings.gpencil_sculpt, "lock_axis", expand=True)
 
+        
+class VIEW3D_PT_gpencil_guide(Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'HEADER'
+    bl_label = "Guides"
 
+    @staticmethod
+    def draw(self, context):
+        from math import pi
+        settings = context.tool_settings.gpencil_sculpt.guide
+
+        layout = self.layout
+        layout.label(text="Guides")
+        
+        col = layout.column()
+        col.prop(settings, "use_guide")
+
+        col = col.column()
+        col.active = settings.use_guide
+        
+        col.prop(settings, "type", expand=True)
+                
+        if settings.type in {'PARALLEL'}:
+            col.prop(settings, "angle")
+            row = col.row(align=True)
+            #op = row.operator("gpencil.guide_rotate", text="0", emboss=True)
+            #op.increment = False
+            #op.angle = 0.0            
+            #row.operator("gpencil.guide_rotate", text="+90", emboss=True).angle = pi * 0.5
+            #row.operator("gpencil.guide_rotate", text="+45", emboss=True).angle = pi * 0.25
+        
+        col.prop(settings, "use_snapping")        
+        if settings.use_snapping:
+            
+            if settings.type in {'RADIAL'}:
+                col.prop(settings, "angle_snap")
+            else:
+                col.prop(settings, "spacing")
+        
+        col.label(text="Reference Point")
+        row = col.row(align=True)
+        row.prop(settings, "reference_point", expand=True)    
+        if settings.reference_point in {'CUSTOM'}:
+            col.prop(settings, "location", text="Custom Location")        
+        if settings.reference_point in {'OBJECT'}:
+            col.prop(settings, "reference_object", text="Object Location")
+        if settings.reference_point in {'CURSOR'}:
+            col.prop(context.scene, "cursor_location", text="Cursor Location")
+
+        
 class VIEW3D_PT_overlay_gpencil_options(Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'HEADER'
@@ -5792,6 +5853,7 @@ classes = (
     VIEW3D_PT_snapping,
     VIEW3D_PT_gpencil_origin,
     VIEW3D_PT_gpencil_lock,
+    VIEW3D_PT_gpencil_guide,
     VIEW3D_PT_transform_orientations,
     VIEW3D_PT_overlay_gpencil_options,
     VIEW3D_PT_context_properties,
