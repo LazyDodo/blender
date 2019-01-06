@@ -1279,10 +1279,10 @@ static void rna_def_gpencil_sculpt(BlenderRNA *brna)
 
 	/* guide */
 	static const EnumPropertyItem prop_gpencil_guidetypes[] = {
-		{GP_GUIDE_CIRCULAR, "CIRCULAR", 0, "Circular", "Use single point"},
-		{GP_GUIDE_RADIAL, "RADIAL", 0, "Radial", "Use single direction"},
+		{GP_GUIDE_CIRCULAR, "CIRCULAR", 0, "Circular", "Use single point to create rings"},
+		{GP_GUIDE_RADIAL, "RADIAL", 0, "Radial", "Use single point as direction"},
 		{GP_GUIDE_PARALLEL, "PARALLEL", 0, "Parallel", "Parallel lines"},
-		{GP_GUIDE_GRID, "GRID", 0, "Grid", "Grid"},
+		{GP_GUIDE_GRID, "GRID", 0, "Grid", "Grid allows horizontal and vertical lines"},
 		{0, NULL, 0, NULL, NULL}
 	};
 
@@ -1296,7 +1296,7 @@ static void rna_def_gpencil_sculpt(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "use_snapping", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "use_snapping", false);
 	RNA_def_property_boolean_default(prop, false);
-	RNA_def_property_ui_text(prop, "Use snapping", "Snap to angle or spacing depending on guide type");
+	RNA_def_property_ui_text(prop, "Use Snapping", "Enable snapping to guides angle or spacing options");
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
 
@@ -1310,7 +1310,7 @@ static void rna_def_gpencil_sculpt(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "guide_type", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "guide_type");
 	RNA_def_property_enum_items(prop, prop_gpencil_guidetypes);
-	RNA_def_property_ui_text(prop, "Type", "Type of guide");
+	RNA_def_property_ui_text(prop, "Type", "Type of speed guide");
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
 

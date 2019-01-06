@@ -18,7 +18,7 @@
  * The Original Code is Copyright (C) 2008, Blender Foundation, Joshua Leung
  * This is a new part of Blender
  *
- * Contributor(s): Joshua Leung, Antonio Vazquez
+ * Contributor(s): Joshua Leung, Antonio Vazquez, Charlie Jolly
  *
  * ***** END GPL LICENSE BLOCK *****
  */
@@ -390,7 +390,7 @@ static void gp_stroke_convertcoords(tGPsdata *p, const float mval[2], float out[
 			 * - nothing more needs to be done here, since view_autodist_simple() has already done it
 			 */
 
-			 /* verify valid zdepth, if it's wrong, the default darwing mode is used
+			 /* verify valid zdepth, if it's wrong, the default drawing mode is used
 			  * and the function doesn't return now */
 			if ((depth == NULL) || (*depth <= 1.0f)) {
 				return;
@@ -2809,11 +2809,14 @@ static void gpencil_draw_apply_event(bContext *C, wmOperator *op, const wmEvent 
 				break;
 				case GP_GUIDE_GRID:
 				{
-					if (ts->gp_sculpt.use_snapping) {
-						float guide_spacing = gp_float_to_pixel(op, ts->gp_sculpt.guide_spacing);
-						float half = guide_spacing * 0.5f;
+					if (ts->gp_sculpt.use_snapping &&
+						(ts->gp_sculpt.guide_spacing > 0.0f)) {
 						float origin[2];
 						gp_origin_get(op, origin);
+
+						float guide_spacing = gp_float_to_pixel(op, ts->gp_sculpt.guide_spacing);
+						float half = guide_spacing * 0.5f;
+						
 						float point[2];
 						float unit[2];
 						float angle;
@@ -2835,10 +2838,6 @@ static void gpencil_draw_apply_event(bContext *C, wmOperator *op, const wmEvent 
 							p->mval[0] = gp_snap_to_grid_fl(p->mval[0], origin[0] + half, guide_spacing);
 							p->mval[0] -= half;
 						}
-						
-						
-
-
 					}
 					else if (p->straight == STROKE_HORIZONTAL) {
 						p->mval[1] = p->mvali[1]; /* replace y */
@@ -3319,7 +3318,7 @@ static int gpencil_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
 			case ESCKEY:
 			case RIGHTMOUSE:
 			{
-				if (ELEM(event->val, KM_PRESS, KM_RELEASE)) {
+				if (ELEM(event->val, KM_RELEASE)) {
 					drawmode = true;				
 				}
 			}
@@ -3327,7 +3326,7 @@ static int gpencil_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
 			/* set */
 			case LEFTMOUSE:
 			{
-				if (ELEM(event->val, KM_PRESS, KM_RELEASE)) {
+				if (ELEM(event->val, KM_RELEASE)) {
 					gp_origin_set(op, event->mval);
 					drawmode = true;
 				}
@@ -3343,7 +3342,6 @@ static int gpencil_draw_modal(bContext *C, wmOperator *op, const wmEvent *event)
 			return OPERATOR_RUNNING_MODAL;
 		}
 	}
-	
 
 	/* we don't pass on key events, GP is used with key-modifiers - prevents Dkey to insert drivers */
 	if (ISKEYBOARD(event->type)) {
