@@ -82,21 +82,26 @@ const EnumPropertyItem rna_enum_texture_type_items[] = {
 #ifndef RNA_RUNTIME
 static const EnumPropertyItem blend_type_items[] = {
 	{MTEX_BLEND, "MIX", 0, "Mix", ""},
-	{MTEX_ADD, "ADD", 0, "Add", ""},
-	{MTEX_SUB, "SUBTRACT", 0, "Subtract", ""},
-	{MTEX_MUL, "MULTIPLY", 0, "Multiply", ""},
-	{MTEX_SCREEN, "SCREEN", 0, "Screen", ""},
-	{MTEX_OVERLAY, "OVERLAY", 0, "Overlay", ""},
-	{MTEX_DIFF, "DIFFERENCE", 0, "Difference", ""},
-	{MTEX_DIV, "DIVIDE", 0, "Divide", ""},
+	{0, "", ICON_NONE, NULL, NULL},
 	{MTEX_DARK, "DARKEN", 0, "Darken", ""},
+	{MTEX_MUL, "MULTIPLY", 0, "Multiply", ""},
+	{0, "", ICON_NONE, NULL, NULL},
 	{MTEX_LIGHT, "LIGHTEN", 0, "Lighten", ""},
-	{MTEX_BLEND_HUE, "HUE", 0, "Hue", ""},
-	{MTEX_BLEND_SAT, "SATURATION", 0, "Saturation", ""},
-	{MTEX_BLEND_VAL, "VALUE", 0, "Value", ""},
-	{MTEX_BLEND_COLOR, "COLOR", 0, "Color", ""},
+	{MTEX_SCREEN, "SCREEN", 0, "Screen", ""},
+	{MTEX_ADD, "ADD", 0, "Add", ""},
+	{0, "", ICON_NONE, NULL, NULL},
+	{MTEX_OVERLAY, "OVERLAY", 0, "Overlay", ""},
 	{MTEX_SOFT_LIGHT, "SOFT_LIGHT", 0, "Soft Light", ""},
 	{MTEX_LIN_LIGHT, "LINEAR_LIGHT", 0, "Linear Light", ""},
+	{0, "", ICON_NONE, NULL, NULL},
+	{MTEX_DIFF, "DIFFERENCE", 0, "Difference", ""},
+	{MTEX_SUB, "SUBTRACT", 0, "Subtract", ""},
+	{MTEX_DIV, "DIVIDE", 0, "Divide", ""},
+	{0, "", ICON_NONE, NULL, NULL},
+	{MTEX_BLEND_HUE, "HUE", 0, "Hue", ""},
+	{MTEX_BLEND_SAT, "SATURATION", 0, "Saturation", ""},
+	{MTEX_BLEND_COLOR, "COLOR", 0, "Color", ""},
+	{MTEX_BLEND_VAL, "VALUE", 0, "Value", ""},
 	{0, NULL, 0, NULL, NULL}
 };
 #endif
@@ -158,6 +163,7 @@ static void rna_Texture_update(Main *bmain, Scene *UNUSED(scene), PointerRNA *pt
 		Tex *tex = ptr->id.data;
 
 		DEG_id_tag_update(&tex->id, 0);
+		DEG_id_tag_update(&tex->id, ID_RECALC_EDITORS);
 		WM_main_add_notifier(NC_TEXTURE, tex);
 		WM_main_add_notifier(NC_MATERIAL | ND_SHADING_DRAW, NULL);
 	}
@@ -185,6 +191,7 @@ static void rna_Texture_nodes_update(Main *UNUSED(bmain), Scene *UNUSED(scene), 
 	Tex *tex = ptr->id.data;
 
 	DEG_id_tag_update(&tex->id, 0);
+	DEG_id_tag_update(&tex->id, ID_RECALC_EDITORS);
 	WM_main_add_notifier(NC_TEXTURE | ND_NODES, tex);
 }
 
@@ -228,12 +235,12 @@ void rna_TextureSlot_update(bContext *C, PointerRNA *ptr)
 		case ID_PA:
 		{
 			MTex *mtex = ptr->data;
-			int recalc = OB_RECALC_DATA;
+			int recalc = ID_RECALC_GEOMETRY;
 
 			if (mtex->mapto & PAMAP_INIT)
-				recalc |= PSYS_RECALC_RESET;
+				recalc |= ID_RECALC_PSYS_RESET;
 			if (mtex->mapto & PAMAP_CHILD)
-				recalc |= PSYS_RECALC_CHILD;
+				recalc |= ID_RECALC_PSYS_CHILD;
 
 			DEG_id_tag_update(id, recalc);
 			WM_main_add_notifier(NC_OBJECT | ND_PARTICLE | NA_EDITED, NULL);

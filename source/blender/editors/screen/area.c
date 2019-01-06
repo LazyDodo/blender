@@ -187,52 +187,6 @@ void ED_area_do_refresh(bContext *C, ScrArea *sa)
 }
 
 /**
- * Action zones are only updated if the mouse is inside of them, but in some cases (currently only fullscreen icon)
- * it might be needed to update their properties and redraw if the mouse isn't inside.
- */
-void ED_area_azones_update(ScrArea *sa, const int mouse_xy[2])
-{
-	AZone *az;
-	bool changed = false;
-
-	for (az = sa->actionzones.first; az; az = az->next) {
-		if (az->type == AZONE_FULLSCREEN) {
-			/* only if mouse is not hovering the azone */
-			if (BLI_rcti_isect_pt_v(&az->rect, mouse_xy) == false) {
-				az->alpha = 0.0f;
-				changed = true;
-
-				/* can break since currently only this is handled here */
-				break;
-			}
-		}
-		else if (az->type == AZONE_REGION_SCROLL) {
-			/* only if mouse is not hovering the azone */
-			if (BLI_rcti_isect_pt_v(&az->rect, mouse_xy) == false) {
-				View2D *v2d = &az->ar->v2d;
-
-				if (az->direction == AZ_SCROLL_VERT) {
-					az->alpha = v2d->alpha_vert = 0;
-					changed = true;
-				}
-				else if (az->direction == AZ_SCROLL_HOR) {
-					az->alpha = v2d->alpha_hor = 0;
-					changed = true;
-				}
-				else {
-					BLI_assert(0);
-				}
-			}
-		}
-	}
-
-	if (changed) {
-		sa->flag &= ~AREA_FLAG_ACTIONZONES_UPDATE;
-		ED_area_tag_redraw_no_rebuild(sa);
-	}
-}
-
-/**
  * \brief Corner widget use for quitting fullscreen.
  */
 static void area_draw_azone_fullscreen(short x1, short y1, short x2, short y2, float alpha)
@@ -250,7 +204,7 @@ static void area_draw_azone_fullscreen(short x1, short y1, short x2, short y2, f
 
 	alpha = min_ff(alpha, 0.75f);
 
-	UI_icon_draw_aspect(x, y, ICON_FULLSCREEN_EXIT, 0.7f / UI_DPI_FAC, alpha);
+	UI_icon_draw_aspect(x, y, ICON_FULLSCREEN_EXIT, 0.7f / UI_DPI_FAC, alpha, NULL);
 
 	/* debug drawing :
 	 * The click_rect is the same as defined in fullscreen_click_rcti_init
@@ -290,10 +244,41 @@ static void area_draw_azone(short UNUSED(x1), short UNUSED(y1), short UNUSED(x2)
 	/* No drawing needed since all corners are action zone, and visually distinguishable. */
 }
 
-static void draw_azone_plus(float x1, float y1, float x2, float y2)
+/**
+ * \brief Edge widgets to show hidden panels such as the toolbar and headers.
+ */
+static void draw_azone_arrow(float x1, float y1, float x2, float y2, AZEdge edge)
 {
-	float width = 0.1f * U.widget_unit;
-	float pad = 0.2f * U.widget_unit;
+	const float size =  0.2f * U.widget_unit;
+	const float l = 1.0f;     /* arrow length */
+	const float s = 0.25f;    /* arrow thickness */
+	const float hl = l / 2.0f;
+	const float points[6][2] = {{0, -hl}, {l, hl}, {l - s, hl + s}, {0, s + s - hl}, {s - l, hl + s}, {-l, hl}};
+	const float center[2] = {(x1 + x2) / 2, (y1 + y2) / 2};
+
+	int axis;
+	int sign;
+	switch (edge) {
+		case AE_BOTTOM_TO_TOPLEFT:
+			axis = 0;
+			sign = 1;
+			break;
+		case AE_TOP_TO_BOTTOMRIGHT:
+			axis = 0;
+			sign = -1;
+			break;
+		case AE_LEFT_TO_TOPRIGHT:
+			axis = 1;
+			sign = 1;
+			break;
+		case AE_RIGHT_TO_TOPLEFT:
+			axis = 1;
+			sign = -1;
+			break;
+		default:
+			BLI_assert(0);
+			return;
+	}
 
 	GPUVertFormat *format = immVertexFormat();
 	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
@@ -302,15 +287,22 @@ static void draw_azone_plus(float x1, float y1, float x2, float y2)
 	immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 	immUniformColor4f(0.8f, 0.8f, 0.8f, 0.4f);
 
-	immRectf(pos, (x1 + x2 - width) * 0.5f, y1 + pad, (x1 + x2 + width) * 0.5f, y2 - pad);
-	immRectf(pos, x1 + pad, (y1 + y2 - width) * 0.5f, (x1 + x2 - width) * 0.5f, (y1 + y2 + width) * 0.5f);
-	immRectf(pos, (x1 + x2 + width) * 0.5f, (y1 + y2 - width) * 0.5f, x2 - pad, (y1 + y2 + width) * 0.5f);
+	immBegin(GPU_PRIM_TRI_FAN, 6);
+	for (int i = 0; i < 6; i++) {
+		if (axis == 0) {
+			immVertex2f(pos, center[0] + points[i][0] * size, center[1] + points[i][1] * sign * size);
+		}
+		else {
+			immVertex2f(pos, center[0] + points[i][1] * sign * size, center[1] + points[i][0] * size);
+		}
+	}
+	immEnd();
 
 	immUnbindProgram();
 	GPU_blend(false);
 }
 
-static void region_draw_azone_tab_plus(AZone *az)
+static void region_draw_azone_tab_arrow(AZone *az)
 {
 	GPU_blend(true);
 
@@ -333,7 +325,7 @@ static void region_draw_azone_tab_plus(AZone *az)
 	float color[4] = {0.05f, 0.05f, 0.05f, 0.4f};
 	UI_draw_roundbox_aa(true, (float)az->x1, (float)az->y1, (float)az->x2, (float)az->y2, 4.0f, color);
 
-	draw_azone_plus((float)az->x1, (float)az->y1, (float)az->x2, (float)az->y2);
+	draw_azone_arrow((float)az->x1, (float)az->y1, (float)az->x2, (float)az->y2, az->edge);
 }
 
 static void area_azone_tag_update(ScrArea *sa)
@@ -368,23 +360,16 @@ static void region_draw_azones(ScrArea *sa, ARegion *ar)
 				if (az->ar) {
 					/* only display tab or icons when the region is hidden */
 					if (az->ar->flag & (RGN_FLAG_HIDDEN | RGN_FLAG_TOO_SMALL)) {
-						region_draw_azone_tab_plus(az);
+						region_draw_azone_tab_arrow(az);
 					}
 				}
 			}
 			else if (az->type == AZONE_FULLSCREEN) {
 				area_draw_azone_fullscreen(az->x1, az->y1, az->x2, az->y2, az->alpha);
-
-				if (az->alpha != 0.0f) {
-					area_azone_tag_update(sa);
-				}
 			}
-			else if (az->type == AZONE_REGION_SCROLL) {
-				if (az->alpha != 0.0f) {
-					area_azone_tag_update(sa);
-				}
-				/* Don't draw this azone. */
-			}
+		}
+		if (!IS_EQF(az->alpha, 0.0f) && ELEM(az->type, AZONE_FULLSCREEN, AZONE_REGION_SCROLL)) {
+			area_azone_tag_update(sa);
 		}
 	}
 
@@ -700,7 +685,7 @@ void ED_area_status_text(ScrArea *sa, const char *str)
 {
 	ARegion *ar;
 
-	/* happens when running transform operators in backround mode */
+	/* happens when running transform operators in background mode */
 	if (sa == NULL)
 		return;
 
@@ -756,7 +741,7 @@ static void area_azone_initialize(wmWindow *win, const bScreen *screen, ScrArea 
 {
 	AZone *az;
 
-	/* reinitalize entirely, regions and fullscreen add azones too */
+	/* reinitialize entirely, regions and fullscreen add azones too */
 	BLI_freelistN(&sa->actionzones);
 
 	if (screen->state != SCREENNORMAL) {
@@ -778,20 +763,20 @@ static void area_azone_initialize(wmWindow *win, const bScreen *screen, ScrArea 
 	     sa->totrct.xmin + (AZONESPOT - 1),
 	     sa->totrct.ymin + (AZONESPOT - 1)},
 	    /* Bottom-right. */
-	    {sa->totrct.xmax,
+	    {sa->totrct.xmax - (AZONESPOT - 1),
 	     sa->totrct.ymin,
-	     sa->totrct.xmax - (AZONESPOT - 1),
+	     sa->totrct.xmax,
 	     sa->totrct.ymin + (AZONESPOT - 1)},
 	    /* Top-left. */
 	    {sa->totrct.xmin,
-	     sa->totrct.ymax,
+	     sa->totrct.ymax - (AZONESPOT - 1),
 	     sa->totrct.xmin + (AZONESPOT - 1),
-	     sa->totrct.ymax - (AZONESPOT - 1)},
+	     sa->totrct.ymax},
 	    /* Top-right. */
-	    {sa->totrct.xmax,
-	     sa->totrct.ymax,
-	     sa->totrct.xmax - (AZONESPOT - 1),
-	     sa->totrct.ymax - (AZONESPOT - 1)}};
+	    {sa->totrct.xmax - (AZONESPOT - 1),
+	     sa->totrct.ymax - (AZONESPOT - 1),
+	     sa->totrct.xmax,
+	     sa->totrct.ymax}};
 
 	for (int i = 0; i < 4; i++) {
 		/* can't click on bottom corners on OS X, already used for resizing */
@@ -881,7 +866,7 @@ static void region_azone_tab_plus(ScrArea *sa, AZone *az, ARegion *ar)
 
 	float edge_offset = 1.0f;
 	const float tab_size_x = 0.7f * U.widget_unit;
-	const float tab_size_y = 0.7f * U.widget_unit;
+	const float tab_size_y = 0.4f * U.widget_unit;
 
 
 	for (azt = sa->actionzones.first; azt; azt = azt->next) {
@@ -909,9 +894,9 @@ static void region_azone_tab_plus(ScrArea *sa, AZone *az, ARegion *ar)
 			az->y2 = ar->winrct.ymax - (edge_offset * tab_size_x);
 			break;
 		case AE_RIGHT_TO_TOPLEFT:
-			az->x1 = ar->winrct.xmax - 1;
+			az->x1 = ar->winrct.xmax;
 			az->y1 = ar->winrct.ymax - ((edge_offset + 1.0f) * tab_size_x);
-			az->x2 = ar->winrct.xmax - 1 + tab_size_y;
+			az->x2 = ar->winrct.xmax + tab_size_y;
 			az->y2 = ar->winrct.ymax - (edge_offset * tab_size_x);
 			break;
 	}
@@ -919,12 +904,26 @@ static void region_azone_tab_plus(ScrArea *sa, AZone *az, ARegion *ar)
 	BLI_rcti_init(&az->rect, az->x1, az->x2, az->y1, az->y2);
 }
 
+static bool region_azone_edge_poll(const ARegion *ar, const bool is_fullscreen)
+{
+	const bool is_hidden = (ar->flag & (RGN_FLAG_HIDDEN | RGN_FLAG_TOO_SMALL));
+
+	if (is_hidden && is_fullscreen) {
+		return false;
+	}
+	if (!is_hidden && ar->regiontype == RGN_TYPE_HEADER) {
+		return false;
+	}
+
+	return true;
+}
+
 static void region_azone_edge_initialize(ScrArea *sa, ARegion *ar, AZEdge edge, const bool is_fullscreen)
 {
 	AZone *az = NULL;
 	const bool is_hidden = (ar->flag & (RGN_FLAG_HIDDEN | RGN_FLAG_TOO_SMALL));
 
-	if (is_hidden && is_fullscreen) {
+	if (!region_azone_edge_poll(ar, is_fullscreen)) {
 		return;
 	}
 
@@ -937,7 +936,7 @@ static void region_azone_edge_initialize(ScrArea *sa, ARegion *ar, AZEdge edge, 
 	if (is_hidden) {
 		region_azone_tab_plus(sa, az, ar);
 	}
-	else if (!is_hidden && (ar->regiontype != RGN_TYPE_HEADER)) {
+	else {
 		region_azone_edge(az, ar);
 	}
 }
@@ -1104,25 +1103,28 @@ static void region_overlap_fix(ScrArea *sa, ARegion *ar)
 bool ED_region_is_overlap(int spacetype, int regiontype)
 {
 	if (regiontype == RGN_TYPE_HUD) {
-		return 1;
+		return true;
 	}
 	if (U.uiflag2 & USER_REGION_OVERLAP) {
-		if (ELEM(spacetype, SPACE_VIEW3D, SPACE_SEQ, SPACE_IMAGE)) {
-			if (ELEM(regiontype, RGN_TYPE_TOOLS, RGN_TYPE_UI, RGN_TYPE_TOOL_PROPS))
-				return 1;
+		if (spacetype == SPACE_NODE) {
+			if (regiontype == RGN_TYPE_TOOLS) {
+				return true;
+			}
+		}
+		else if (ELEM(spacetype, SPACE_VIEW3D, SPACE_SEQ, SPACE_IMAGE)) {
+			if (ELEM(regiontype, RGN_TYPE_TOOLS, RGN_TYPE_UI, RGN_TYPE_TOOL_PROPS)) {
+				return true;
+			}
 
 			if (ELEM(spacetype, SPACE_VIEW3D, SPACE_IMAGE)) {
-				if (regiontype == RGN_TYPE_HEADER)
-					return 1;
-			}
-			else if (spacetype == SPACE_SEQ) {
-				if (regiontype == RGN_TYPE_PREVIEW)
-					return 1;
+				if (regiontype == RGN_TYPE_HEADER) {
+					return true;
+				}
 			}
 		}
 	}
 
-	return 0;
+	return false;
 }
 
 static void region_rect_recursive(ScrArea *sa, ARegion *ar, rcti *remainder, rcti *overlap_remainder, int quad)
@@ -1159,7 +1161,11 @@ static void region_rect_recursive(ScrArea *sa, ARegion *ar, rcti *remainder, rct
 	int prefsizex = UI_DPI_FAC * ((ar->sizex > 1) ? ar->sizex + 0.5f : ar->type->prefsizex);
 	int prefsizey;
 
-	if (ar->regiontype == RGN_TYPE_HEADER) {
+	if (ar->flag & RGN_FLAG_PREFSIZE_OR_HIDDEN) {
+		prefsizex = UI_DPI_FAC * ar->type->prefsizex;
+		prefsizey = UI_DPI_FAC * ar->type->prefsizey;
+	}
+	else if (ar->regiontype == RGN_TYPE_HEADER) {
 		prefsizey = ED_area_headersize();
 	}
 	else if (ED_area_is_global(sa)) {
@@ -1183,6 +1189,7 @@ static void region_rect_recursive(ScrArea *sa, ARegion *ar, rcti *remainder, rct
 		 *
 		 * This aligns to the lower left of the area.
 		 */
+		const int size_min[2] = {UI_UNIT_X, UI_UNIT_Y};
 		rcti overlap_remainder_margin = *overlap_remainder;
 		BLI_rcti_resize(
 		        &overlap_remainder_margin,
@@ -1190,12 +1197,21 @@ static void region_rect_recursive(ScrArea *sa, ARegion *ar, rcti *remainder, rct
 		        max_ii(0, BLI_rcti_size_y(overlap_remainder) - UI_UNIT_Y / 2));
 		ar->winrct.xmin = overlap_remainder_margin.xmin;
 		ar->winrct.ymin = overlap_remainder_margin.ymin;
-		ar->winrct.xmax = ar->winrct.xmin + ar->sizex - 1;
-		ar->winrct.ymax = ar->winrct.ymin + ar->sizey - 1;
+		ar->winrct.xmax = ar->winrct.xmin + prefsizex - 1;
+		ar->winrct.ymax = ar->winrct.ymin + prefsizey - 1;
 
 		BLI_rcti_isect(&ar->winrct, &overlap_remainder_margin, &ar->winrct);
-		if (BLI_rcti_size_x(&ar->winrct) < UI_UNIT_X ||
-		    BLI_rcti_size_y(&ar->winrct) < UI_UNIT_Y)
+
+		/* We need to use a test that wont have been previously clamped. */
+		rcti winrct_test = {
+			.xmin = ar->winrct.xmin,
+			.ymin = ar->winrct.ymin,
+			.xmax = ar->winrct.xmin + size_min[0],
+			.ymax = ar->winrct.ymin + size_min[1],
+		};
+		BLI_rcti_isect(&winrct_test, &overlap_remainder_margin, &winrct_test);
+		if (BLI_rcti_size_x(&winrct_test) < size_min[0] ||
+		    BLI_rcti_size_y(&winrct_test) < size_min[1])
 		{
 			ar->flag |= RGN_FLAG_TOO_SMALL;
 		}
@@ -1337,7 +1353,7 @@ static void region_rect_recursive(ScrArea *sa, ARegion *ar, rcti *remainder, rct
 	if (ar->winy > 1) ar->sizey = (ar->winy + 0.5f) /  UI_DPI_FAC;
 
 	/* exception for multiple overlapping regions on same spot */
-	if (ar->overlap & (alignment != RGN_ALIGN_FLOAT)) {
+	if (ar->overlap && (alignment != RGN_ALIGN_FLOAT)) {
 		region_overlap_fix(sa, ar);
 	}
 
@@ -1435,8 +1451,13 @@ static void region_subwindow(ARegion *ar)
 	ar->visible = !hidden;
 }
 
-static void ed_default_handlers(wmWindowManager *wm, ScrArea *sa, ListBase *handlers, int flag)
+/**
+ * \param ar: Region, may be NULL when adding handlers for \a sa.
+ */
+static void ed_default_handlers(wmWindowManager *wm, ScrArea *sa, ARegion *ar, ListBase *handlers, int flag)
 {
+	BLI_assert(ar ? (&ar->handlers == handlers) : (&sa->handlers == handlers));
+
 	/* note, add-handler checks if it already exists */
 
 	/* XXX it would be good to have boundbox checks for some of these... */
@@ -1446,6 +1467,18 @@ static void ed_default_handlers(wmWindowManager *wm, ScrArea *sa, ListBase *hand
 
 		/* user interface widgets */
 		UI_region_handlers_add(handlers);
+	}
+	if (flag & ED_KEYMAP_GIZMO) {
+		BLI_assert(ar && ar->type->regionid == RGN_TYPE_WINDOW);
+		if (ar) {
+			/* Anything else is confusing, only allow this. */
+			BLI_assert(&ar->handlers == handlers);
+			if (ar->gizmo_map == NULL) {
+				ar->gizmo_map = WM_gizmomap_new_from_type(
+				        &(const struct wmGizmoMapType_Params){sa->spacetype, ar->type->regionid});
+			}
+			WM_gizmomap_add_handlers(ar, ar->gizmo_map);
+		}
 	}
 	if (flag & ED_KEYMAP_VIEW2D) {
 		/* 2d-viewport handling+manipulation */
@@ -1457,14 +1490,11 @@ static void ed_default_handlers(wmWindowManager *wm, ScrArea *sa, ListBase *hand
 		wmKeyMap *keymap = WM_keymap_ensure(wm->defaultconf, "Markers", 0, 0);
 
 		/* use a boundbox restricted map */
-		ARegion *ar;
 		/* same local check for all areas */
 		static rcti rect = {0, 10000, 0, -1};
 		rect.ymax = UI_MARKER_MARGIN_Y;
-		ar = BKE_area_find_region_type(sa, RGN_TYPE_WINDOW);
-		if (ar) {
-			WM_event_add_keymap_handler_bb(handlers, keymap, &rect, &ar->winrct);
-		}
+		BLI_assert(ar->type->regionid == RGN_TYPE_WINDOW);
+		WM_event_add_keymap_handler_bb(handlers, keymap, &rect, &ar->winrct);
 	}
 	if (flag & ED_KEYMAP_ANIMATION) {
 		/* frame changing and timeline operators (for time spaces) */
@@ -1476,6 +1506,13 @@ static void ed_default_handlers(wmWindowManager *wm, ScrArea *sa, ListBase *hand
 		wmKeyMap *keymap = WM_keymap_ensure(wm->defaultconf, "Frames", 0, 0);
 		WM_event_add_keymap_handler(handlers, keymap);
 	}
+	if (flag & ED_KEYMAP_HEADER) {
+		/* standard keymap for headers regions */
+		wmKeyMap *keymap = WM_keymap_ensure(wm->defaultconf, "Header", 0, 0);
+		WM_event_add_keymap_handler(handlers, keymap);
+	}
+
+	/* Keep last because of LMB/RMB handling, see: T57527. */
 	if (flag & ED_KEYMAP_GPENCIL) {
 		/* grease pencil */
 		/* NOTE: This is now 4 keymaps - One for basic functionality,
@@ -1505,11 +1542,6 @@ static void ed_default_handlers(wmWindowManager *wm, ScrArea *sa, ListBase *hand
 		wmKeyMap *keymap_sculpt = WM_keymap_ensure(wm->defaultconf, "Grease Pencil Stroke Sculpt Mode", 0, 0);
 		WM_event_add_keymap_handler(handlers, keymap_sculpt);
 	}
-	if (flag & ED_KEYMAP_HEADER) {
-		/* standard keymap for headers regions */
-		wmKeyMap *keymap = WM_keymap_ensure(wm->defaultconf, "Header", 0, 0);
-		WM_event_add_keymap_handler(handlers, keymap);
-	}
 }
 
 void ED_area_update_region_sizes(wmWindowManager *wm, wmWindow *win, ScrArea *area)
@@ -1520,6 +1552,7 @@ void ED_area_update_region_sizes(wmWindowManager *wm, wmWindow *win, ScrArea *ar
 	if (!(area->flag & AREA_FLAG_REGION_SIZE_UPDATE)) {
 		return;
 	}
+	const bScreen *screen = WM_window_get_active_screen(win);
 
 	WM_window_rect_calc(win, &window_rect);
 	area_calc_totrct(area, &window_rect);
@@ -1529,6 +1562,9 @@ void ED_area_update_region_sizes(wmWindowManager *wm, wmWindow *win, ScrArea *ar
 	overlap_rect = rect;
 	region_rect_recursive(area, area->regionbase.first, &rect, &overlap_rect, 0);
 
+	/* Dynamically sized regions may have changed region sizes, so we have to force azone update. */
+	area_azone_initialize(win, screen, area);
+
 	for (ARegion *ar = area->regionbase.first; ar; ar = ar->next) {
 		region_subwindow(ar);
 
@@ -1536,7 +1572,11 @@ void ED_area_update_region_sizes(wmWindowManager *wm, wmWindow *win, ScrArea *ar
 		if (ar->type->init) {
 			ar->type->init(wm, ar);
 		}
+
+		/* Some AZones use View2D data which is only updated in region init, so call that first! */
+		region_azones_add(screen, area, ar, ar->alignment & ~RGN_SPLIT_PREV);
 	}
+	ED_area_azones_update(area, &win->eventstate->x);
 
 	area->flag &= ~AREA_FLAG_REGION_SIZE_UPDATE;
 }
@@ -1577,12 +1617,12 @@ void ED_area_initialize(wmWindowManager *wm, wmWindow *win, ScrArea *sa)
 	sa->flag &= ~AREA_FLAG_REGION_SIZE_UPDATE;
 
 	/* default area handlers */
-	ed_default_handlers(wm, sa, &sa->handlers, sa->type->keymapflag);
+	ed_default_handlers(wm, sa, NULL, &sa->handlers, sa->type->keymapflag);
 	/* checks spacedata, adds own handlers */
 	if (sa->type->init)
 		sa->type->init(wm, sa);
 
-	/* clear all azones, add the area triange widgets */
+	/* clear all azones, add the area triangle widgets */
 	area_azone_initialize(win, screen, sa);
 
 	/* region windows, default and own handlers */
@@ -1591,7 +1631,7 @@ void ED_area_initialize(wmWindowManager *wm, wmWindow *win, ScrArea *sa)
 
 		if (ar->visible) {
 			/* default region handlers */
-			ed_default_handlers(wm, sa, &ar->handlers, ar->type->keymapflag);
+			ed_default_handlers(wm, sa, ar, &ar->handlers, ar->type->keymapflag);
 			/* own handlers */
 			if (ar->type->init) {
 				ar->type->init(wm, ar);
@@ -1606,7 +1646,18 @@ void ED_area_initialize(wmWindowManager *wm, wmWindow *win, ScrArea *sa)
 		region_azones_add(screen, sa, ar, ar->alignment & ~RGN_SPLIT_PREV);
 	}
 
-	WM_toolsystem_refresh_screen_area(workspace, view_layer, sa);
+
+	/* Avoid re-initializing tools while resizing the window. */
+	if ((G.moving & G_TRANSFORM_WM) == 0) {
+		if ((1 << sa->spacetype) & WM_TOOLSYSTEM_SPACE_MASK) {
+			WM_toolsystem_refresh_screen_area(workspace, view_layer, sa);
+			sa->flag |= AREA_FLAG_ACTIVE_TOOL_UPDATE;
+		}
+		else {
+			sa->runtime.tool = NULL;
+			sa->runtime.is_tool_set = true;
+		}
+	}
 }
 
 static void region_update_rect(ARegion *ar)
@@ -1648,7 +1699,7 @@ void ED_region_cursor_set(wmWindow *win, ScrArea *sa, ARegion *ar)
 	}
 }
 
-/* for use after changing visiblity of regions */
+/* for use after changing visibility of regions */
 void ED_region_visibility_change_update(bContext *C, ARegion *ar)
 {
 	ScrArea *sa = CTX_wm_area(C);
@@ -1757,7 +1808,7 @@ void ED_area_swapspace(bContext *C, ScrArea *sa1, ScrArea *sa2)
 }
 
 /**
- * \param skip_ar_exit  Skip calling area exit callback. Set for opening temp spaces.
+ * \param skip_ar_exit: Skip calling area exit callback. Set for opening temp spaces.
  */
 void ED_area_newspace(bContext *C, ScrArea *sa, int type, const bool skip_ar_exit)
 {
@@ -1769,7 +1820,20 @@ void ED_area_newspace(bContext *C, ScrArea *sa, int type, const bool skip_ar_exi
 		SpaceLink *sl;
 		/* store sa->type->exit callback */
 		void *sa_exit = sa->type ? sa->type->exit : NULL;
-		int header_alignment = ED_area_header_alignment(sa);
+		/* When the user switches between space-types from the type-selector,
+		 * changing the header-type is jarring (especially when using Ctrl-MouseWheel).
+		 *
+		 * However, add-on install for example, forces the header to the top which shouldn't
+		 * be applied back to the previous space type when closing - see: T57724
+		 *
+		 * Newly created windows wont have any space data, use the alignment
+		 * the space type defaults to in this case instead
+		 * (needed for preferences to have space-type on bottom).
+		 */
+		int header_alignment = ED_area_header_alignment_or_fallback(sa, -1);
+		const bool sync_header_alignment = (
+		        (header_alignment != -1) &&
+		        (sa->flag & AREA_FLAG_TEMP_TYPE) == 0);
 
 		/* in some cases (opening temp space) we don't want to
 		 * call area exit callback, so we temporarily unset it */
@@ -1818,15 +1882,6 @@ void ED_area_newspace(bContext *C, ScrArea *sa, int type, const bool skip_ar_exi
 			/* put in front of list */
 			BLI_remlink(&sa->spacedata, sl);
 			BLI_addhead(&sa->spacedata, sl);
-
-
-			/* Sync header alignment. */
-			for (ARegion *ar = sa->regionbase.first; ar; ar = ar->next) {
-				if (ar->regiontype == RGN_TYPE_HEADER) {
-					ar->alignment = header_alignment;
-					break;
-				}
-			}
 		}
 		else {
 			/* new space */
@@ -1841,6 +1896,16 @@ void ED_area_newspace(bContext *C, ScrArea *sa, int type, const bool skip_ar_exi
 					slold->regionbase = sa->regionbase;
 				sa->regionbase = sl->regionbase;
 				BLI_listbase_clear(&sl->regionbase);
+			}
+		}
+
+		/* Sync header alignment. */
+		if (sync_header_alignment) {
+			for (ARegion *ar = sa->regionbase.first; ar; ar = ar->next) {
+				if (ar->regiontype == RGN_TYPE_HEADER) {
+					ar->alignment = header_alignment;
+					break;
+				}
 			}
 		}
 
@@ -2010,14 +2075,21 @@ static void ed_panel_draw(
 		short panelContext;
 
 		/* panel context can either be toolbar region or normal panels region */
-		if (ar->regiontype == RGN_TYPE_TOOLS)
+		if (pt->flag & PNL_LAYOUT_VERT_BAR) {
+			panelContext = UI_LAYOUT_VERT_BAR;
+		}
+		else if (ar->regiontype == RGN_TYPE_TOOLS) {
 			panelContext = UI_LAYOUT_TOOLBAR;
-		else
+		}
+		else {
 			panelContext = UI_LAYOUT_PANEL;
+		}
 
 		panel->layout = UI_block_layout(
 		        block, UI_LAYOUT_VERTICAL, panelContext,
-		        style->panelspace, 0, w - 2 * style->panelspace, em, 0, style);
+		        (pt->flag & PNL_LAYOUT_VERT_BAR) ? 0 : style->panelspace, 0,
+		        (pt->flag & PNL_LAYOUT_VERT_BAR) ? 0 : w - 2 * style->panelspace,
+		        em, 0, style);
 
 		pt->draw(C, panel);
 
@@ -2066,7 +2138,9 @@ void ED_region_panels_layout_ex(
 	int scroll;
 
 	/* XXX, should use some better check? */
-	bool use_category_tabs = (ELEM(ar->regiontype, RGN_TYPE_TOOLS, RGN_TYPE_UI));
+	/* For now also has hardcoded check for clip editor until it supports actual toolbar. */
+	bool use_category_tabs = ((1 << ar->regiontype) & RGN_TYPE_HAS_CATEGORY_MASK) ||
+	                         (ar->regiontype == RGN_TYPE_TOOLS && sa->spacetype == SPACE_CLIP);
 	/* offset panels for small vertical tab area */
 	const char *category = NULL;
 	const int category_tabs_width = UI_PANEL_CATEGORY_MARGIN_WIDTH;
@@ -2189,8 +2263,8 @@ void ED_region_panels_layout_ex(
 		Panel *panel = ar->panels.last;
 		if (panel != NULL) {
 			int size_dyn[2] = {
-				UI_UNIT_X * ((panel->flag & PNL_CLOSED) ? 8 : 14),
-				UI_panel_size_y(panel),
+				UI_UNIT_X * ((panel->flag & PNL_CLOSED) ? 8 : 14) / UI_DPI_FAC,
+				UI_panel_size_y(panel) / UI_DPI_FAC,
 			};
 			/* region size is layout based and needs to be updated */
 			if ((ar->sizex != size_dyn[0]) ||
@@ -2200,7 +2274,7 @@ void ED_region_panels_layout_ex(
 				ar->sizey = size_dyn[1];
 				sa->flag |= AREA_FLAG_REGION_SIZE_UPDATE;
 			}
-			y = ABS(ar->sizey - 1);
+			y = ABS(ar->sizey * UI_DPI_FAC - 1);
 		}
 	}
 	else if (vertical) {
@@ -2267,6 +2341,9 @@ void ED_region_panels_draw(const bContext *C, ARegion *ar)
 	/* set the view */
 	UI_view2d_view_ortho(v2d);
 
+	/* View2D matrix might have changed due to dynamic sized regions. */
+	UI_blocklist_update_window_matrix(C, &ar->uiblocks);
+
 	/* draw panels */
 	UI_panels_draw(C, ar);
 
@@ -2279,8 +2356,15 @@ void ED_region_panels_draw(const bContext *C, ARegion *ar)
 	}
 
 	/* scrollers */
+	const rcti *mask = NULL;
+	rcti        mask_buf;
+	if (ar->runtime.category && (ar->alignment == RGN_ALIGN_RIGHT)) {
+		UI_view2d_mask_from_win(v2d, &mask_buf);
+		mask_buf.xmax -= UI_PANEL_CATEGORY_MARGIN_WIDTH;
+		mask = &mask_buf;
+	}
 	View2DScrollers *scrollers = UI_view2d_scrollers_calc(
-	        C, v2d, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_ARG_DUMMY);
+	        C, v2d, mask, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_ARG_DUMMY);
 	UI_view2d_scrollers_draw(C, v2d, scrollers);
 	UI_view2d_scrollers_free(scrollers);
 }
@@ -2339,6 +2423,10 @@ void ED_region_header_layout(const bContext *C, ARegion *ar)
 
 	/* draw all headers types */
 	for (ht = ar->type->headertypes.first; ht; ht = ht->next) {
+		if (ht->poll && !ht->poll(C, ht)) {
+			continue;
+		}
+
 		block = UI_block_begin(C, ar, ht->idname, UI_EMBOSS);
 		layout = UI_block_layout(block, UI_LAYOUT_HORIZONTAL, UI_LAYOUT_HEADER, xco, yco, buttony, 1, 0, style);
 
@@ -2350,6 +2438,9 @@ void ED_region_header_layout(const bContext *C, ARegion *ar)
 			header.type = ht;
 			header.layout = layout;
 			ht->draw(C, &header);
+			if (ht->next) {
+				uiItemS(layout);
+			}
 
 			/* for view2d */
 			xco = uiLayoutGetWidth(layout);
@@ -2422,16 +2513,20 @@ int ED_area_headersize(void)
 	return (int)(HEADERY * UI_DPI_FAC);
 }
 
-
-int ED_area_header_alignment(const ScrArea *area)
+int ED_area_header_alignment_or_fallback(const ScrArea *area, int fallback)
 {
 	for (ARegion *ar = area->regionbase.first; ar; ar = ar->next) {
 		if (ar->regiontype == RGN_TYPE_HEADER) {
 			return ar->alignment;
 		}
 	}
+	return fallback;
+}
 
-	return RGN_ALIGN_TOP;
+int ED_area_header_alignment(const ScrArea *area)
+{
+	return ED_area_header_alignment_or_fallback(
+	        area, (U.uiflag & USER_HEADER_BOTTOM) ? RGN_ALIGN_BOTTOM : RGN_ALIGN_TOP);
 }
 
 /**
@@ -2855,13 +2950,13 @@ void ED_region_grid_draw(ARegion *ar, float zoomx, float zoomy)
 
 		/* the fine resolution level */
 		for (int i = 0; i < count_fine; i++) {
-			immAttrib3fv(color, theme_color);
+			immAttr3fv(color, theme_color);
 			immVertex2f(pos, x1, y1 * (1.0f - fac) + y2 * fac);
-			immAttrib3fv(color, theme_color);
+			immAttr3fv(color, theme_color);
 			immVertex2f(pos, x2, y1 * (1.0f - fac) + y2 * fac);
-			immAttrib3fv(color, theme_color);
+			immAttr3fv(color, theme_color);
 			immVertex2f(pos, x1 * (1.0f - fac) + x2 * fac, y1);
-			immAttrib3fv(color, theme_color);
+			immAttr3fv(color, theme_color);
 			immVertex2f(pos, x1 * (1.0f - fac) + x2 * fac, y2);
 			fac += gridstep;
 		}
@@ -2872,13 +2967,13 @@ void ED_region_grid_draw(ARegion *ar, float zoomx, float zoomy)
 
 			/* the large resolution level */
 			for (int i = 0; i < count_large; i++) {
-				immAttrib3fv(color, theme_color);
+				immAttr3fv(color, theme_color);
 				immVertex2f(pos, x1, y1 * (1.0f - fac) + y2 * fac);
-				immAttrib3fv(color, theme_color);
+				immAttr3fv(color, theme_color);
 				immVertex2f(pos, x2, y1 * (1.0f - fac) + y2 * fac);
-				immAttrib3fv(color, theme_color);
+				immAttr3fv(color, theme_color);
 				immVertex2f(pos, x1 * (1.0f - fac) + x2 * fac, y1);
-				immAttrib3fv(color, theme_color);
+				immAttr3fv(color, theme_color);
 				immVertex2f(pos, x1 * (1.0f - fac) + x2 * fac, y2);
 				fac += 4.0f * gridstep;
 			}
@@ -3004,7 +3099,7 @@ void ED_region_message_subscribe(
 		WM_gizmomap_message_subscribe(C, ar->gizmo_map, ar, mbus);
 	}
 
-	if (BLI_listbase_is_empty(&ar->uiblocks)) {
+	if (!BLI_listbase_is_empty(&ar->uiblocks)) {
 		UI_region_message_subscribe(ar, mbus);
 	}
 

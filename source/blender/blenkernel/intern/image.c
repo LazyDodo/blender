@@ -64,11 +64,11 @@
 #include "BLI_blenlib.h"
 #include "BLI_math_vector.h"
 #include "BLI_mempool.h"
+#include "BLI_system.h"
 #include "BLI_threads.h"
 #include "BLI_timecode.h"  /* for stamp timecode format */
 #include "BLI_utildefines.h"
 
-#include "BKE_bmfont.h"
 #include "BKE_colortools.h"
 #include "BKE_global.h"
 #include "BKE_icons.h"
@@ -387,7 +387,7 @@ static void copy_image_packedfiles(ListBase *lb_dst, const ListBase *lb_src)
  *
  * WARNING! This function will not handle ID user count!
  *
- * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
+ * \param flag: Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
  */
 void BKE_image_copy_data(Main *UNUSED(bmain), Image *ima_dst, const Image *ima_src, const int flag)
 {
@@ -1403,7 +1403,8 @@ void BKE_imformat_defaults(ImageFormatData *im_format)
 	im_format->compress = 15;
 
 	BKE_color_managed_display_settings_init(&im_format->display_settings);
-	BKE_color_managed_view_settings_init(&im_format->view_settings);
+	BKE_color_managed_view_settings_init_default(&im_format->view_settings,
+	                                             &im_format->display_settings);
 }
 
 void BKE_imbuf_to_image_format(struct ImageFormatData *im_format, const ImBuf *imbuf)
@@ -1527,7 +1528,7 @@ typedef struct StampDataCustomField {
 	struct StampDataCustomField *next, *prev;
 	/* TODO(sergey): Think of better size here, maybe dynamically allocated even. */
 	char key[512];
-	char value[512];
+	char *value;
 	/* TODO(sergey): Support non-string values. */
 } StampDataCustomField;
 
@@ -1545,6 +1546,7 @@ typedef struct StampData {
 	char strip[STAMP_NAME_SIZE];
 	char rendertime[STAMP_NAME_SIZE];
 	char memory[STAMP_NAME_SIZE];
+	char hostname[512];
 
 	/* Custom fields are used to put extra meta information header from render
 	 * engine to the result image.
@@ -1704,6 +1706,16 @@ static void stampdata(Scene *scene, Object *camera, StampData *stamp_data, int d
 	else {
 		stamp_data->frame_range[0] = '\0';
 	}
+
+	if (scene->r.stamp & R_STAMP_HOSTNAME) {
+		char hostname[500];    /* sizeof(stamp_data->hostname) minus some bytes for a label. */
+		BLI_hostname_get(hostname, sizeof(hostname));
+		SNPRINTF(stamp_data->hostname, do_prefix ? "Hostname %s" : "%s", hostname);
+	}
+	else {
+		stamp_data->hostname[0] = '\0';
+	}
+
 }
 
 /* Will always add prefix. */
@@ -1782,6 +1794,12 @@ static void stampdata_from_template(StampData *stamp_data,
 	}
 	else {
 		stamp_data->memory[0] = '\0';
+	}
+	if (scene->r.stamp & R_STAMP_HOSTNAME) {
+		SNPRINTF(stamp_data->hostname, "Hostname %s", stamp_data_template->hostname);
+	}
+	else {
+		stamp_data->hostname[0] = '\0';
 	}
 }
 
@@ -1910,7 +1928,22 @@ void BKE_image_stamp_buf(
 		y -= BUFF_MARGIN_Y * 2;
 	}
 
-	/* Top left corner, below File, Date, Memory, Rendertime */
+	/* Top left corner, below File, Date, Rendertime, Memory */
+	if (TEXT_SIZE_CHECK(stamp_data.hostname, w, h)) {
+		y -= h;
+
+		/* and space for background. */
+		buf_rectfill_area(rect, rectf, width, height, scene->r.bg_stamp, display,
+		                  0, y - BUFF_MARGIN_Y, w + BUFF_MARGIN_X, y + h + BUFF_MARGIN_Y);
+
+		BLF_position(mono, x, y + y_ofs, 0.0);
+		BLF_draw_buffer(mono, stamp_data.hostname, BLF_DRAW_STR_DUMMY_MAX);
+
+		/* the extra pixel for background. */
+		y -= BUFF_MARGIN_Y * 2;
+	}
+
+	/* Top left corner, below File, Date, Memory, Rendertime, Hostname */
 	BLF_enable(mono, BLF_WORD_WRAP);
 	if (TEXT_SIZE_CHECK_WORD_WRAP(stamp_data.note, w, h)) {
 		y -= h;
@@ -2091,13 +2124,11 @@ void BKE_stamp_info_callback(void *data, struct StampData *stamp_data, StampCall
 	CALL(strip, "Strip");
 	CALL(rendertime, "RenderTime");
 	CALL(memory, "Memory");
+	CALL(hostname, "Hostname");
 
-	for (StampDataCustomField *custom_field = stamp_data->custom_fields.first;
-	     custom_field != NULL;
-	     custom_field = custom_field->next)
-	{
+	LISTBASE_FOREACH(StampDataCustomField *, custom_field, &stamp_data->custom_fields) {
 		if (noskip || custom_field->value[0]) {
-			callback(data, custom_field->key, custom_field->value, sizeof(custom_field->value));
+			callback(data, custom_field->key, custom_field->value, strlen(custom_field->value) + 1);
 		}
 	}
 
@@ -2114,7 +2145,7 @@ void BKE_render_result_stamp_data(RenderResult *rr, const char *key, const char 
 	StampDataCustomField *field = MEM_mallocN(sizeof(StampDataCustomField),
 	                                          "StampData Custom Field");
 	STRNCPY(field->key, key);
-	STRNCPY(field->value, value);
+	field->value = BLI_strdup(value);
 	BLI_addtail(&stamp_data->custom_fields, field);
 }
 
@@ -2122,6 +2153,9 @@ void BKE_stamp_data_free(struct StampData *stamp_data)
 {
 	if (stamp_data == NULL) {
 		return;
+	}
+	LISTBASE_FOREACH(StampDataCustomField *, custom_field, &stamp_data->custom_fields) {
+		MEM_freeN(custom_field->value);
 	}
 	BLI_freelistN(&stamp_data->custom_fields);
 	MEM_freeN(stamp_data);
@@ -2671,11 +2705,6 @@ void BKE_image_signal(Main *bmain, Image *ima, ImageUser *iuser, int signal)
 				ima->name[0] = '\0';
 			}
 
-#if 0
-			/* force reload on first use, but not for multilayer, that makes nodes and buttons in ui drawing fail */
-			if (ima->type != IMA_TYPE_MULTILAYER)
-				BKE_image_free_buffers(ima);
-#else
 			/* image buffers for non-sequence multilayer will share buffers with RenderResult,
 			 * however sequence multilayer will own buffers. Such logic makes switching from
 			 * single multilayer file to sequence completely unstable
@@ -2684,7 +2713,6 @@ void BKE_image_signal(Main *bmain, Image *ima, ImageUser *iuser, int signal)
 			 * sequences behave stable
 			 */
 			BKE_image_free_buffers(ima);
-#endif
 
 			ima->ok = 1;
 			if (iuser)
@@ -2813,7 +2841,7 @@ static RenderPass *image_render_pass_get(RenderLayer *rl, const int pass, const 
 }
 
 /* if layer or pass changes, we need an index for the imbufs list */
-/* note it is called for rendered results, but it doesnt use the index! */
+/* note it is called for rendered results, but it doesn't use the index! */
 /* and because rendered results use fake layer/passes, don't correct for wrong indices here */
 RenderPass *BKE_image_multilayer_index(RenderResult *rr, ImageUser *iuser)
 {
@@ -2865,7 +2893,7 @@ void BKE_image_multiview_index(Image *ima, ImageUser *iuser)
 }
 
 /* if layer or pass changes, we need an index for the imbufs list */
-/* note it is called for rendered results, but it doesnt use the index! */
+/* note it is called for rendered results, but it doesn't use the index! */
 /* and because rendered results use fake layer/passes, don't correct for wrong indices here */
 bool BKE_image_is_multilayer(Image *ima)
 {
@@ -3450,9 +3478,6 @@ static ImBuf *load_image_single(
 			image_initialize_after_load(ima, ibuf);
 			*r_assign = true;
 
-			/* check if the image is a font image... */
-			detectBitmapFont(ibuf);
-
 			/* make packed file for autopack */
 			if ((has_packed == false) && (G.fileflags & G_AUTOPACK)) {
 				ImagePackedFile *imapf = MEM_mallocN(sizeof(ImagePackedFile), "Image Packefile");
@@ -3707,7 +3732,7 @@ static ImBuf *image_get_render_result(Image *ima, ImageUser *iuser, void **r_loc
 	 *
 	 * This is mainly to make it so color management treats byte buffer
 	 * from render result with Save Buffers enabled as final display buffer
-	 * and doesnt' apply any color management on it.
+	 * and doesn't apply any color management on it.
 	 *
 	 * For other cases we need to be sure it stays to default byte buffer space.
 	 */
@@ -4472,15 +4497,6 @@ bool BKE_image_is_dirty(Image *image)
 
 void BKE_image_file_format_set(Image *image, int ftype, const ImbFormatOptions *options)
 {
-#if 0
-	ImBuf *ibuf = BKE_image_acquire_ibuf(image, NULL, NULL);
-	if (ibuf) {
-		ibuf->ftype = ftype;
-		ibuf->foptions = options;
-	}
-	BKE_image_release_ibuf(image, ibuf, NULL);
-#endif
-
 	BLI_spin_lock(&image_spin);
 	if (image->cache != NULL) {
 		struct MovieCacheIter *iter = IMB_moviecacheIter_new(image->cache);

@@ -202,8 +202,8 @@ static void acf_generic_channel_color(bAnimContext *ac, bAnimListElem *ale, floa
 	}
 
 	/* set color for normal channels
-	 *	- use 3 shades of color group/standard color for 3 indention level
-	 *	- only use group colors if allowed to, and if actually feasible
+	 * - use 3 shades of color group/standard color for 3 indention level
+	 * - only use group colors if allowed to, and if actually feasible
 	 */
 	if (showGroupColors && (grp) && (grp->customCol)) {
 		unsigned char cp[3];
@@ -223,8 +223,8 @@ static void acf_generic_channel_color(bAnimContext *ac, bAnimListElem *ale, floa
 	}
 	else {
 		// FIXME: what happens when the indention is 1 greater than what it should be (due to grouping)?
-		int colOfs = 20 - 20 * indent;
-		UI_GetThemeColorShade3fv(TH_DOPESHEET_CHANNELSUBOB, colOfs, r_color);
+		int colOfs = 10 - 10 * indent;
+		UI_GetThemeColorShade3fv(TH_SHADE2, colOfs, r_color);
 	}
 }
 
@@ -440,8 +440,8 @@ static void acf_summary_backdrop(bAnimContext *ac, bAnimListElem *ale, float ymi
 	acf->get_backdrop_color(ac, ale, color);
 
 	/* rounded corners on LHS only
-	 *	- top and bottom
-	 *	- special hack: make the top a bit higher, since we are first...
+	 * - top and bottom
+	 * - special hack: make the top a bit higher, since we are first...
 	 */
 	UI_draw_roundbox_corner_set(UI_CNR_TOP_LEFT | UI_CNR_BOTTOM_LEFT);
 	UI_draw_roundbox_3fvAlpha(true, 0,  yminc - 2, v2d->cur.xmax + EXTRA_SCROLL_PAD, ymaxc, 8, color, 1.0f);
@@ -488,7 +488,7 @@ static void *acf_summary_setting_ptr(bAnimListElem *ale, eAnimChannel_Settings s
 	bAnimContext *ac = (bAnimContext *)ale->data;
 
 	/* if data is valid, return pointer to active dopesheet's relevant flag
-	 *	- this is restricted to DopeSheet/Action Editor only
+	 * - this is restricted to DopeSheet/Action Editor only
 	 */
 	if ((ac->sl) && (ac->spacetype == SPACE_ACTION) && (setting == ACHANNEL_SETTING_EXPAND)) {
 		SpaceAction *saction = (SpaceAction *)ac->sl;
@@ -817,9 +817,9 @@ static void acf_group_color(bAnimContext *ac, bAnimListElem *ale, float r_color[
 	else {
 		/* highlight only for active */
 		if (ale->flag & AGRP_ACTIVE)
-			UI_GetThemeColorShade3fv(TH_GROUP_ACTIVE, 10, r_color);
+			UI_GetThemeColor3fv(TH_GROUP_ACTIVE, r_color);
 		else
-			UI_GetThemeColorShade3fv(TH_GROUP, 20, r_color);
+			UI_GetThemeColor3fv(TH_GROUP, r_color);
 	}
 }
 
@@ -1111,7 +1111,7 @@ static bool acf_nla_controls_setting_valid(bAnimContext *UNUSED(ac), bAnimListEl
 		case ACHANNEL_SETTING_EXPAND:
 			return true;
 
-		// TOOD: selected?
+		// TODO: selected?
 
 		default: /* unsupported */
 			return false;
@@ -3035,7 +3035,7 @@ static int acf_gpl_setting_flag(bAnimContext *UNUSED(ac), eAnimChannel_Settings 
 		case ACHANNEL_SETTING_MUTE: /* animation muting - similar to frame lock... */
 			return GP_LAYER_FRAMELOCK;
 
-		case ACHANNEL_SETTING_VISIBLE: /* visiblity of the layers (NOT muting) */
+		case ACHANNEL_SETTING_VISIBLE: /* visibility of the layers (NOT muting) */
 			*neg = true;
 			return GP_LAYER_HIDE;
 
@@ -3736,8 +3736,8 @@ short ANIM_channel_setting_get(bAnimContext *ac, bAnimListElem *ale, eAnimChanne
 	} (void)0
 
 /* Change value of some setting for a channel
- *	- setting: eAnimChannel_Settings
- *	- mode: eAnimChannels_SetFlag
+ * - setting: eAnimChannel_Settings
+ * - mode: eAnimChannels_SetFlag
  */
 void ANIM_channel_setting_set(bAnimContext *ac, bAnimListElem *ale, eAnimChannel_Settings setting, eAnimChannels_SetFlag mode)
 {
@@ -3859,9 +3859,9 @@ void ANIM_channel_draw(bAnimContext *ac, bAnimListElem *ale, float yminc, float 
 	GPU_blend(false);
 
 	/* step 4) draw special toggles  .................................
-	 *	- in Graph Editor, checkboxes for visibility in curves area
-	 *	- in NLA Editor, glowing dots for solo/not solo...
-	 *	- in Grease Pencil mode, color swatches for layer color
+	 * - in Graph Editor, checkboxes for visibility in curves area
+	 * - in NLA Editor, glowing dots for solo/not solo...
+	 * - in Grease Pencil mode, color swatches for layer color
 	 */
 	if (ac->sl) {
 		if ((ac->spacetype == SPACE_IPO) &&
@@ -4005,9 +4005,9 @@ void ANIM_channel_draw(bAnimContext *ac, bAnimListElem *ale, float yminc, float 
 		}
 
 		/* draw slider
-		 *	- even if we can draw sliders for this view, we must also check that the channel-type supports them
-		 *	  (only only F-Curves really can support them for now)
-		 *	- slider should start before the toggles (if they're visible) to keep a clean line down the side
+		 * - even if we can draw sliders for this view, we must also check that the channel-type supports them
+		 *   (only only F-Curves really can support them for now)
+		 * - slider should start before the toggles (if they're visible) to keep a clean line down the side
 		 */
 		if ((draw_sliders) && ELEM(ale->type, ANIMTYPE_FCURVE, ANIMTYPE_NLACURVE, ANIMTYPE_SHAPEKEY)) {
 			/* adjust offset */
@@ -4016,8 +4016,8 @@ void ANIM_channel_draw(bAnimContext *ac, bAnimListElem *ale, float yminc, float 
 
 
 		/* finally draw a backdrop rect behind these
-		 *	- starts from the point where the first toggle/slider starts,
-		 *	- ends past the space that might be reserved for a scroller
+		 * - starts from the point where the first toggle/slider starts,
+		 * - ends past the space that might be reserved for a scroller
 		 */
 		immRectf(pos, v2d->cur.xmax - (float)offset, yminc + ymin_ofs, v2d->cur.xmax + EXTRA_SCROLL_PAD, ymaxc);
 
@@ -4040,7 +4040,7 @@ static void achannel_setting_flush_widget_cb(bContext *C, void *ale_npoin, void 
 	bAnimContext ac;
 	ListBase anim_data = {NULL, NULL};
 	int filter;
-	int setting = GET_INT_FROM_POINTER(setting_wrap);
+	int setting = POINTER_AS_INT(setting_wrap);
 	short on = 0;
 
 	/* send notifiers before doing anything else... */
@@ -4055,7 +4055,7 @@ static void achannel_setting_flush_widget_cb(bContext *C, void *ale_npoin, void 
 		/* draw cache updates for settings that affect the visible strokes */
 		if (setting == ACHANNEL_SETTING_VISIBLE) {
 			bGPdata *gpd = (bGPdata *)ale_setting->id;
-			DEG_id_tag_update(&gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+			DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 		}
 
 		/* UI updates */
@@ -4064,11 +4064,11 @@ static void achannel_setting_flush_widget_cb(bContext *C, void *ale_npoin, void 
 
 	/* tag copy-on-write flushing (so that the settings will have an effect) */
 	if (ale_setting->id) {
-		DEG_id_tag_update(ale_setting->id, DEG_TAG_COPY_ON_WRITE);
+		DEG_id_tag_update(ale_setting->id, ID_RECALC_COPY_ON_WRITE);
 	}
 	if (ale_setting->adt && ale_setting->adt->action) {
 		/* action is it's own datablock, so has to be tagged specifically... */
-		DEG_id_tag_update(&ale_setting->adt->action->id, DEG_TAG_COPY_ON_WRITE);
+		DEG_id_tag_update(&ale_setting->adt->action->id, ID_RECALC_COPY_ON_WRITE);
 	}
 
 	/* verify animation context */
@@ -4095,10 +4095,11 @@ static void achannel_setting_flush_widget_cb(bContext *C, void *ale_npoin, void 
 }
 
 /* callback for wrapping NLA Track "solo" toggle logic */
-static void achannel_nlatrack_solo_widget_cb(bContext *C, void *adt_poin, void *nlt_poin)
+static void achannel_nlatrack_solo_widget_cb(bContext *C, void *ale_poin, void *UNUSED(arg2))
 {
-	AnimData *adt = adt_poin;
-	NlaTrack *nlt = nlt_poin;
+	bAnimListElem *ale = ale_poin;
+	AnimData *adt = ale->adt;
+	NlaTrack *nlt = ale->data;
 
 	/* Toggle 'solo' mode. There are several complications here which need explaining:
 	 * - The method call is needed to perform a few additional validation operations
@@ -4111,6 +4112,7 @@ static void achannel_nlatrack_solo_widget_cb(bContext *C, void *adt_poin, void *
 	BKE_nlatrack_solo_toggle(adt, nlt);
 
 	/* send notifiers */
+	DEG_id_tag_update(ale->id, ID_RECALC_ANIMATION | ID_RECALC_COPY_ON_WRITE);
 	WM_event_add_notifier(C, NC_ANIMATION | ND_ANIMCHAN | NA_RENAME, NULL);
 }
 
@@ -4125,20 +4127,24 @@ static void achannel_setting_slider_cb(bContext *C, void *id_poin, void *fcu_poi
 	ReportList *reports = CTX_wm_reports(C);
 	Scene *scene = CTX_data_scene(C);
 	ToolSettings *ts = scene->toolsettings;
+	ListBase nla_cache = {NULL, NULL};
 	PointerRNA id_ptr, ptr;
 	PropertyRNA *prop;
 	short flag = 0;
 	bool done = false;
 	float cfra;
 
+	/* Get RNA pointer */
+	RNA_id_pointer_create(id, &id_ptr);
+
+	/* Get NLA context for value remapping */
+	NlaKeyframingContext *nla_context = BKE_animsys_get_nla_keyframing_context(&nla_cache, depsgraph, &id_ptr, adt, (float)CFRA);
+
 	/* get current frame and apply NLA-mapping to it (if applicable) */
 	cfra = BKE_nla_tweakedit_remap(adt, (float)CFRA, NLATIME_CONVERT_UNMAP);
 
 	/* get flags for keyframing */
 	flag = ANIM_get_keyframing_flags(scene, 1);
-
-	/* get RNA pointer, and resolve the path */
-	RNA_id_pointer_create(id, &id_ptr);
 
 	/* try to resolve the path stored in the F-Curve */
 	if (RNA_path_resolve_property(&id_ptr, fcu->rna_path, &ptr, &prop)) {
@@ -4147,11 +4153,13 @@ static void achannel_setting_slider_cb(bContext *C, void *id_poin, void *fcu_poi
 			flag |= INSERTKEY_REPLACE;
 
 		/* insert a keyframe for this F-Curve */
-		done = insert_keyframe_direct(depsgraph, reports, ptr, prop, fcu, cfra, ts->keyframe_type, flag);
+		done = insert_keyframe_direct(depsgraph, reports, ptr, prop, fcu, cfra, ts->keyframe_type, nla_context, flag);
 
 		if (done)
 			WM_event_add_notifier(C, NC_ANIMATION | ND_ANIMCHAN | NA_EDITED, NULL);
 	}
+
+	BKE_animsys_free_nla_keyframing_context_cache(&nla_cache);
 }
 
 /* callback for shapekey widget sliders - insert keyframes */
@@ -4166,11 +4174,18 @@ static void achannel_setting_slider_shapekey_cb(bContext *C, void *key_poin, voi
 	ReportList *reports = CTX_wm_reports(C);
 	Scene *scene = CTX_data_scene(C);
 	ToolSettings *ts = scene->toolsettings;
+	ListBase nla_cache = {NULL, NULL};
 	PointerRNA id_ptr, ptr;
 	PropertyRNA *prop;
 	short flag = 0;
 	bool done = false;
 	float cfra;
+
+	/* Get RNA pointer */
+	RNA_id_pointer_create((ID *)key, &id_ptr);
+
+	/* Get NLA context for value remapping */
+	NlaKeyframingContext *nla_context = BKE_animsys_get_nla_keyframing_context(&nla_cache, depsgraph, &id_ptr, key->adt, (float)CFRA);
 
 	/* get current frame and apply NLA-mapping to it (if applicable) */
 	cfra = BKE_nla_tweakedit_remap(key->adt, (float)CFRA, NLATIME_CONVERT_UNMAP);
@@ -4178,22 +4193,19 @@ static void achannel_setting_slider_shapekey_cb(bContext *C, void *key_poin, voi
 	/* get flags for keyframing */
 	flag = ANIM_get_keyframing_flags(scene, 1);
 
-	/* get RNA pointer, and resolve the path */
-	RNA_id_pointer_create((ID *)key, &id_ptr);
-
 	/* try to resolve the path stored in the F-Curve */
 	if (RNA_path_resolve_property(&id_ptr, rna_path, &ptr, &prop)) {
 		/* find or create new F-Curve */
 		// XXX is the group name for this ok?
 		bAction *act = verify_adt_action(bmain, (ID *)key, 1);
-		FCurve *fcu = verify_fcurve(act, NULL, &ptr, rna_path, 0, 1);
+		FCurve *fcu = verify_fcurve(bmain, act, NULL, &ptr, rna_path, 0, 1);
 
 		/* set the special 'replace' flag if on a keyframe */
 		if (fcurve_frame_has_keyframe(fcu, cfra, 0))
 			flag |= INSERTKEY_REPLACE;
 
 		/* insert a keyframe for this F-Curve */
-		done = insert_keyframe_direct(depsgraph, reports, ptr, prop, fcu, cfra, ts->keyframe_type, flag);
+		done = insert_keyframe_direct(depsgraph, reports, ptr, prop, fcu, cfra, ts->keyframe_type, nla_context, flag);
 
 		if (done)
 			WM_event_add_notifier(C, NC_ANIMATION | ND_ANIMCHAN | NA_EDITED, NULL);
@@ -4202,6 +4214,8 @@ static void achannel_setting_slider_shapekey_cb(bContext *C, void *key_poin, voi
 	/* free the path */
 	if (rna_path)
 		MEM_freeN(rna_path);
+
+	BKE_animsys_free_nla_keyframing_context_cache(&nla_cache);
 }
 
 /* callback for NLA Control Curve widget sliders - insert keyframes */
@@ -4237,7 +4251,7 @@ static void achannel_setting_slider_nla_curve_cb(bContext *C, void *UNUSED(id_po
 			flag |= INSERTKEY_REPLACE;
 
 		/* insert a keyframe for this F-Curve */
-		done = insert_keyframe_direct(depsgraph, reports, ptr, prop, fcu, cfra, ts->keyframe_type, flag);
+		done = insert_keyframe_direct(depsgraph, reports, ptr, prop, fcu, cfra, ts->keyframe_type, NULL, flag);
 
 		if (done)
 			WM_event_add_notifier(C, NC_ANIMATION | ND_ANIMCHAN | NA_EDITED, NULL);
@@ -4255,11 +4269,12 @@ static void draw_setting_widget(bAnimContext *ac, bAnimListElem *ale, const bAni
 	void *ptr;
 	const char *tooltip;
 	uiBut *but = NULL;
+	bool enabled;
 
 	/* get the flag and the pointer to that flag */
 	flag = acf->setting_flag(ac, setting, &negflag);
 	ptr = acf->setting_ptr(ale, setting, &ptrsize);
-	/* enabled = ANIM_channel_setting_get(ac, ale, setting); */ /* UNUSED */
+	enabled = ANIM_channel_setting_get(ac, ale, setting);
 
 	/* get the base icon for the setting */
 	switch (setting) {
@@ -4281,8 +4296,7 @@ static void draw_setting_widget(bAnimContext *ac, bAnimListElem *ale, const bAni
 			break;
 
 		case ACHANNEL_SETTING_MOD_OFF:  /* modifiers disabled */
-			icon = ICON_MODIFIER;
-			usetoggle = false;
+			icon = ICON_MODIFIER_OFF;
 			tooltip = TIP_("F-Curve modifiers are disabled");
 			break;
 
@@ -4312,8 +4326,8 @@ static void draw_setting_widget(bAnimContext *ac, bAnimListElem *ale, const bAni
 			break;
 
 		case ACHANNEL_SETTING_MUTE: /* muted speaker */
-			//icon = ((enabled) ? ICON_MUTE_IPO_ON : ICON_MUTE_IPO_OFF);
-			icon = ICON_MUTE_IPO_OFF;
+			icon = ((enabled) ? ICON_CHECKBOX_DEHLT : ICON_CHECKBOX_HLT);
+			usetoggle = false;
 
 			if (ELEM(ale->type, ANIMTYPE_FCURVE, ANIMTYPE_NLACURVE)) {
 				tooltip = TIP_("Does F-Curve contribute to result");
@@ -4390,12 +4404,12 @@ static void draw_setting_widget(bAnimContext *ac, bAnimListElem *ale, const bAni
 				case ACHANNEL_SETTING_PINNED: /* NLA Actions - 'map/nomap' */
 				case ACHANNEL_SETTING_MOD_OFF:
 				case ACHANNEL_SETTING_ALWAYS_VISIBLE:
-					UI_but_funcN_set(but, achannel_setting_flush_widget_cb, MEM_dupallocN(ale), SET_INT_IN_POINTER(setting));
+					UI_but_funcN_set(but, achannel_setting_flush_widget_cb, MEM_dupallocN(ale), POINTER_FROM_INT(setting));
 					break;
 
 				/* settings needing special attention */
 				case ACHANNEL_SETTING_SOLO: /* NLA Tracks - Solo toggle */
-					UI_but_func_set(but, achannel_nlatrack_solo_widget_cb, ale->adt, ale->data);
+					UI_but_funcN_set(but, achannel_nlatrack_solo_widget_cb, MEM_dupallocN(ale), NULL);
 					break;
 
 				/* no flushing */
@@ -4448,9 +4462,9 @@ void ANIM_channel_draw_widgets(const bContext *C, bAnimContext *ac, bAnimListEle
 	}
 
 	/* step 3) draw special toggles  .................................
-	 *	- in Graph Editor, checkboxes for visibility in curves area
-	 *	- in NLA Editor, glowing dots for solo/not solo...
-	 *	- in Grease Pencil mode, color swatches for layer color
+	 * - in Graph Editor, checkboxes for visibility in curves area
+	 * - in NLA Editor, glowing dots for solo/not solo...
+	 * - in Grease Pencil mode, color swatches for layer color
 	 */
 	if (ac->sl) {
 		if ((ac->spacetype == SPACE_IPO) &&
@@ -4618,12 +4632,12 @@ void ANIM_channel_draw_widgets(const bContext *C, bAnimContext *ac, bAnimListEle
 		}
 
 		/* draw slider
-		 *	- even if we can draw sliders for this view, we must also check that the channel-type supports them
-		 *	  (only only F-Curves really can support them for now)
-		 *	- to make things easier, we use RNA-autobuts for this so that changes are reflected immediately,
-		 *	  wherever they occurred. BUT, we don't use the layout engine, otherwise we'd get wrong alignment,
-		 *	  and wouldn't be able to auto-keyframe...
-		 *	- slider should start before the toggles (if they're visible) to keep a clean line down the side
+		 * - even if we can draw sliders for this view, we must also check that the channel-type supports them
+		 *   (only only F-Curves really can support them for now)
+		 * - to make things easier, we use RNA-autobuts for this so that changes are reflected immediately,
+		 *   wherever they occurred. BUT, we don't use the layout engine, otherwise we'd get wrong alignment,
+		 *   and wouldn't be able to auto-keyframe...
+		 * - slider should start before the toggles (if they're visible) to keep a clean line down the side
 		 */
 		if ((draw_sliders) && ELEM(ale->type, ANIMTYPE_FCURVE, ANIMTYPE_NLACURVE, ANIMTYPE_SHAPEKEY)) {
 			/* adjust offset */

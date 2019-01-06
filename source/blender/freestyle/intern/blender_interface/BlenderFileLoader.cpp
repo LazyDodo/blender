@@ -107,13 +107,11 @@ NodeGroup *BlenderFileLoader::Load()
 
 		bool apply_modifiers = false;
 		bool calc_undeformed = false;
-		bool calc_tessface = false;
 		Mesh *mesh = BKE_mesh_new_from_object(depsgraph,
 		                                      _re->main,
 		                                      _re->scene,
 		                                      ob,
 		                                      apply_modifiers,
-		                                      calc_tessface,
 		                                      calc_undeformed);
 
 		if (mesh) {
@@ -735,7 +733,7 @@ void BlenderFileLoader::insertShapeNode(Object *ob, Mesh *me, int id)
 	// sets the id of the rep
 	rep->setId(Id(id, 0));
 	rep->setName(ob->id.name + 2);
-	rep->setLibraryPath(ob->id.lib ? ob->id.lib->name : NULL);
+	rep->setLibraryPath(ob->id.lib ? ob->id.lib->name : "");
 
 	const BBox<Vec3r> bbox = BBox<Vec3r>(Vec3r(ls.minBBox[0], ls.minBBox[1], ls.minBBox[2]),
 	                                     Vec3r(ls.maxBBox[0], ls.maxBBox[1], ls.maxBBox[2]));

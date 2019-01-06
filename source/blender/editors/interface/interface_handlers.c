@@ -64,6 +64,8 @@
 #include "BKE_unit.h"
 #include "BKE_paint.h"
 
+#include "IMB_colormanagement.h"
+
 #include "ED_screen.h"
 #include "ED_undo.h"
 
@@ -155,7 +157,7 @@ typedef enum uiHandleButtonState {
 
 #ifdef USE_ALLSELECT
 
-/* Unfortunately theres no good way handle more generally:
+/* Unfortunately there's no good way handle more generally:
  * (propagate single clicks on layer buttons to other objects) */
 #define USE_ALLSELECT_LAYER_HACK
 
@@ -286,7 +288,7 @@ typedef struct uiHandleButtonData {
 	ColorBand *coba;
 
 	/* tooltip */
-	unsigned int tooltip_force : 1;
+	uint tooltip_force : 1;
 
 	/* auto open */
 	bool used_mouse;
@@ -916,6 +918,7 @@ static void ui_apply_but_TAB(bContext *C, uiBut *but, uiHandleButtonData *data)
 		ui_but_update_edited(but);
 	}
 	else {
+		ui_but_value_set(but, but->hardmax);
 		ui_apply_but_func(C, but);
 	}
 
@@ -1138,11 +1141,14 @@ static void ui_multibut_states_create(uiBut *but_active, uiHandleButtonData *dat
 	/* edit buttons proportionally to eachother
 	 * note: if we mix buttons which are proportional and others which are not,
 	 * this may work a bit strangely */
-	if (but_active->rnaprop) {
-		if ((data->origvalue != 0.0) && (RNA_property_flag(but_active->rnaprop) & PROP_PROPORTIONAL)) {
+	if ((but_active->rnaprop && (RNA_property_flag(but_active->rnaprop) & PROP_PROPORTIONAL)) ||
+	    ELEM(but->unit_type, PROP_UNIT_LENGTH))
+	{
+		if (data->origvalue != 0.0) {
 			data->multi_data.is_proportional = true;
 		}
 	}
+
 }
 
 static void ui_multibut_states_apply(bContext *C, uiHandleButtonData *data, uiBlock *block)
@@ -1248,11 +1254,12 @@ static bool ui_drag_toggle_but_is_pushed(uiBut *but)
 
 typedef struct uiDragToggleHandle {
 	/* init */
-	bool is_init;
 	bool is_set;
 	float but_cent_start[2];
 
-	bool xy_lock[2];
+	bool is_xy_lock_init;
+	bool    xy_lock[2];
+
 	int  xy_init[2];
 	int  xy_last[2];
 } uiDragToggleHandle;
@@ -1319,7 +1326,7 @@ static void ui_drag_toggle_set(bContext *C, uiDragToggleHandle *drag_info, const
 	 * Check if we need to initialize the lock axis by finding if the first
 	 * button we mouse over is X or Y aligned, then lock the mouse to that axis after.
 	 */
-	if (drag_info->is_init == false) {
+	if (drag_info->is_xy_lock_init == false) {
 		/* first store the buttons original coords */
 		uiBut *but = ui_but_find_mouse_over_ex(ar, xy_input[0], xy_input[1], true);
 
@@ -1340,11 +1347,11 @@ static void ui_drag_toggle_set(bContext *C, uiDragToggleHandle *drag_info, const
 					else {
 						drag_info->xy_lock[1] = true;
 					}
-					drag_info->is_init = true;
+					drag_info->is_xy_lock_init = true;
 				}
 			}
 			else {
-				drag_info->is_init = true;
+				drag_info->is_xy_lock_init = true;
 			}
 		}
 	}
@@ -1720,7 +1727,7 @@ static bool ui_but_drag_init(
 	/* prevent other WM gestures to start while we try to drag */
 	WM_gestures_remove(C);
 
-	if (ABS(data->dragstartx - event->x) + ABS(data->dragstarty - event->y) > U.dragthreshold) {
+	if (ABS(data->dragstartx - event->x) + ABS(data->dragstarty - event->y) > U.dragthreshold * U.dpi_fac) {
 
 		button_activate_state(C, but, BUTTON_STATE_EXIT);
 		data->cancel = true;
@@ -1750,6 +1757,22 @@ static bool ui_but_drag_init(
 			        drag_info, WM_HANDLER_BLOCKING);
 
 			CTX_wm_region_set(C, ar_prev);
+
+			/* Initialize alignment for single row/column regions,
+			 * otherwise we use the relative position of the first other button dragged over. */
+			if (ELEM(data->region->regiontype, RGN_TYPE_NAV_BAR, RGN_TYPE_HEADER)) {
+				int lock_axis = -1;
+				if (ELEM(data->region->alignment, RGN_ALIGN_LEFT, RGN_ALIGN_RIGHT)) {
+					lock_axis = 0;
+				}
+				else if (ELEM(data->region->alignment, RGN_ALIGN_TOP, RGN_ALIGN_BOTTOM)) {
+					lock_axis = 1;
+				}
+				if (lock_axis != -1) {
+					drag_info->xy_lock[lock_axis] = true;
+					drag_info->is_xy_lock_init = true;
+				}
+			}
 		}
 		else
 #endif
@@ -2037,278 +2060,404 @@ static void ui_but_drop(bContext *C, const wmEvent *event, uiBut *but, uiHandleB
 
 /* ******************* copy and paste ********************  */
 
-/* c = copy, v = paste */
-static void ui_but_copy_paste(bContext *C, uiBut *but, uiHandleButtonData *data, const char mode, const bool copy_array)
+static bool ui_but_contains_password(uiBut *but)
 {
-	int buf_paste_len = 0;
-	const char *buf_paste = "";
-	bool buf_paste_alloc = false;
-	bool show_report = false;  /* use to display errors parsing paste input */
+	return but->rnaprop && (RNA_property_subtype(but->rnaprop) == PROP_PASSWORD);
+}
 
+static void ui_but_get_pasted_text_from_clipboard(char **buf_paste, int *buf_len)
+{
+	char *text;
+	int length;
+	/* get only first line even if the clipboard contains multiple lines */
+	text = WM_clipboard_text_get_firstline(false, &length);
+
+	if (text) {
+		*buf_paste = text;
+		*buf_len = length;
+	}
+	else {
+		*buf_paste = MEM_callocN(sizeof(char), __func__);
+		*buf_len = 0;
+	}
+}
+
+static int get_but_property_array_length(uiBut *but)
+{
+	return RNA_property_array_length(&but->rnapoin, but->rnaprop);
+}
+
+static void ui_but_set_float_array(bContext *C, uiBut *but, uiHandleButtonData *data, float *values, int array_length)
+{
+	button_activate_state(C, but, BUTTON_STATE_NUM_EDITING);
+
+	for (int i = 0; i < array_length; i++) {
+		RNA_property_float_set_index(&but->rnapoin, but->rnaprop, i, values[i]);
+	}
+	if (data) data->value = values[but->rnaindex];
+
+	button_activate_state(C, but, BUTTON_STATE_EXIT);
+}
+
+static void float_array_to_string(float *values, int array_length, char *output, int output_len_max)
+{
+	/* to avoid buffer overflow attacks; numbers are quite arbitrary */
+	BLI_assert(output_len_max > 15);
+	output_len_max -= 10;
+
+	int current_index = 0;
+	output[current_index] = '[';
+	current_index++;
+
+	for (int i = 0; i < array_length; i++) {
+		int length = BLI_snprintf(output + current_index, output_len_max - current_index, "%f", values[i]);
+		current_index += length;
+
+		if (i < array_length - 1) {
+			if (current_index < output_len_max) {
+				output[current_index + 0] = ',';
+				output[current_index + 1] = ' ';
+				current_index += 2;
+			}
+		}
+	}
+
+	output[current_index + 0] = ']';
+	output[current_index + 1] = '\0';
+}
+
+static void ui_but_copy_numeric_array(uiBut *but, char *output, int output_len_max)
+{
+	int array_length = get_but_property_array_length(but);
+	float *values = alloca(array_length * sizeof(float));
+	RNA_property_float_get_array(&but->rnapoin, but->rnaprop, values);
+	float_array_to_string(values, array_length, output, output_len_max);
+}
+
+static bool parse_float_array(char *text, float *values, int expected_length)
+{
+	/* can parse max 4 floats for now */
+	BLI_assert(0 <= expected_length && expected_length <= 4);
+
+	float v[5];
+	int actual_length = sscanf(text, "[%f, %f, %f, %f, %f]", &v[0], &v[1], &v[2], &v[3], &v[4]);
+
+	if (actual_length == expected_length) {
+		memcpy(values, v, sizeof(float) * expected_length);
+		return true;
+	}
+	else {
+		return false;
+	}
+}
+
+static void ui_but_paste_numeric_array(bContext *C, uiBut *but, uiHandleButtonData *data, char *buf_paste)
+{
+	int array_length = get_but_property_array_length(but);
+	if (array_length > 4) {
+		// not supported for now
+		return;
+	}
+
+	float *values = alloca(sizeof(float) * array_length);
+
+	if (parse_float_array(buf_paste, values, array_length)) {
+		ui_but_set_float_array(C, but, data, values, array_length);
+	}
+	else {
+		WM_report(RPT_ERROR, "Expected an array of numbers: [n, n, ...]");
+	}
+}
+
+static void ui_but_copy_numeric_value(uiBut *but, char *output, int output_len_max)
+{
+	/* Get many decimal places, then strip trailing zeros.
+	 * note: too high values start to give strange results */
+	ui_but_string_get_ex(but, output, output_len_max, UI_PRECISION_FLOAT_MAX, false, NULL);
+	BLI_str_rstrip_float_zero(output, '\0');
+}
+
+static void ui_but_paste_numeric_value(bContext *C, uiBut *but, uiHandleButtonData *data, char *buf_paste)
+{
+	double value;
+
+	if (ui_but_string_set_eval_num(C, but, buf_paste, &value)) {
+		button_activate_state(C, but, BUTTON_STATE_NUM_EDITING);
+		data->value = value;
+		ui_but_string_set(C, but, buf_paste);
+		button_activate_state(C, but, BUTTON_STATE_EXIT);
+	}
+	else {
+		WM_report(RPT_ERROR, "Expected a number");
+	}
+}
+
+static bool ui_but_has_array_value(uiBut *but)
+{
+	return (but->rnapoin.data && but->rnaprop &&
+	        ELEM(RNA_property_subtype(but->rnaprop), PROP_COLOR, PROP_TRANSLATION, PROP_DIRECTION,
+	             PROP_VELOCITY, PROP_ACCELERATION, PROP_MATRIX, PROP_EULER, PROP_QUATERNION, PROP_AXISANGLE,
+	             PROP_XYZ, PROP_XYZ_LENGTH, PROP_COLOR_GAMMA, PROP_COORDS));
+}
+
+static void ui_but_paste_normalized_vector(bContext *C, uiBut *but, char *buf_paste)
+{
+	float xyz[3];
+	if (parse_float_array(buf_paste, xyz, 3)) {
+		if (normalize_v3(xyz) == 0.0f) {
+			/* better set Z up then have a zero vector */
+			xyz[2] = 1.0;
+		}
+		ui_but_set_float_array(C, but, NULL, xyz, 3);
+	}
+	else {
+		WM_report(RPT_ERROR, "Paste expected 3 numbers, formatted: '[n, n, n]'");
+	}
+}
+
+static void ui_but_copy_color(uiBut *but, char *output, int output_len_max)
+{
+	float rgba[4];
+
+	if (but->rnaprop && get_but_property_array_length(but) == 4)
+		rgba[3] = RNA_property_float_get_index(&but->rnapoin, but->rnaprop, 3);
+	else
+		rgba[3] = 1.0f;
+
+	ui_but_v3_get(but, rgba);
+
+	/* convert to linear color to do compatible copy between gamma and non-gamma */
+	if (but->rnaprop && RNA_property_subtype(but->rnaprop) == PROP_COLOR_GAMMA)
+		srgb_to_linearrgb_v3_v3(rgba, rgba);
+
+	float_array_to_string(rgba, 4, output, output_len_max);
+}
+
+static void ui_but_paste_color(bContext *C, uiBut *but, char *buf_paste)
+{
+	float rgba[4];
+	if (parse_float_array(buf_paste, rgba, 4)) {
+		if (but->rnaprop) {
+			/* Assume linear colors in buffer. */
+			if (RNA_property_subtype(but->rnaprop) == PROP_COLOR_GAMMA) {
+				linearrgb_to_srgb_v3_v3(rgba, rgba);
+			}
+
+			/* Some color properties are RGB, not RGBA. */
+			int array_len = get_but_property_array_length(but);
+			BLI_assert(ELEM(array_len, 3, 4));
+			ui_but_set_float_array(C, but, NULL, rgba, array_len);
+		}
+	}
+	else {
+		WM_report(RPT_ERROR, "Paste expected 4 numbers, formatted: '[n, n, n, n]'");
+	}
+}
+
+static void ui_but_copy_text(uiBut *but, char *output, int output_len_max)
+{
+	ui_but_string_get(but, output, output_len_max);
+}
+
+static void ui_but_paste_text(bContext *C, uiBut *but, uiHandleButtonData *data, char *buf_paste)
+{
+	button_activate_state(C, but, BUTTON_STATE_TEXT_EDITING);
+	ui_textedit_string_set(but, but->active, buf_paste);
+
+	if (but->type == UI_BTYPE_SEARCH_MENU) {
+		but->changed = true;
+		ui_searchbox_update(C, data->searchbox, but, true);
+	}
+
+	button_activate_state(C, but, BUTTON_STATE_EXIT);
+}
+
+static void ui_but_copy_colorband(uiBut *but)
+{
+	if (but->poin != NULL) {
+		memcpy(&but_copypaste_coba, but->poin, sizeof(ColorBand));
+	}
+}
+
+static void ui_but_paste_colorband(bContext *C, uiBut *but, uiHandleButtonData *data)
+{
+	if (but_copypaste_coba.tot != 0) {
+		if (!but->poin)
+			but->poin = MEM_callocN(sizeof(ColorBand), "colorband");
+
+		button_activate_state(C, but, BUTTON_STATE_NUM_EDITING);
+		memcpy(data->coba, &but_copypaste_coba, sizeof(ColorBand));
+		button_activate_state(C, but, BUTTON_STATE_EXIT);
+	}
+}
+
+static void ui_but_copy_curvemapping(uiBut *but)
+{
+	if (but->poin != NULL) {
+		but_copypaste_curve_alive = true;
+		curvemapping_free_data(&but_copypaste_curve);
+		curvemapping_copy_data(&but_copypaste_curve, (CurveMapping *) but->poin);
+	}
+}
+
+static void ui_but_paste_curvemapping(bContext *C, uiBut *but)
+{
+	if (but_copypaste_curve_alive) {
+		if (!but->poin)
+			but->poin = MEM_callocN(sizeof(CurveMapping), "curvemapping");
+
+		button_activate_state(C, but, BUTTON_STATE_NUM_EDITING);
+		curvemapping_free_data((CurveMapping *) but->poin);
+		curvemapping_copy_data((CurveMapping *) but->poin, &but_copypaste_curve);
+		button_activate_state(C, but, BUTTON_STATE_EXIT);
+	}
+}
+
+static void ui_but_copy_operator(bContext *C, uiBut *but, char *output, int output_len_max)
+{
+	PointerRNA *opptr;
+	opptr = UI_but_operator_ptr_get(but);
+
+	char *str;
+	str = WM_operator_pystring_ex(C, NULL, false, true, but->optype, opptr);
+	BLI_strncpy(output, str, output_len_max);
+	MEM_freeN(str);
+}
+
+static void ui_but_copy_menu(uiBut *but, char *output, int output_len_max)
+{
+	MenuType *mt = UI_but_menutype_get(but);
+	if (mt) {
+		BLI_snprintf(output, output_len_max, "bpy.ops.wm.call_menu(name=\"%s\")", mt->idname);
+	}
+}
+
+static void ui_but_copy(bContext *C, uiBut *but, const bool copy_array)
+{
+	if (ui_but_contains_password(but)) {
+		return;
+	}
+
+	/* Arbitrary large value (allow for paths: 'PATH_MAX') */
+	char buf[4096] = {0};
+	const int buf_max_len = sizeof(buf);
+
+	/* Left false for copying internal data (color-band for eg). */
+	bool is_buf_set = false;
+
+	bool has_required_data = !(but->poin == NULL && but->rnapoin.data == NULL);
+
+	switch (but->type) {
+		case UI_BTYPE_NUM:
+		case UI_BTYPE_NUM_SLIDER:
+			if (!has_required_data) break;
+			if (copy_array && ui_but_has_array_value(but)) {
+				ui_but_copy_numeric_array(but, buf, buf_max_len);
+			}
+			else {
+				ui_but_copy_numeric_value(but, buf, buf_max_len);
+			}
+			is_buf_set = true;
+			break;
+
+		case UI_BTYPE_UNITVEC:
+			if (!has_required_data) break;
+			ui_but_copy_numeric_array(but, buf, buf_max_len);
+			is_buf_set = true;
+			break;
+
+		case UI_BTYPE_COLOR:
+			if (!has_required_data) break;
+			ui_but_copy_color(but, buf, buf_max_len);
+			is_buf_set = true;
+			break;
+
+		case UI_BTYPE_TEXT:
+		case UI_BTYPE_SEARCH_MENU:
+			if (!has_required_data) break;
+			ui_but_copy_text(but, buf, buf_max_len);
+			is_buf_set = true;
+			break;
+
+		case UI_BTYPE_COLORBAND:
+			ui_but_copy_colorband(but);
+			break;
+
+		case UI_BTYPE_CURVE:
+			ui_but_copy_curvemapping(but);
+			break;
+
+		case UI_BTYPE_BUT:
+			ui_but_copy_operator(C, but, buf, buf_max_len);
+			is_buf_set = true;
+			break;
+
+		case UI_BTYPE_MENU:
+		case UI_BTYPE_PULLDOWN:
+			ui_but_copy_menu(but, buf, buf_max_len);
+			is_buf_set = true;
+			break;
+
+		default:
+			break;
+	}
+
+	if (is_buf_set) {
+		WM_clipboard_text_set(buf, 0);
+	}
+}
+
+static void ui_but_paste(bContext *C, uiBut *but, uiHandleButtonData *data, const bool paste_array)
+{
 	BLI_assert((but->flag & UI_BUT_DISABLED) == 0); /* caller should check */
 
-	if (mode == 'c') {
-		/* disallow copying from any passwords */
-		if (but->rnaprop && (RNA_property_subtype(but->rnaprop) == PROP_PASSWORD)) {
-			return;
-		}
-	}
+	int buf_paste_len = 0;
+	char *buf_paste;
+	ui_but_get_pasted_text_from_clipboard(&buf_paste, &buf_paste_len);
 
-	if (mode == 'v') {
-		/* extract first line from clipboard in case of multi-line copies */
-		const char *buf_paste_test;
+	bool has_required_data = !(but->poin == NULL && but->rnapoin.data == NULL);
 
-		buf_paste_test = WM_clipboard_text_get_firstline(false, &buf_paste_len);
-		if (buf_paste_test) {
-			buf_paste = buf_paste_test;
-			buf_paste_alloc = true;
-		}
-	}
-
-	/* No return from here down */
-
-
-	/* numeric value */
-	if (ELEM(but->type, UI_BTYPE_NUM, UI_BTYPE_NUM_SLIDER)) {
-
-		if (but->poin == NULL && but->rnapoin.data == NULL) {
-			/* pass */
-		}
-		else if (copy_array && but->rnapoin.data && but->rnaprop &&
-		         ELEM(RNA_property_subtype(but->rnaprop), PROP_COLOR, PROP_TRANSLATION, PROP_DIRECTION,
-		              PROP_VELOCITY, PROP_ACCELERATION, PROP_MATRIX, PROP_EULER, PROP_QUATERNION, PROP_AXISANGLE,
-		              PROP_XYZ, PROP_XYZ_LENGTH, PROP_COLOR_GAMMA, PROP_COORDS))
-		{
-			float values[4];
-			int array_length = RNA_property_array_length(&but->rnapoin, but->rnaprop);
-
-			if (mode == 'c') {
-				char buf_copy[UI_MAX_DRAW_STR];
-
-				if (array_length == 4) {
-					values[3] = RNA_property_float_get_index(&but->rnapoin, but->rnaprop, 3);
-				}
-				else {
-					values[3] = 0.0f;
-				}
-				ui_but_v3_get(but, values);
-
-				BLI_snprintf(buf_copy, sizeof(buf_copy), "[%f, %f, %f, %f]", values[0], values[1], values[2], values[3]);
-				WM_clipboard_text_set(buf_copy, 0);
+	switch (but->type) {
+		case UI_BTYPE_NUM:
+		case UI_BTYPE_NUM_SLIDER:
+			if (!has_required_data) break;
+			if (paste_array && ui_but_has_array_value(but)) {
+				ui_but_paste_numeric_array(C, but, data, buf_paste);
 			}
 			else {
-				if (sscanf(buf_paste, "[%f, %f, %f, %f]", &values[0], &values[1], &values[2], &values[3]) >= array_length) {
-					button_activate_state(C, but, BUTTON_STATE_NUM_EDITING);
-
-					ui_but_v3_set(but, values);
-					if (but->rnaprop && array_length == 4) {
-						RNA_property_float_set_index(&but->rnapoin, but->rnaprop, 3, values[3]);
-					}
-					data->value = values[but->rnaindex];
-
-					button_activate_state(C, but, BUTTON_STATE_EXIT);
-				}
-				else {
-					WM_report(RPT_ERROR, "Paste expected 4 numbers, formatted: '[n, n, n, n]'");
-					show_report = true;
-				}
+				ui_but_paste_numeric_value(C, but, data, buf_paste);
 			}
-		}
-		else if (mode == 'c') {
-			/* Get many decimal places, then strip trailing zeros.
-			 * note: too high values start to give strange results */
-			char buf_copy[UI_MAX_DRAW_STR];
-			ui_but_string_get_ex(but, buf_copy, sizeof(buf_copy), UI_PRECISION_FLOAT_MAX, false, NULL);
-			BLI_str_rstrip_float_zero(buf_copy, '\0');
+			break;
 
-			WM_clipboard_text_set(buf_copy, 0);
-		}
-		else {
-			double val;
+		case UI_BTYPE_UNITVEC:
+			if (!has_required_data) break;
+			ui_but_paste_normalized_vector(C, but, buf_paste);
+			break;
 
-			if (ui_but_string_set_eval_num(C, but, buf_paste, &val)) {
-				button_activate_state(C, but, BUTTON_STATE_NUM_EDITING);
-				data->value = val;
-				ui_but_string_set(C, but, buf_paste);
-				button_activate_state(C, but, BUTTON_STATE_EXIT);
-			}
-			else {
-				/* evaluating will report errors */
-				show_report = true;
-			}
-		}
+		case UI_BTYPE_COLOR:
+			if (!has_required_data) break;
+			ui_but_paste_color(C, but, buf_paste);
+			break;
+
+		case UI_BTYPE_TEXT:
+		case UI_BTYPE_SEARCH_MENU:
+			if (!has_required_data) break;
+			ui_but_paste_text(C, but, data, buf_paste);
+			break;
+
+		case UI_BTYPE_COLORBAND:
+			ui_but_paste_colorband(C, but, data);
+			break;
+
+		case UI_BTYPE_CURVE:
+			ui_but_paste_curvemapping(C, but);
+			break;
+
+		default:
+			break;
 	}
 
-	/* NORMAL button */
-	else if (but->type == UI_BTYPE_UNITVEC) {
-		float xyz[3];
-
-		if (but->poin == NULL && but->rnapoin.data == NULL) {
-			/* pass */
-		}
-		else if (mode == 'c') {
-			char buf_copy[UI_MAX_DRAW_STR];
-			ui_but_v3_get(but, xyz);
-			BLI_snprintf(buf_copy, sizeof(buf_copy), "[%f, %f, %f]", xyz[0], xyz[1], xyz[2]);
-			WM_clipboard_text_set(buf_copy, 0);
-		}
-		else {
-			if (sscanf(buf_paste, "[%f, %f, %f]", &xyz[0], &xyz[1], &xyz[2]) == 3) {
-				if (normalize_v3(xyz) == 0.0f) {
-					/* better set Z up then have a zero vector */
-					xyz[2] = 1.0;
-				}
-				button_activate_state(C, but, BUTTON_STATE_NUM_EDITING);
-				ui_but_v3_set(but, xyz);
-				button_activate_state(C, but, BUTTON_STATE_EXIT);
-			}
-			else {
-				WM_report(RPT_ERROR, "Paste expected 3 numbers, formatted: '[n, n, n]'");
-				show_report = true;
-			}
-		}
-	}
-
-
-	/* RGB triple */
-	else if (but->type == UI_BTYPE_COLOR) {
-		float rgba[4];
-
-		if (but->poin == NULL && but->rnapoin.data == NULL) {
-			/* pass */
-		}
-		else if (mode == 'c') {
-			char buf_copy[UI_MAX_DRAW_STR];
-
-			if (but->rnaprop && RNA_property_array_length(&but->rnapoin, but->rnaprop) == 4)
-				rgba[3] = RNA_property_float_get_index(&but->rnapoin, but->rnaprop, 3);
-			else
-				rgba[3] = 1.0f;
-
-			ui_but_v3_get(but, rgba);
-			/* convert to linear color to do compatible copy between gamma and non-gamma */
-			if (but->rnaprop && RNA_property_subtype(but->rnaprop) == PROP_COLOR_GAMMA)
-				srgb_to_linearrgb_v3_v3(rgba, rgba);
-
-			BLI_snprintf(buf_copy, sizeof(buf_copy), "[%f, %f, %f, %f]", rgba[0], rgba[1], rgba[2], rgba[3]);
-			WM_clipboard_text_set(buf_copy, 0);
-
-		}
-		else {
-			if (sscanf(buf_paste, "[%f, %f, %f, %f]", &rgba[0], &rgba[1], &rgba[2], &rgba[3]) == 4) {
-				/* assume linear colors in buffer */
-				if (but->rnaprop && RNA_property_subtype(but->rnaprop) == PROP_COLOR_GAMMA)
-					linearrgb_to_srgb_v3_v3(rgba, rgba);
-
-				button_activate_state(C, but, BUTTON_STATE_NUM_EDITING);
-				ui_but_v3_set(but, rgba);
-				if (but->rnaprop && RNA_property_array_length(&but->rnapoin, but->rnaprop) == 4)
-					RNA_property_float_set_index(&but->rnapoin, but->rnaprop, 3, rgba[3]);
-
-				button_activate_state(C, but, BUTTON_STATE_EXIT);
-			}
-			else {
-				WM_report(RPT_ERROR, "Paste expected 4 numbers, formatted: '[n, n, n, n]'");
-				show_report = true;
-			}
-		}
-	}
-
-	/* text/string and ID data */
-	else if (ELEM(but->type, UI_BTYPE_TEXT, UI_BTYPE_SEARCH_MENU)) {
-		uiHandleButtonData *active_data = but->active;
-
-		if (but->poin == NULL && but->rnapoin.data == NULL) {
-			/* pass */
-		}
-		else if (mode == 'c') {
-			button_activate_state(C, but, BUTTON_STATE_TEXT_EDITING);
-			WM_clipboard_text_set(active_data->str, 0);
-			active_data->cancel = true;
-			button_activate_state(C, but, BUTTON_STATE_EXIT);
-		}
-		else {
-			button_activate_state(C, but, BUTTON_STATE_TEXT_EDITING);
-
-			ui_textedit_string_set(but, active_data, buf_paste);
-
-			if (but->type == UI_BTYPE_SEARCH_MENU) {
-				/* else uiSearchboxData.active member is not updated [#26856] */
-				but->changed = true;
-				ui_searchbox_update(C, data->searchbox, but, true);
-			}
-			button_activate_state(C, but, BUTTON_STATE_EXIT);
-		}
-	}
-	/* colorband (not supported by system clipboard) */
-	else if (but->type == UI_BTYPE_COLORBAND) {
-		if (mode == 'c') {
-			if (but->poin != NULL) {
-				memcpy(&but_copypaste_coba, but->poin, sizeof(ColorBand));
-			}
-		}
-		else {
-			if (but_copypaste_coba.tot != 0) {
-				if (!but->poin)
-					but->poin = MEM_callocN(sizeof(ColorBand), "colorband");
-
-				button_activate_state(C, but, BUTTON_STATE_NUM_EDITING);
-				memcpy(data->coba, &but_copypaste_coba, sizeof(ColorBand));
-				button_activate_state(C, but, BUTTON_STATE_EXIT);
-			}
-		}
-	}
-	else if (but->type == UI_BTYPE_CURVE) {
-		if (mode == 'c') {
-			if (but->poin != NULL) {
-				but_copypaste_curve_alive = true;
-				curvemapping_free_data(&but_copypaste_curve);
-				curvemapping_copy_data(&but_copypaste_curve, (CurveMapping *) but->poin);
-			}
-		}
-		else {
-			if (but_copypaste_curve_alive) {
-				if (!but->poin)
-					but->poin = MEM_callocN(sizeof(CurveMapping), "curvemapping");
-
-				button_activate_state(C, but, BUTTON_STATE_NUM_EDITING);
-				curvemapping_free_data((CurveMapping *) but->poin);
-				curvemapping_copy_data((CurveMapping *) but->poin, &but_copypaste_curve);
-				button_activate_state(C, but, BUTTON_STATE_EXIT);
-			}
-		}
-	}
-	/* operator button (any type) */
-	else if (but->optype) {
-		if (mode == 'c') {
-			PointerRNA *opptr;
-			char *str;
-			opptr = UI_but_operator_ptr_get(but); /* allocated when needed, the button owns it */
-
-			str = WM_operator_pystring_ex(C, NULL, false, true, but->optype, opptr);
-
-			WM_clipboard_text_set(str, 0);
-
-			MEM_freeN(str);
-		}
-	}
-	/* menu (any type) */
-	else if (ELEM(but->type, UI_BTYPE_MENU, UI_BTYPE_PULLDOWN)) {
-		MenuType *mt = UI_but_menutype_get(but);
-		if (mt) {
-			char str[32 + sizeof(mt->idname)];
-			BLI_snprintf(str, sizeof(str), "bpy.ops.wm.call_menu(name=\"%s\")", mt->idname);
-			WM_clipboard_text_set(str, 0);
-		}
-	}
-
-	if (buf_paste_alloc) {
-		MEM_freeN((void *)buf_paste);
-	}
-
-	if (show_report) {
-		WM_report_banner_show();
-	}
+	MEM_freeN((void *)buf_paste);
 }
 
 /**
@@ -2321,7 +2470,7 @@ static void ui_but_copy_paste(bContext *C, uiBut *but, uiHandleButtonData *data,
  * It converts every UTF-8 character to an asterisk, and also remaps
  * the cursor position and selection start/end.
  *
- * \note: remaping is used, because password could contain UTF-8 characters.
+ * \note: remapping is used, because password could contain UTF-8 characters.
  *
  */
 
@@ -2438,7 +2587,7 @@ static bool ui_textedit_delete_selection(uiBut *but, uiHandleButtonData *data)
 }
 
 /**
- * \param x  Screen space cursor location - #wmEvent.x
+ * \param x: Screen space cursor location - #wmEvent.x
  *
  * \note ``but->block->aspect`` is used here, so drawing button style is getting scaled too.
  */
@@ -2585,7 +2734,7 @@ static bool ui_textedit_insert_buf(
 
 		if ((len + step >= data->maxlen) && (data->maxlen - (len + 1) > 0)) {
 			if (ui_but_is_utf8(but)) {
-				/* shorten 'step' to a utf8 algined size that fits  */
+				/* shorten 'step' to a utf8 aligned size that fits  */
 				BLI_strnlen_utf8_ex(buf, data->maxlen - (len + 1), &step);
 			}
 			else {
@@ -2610,7 +2759,7 @@ static bool ui_textedit_insert_ascii(uiBut *but, uiHandleButtonData *data, char 
 
 	if (ui_but_is_utf8(but) && (BLI_str_utf8_size(buf) == -1)) {
 		printf("%s: entering invalid ascii char into an ascii key (%d)\n",
-		       __func__, (int)(unsigned char)ascii);
+		       __func__, (int)(uchar)ascii);
 
 		return false;
 	}
@@ -3665,7 +3814,7 @@ static int ui_do_but_HOTKEYEVT(
 		if (event->type == LEFTMOUSE && event->val == KM_PRESS) {
 			/* only cancel if click outside the button */
 			if (ui_but_contains_point_px(but->active->region, but, event->x, event->y) == 0) {
-				/* data->cancel doesnt work, this button opens immediate */
+				/* data->cancel doesn't work, this button opens immediate */
 				if (but->flag & UI_BUT_IMMEDIATE)
 					ui_but_value_set(but, 0);
 				else
@@ -3686,8 +3835,7 @@ static int ui_do_but_HOTKEYEVT(
 		ED_region_tag_redraw(data->region);
 
 		if (event->val == KM_PRESS) {
-			if (ISHOTKEY(event->type)) {
-
+			if (ISHOTKEY(event->type) && (event->type != ESCKEY)) {
 				if (WM_key_event_string(event->type, false)[0])
 					ui_but_value_set(but, event->type);
 				else
@@ -3755,14 +3903,28 @@ static bool ui_but_is_mouse_over_icon_extra(const ARegion *region, uiBut *but, c
 
 static int ui_do_but_TAB(bContext *C, uiBlock *block, uiBut *but, uiHandleButtonData *data, const wmEvent *event)
 {
+#ifdef USE_DRAG_TOGGLE
+	{
+		int retval;
+		if (ui_do_but_ANY_drag_toggle(C, but, data, event, &retval)) {
+			return retval;
+		}
+	}
+#endif
+
 	if (data->state == BUTTON_STATE_HIGHLIGHT) {
-		if ((event->type == LEFTMOUSE) &&
+		const int rna_type = but->rnaprop ? RNA_property_type(but->rnaprop) : 0;
+
+		if (but->rnaprop &&
+		    ELEM(rna_type, PROP_POINTER, PROP_STRING) &&
+		    (but->custom_data != NULL) &&
+		    (event->type == LEFTMOUSE) &&
 		    ((event->val == KM_DBL_CLICK) || event->ctrl))
 		{
 			button_activate_state(C, but, BUTTON_STATE_TEXT_EDITING);
 			return WM_UI_HANDLER_BREAK;
 		}
-		else if (ELEM(event->type, LEFTMOUSE, PADENTER, RETKEY) && (event->val == KM_CLICK)) {
+		else if (ELEM(event->type, LEFTMOUSE, PADENTER, RETKEY) && (event->val == KM_PRESS)) {
 			button_activate_state(C, but, BUTTON_STATE_EXIT);
 			return WM_UI_HANDLER_BREAK;
 		}
@@ -4223,7 +4385,7 @@ static void ui_numedit_set_active(uiBut *but)
 		/* we can click on the side arrows to increment/decrement,
 		 * or click inside to edit the value directly */
 		int mx = data->window->eventstate->x;
-		int my = data->window->eventstate->x;
+		int my = data->window->eventstate->y;
 		ui_window_to_block(data->region, but->block, &mx, &my);
 
 		if (mx < (but->rect.xmin + handle_width)) {
@@ -4329,7 +4491,7 @@ static int ui_do_but_NUM(
 		else if (event->type == LEFTMOUSE && event->val == KM_RELEASE) {
 			if (data->dragchange) {
 #ifdef USE_DRAG_MULTINUM
-				/* if we started multibutton but didnt drag, then edit */
+				/* if we started multibutton but didn't drag, then edit */
 				if (data->multi_data.init == BUTTON_MULTI_INIT_SETUP) {
 					click = 1;
 				}
@@ -4637,7 +4799,7 @@ static int ui_do_but_SLI(
 		else if (event->type == LEFTMOUSE && event->val == KM_RELEASE) {
 			if (data->dragchange) {
 #ifdef USE_DRAG_MULTINUM
-				/* if we started multibutton but didnt drag, then edit */
+				/* if we started multibutton but didn't drag, then edit */
 				if (data->multi_data.init == BUTTON_MULTI_INIT_SETUP) {
 					click = 1;
 				}
@@ -5156,7 +5318,7 @@ static int ui_do_but_COLOR(
 
 						if (but->rnaprop && RNA_property_subtype(but->rnaprop) == PROP_COLOR_GAMMA) {
 							RNA_property_float_get_array(&but->rnapoin, but->rnaprop, target);
-							ui_block_cm_to_scene_linear_v3(but->block, target);
+							IMB_colormanagement_srgb_to_scene_linear_v3(target);
 						}
 						else if (but->rnaprop && RNA_property_subtype(but->rnaprop) == PROP_COLOR) {
 							RNA_property_float_get_array(&but->rnapoin, but->rnaprop, target);
@@ -5169,7 +5331,7 @@ static int ui_do_but_COLOR(
 						}
 						else if (but->rnaprop && RNA_property_subtype(but->rnaprop) == PROP_COLOR) {
 							RNA_property_float_get_array(&but->rnapoin, but->rnaprop, color);
-							ui_block_cm_to_display_space_v3(but->block, color);
+							IMB_colormanagement_scene_linear_to_srgb_v3(color);
 							BKE_brush_color_set(scene, brush, color);
 						}
 					}
@@ -5283,7 +5445,6 @@ static bool ui_numedit_but_HSVCUBE(
 	float x, y;
 	float mx_fl, my_fl;
 	bool changed = true;
-	bool use_display_colorspace = ui_but_is_colorpicker_display_space(but);
 
 	ui_mouse_scale_warp(data, mx, my, &mx_fl, &my_fl, shift);
 
@@ -5297,9 +5458,7 @@ static bool ui_numedit_but_HSVCUBE(
 #endif
 
 	ui_but_v3_get(but, rgb);
-
-	if (use_display_colorspace)
-		ui_block_cm_to_display_space_v3(but->block, rgb);
+	ui_scene_linear_to_color_picker_space(but, rgb);
 
 	ui_rgb_to_color_picker_HSVCUBE_compat_v(but, rgb, hsv);
 
@@ -5312,8 +5471,7 @@ static bool ui_numedit_but_HSVCUBE(
 
 		/* calculate original hsv again */
 		copy_v3_v3(rgb, data->origvec);
-		if (use_display_colorspace)
-			ui_block_cm_to_display_space_v3(but->block, rgb);
+		ui_scene_linear_to_color_picker_space(but, rgb);
 
 		copy_v3_v3(hsvo, hsv);
 
@@ -5361,9 +5519,6 @@ static bool ui_numedit_but_HSVCUBE(
 		{
 			/* vertical 'value' strip */
 			float min = but->softmin, max = but->softmax;
-			if (use_display_colorspace) {
-				ui_block_cm_to_display_space_range(but->block, &min, &max);
-			}
 			/* exception only for value strip - use the range set in but->min/max */
 			hsv[2] = y * (max - min) + min;
 			break;
@@ -5380,9 +5535,7 @@ static bool ui_numedit_but_HSVCUBE(
 	}
 
 	ui_color_picker_to_rgb_HSVCUBE_v(but, hsv, rgb);
-
-	if (use_display_colorspace)
-		ui_block_cm_to_scene_linear_v3(but->block, rgb);
+	ui_color_picker_to_scene_linear_space(but, rgb);
 
 	/* clamp because with color conversion we can exceed range [#34295] */
 	if (but->a1 == UI_GRAD_V_ALT) {
@@ -5408,13 +5561,9 @@ static void ui_ndofedit_but_HSVCUBE(
 	const float hsv_v_max = max_ff(hsv[2], but->softmax);
 	float rgb[3];
 	float sensitivity = (shift ? 0.15f : 0.3f) * ndof->dt;
-	bool use_display_colorspace = ui_but_is_colorpicker_display_space(but);
 
 	ui_but_v3_get(but, rgb);
-
-	if (use_display_colorspace)
-		ui_block_cm_to_display_space_v3(but->block, rgb);
-
+	ui_scene_linear_to_color_picker_space(but, rgb);
 	ui_rgb_to_color_picker_HSVCUBE_compat_v(but, rgb, hsv);
 
 	switch ((int)but->a1) {
@@ -5463,9 +5612,7 @@ static void ui_ndofedit_but_HSVCUBE(
 	hsv_clamp_v(hsv, hsv_v_max);
 
 	ui_color_picker_to_rgb_HSVCUBE_v(but, hsv, rgb);
-
-	if (use_display_colorspace)
-		ui_block_cm_to_scene_linear_v3(but->block, rgb);
+	ui_color_picker_to_scene_linear_space(but, rgb);
 
 	copy_v3_v3(data->vec, rgb);
 	ui_but_v3_set(but, data->vec);
@@ -5580,7 +5727,6 @@ static bool ui_numedit_but_HSVCIRCLE(
 	float rgb[3];
 	ColorPicker *cpicker = but->custom_data;
 	float *hsv = cpicker->color_data;
-	bool use_display_colorspace = ui_but_is_colorpicker_display_space(but);
 
 	ui_mouse_scale_warp(data, mx, my, &mx_fl, &my_fl, shift);
 
@@ -5603,9 +5749,7 @@ static bool ui_numedit_but_HSVCIRCLE(
 	BLI_rcti_rctf_copy(&rect, &but->rect);
 
 	ui_but_v3_get(but, rgb);
-	if (use_display_colorspace)
-		ui_block_cm_to_display_space_v3(but->block, rgb);
-
+	ui_scene_linear_to_color_picker_space(but, rgb);
 	ui_rgb_to_color_picker_compat_v(rgb, hsv);
 
 	/* exception, when using color wheel in 'locked' value state:
@@ -5627,9 +5771,7 @@ static bool ui_numedit_but_HSVCIRCLE(
 		/* calculate original hsv again */
 		copy_v3_v3(hsvo, hsv);
 		copy_v3_v3(rgbo, data->origvec);
-		if (use_display_colorspace)
-			ui_block_cm_to_display_space_v3(but->block, rgbo);
-
+		ui_scene_linear_to_color_picker_space(but, rgbo);
 		ui_rgb_to_color_picker_compat_v(rgbo, hsvo);
 
 		/* and original position */
@@ -5655,9 +5797,7 @@ static bool ui_numedit_but_HSVCIRCLE(
 		normalize_v3_length(rgb, but->a2);
 	}
 
-	if (use_display_colorspace)
-		ui_block_cm_to_scene_linear_v3(but->block, rgb);
-
+	ui_color_picker_to_scene_linear_space(but, rgb);
 	ui_but_v3_set(but, rgb);
 
 	data->draglastx = mx;
@@ -5674,14 +5814,12 @@ static void ui_ndofedit_but_HSVCIRCLE(
 {
 	ColorPicker *cpicker = but->custom_data;
 	float *hsv = cpicker->color_data;
-	bool use_display_colorspace = ui_but_is_colorpicker_display_space(but);
 	float rgb[3];
 	float phi, r /*, sqr */ /* UNUSED */, v[2];
 	float sensitivity = (shift ? 0.06f : 0.3f) * ndof->dt;
 
 	ui_but_v3_get(but, rgb);
-	if (use_display_colorspace)
-		ui_block_cm_to_display_space_v3(but->block, rgb);
+	ui_scene_linear_to_color_picker_space(but, rgb);
 	ui_rgb_to_color_picker_compat_v(rgb, hsv);
 
 	/* Convert current color on hue/sat disc to circular coordinates phi, r */
@@ -5732,9 +5870,7 @@ static void ui_ndofedit_but_HSVCIRCLE(
 		normalize_v3_length(data->vec, but->a2);
 	}
 
-	if (use_display_colorspace)
-		ui_block_cm_to_scene_linear_v3(but->block, data->vec);
-
+	ui_color_picker_to_scene_linear_space(but, data->vec);
 	ui_but_v3_set(but, data->vec);
 }
 #endif /* WITH_INPUT_NDOF */
@@ -6452,8 +6588,7 @@ static int ui_do_button(bContext *C, uiBlock *block, uiBut *but, const wmEvent *
 	data = but->active;
 	retval = WM_UI_HANDLER_CONTINUE;
 
-	if (but->flag & UI_BUT_DISABLED)
-		return WM_UI_HANDLER_CONTINUE;
+	bool is_disabled = but->flag & UI_BUT_DISABLED;
 
 	/* if but->pointype is set, but->poin should be too */
 	BLI_assert(!but->pointype || but->poin);
@@ -6462,35 +6597,55 @@ static int ui_do_button(bContext *C, uiBlock *block, uiBut *but, const wmEvent *
 	 * keymaps are handled using operators (see #ED_keymap_ui). */
 
 	if ((data->state == BUTTON_STATE_HIGHLIGHT) || (event->type == EVT_DROP)) {
-		/* handle copy-paste */
-		if (ELEM(event->type, CKEY, VKEY) && event->val == KM_PRESS &&
-		    IS_EVENT_MOD(event, ctrl, oskey) && !event->shift)
-		{
-			/* Specific handling for listrows, we try to find their overlapping tex button. */
-			if (but->type == UI_BTYPE_LISTROW) {
-				uiBut *labelbut = ui_but_list_row_text_activate(C, but, data, event, BUTTON_ACTIVATE_OVER);
-				if (labelbut) {
-					but = labelbut;
-					data = but->active;
-				}
+
+		/* handle copy and paste */
+		bool is_press_ctrl_but_no_shift = event->val == KM_PRESS && IS_EVENT_MOD(event, ctrl, oskey) && !event->shift;
+		bool do_copy = event->type == CKEY && is_press_ctrl_but_no_shift;
+		bool do_paste = event->type == VKEY && is_press_ctrl_but_no_shift;
+
+		/* Specific handling for listrows, we try to find their overlapping tex button. */
+		if ((do_copy || do_paste) && but->type == UI_BTYPE_LISTROW) {
+			uiBut *labelbut = ui_but_list_row_text_activate(C, but, data, event, BUTTON_ACTIVATE_OVER);
+			if (labelbut) {
+				but = labelbut;
+				data = but->active;
 			}
-			ui_but_copy_paste(C, but, data, (event->type == CKEY) ? 'c' : 'v', event->alt);
+		}
+
+		/* do copy first, because it is the only allowed operator when disabled */
+		if (do_copy) {
+			ui_but_copy(C, but, event->alt);
 			return WM_UI_HANDLER_BREAK;
 		}
-		/* handle drop */
-		else if (event->type == EVT_DROP) {
-			ui_but_drop(C, event, but, data);
-		}
+
 		/* handle menu */
-		else if ((event->type == RIGHTMOUSE) &&
-		         !IS_EVENT_MOD(event, shift, ctrl, alt, oskey) &&
-		         (event->val == KM_PRESS))
+		if ((event->type == RIGHTMOUSE) &&
+		    !IS_EVENT_MOD(event, shift, ctrl, alt, oskey) &&
+		    (event->val == KM_PRESS))
 		{
 			/* RMB has two options now */
 			if (ui_popup_context_menu_for_button(C, but)) {
 				return WM_UI_HANDLER_BREAK;
 			}
 		}
+
+		if (is_disabled) {
+			return WM_UI_HANDLER_CONTINUE;
+		}
+
+		if (do_paste) {
+			ui_but_paste(C, but, data, event->alt);
+			return WM_UI_HANDLER_BREAK;
+		}
+
+		/* handle drop */
+		if (event->type == EVT_DROP) {
+			ui_but_drop(C, event, but, data);
+		}
+	}
+
+	if (but->flag & UI_BUT_DISABLED) {
+		return WM_UI_HANDLER_CONTINUE;
 	}
 
 	switch (but->type) {
@@ -6728,7 +6883,7 @@ static bool ui_but_find_select_in_enum__cmp(const uiBut *but_a, const uiBut *but
 /**
  * Finds the pressed button in an aligned row (typically an expanded enum).
  *
- * \param direction  Use when there may be multiple buttons pressed.
+ * \param direction: Use when there may be multiple buttons pressed.
  */
 uiBut *ui_but_find_select_in_enum(uiBut *but, int direction)
 {
@@ -7860,13 +8015,14 @@ static int ui_handle_button_event(bContext *C, const wmEvent *event, uiBut *but)
 			}
 			case TIMER:
 			{
-				/* handle menu auto open timer */
+				/* Handle menu auto open timer. */
 				if (event->customdata == data->autoopentimer) {
 					WM_event_remove_timer(data->wm, data->window, data->autoopentimer);
 					data->autoopentimer = NULL;
 
-					if (ui_but_contains_point_px(ar, but, event->x, event->y))
+					if (ui_but_contains_point_px(ar, but, event->x, event->y) || but->active) {
 						button_activate_state(C, but, BUTTON_STATE_MENU_OPEN);
+					}
 				}
 
 				break;
@@ -7912,38 +8068,38 @@ static int ui_handle_button_event(bContext *C, const wmEvent *event, uiBut *but)
 				break;
 			}
 			case MOUSEMOVE:
-				{
-					/* deselect the button when moving the mouse away */
-					/* also de-activate for buttons that only show higlights */
-					if (ui_but_contains_point_px(ar, but, event->x, event->y)) {
+			{
+				/* deselect the button when moving the mouse away */
+				/* also de-activate for buttons that only show highlights */
+				if (ui_but_contains_point_px(ar, but, event->x, event->y)) {
 
-						/* Drag on a hold button (used in the toolbar) now opens it immediately. */
-						if (data->hold_action_timer) {
-							if (but->flag & UI_SELECT) {
-								if ((abs(event->x - event->prevx)) > 2 ||
-								    (abs(event->y - event->prevy)) > 2)
-								{
-									WM_event_remove_timer(data->wm, data->window, data->hold_action_timer);
-									data->hold_action_timer = WM_event_add_timer(data->wm, data->window, TIMER, 0.0f);
-								}
+					/* Drag on a hold button (used in the toolbar) now opens it immediately. */
+					if (data->hold_action_timer) {
+						if (but->flag & UI_SELECT) {
+							if ((abs(event->x - event->prevx)) > 2 ||
+							    (abs(event->y - event->prevy)) > 2)
+							{
+								WM_event_remove_timer(data->wm, data->window, data->hold_action_timer);
+								data->hold_action_timer = WM_event_add_timer(data->wm, data->window, TIMER, 0.0f);
 							}
 						}
-
-						if (!(but->flag & UI_SELECT)) {
-							but->flag |= (UI_SELECT | UI_ACTIVE);
-							data->cancel = false;
-							ED_region_tag_redraw(data->region);
-						}
 					}
-					else {
-						if (but->flag & UI_SELECT) {
-							but->flag &= ~(UI_SELECT | UI_ACTIVE);
-							data->cancel = true;
-							ED_region_tag_redraw(data->region);
-						}
+
+					if (!(but->flag & UI_SELECT)) {
+						but->flag |= (UI_SELECT | UI_ACTIVE);
+						data->cancel = false;
+						ED_region_tag_redraw(data->region);
+					}
+				}
+				else {
+					if (but->flag & UI_SELECT) {
+						but->flag &= ~(UI_SELECT | UI_ACTIVE);
+						data->cancel = true;
+						ED_region_tag_redraw(data->region);
 					}
 				}
 				break;
+			}
 			default:
 				/* otherwise catch mouse release event */
 				ui_do_button(C, block, but, event);
@@ -8237,7 +8393,7 @@ static void ui_handle_button_return_submenu(bContext *C, const wmEvent *event, u
 /* ************************* menu handling *******************************/
 
 /**
- * Function used to prevent loosing the open menu when using nested pulldowns,
+ * Function used to prevent losing the open menu when using nested pulldowns,
  * when moving mouse towards the pulldown menu over other buttons that could
  * steal the highlight from the current button, only checks:
  *
@@ -8460,7 +8616,7 @@ static int ui_menu_scroll(ARegion *ar, uiBlock *block, int my, uiBut *to_bt)
  * let the parent menu get the event.
  *
  * This allows a menu to be open,
- * but send key events to the parent if theres no active buttons.
+ * but send key events to the parent if there's no active buttons.
  *
  * Without this keyboard navigation from menu's wont work.
  */
@@ -8540,7 +8696,7 @@ float ui_block_calc_pie_segment(uiBlock *block, const float event_xy[2])
 
 	len = normalize_v2_v2(block->pie_data.pie_dir, seg2);
 
-	if (len < U.pie_menu_threshold * U.pixelsize)
+	if (len < U.pie_menu_threshold * U.dpi_fac)
 		block->pie_data.flags |= UI_PIE_INVALID_DIR;
 	else
 		block->pie_data.flags &= ~UI_PIE_INVALID_DIR;
@@ -8601,7 +8757,7 @@ static int ui_handle_menu_event(
 	if (but && button_modal_state(but->active->state)) {
 		if (block->flag & (UI_BLOCK_MOVEMOUSE_QUIT | UI_BLOCK_POPOVER)) {
 			/* if a button is activated modal, always reset the start mouse
-			 * position of the towards mechanism to avoid loosing focus,
+			 * position of the towards mechanism to avoid losing focus,
 			 * and don't handle events */
 			ui_mouse_motion_towards_reinit(menu, &event->x);
 		}
@@ -9258,7 +9414,7 @@ static int ui_pie_handler(bContext *C, const wmEvent *event, uiPopupBlockHandle 
 					but = ui_but_find_active_in_region(menu->region);
 
 					if (but && (U.pie_menu_confirm > 0) &&
-					    (dist >= U.pie_menu_threshold + U.pie_menu_confirm))
+					    (dist >= U.dpi_fac * (U.pie_menu_threshold + U.pie_menu_confirm)))
 					{
 						if (but)
 							return ui_but_pie_menu_apply(C, menu, but, true);
@@ -9285,7 +9441,7 @@ static int ui_pie_handler(bContext *C, const wmEvent *event, uiPopupBlockHandle 
 
 						/* here instead, we use the offset location to account for the initial direction timeout */
 						if ((U.pie_menu_confirm > 0) &&
-						    (dist >= U.pie_menu_threshold + U.pie_menu_confirm))
+						    (dist >= U.dpi_fac * (U.pie_menu_threshold + U.pie_menu_confirm)))
 						{
 							block->pie_data.flags |= UI_PIE_GESTURE_END_WAIT;
 							copy_v2_v2(block->pie_data.last_pos, event_xy);

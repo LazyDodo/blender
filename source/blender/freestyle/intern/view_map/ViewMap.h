@@ -1364,14 +1364,14 @@ public:
 
 	/*! Returns an Interface0DIterator to iterate over the points of this ViewEdge at a given resolution.
 	 *  The returned Interface0DIterator points on the first Point of the ViewEdge.
-	 *  \param t
+	 *  \param t:
 	 *    the sampling value.
 	 */
 	virtual Interface0DIterator pointsBegin(float t = 0.0f);
 
 	/*! Returns an Interface0DIterator to iterate over the points of this ViewEdge at a given resolution.
 	 *  The returned Interface0DIterator points after the last Point of the ViewEdge.
-	 *  \param t
+	 *  \param t:
 	 *    the sampling value.
 	 */
 	virtual Interface0DIterator pointsEnd(float t = 0.0f);
@@ -1566,13 +1566,13 @@ public:
 	}
 
 	/*! Returns the ViewShape name. */
-	inline const char *getName() const
+	inline const string& getName() const
 	{
 		return _SShape->getName();
 	}
 
 	/*! Returns the ViewShape library path. */
-	inline const char *getLibraryPath() const
+	inline const string& getLibraryPath() const
 	{
 		return _SShape->getLibraryPath();
 	}

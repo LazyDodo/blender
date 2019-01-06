@@ -241,7 +241,8 @@ static int foreach_libblock_remap_callback(void *user_data, ID *id_self, ID **id
 		else {
 			if (!is_never_null) {
 				*id_p = new_id;
-				DEG_id_tag_update_ex(id_remap_data->bmain, id_self, DEG_TAG_TRANSFORM | DEG_TAG_TIME | DEG_TAG_GEOMETRY);
+				DEG_id_tag_update_ex(id_remap_data->bmain, id_self,
+				                     ID_RECALC_COPY_ON_WRITE | ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 			}
 			if (cb_flag & IDWALK_CB_USER) {
 				id_us_min(old_id);
@@ -291,33 +292,46 @@ static void libblock_remap_data_preprocess(IDRemap *r_id_remap_data)
 	}
 }
 
+/* Can be called with both old_ob and new_ob being NULL, this means we have to check whole Main database then. */
 static void libblock_remap_data_postprocess_object_update(Main *bmain, Object *old_ob, Object *new_ob)
 {
 	if (new_ob == NULL) {
-		 /* In case we unlinked old_ob (new_ob is NULL), the object has already
-		  * been removed from the scenes and their collections. We still have
-		  * to remove the NULL children from collections not used in any scene. */
+		/* In case we unlinked old_ob (new_ob is NULL), the object has already
+		 * been removed from the scenes and their collections. We still have
+		 * to remove the NULL children from collections not used in any scene. */
 		BKE_collections_object_remove_nulls(bmain);
 	}
 
 	BKE_main_collection_sync_remap(bmain);
 
-	if (old_ob->type == OB_MBALL) {
-		for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
+	if (old_ob == NULL) {
+		for (Object *ob = bmain->object.first; ob != NULL; ob = ob->id.next) {
+			if (ob->type == OB_MBALL && BKE_mball_is_basis(ob)) {
+				DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
+			}
+		}
+	}
+	else {
+		for (Object *ob = bmain->object.first; ob != NULL; ob = ob->id.next) {
 			if (ob->type == OB_MBALL && BKE_mball_is_basis_for(ob, old_ob)) {
-				DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+				DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
+				break;  /* There is only one basis... */
 			}
 		}
 	}
 }
 
-static void libblock_remap_data_postprocess_collection_update(Main *bmain, Collection *old_collection, Collection *new_collection)
+/* Can be called with both old_collection and new_collection being NULL,
+ * this means we have to check whole Main database then. */
+static void libblock_remap_data_postprocess_collection_update(
+        Main *bmain, Collection *UNUSED(old_collection), Collection *new_collection)
 {
 	if (new_collection == NULL) {
-		 /* In case we unlinked old_collection (new_collection is NULL), we need
-		  * to remove any collection children that have been set to NULL in the
-		  * because of pointer replacement. */
-		BKE_collections_child_remove_nulls(bmain, old_collection);
+		/* XXX Complex cases can lead to NULL pointers in other collections than old_collection,
+		 * and BKE_main_collection_sync_remap() does not tolerate any of those, so for now always check whole
+		 * existing collections for NULL pointers.
+		 * I'd consider optimizing that whole collection remapping process a TODO for later. */
+		BKE_collections_child_remove_nulls(bmain, NULL /*old_collection*/);
 	}
 
 	BKE_main_collection_sync_remap(bmain);
@@ -347,10 +361,10 @@ static void libblock_remap_data_postprocess_nodetree_update(Main *bmain, ID *new
 	ntreeVerifyNodes(bmain, new_id);
 
 	/* Update node trees as necessary. */
-	FOREACH_NODETREE(bmain, ntree, id) {
+	FOREACH_NODETREE_BEGIN(bmain, ntree, id) {
 		/* make an update call for the tree */
 		ntreeUpdateTree(bmain, ntree);
-	} FOREACH_NODETREE_END
+	} FOREACH_NODETREE_END;
 }
 
 /**
@@ -436,7 +450,7 @@ ATTR_NONNULL(1) static void libblock_remap_data(
 	}
 
 #ifdef DEBUG_PRINT
-	printf("%s: %d occurences skipped (%d direct and %d indirect ones)\n", __func__,
+	printf("%s: %d occurrences skipped (%d direct and %d indirect ones)\n", __func__,
 	       r_id_remap_data->skipped_direct + r_id_remap_data->skipped_indirect,
 	       r_id_remap_data->skipped_direct, r_id_remap_data->skipped_indirect);
 #endif
@@ -604,10 +618,8 @@ void BKE_libblock_relink_ex(
 			if (old_id) {
 				switch (GS(old_id->name)) {
 					case ID_OB:
-					{
 						libblock_remap_data_postprocess_object_update(bmain, (Object *)old_id, (Object *)new_id);
 						break;
-					}
 					case ID_GR:
 						libblock_remap_data_postprocess_collection_update(bmain, (Collection *)old_id, (Collection *)new_id);
 						break;
@@ -617,12 +629,8 @@ void BKE_libblock_relink_ex(
 			}
 			else {
 				/* No choice but to check whole objects/collections. */
-				for (Object *ob = bmain->object.first; ob; ob = ob->id.next) {
-					libblock_remap_data_postprocess_object_update(bmain, ob, NULL);
-				}
-				for (Collection *collection = bmain->collection.first; collection; collection = collection->id.next) {
-					libblock_remap_data_postprocess_collection_update(bmain, collection, NULL);
-				}
+				libblock_remap_data_postprocess_collection_update(bmain, NULL, NULL);
+				libblock_remap_data_postprocess_object_update(bmain, NULL, NULL);
 			}
 			break;
 		}

@@ -46,6 +46,7 @@
 
 #include "BLT_translation.h"
 
+#include "BKE_animsys.h"
 #include "BKE_context.h"
 #include "BKE_curve.h"
 #include "BKE_fcurve.h"
@@ -54,6 +55,7 @@
 #include "BKE_screen.h"
 #include "BKE_unit.h"
 
+#include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
 
 #include "WM_api.h"
@@ -229,14 +231,14 @@ static short get_active_fcurve_keyframe_edit(FCurve *fcu, BezTriple **bezt, BezT
 		return 0;
 
 	/* find first selected keyframe for now, and call it the active one
-	 *	- this is a reasonable assumption, given that whenever anyone
-	 *	  wants to edit numerically, there is likely to only be 1 vert selected
+	 * - this is a reasonable assumption, given that whenever anyone
+	 *   wants to edit numerically, there is likely to only be 1 vert selected
 	 */
 	for (i = 0, b = fcu->bezt; i < fcu->totvert; i++, b++) {
 		if (BEZT_ISSEL_ANY(b)) {
 			/* found
-			 *	- 'previous' is either the one before, of the keyframe itself (which is still fine)
-			 *		XXX: we can just make this null instead if needed
+			 * - 'previous' is either the one before, of the keyframe itself (which is still fine)
+			 *   XXX: we can just make this null instead if needed
 			 */
 			*prevbezt = (i > 0) ? b - 1 : b;
 			*bezt = b;
@@ -388,8 +390,8 @@ static void graph_panel_key_properties(const bContext *C, Panel *pa)
 		}
 
 		/* numerical coordinate editing
-		 *  - we use the button-versions of the calls so that we can attach special update handlers
-		 *    and unit conversion magic that cannot be achieved using a purely RNA-approach
+		 * - we use the button-versions of the calls so that we can attach special update handlers
+		 *   and unit conversion magic that cannot be achieved using a purely RNA-approach
 		 */
 		col = uiLayoutColumn(layout, true);
 		/* keyframe itself */
@@ -467,7 +469,7 @@ static void graph_panel_key_properties(const bContext *C, Panel *pa)
 
 #define B_IPO_DEPCHANGE     10
 
-static void do_graph_region_driver_buttons(bContext *C, void *fcu_v, int event)
+static void do_graph_region_driver_buttons(bContext *C, void *id_v, int event)
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
@@ -475,6 +477,9 @@ static void do_graph_region_driver_buttons(bContext *C, void *fcu_v, int event)
 	switch (event) {
 		case B_IPO_DEPCHANGE:
 		{
+			/* Was not actually run ever (NULL always passed as arg to this callback).
+			 * If needed again, will need to check how to pass both fcurve and ID... :/ */
+#if 0
 			/* force F-Curve & Driver to get re-evaluated (same as the old Update Dependencies) */
 			FCurve *fcu = (FCurve *)fcu_v;
 			ChannelDriver *driver = (fcu) ? fcu->driver : NULL;
@@ -484,9 +489,22 @@ static void do_graph_region_driver_buttons(bContext *C, void *fcu_v, int event)
 				fcu->flag &= ~FCURVE_DISABLED;
 				driver->flag &= ~DRIVER_FLAG_INVALID;
 			}
+#endif
+			ID *id = id_v;
+			AnimData *adt = BKE_animdata_from_id(id);
 
-			/* rebuild depsgraph for the new deps */
+			/* rebuild depsgraph for the new deps, and ensure COW copies get flushed. */
 			DEG_relations_tag_update(bmain);
+			DEG_id_tag_update_ex(bmain, id, ID_RECALC_COPY_ON_WRITE);
+			if (adt != NULL) {
+				if (adt->action != NULL) {
+					DEG_id_tag_update_ex(bmain, &adt->action->id, ID_RECALC_COPY_ON_WRITE);
+				}
+				if (adt->tmpact != NULL) {
+					DEG_id_tag_update_ex(bmain, &adt->tmpact->id, ID_RECALC_COPY_ON_WRITE);
+				}
+			}
+
 			break;
 		}
 	}
@@ -742,7 +760,7 @@ static void graph_draw_driven_property_panel(uiLayout *layout, ID *id, FCurve *f
 	uiItemL(row, id->name + 2, icon);
 
 	/* -> user friendly 'name' for F-Curve/driver target */
-	uiItemL(row, "", VICO_SMALL_TRI_RIGHT_VEC);
+	uiItemL(row, "", ICON_SMALL_TRI_RIGHT_VEC);
 	uiItemL(row, name, ICON_RNA);
 }
 
@@ -759,7 +777,7 @@ static void graph_draw_driver_settings_panel(uiLayout *layout, ID *id, FCurve *f
 
 	/* set event handler for panel */
 	block = uiLayoutGetBlock(layout);
-	UI_block_func_handle_set(block, do_graph_region_driver_buttons, NULL);
+	UI_block_func_handle_set(block, do_graph_region_driver_buttons, id);
 
 	/* driver-level settings - type, expressions, and errors */
 	RNA_pointer_create(id, &RNA_Driver, driver, &driver_ptr);
@@ -799,12 +817,17 @@ static void graph_draw_driver_settings_panel(uiLayout *layout, ID *id, FCurve *f
 		col = uiLayoutColumn(layout, true);
 		block = uiLayoutGetBlock(col);
 
-		if ((G.f & G_SCRIPT_AUTOEXEC) == 0) {
-			/* TODO: Add button to enable? */
-			uiItemL(col, IFACE_("WARNING: Python expressions limited for security"), ICON_ERROR);
-		}
-		else if (driver->flag & DRIVER_FLAG_INVALID) {
+		if (driver->flag & DRIVER_FLAG_INVALID) {
 			uiItemL(col, IFACE_("ERROR: Invalid Python expression"), ICON_CANCEL);
+		}
+		else if (!BKE_driver_has_simple_expression(driver)) {
+			if ((G.f & G_SCRIPT_AUTOEXEC) == 0) {
+				/* TODO: Add button to enable? */
+				uiItemL(col, IFACE_("WARNING: Python expressions limited for security"), ICON_ERROR);
+			}
+			else {
+				uiItemL(col, IFACE_("Slow Python expression"), ICON_INFO);
+			}
 		}
 
 		/* Explicit bpy-references are evil. Warn about these to prevent errors */
@@ -851,7 +874,7 @@ static void graph_draw_driver_settings_panel(uiLayout *layout, ID *id, FCurve *f
 		/* add driver variable - add blank */
 		row = uiLayoutRow(layout, true);
 		block = uiLayoutGetBlock(row);
-		but = uiDefIconTextBut(block, UI_BTYPE_BUT, B_IPO_DEPCHANGE, ICON_ZOOMIN, IFACE_("Add Input Variable"),
+		but = uiDefIconTextBut(block, UI_BTYPE_BUT, B_IPO_DEPCHANGE, ICON_ADD, IFACE_("Add Input Variable"),
 		                       0, 0, 10 * UI_UNIT_X, UI_UNIT_Y,
 		                       NULL, 0.0, 0.0, 0, 0,
 		                       TIP_("Add a Driver Variable to keep track an input used by the driver"));
@@ -865,10 +888,10 @@ static void graph_draw_driver_settings_panel(uiLayout *layout, ID *id, FCurve *f
 		/* add driver variable */
 		row = uiLayoutRow(layout, false);
 		block = uiLayoutGetBlock(row);
-		but = uiDefIconTextBut(block, UI_BTYPE_BUT, B_IPO_DEPCHANGE, ICON_ZOOMIN, IFACE_("Add Input Variable"),
+		but = uiDefIconTextBut(block, UI_BTYPE_BUT, B_IPO_DEPCHANGE, ICON_ADD, IFACE_("Add Input Variable"),
 		                       0, 0, 10 * UI_UNIT_X, UI_UNIT_Y,
 		                       NULL, 0.0, 0.0, 0, 0,
-		                       TIP_("Driver variables ensure that all dependencies will be accounted for, eusuring that drivers will update correctly"));
+		                       TIP_("Driver variables ensure that all dependencies will be accounted for, ensuring that drivers will update correctly"));
 		UI_but_func_set(but, driver_add_var_cb, driver, NULL);
 
 		/* copy/paste (as sub-row) */
@@ -1175,6 +1198,7 @@ void graph_buttons_register(ARegionType *art)
 	pt->draw = graph_panel_drivers_popover;
 	pt->poll = graph_panel_drivers_popover_poll;
 	BLI_addtail(&art->paneltypes, pt);
+	WM_paneltype_add(pt); /* This panel isn't used in this region. Add explicitly to global list (so popovers work). */
 
 	pt = MEM_callocN(sizeof(PanelType), "spacetype graph panel modifiers");
 	strcpy(pt->idname, "GRAPH_PT_modifiers");

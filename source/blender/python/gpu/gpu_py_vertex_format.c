@@ -55,76 +55,92 @@
  * Use with PyArg_ParseTuple's "O&" formatting.
  * \{ */
 
+static int bpygpu_parse_component_type(const char *str, int length)
+{
+	if (length == 2) {
+		switch (*((ushort *)str)) {
+			case MAKE_ID2('I', '8'): return GPU_COMP_I8;
+			case MAKE_ID2('U', '8'): return GPU_COMP_U8;
+			default: break;
+		}
+	}
+	else if (length == 3) {
+		switch (*((uint *)str)) {
+			case MAKE_ID3('I', '1', '6'): return GPU_COMP_I16;
+			case MAKE_ID3('U', '1', '6'): return GPU_COMP_U16;
+			case MAKE_ID3('I', '3', '2'): return GPU_COMP_I32;
+			case MAKE_ID3('U', '3', '2'): return GPU_COMP_U32;
+			case MAKE_ID3('F', '3', '2'): return GPU_COMP_F32;
+			case MAKE_ID3('I', '1', '0'): return GPU_COMP_I10;
+			default: break;
+		}
+	}
+	return -1;
+}
+
+static int bpygpu_parse_fetch_mode(const char *str, int length)
+{
+#define MATCH_ID(id) \
+	if (length == strlen(STRINGIFY(id))) { \
+		if (STREQ(str, STRINGIFY(id))) { \
+			return GPU_FETCH_##id; \
+		} \
+	} ((void)0)
+
+	MATCH_ID(FLOAT);
+	MATCH_ID(INT);
+	MATCH_ID(INT_TO_FLOAT_UNIT);
+	MATCH_ID(INT_TO_FLOAT);
+#undef MATCH_ID
+
+	return -1;
+}
+
 static int bpygpu_ParseVertCompType(PyObject *o, void *p)
 {
-	Py_ssize_t comp_type_id_len;
-	const char *comp_type_id = _PyUnicode_AsStringAndSize(o, &comp_type_id_len);
-	if (comp_type_id == NULL) {
+	Py_ssize_t length;
+	const char *str = _PyUnicode_AsStringAndSize(o, &length);
+
+	if (str == NULL) {
 		PyErr_Format(PyExc_ValueError,
 		             "expected a string, got %s",
 		             Py_TYPE(o)->tp_name);
 		return 0;
 	}
 
-	GPUVertCompType comp_type;
-	if (comp_type_id_len == 2) {
-		switch (*((ushort *)comp_type_id)) {
-			case MAKE_ID2('I', '8'): { comp_type = GPU_COMP_I8; goto success; }
-			case MAKE_ID2('U', '8'): { comp_type = GPU_COMP_U8; goto success; }
-		}
-	}
-	else if (comp_type_id_len == 3) {
-		switch (*((uint *)comp_type_id)) {
-			case MAKE_ID3('I', '1', '6'): { comp_type = GPU_COMP_I16; goto success; }
-			case MAKE_ID3('U', '1', '6'): { comp_type = GPU_COMP_U16; goto success; }
-			case MAKE_ID3('I', '3', '2'): { comp_type = GPU_COMP_I32; goto success; }
-			case MAKE_ID3('U', '3', '2'): { comp_type = GPU_COMP_U32; goto success; }
-			case MAKE_ID3('F', '3', '2'): { comp_type = GPU_COMP_F32; goto success; }
-			case MAKE_ID3('I', '1', '0'): { comp_type = GPU_COMP_I10; goto success; }
-		}
+	int comp_type = bpygpu_parse_component_type(str, length);
+	if (comp_type == -1) {
+		PyErr_Format(PyExc_ValueError,
+		             "unkown component type: '%s",
+		             str);
+		return 0;
 	}
 
-	PyErr_Format(PyExc_ValueError,
-	             "unknown type literal: '%s'",
-	             comp_type_id);
-	return 0;
-
-success:
 	*((GPUVertCompType *)p) = comp_type;
 	return 1;
 }
 
 static int bpygpu_ParseVertFetchMode(PyObject *o, void *p)
 {
-	Py_ssize_t mode_id_len;
-	const char *mode_id = _PyUnicode_AsStringAndSize(o, &mode_id_len);
-	if (mode_id == NULL) {
+	Py_ssize_t length;
+	const char *str = _PyUnicode_AsStringAndSize(o, &length);
+
+	if (str == NULL) {
 		PyErr_Format(PyExc_ValueError,
 		             "expected a string, got %s",
 		             Py_TYPE(o)->tp_name);
 		return 0;
 	}
-#define MATCH_ID(id) \
-	if (mode_id_len == strlen(STRINGIFY(id))) { \
-		if (STREQ(mode_id, STRINGIFY(id))) { \
-			mode = GPU_FETCH_##id; \
-			goto success; \
-		} \
-	} ((void)0)
 
-	GPUVertFetchMode mode;
-	MATCH_ID(FLOAT);
-	MATCH_ID(INT);
-	MATCH_ID(INT_TO_FLOAT_UNIT);
-	MATCH_ID(INT_TO_FLOAT);
-#undef MATCH_ID
-	PyErr_Format(PyExc_ValueError,
-	             "unknown type literal: '%s'",
-	             mode_id);
-	return 0;
+	int fetch_mode = bpygpu_parse_fetch_mode(str, length);
+	if (fetch_mode == -1) {
+		PyErr_Format(PyExc_ValueError,
+		             "unknown type literal: '%s'",
+		             str);
+		return 0;
+	}
 
-success:
-	(*(GPUVertFetchMode *)p) = mode;
+	(*(GPUVertFetchMode *)p) = fetch_mode;
 	return 1;
 }
 
@@ -139,23 +155,32 @@ success:
 static PyObject *bpygpu_VertFormat_new(PyTypeObject *UNUSED(type), PyObject *args, PyObject *kwds)
 {
 	if (PyTuple_GET_SIZE(args) || (kwds && PyDict_Size(kwds))) {
-		PyErr_SetString(PyExc_TypeError,
-		                "VertFormat(): takes no arguments");
+		PyErr_SetString(PyExc_ValueError, "This function takes no arguments");
 		return NULL;
 	}
-
-	BPyGPUVertFormat *ret = (BPyGPUVertFormat *)BPyGPUVertFormat_CreatePyObject(NULL);
-
-	return (PyObject *)ret;
+	return BPyGPUVertFormat_CreatePyObject(NULL);
 }
 
 PyDoc_STRVAR(bpygpu_VertFormat_attr_add_doc,
-"TODO"
+".. method:: attr_add(id, comp_type, len, fetch_mode)\n"
+"\n"
+"   Add a new attribute to the format.\n"
+"\n"
+"   :param id: Name the attribute. Often `position`, `normal`, ...\n"
+"   :type id: str\n"
+"   :param comp_type: The data type that will be used store the value in memory.\n"
+"      Possible values are `I8`, `U8`, `I16`, `U16`, `I32`, `U32`, `F32` and `I10`.\n"
+"   :type comp_type: `str`\n"
+"   :param len: How many individual values the attribute consists of (e.g. 2 for uv coordinates).\n"
+"   :type len: int\n"
+"   :param fetch_mode: How values from memory will be converted when used in the shader.\n"
+"      This is mainly useful for memory optimizations when you want to store values with reduced precision.\n"
+"      E.g. you can store a float in only 1 byte but it will be converted to a normal 4 byte float when used.\n"
+"      Possible values are `FLOAT`, `INT`, `INT_TO_FLOAT_UNIT` and `INT_TO_FLOAT`.\n"
+"   :type fetch_mode: `str`\n"
 );
 static PyObject *bpygpu_VertFormat_attr_add(BPyGPUVertFormat *self, PyObject *args, PyObject *kwds)
 {
-	static const char *kwlist[] = {"id", "comp_type", "len", "fetch_mode", NULL};
-
 	struct {
 		const char *id;
 		GPUVertCompType comp_type;
@@ -168,8 +193,10 @@ static PyObject *bpygpu_VertFormat_attr_add(BPyGPUVertFormat *self, PyObject *ar
 		return NULL;
 	}
 
-	if (!PyArg_ParseTupleAndKeywords(
-	        args, kwds, "$sO&IO&:attr_add", (char **)kwlist,
+	static const char *_keywords[] = {"id", "comp_type", "len", "fetch_mode", NULL};
+	static _PyArg_Parser _parser = {"$sO&IO&:attr_add", _keywords, 0};
+	if (!_PyArg_ParseTupleAndKeywordsFast(
+	        args, kwds, &_parser,
 	        &params.id,
 	        bpygpu_ParseVertCompType, &params.comp_type,
 	        &params.len,
@@ -194,12 +221,18 @@ static void bpygpu_VertFormat_dealloc(BPyGPUVertFormat *self)
 	Py_TYPE(self)->tp_free(self);
 }
 
+PyDoc_STRVAR(bpygpu_VertFormat_doc,
+".. class:: GPUVertFormat()\n"
+"\n"
+"   This object contains information about the structure of a vertex buffer.\n"
+);
 PyTypeObject BPyGPUVertFormat_Type = {
 	PyVarObject_HEAD_INIT(NULL, 0)
 	.tp_name = "GPUVertFormat",
 	.tp_basicsize = sizeof(BPyGPUVertFormat),
 	.tp_dealloc = (destructor)bpygpu_VertFormat_dealloc,
 	.tp_flags = Py_TPFLAGS_DEFAULT,
+	.tp_doc = bpygpu_VertFormat_doc,
 	.tp_methods = bpygpu_VertFormat_methods,
 	.tp_new = bpygpu_VertFormat_new,
 };

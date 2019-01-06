@@ -56,6 +56,7 @@
 #include "BKE_report.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "RNA_access.h"
 #include "RNA_define.h"
@@ -246,6 +247,7 @@ static int insert_into_textbuf(Object *obedit, uintptr_t c)
 
 static void text_update_edited(bContext *C, Object *obedit, int mode)
 {
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Curve *cu = obedit->data;
 	EditFont *ef = cu->editfont;
 
@@ -258,7 +260,8 @@ static void text_update_edited(bContext *C, Object *obedit, int mode)
 	}
 	else {
 		/* depsgraph runs above, but since we're not tagging for update, call direct */
-		BKE_vfont_to_curve(obedit, mode);
+		/* We need evaluated data here. */
+		BKE_vfont_to_curve(DEG_get_evaluated_object(depsgraph, obedit), mode);
 	}
 
 	cu->curinfo = ef->textbufinfo[ef->pos ? ef->pos - 1 : 0];
@@ -273,7 +276,7 @@ static void text_update_edited(bContext *C, Object *obedit, int mode)
 		}
 	}
 
-	DEG_id_tag_update(obedit->data, DEG_TAG_SELECT_UPDATE);
+	DEG_id_tag_update(obedit->data, ID_RECALC_SELECT);
 	WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
 }
 
@@ -895,6 +898,7 @@ static const EnumPropertyItem move_type_items[] = {
 
 static int move_cursor(bContext *C, int type, const bool select)
 {
+	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	Object *obedit = CTX_data_edit_object(C);
 	Curve *cu = obedit->data;
 	EditFont *ef = cu->editfont;
@@ -977,17 +981,17 @@ static int move_cursor(bContext *C, int type, const bool select)
 	else if (ef->pos >= MAXTEXT) ef->pos = MAXTEXT;
 	else if (ef->pos < 0)        ef->pos = 0;
 
-	/* apply virtical cursor motion to position immediately
+	/* apply vertical cursor motion to position immediately
 	 * otherwise the selection will lag behind */
 	if (FO_CURS_IS_MOTION(cursmove)) {
-		BKE_vfont_to_curve(obedit, cursmove);
+		BKE_vfont_to_curve(DEG_get_evaluated_object(depsgraph, obedit), cursmove);
 		cursmove = FO_CURS;
 	}
 
 	if (select == 0) {
 		if (ef->selstart) {
 			ef->selstart = ef->selend = 0;
-			BKE_vfont_to_curve(obedit, FO_SELCHANGE);
+			BKE_vfont_to_curve(DEG_get_evaluated_object(depsgraph, obedit), FO_SELCHANGE);
 		}
 	}
 
@@ -1431,7 +1435,7 @@ void FONT_OT_text_insert(wmOperatorType *ot)
 	ot->poll = ED_operator_editfont;
 
 	/* flags */
-	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
+	ot->flag = OPTYPE_UNDO;
 
 	/* properties */
 	RNA_def_string(ot->srna, "text", NULL, 0, "Text", "Text to insert at the cursor position");

@@ -1,4 +1,5 @@
 uniform mat4 ModelViewProjectionMatrix;
+uniform mat4 ModelMatrixInverse;
 uniform mat4 ProjectionMatrix;
 uniform mat4 ViewProjectionMatrix;
 uniform mat4 ViewMatrixInverse;
@@ -7,7 +8,8 @@ uniform mat3 NormalMatrix;
 #ifndef HAIR_SHADER
 in vec3 pos;
 in vec3 nor;
-in vec2 uv;
+in vec2 u; /* active texture layer */
+#define uv u
 #else /* HAIR_SHADER */
 #  ifdef V3D_SHADING_TEXTURE_COLOR
 uniform samplerBuffer u; /* active texture layer */
@@ -41,6 +43,7 @@ void main()
 	vec3 pos, tan, binor;
 	hair_get_pos_tan_binor_time(
 	        (ProjectionMatrix[3][3] == 0.0),
+	        ModelMatrixInverse,
 	        ViewMatrixInverse[3].xyz, ViewMatrixInverse[2].xyz,
 	        pos, tan, binor, time, thickness, thick_time);
 	/* To "simulate" anisotropic shading, randomize hair normal per strand. */

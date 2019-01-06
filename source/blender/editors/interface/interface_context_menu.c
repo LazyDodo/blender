@@ -96,7 +96,10 @@ static uiBlock *menu_change_shortcut(bContext *C, ARegion *ar, void *arg)
 	uiStyle *style = UI_style_get_dpi();
 	IDProperty *prop = (but->opptr) ? but->opptr->data : NULL;
 
-	kmi = WM_key_event_operator(C, but->optype->idname, but->opcontext, prop, true, &km);
+	kmi = WM_key_event_operator(
+	        C, but->optype->idname, but->opcontext, prop,
+	        EVT_TYPE_MASK_HOTKEY_INCLUDE, EVT_TYPE_MASK_HOTKEY_EXCLUDE,
+	        &km);
 	BLI_assert(kmi != NULL);
 
 	RNA_pointer_create(&wm->id, &RNA_KeyMapItem, kmi, &ptr);
@@ -202,7 +205,10 @@ static void remove_shortcut_func(bContext *C, void *arg1, void *UNUSED(arg2))
 	wmKeyMapItem *kmi;
 	IDProperty *prop = (but->opptr) ? but->opptr->data : NULL;
 
-	kmi = WM_key_event_operator(C, but->optype->idname, but->opcontext, prop, true, &km);
+	kmi = WM_key_event_operator(
+	        C, but->optype->idname, but->opcontext, prop,
+	        EVT_TYPE_MASK_HOTKEY_INCLUDE, EVT_TYPE_MASK_HOTKEY_EXCLUDE,
+	        &km);
 	BLI_assert(kmi != NULL);
 
 	WM_keymap_remove_item(km, kmi);
@@ -235,9 +241,21 @@ static bUserMenuItem *ui_but_user_menu_find(bContext *C, uiBut *but, bUserMenu *
 	}
 	else if (but->rnaprop) {
 		const char *member_id = WM_context_member_from_ptr(C, &but->rnapoin);
+		const char *data_path = RNA_path_from_ID_to_struct(&but->rnapoin);
+		const char *member_id_data_path = member_id;
+		if (data_path) {
+			member_id_data_path = BLI_sprintfN("%s.%s", member_id, data_path);
+		}
 		const char *prop_id = RNA_property_identifier(but->rnaprop);
-		return (bUserMenuItem *)ED_screen_user_menu_item_find_prop(
-		        &um->items, member_id, prop_id, but->rnaindex);
+		bUserMenuItem *umi = (bUserMenuItem *)ED_screen_user_menu_item_find_prop(
+		        &um->items, member_id_data_path, prop_id, but->rnaindex);
+		if (data_path) {
+			MEM_freeN((void *)data_path);
+		}
+		if (member_id != member_id_data_path) {
+			MEM_freeN((void *)member_id_data_path);
+		}
+		return umi;
 	}
 	else if ((mt = UI_but_menutype_get(but))) {
 		return (bUserMenuItem *)ED_screen_user_menu_item_find_menu(
@@ -263,6 +281,12 @@ static void ui_but_user_menu_add(bContext *C, uiBut *but, bUserMenu *um)
 
 	MenuType *mt = NULL;
 	if (but->optype) {
+		if (drawstr[0] == '\0') {
+			/* Hard code overrides for generic operators. */
+			if (UI_but_is_tool(but)) {
+				RNA_string_get(but->opptr, "name", drawstr);
+			}
+		}
 		ED_screen_user_menu_item_add_operator(
 		        &um->items, drawstr,
 		        but->optype, but->opptr ? but->opptr->data : NULL, but->opcontext);
@@ -361,7 +385,12 @@ bool ui_popup_context_menu_for_button(bContext *C, uiBut *but)
 		uiLayoutSetOperatorContext(layout, WM_OP_INVOKE_DEFAULT);
 	}
 
-	if (but->type == UI_BTYPE_TAB) {
+	const bool is_disabled = but->flag & UI_BUT_DISABLED;
+
+	if (is_disabled) {
+		/* Suppress editing commands. */
+	}
+	else if (but->type == UI_BTYPE_TAB) {
 		uiButTab *tab = (uiButTab *)but;
 		if (tab->menu) {
 			UI_menutype_draw(C, tab->menu, layout);
@@ -375,7 +404,7 @@ bool ui_popup_context_menu_for_button(bContext *C, uiBut *but)
 		const PropertySubType subtype = RNA_property_subtype(prop);
 		bool is_anim = RNA_property_animateable(ptr, prop);
 		bool is_editable = RNA_property_editable(ptr, prop);
-		/*bool is_idprop = RNA_property_is_idprop(prop);*/ /* XXX does not work as expected, not strictly needed */
+		bool is_idprop = RNA_property_is_idprop(prop);
 		bool is_set = RNA_property_is_set(ptr, prop);
 
 		/* second slower test, saved people finding keyframe items in menus when its not possible */
@@ -389,11 +418,11 @@ bool ui_popup_context_menu_for_button(bContext *C, uiBut *but)
 		const int override_status = RNA_property_static_override_status(ptr, prop, -1);
 		const bool is_overridable = (override_status & RNA_OVERRIDE_STATUS_OVERRIDABLE) != 0;
 
+		/* Set the (button_pointer, button_prop) and pointer data for Python access to the hovered ui element. */
+		uiLayoutSetContextFromBut(layout, but);
+
 		/* Keyframes */
 		if (but->flag & UI_BUT_ANIMATED_KEY) {
-			/* Set the (button_pointer, button_prop) and pointer data for Python access to the hovered ui element. */
-			uiLayoutSetContextFromBut(layout, but);
-
 			/* replace/delete keyfraemes */
 			if (is_array_component) {
 				uiItemBooleanO(
@@ -614,6 +643,13 @@ bool ui_popup_context_menu_for_button(bContext *C, uiBut *but)
 			        ICON_NONE, "UI_OT_unset_property_button");
 		}
 
+		if (is_idprop && !is_array_component && ELEM(type, PROP_INT, PROP_FLOAT)) {
+			uiItemO(layout, CTX_IFACE_(BLT_I18NCONTEXT_OPERATOR_DEFAULT, "Assign Value as Default"),
+			        ICON_NONE, "UI_OT_assign_default_button");
+
+			uiItemS(layout);
+		}
+
 		if (is_array_component) {
 			uiItemBooleanO(
 			        layout, CTX_IFACE_(BLT_I18NCONTEXT_OPERATOR_DEFAULT, "Copy All To Selected"),
@@ -639,6 +675,17 @@ bool ui_popup_context_menu_for_button(bContext *C, uiBut *but)
 		}
 	}
 
+	/* Pointer properties and string properties with prop_search support jumping to target object/bone. */
+	if (but->rnapoin.data && but->rnaprop) {
+		const PropertyType type = RNA_property_type(but->rnaprop);
+
+		if ((type == PROP_POINTER) || (type == PROP_STRING && but->type == UI_BTYPE_SEARCH_MENU && but->search_func == ui_rna_collection_search_cb)) {
+			uiItemO(layout, CTX_IFACE_(BLT_I18NCONTEXT_OPERATOR_DEFAULT, "Jump To Target"),
+			        ICON_NONE, "UI_OT_jump_to_target_button");
+			uiItemS(layout);
+		}
+	}
+
 	/* Favorites Menu */
 	if (ui_but_is_user_menu_compatible(C, but)) {
 		uiBlock *block = uiLayoutGetBlock(layout);
@@ -652,8 +699,13 @@ bool ui_popup_context_menu_for_button(bContext *C, uiBut *but)
 		        "Add to a user defined context menu (stored in the user preferences)");
 		UI_but_func_set(but2, popup_user_menu_add_or_replace_func, but, NULL);
 
-		bUserMenu *um = ED_screen_user_menu_find(C);
-		if (um) {
+		uint um_array_len;
+		bUserMenu **um_array = ED_screen_user_menus_find(C, &um_array_len);
+		for (int um_index = 0; um_index < um_array_len; um_index++) {
+			bUserMenu *um = um_array[um_index];
+			if (um == NULL) {
+				continue;
+			}
 			bUserMenuItem *umi = ui_but_user_menu_find(C, but, um);
 			if (umi != NULL) {
 				but2 = uiDefIconTextBut(
@@ -663,6 +715,8 @@ bool ui_popup_context_menu_for_button(bContext *C, uiBut *but)
 				UI_but_func_set(but2, popup_user_menu_remove_func, um, umi);
 			}
 		}
+		MEM_freeN(um_array);
+
 		uiItemS(layout);
 	}
 
@@ -674,7 +728,10 @@ bool ui_popup_context_menu_for_button(bContext *C, uiBut *but)
 		int w = uiLayoutGetWidth(layout);
 		wmKeyMap *km;
 		/* We want to know if this op has a shortcut, be it hotkey or not. */
-		wmKeyMapItem *kmi = WM_key_event_operator(C, but->optype->idname, but->opcontext, prop, false, &km);
+		wmKeyMapItem *kmi = WM_key_event_operator(
+		        C, but->optype->idname, but->opcontext, prop,
+		        EVT_TYPE_MASK_ALL, 0,
+		        &km);
 
 		/* We do have a shortcut, but only keyboard ones are editable that way... */
 		if (kmi) {
@@ -766,9 +823,16 @@ bool ui_popup_context_menu_for_button(bContext *C, uiBut *but)
 
 	/* Show header tools for header buttons. */
 	if (ui_block_is_popup_any(but->block) == false) {
-		ARegion *ar = CTX_wm_region(C);
-		if (ar && (ar->regiontype == RGN_TYPE_HEADER)) {
+		const ARegion *ar = CTX_wm_region(C);
+
+		if (!ar) {
+			/* skip */
+		}
+		else if (ar->regiontype == RGN_TYPE_HEADER) {
 			uiItemMenuF(layout, IFACE_("Header"), ICON_NONE, ED_screens_header_tools_menu_create, NULL);
+		}
+		else if (ar->regiontype == RGN_TYPE_NAV_BAR) {
+			uiItemMenuF(layout, IFACE_("Navigation Bar"), ICON_NONE, ED_screens_navigation_bar_tools_menu_create, NULL);
 		}
 	}
 

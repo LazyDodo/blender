@@ -142,8 +142,9 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 	WeightVGEditModifierData *wmd = (WeightVGEditModifierData *)md;
 	if (wmd->mask_tex_map_obj != NULL && wmd->mask_tex_mapping == MOD_DISP_MAP_OBJECT) {
 		DEG_add_object_relation(ctx->node, wmd->mask_tex_map_obj, DEG_OB_COMP_TRANSFORM, "WeightVGEdit Modifier");
+		DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "WeightVGEdit Modifier");
 	}
-	if (wmd->mask_tex_mapping == MOD_DISP_MAP_GLOBAL) {
+	else if (wmd->mask_tex_mapping == MOD_DISP_MAP_GLOBAL) {
 		DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "WeightVGEdit Modifier");
 	}
 }
@@ -289,14 +290,12 @@ ModifierTypeInfo modifierType_WeightVGEdit = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,

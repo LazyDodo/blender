@@ -32,7 +32,10 @@
  *  \ingroup bke
  */
 
+#include "BLI_compiler_compat.h"
+
 enum MultiresModifiedFlags;
+
 struct Depsgraph;
 struct DerivedMesh;
 struct MDisps;
@@ -42,6 +45,7 @@ struct Multires;
 struct MultiresModifierData;
 struct Object;
 struct Scene;
+struct SubdivCCG;
 
 struct MLoop;
 struct MVert;
@@ -84,9 +88,7 @@ struct MultiresModifierData *find_multires_modifier_before(struct Scene *scene,
 struct MultiresModifierData *get_multires_modifier(struct Scene *scene, struct Object *ob, bool use_first);
 int multires_get_level(const struct Scene *scene, const struct Object *ob, const struct MultiresModifierData *mmd,
                        bool render, bool ignore_simplify);
-struct DerivedMesh *get_multires_dm(struct Depsgraph *depsgraph, struct Scene *scene, struct MultiresModifierData *mmd,
-                                    struct Object *ob);
-struct Mesh *get_multires_mesh(
+struct Mesh *BKE_multires_create_mesh(
         struct Depsgraph *depsgraph, struct Scene *scene,
         struct MultiresModifierData *mmd, struct Object *ob);
 void multiresModifier_del_levels(struct MultiresModifierData *mmd, struct Scene *scene, struct Object *object, int direction);
@@ -116,7 +118,7 @@ int mdisp_rot_face_to_crn(struct MVert *mvert, struct MPoly *mpoly, struct MLoop
 
 /* Reshaping, define in multires_reshape.c */
 
-bool multiresModifier_reshape(
+bool multiresModifier_reshapeFromObject(
         struct Depsgraph *depsgraph,
         struct MultiresModifierData *mmd,
         struct Object *dst,
@@ -126,6 +128,10 @@ bool multiresModifier_reshapeFromDeformModifier(
         struct MultiresModifierData *mmd,
         struct Object *ob,
         struct ModifierData *md);
+bool multiresModifier_reshapeFromCCG(
+        const int tot_level,
+        struct Mesh *coarse_mesh,
+        struct SubdivCCG *subdiv_ccg);
 
 /* Subdivision integration, defined in multires_subdiv.c */
 
@@ -145,4 +151,18 @@ void BKE_multires_subdiv_mesh_settings_init(
         const bool use_render_params,
         const bool ignore_simplify);
 
+/* General helpers. */
+
+/* For a given partial derivatives of a ptex face get tangent matrix for
+ * displacement.
+ * Corner needs to be known to properly "rotate" partial derivatives.
+ */
+BLI_INLINE void BKE_multires_construct_tangent_matrix(
+        float tangent_matrix[3][3],
+        const float dPdu[3],
+        const float dPdv[3],
+        const int corner);
+
 #endif  /* __BKE_MULTIRES_H__ */
+
+#include "intern/multires_inline.h"

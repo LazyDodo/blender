@@ -24,7 +24,7 @@
  */
 
 /** \file arrow3d_gizmo.c
- *  \ingroup wm
+ *  \ingroup edgizmolib
  *
  * \name Arrow Gizmo
  *
@@ -234,9 +234,11 @@ static int gizmo_arrow_modal(
         bContext *C, wmGizmo *gz, const wmEvent *event,
         eWM_GizmoFlagTweak tweak_flag)
 {
+	if (event->type != MOUSEMOVE) {
+		return OPERATOR_RUNNING_MODAL;
+	}
 	ArrowGizmo3D *arrow = (ArrowGizmo3D *)gz;
 	GizmoInteraction *inter = gz->interaction_data;
-	View3D *v3d = CTX_wm_view3d(C);
 	ARegion *ar = CTX_wm_region(C);
 	RegionView3D *rv3d = ar->regiondata;
 
@@ -261,31 +263,28 @@ static int gizmo_arrow_modal(
 	int ok = 0;
 
 	for (int j = 0; j < 2; j++) {
-		if (ED_view3d_win_to_ray(
-		            CTX_data_depsgraph(C),
-		            ar, v3d, proj[j].mval,
-		            proj[j].ray_origin, proj[j].ray_direction, false))
-		{
-			/* Force Y axis if we're view aligned */
-			if (j == 0) {
-				if (RAD2DEGF(acosf(dot_v3v3(proj[j].ray_direction, arrow->gizmo.matrix_basis[2]))) < 5.0f) {
-					normalize_v3_v3(arrow_no, rv3d->viewinv[1]);
-				}
+		ED_view3d_win_to_ray(
+		        ar, proj[j].mval,
+		        proj[j].ray_origin, proj[j].ray_direction);
+		/* Force Y axis if we're view aligned */
+		if (j == 0) {
+			if (RAD2DEGF(acosf(dot_v3v3(proj[j].ray_direction, arrow->gizmo.matrix_basis[2]))) < 5.0f) {
+				normalize_v3_v3(arrow_no, rv3d->viewinv[1]);
 			}
+		}
 
-			float arrow_no_proj[3];
-			project_plane_v3_v3v3(arrow_no_proj, arrow_no, proj[j].ray_direction);
+		float arrow_no_proj[3];
+		project_plane_v3_v3v3(arrow_no_proj, arrow_no, proj[j].ray_direction);
 
-			normalize_v3(arrow_no_proj);
+		normalize_v3(arrow_no_proj);
 
-			float plane[4];
-			plane_from_point_normal_v3(plane, proj[j].ray_origin, arrow_no_proj);
+		float plane[4];
+		plane_from_point_normal_v3(plane, proj[j].ray_origin, arrow_no_proj);
 
-			float lambda;
-			if (isect_ray_plane_v3(arrow_co, arrow_no, plane, &lambda, false)) {
-				madd_v3_v3v3fl(proj[j].location, arrow_co, arrow_no, lambda);
-				ok++;
-			}
+		float lambda;
+		if (isect_ray_plane_v3(arrow_co, arrow_no, plane, &lambda, false)) {
+			madd_v3_v3v3fl(proj[j].location, arrow_co, arrow_no, lambda);
+			ok++;
 		}
 	}
 
@@ -380,7 +379,11 @@ static void gizmo_arrow_exit(bContext *C, wmGizmo *gz, const bool cancel)
 		/* Assign incase applying the opetration needs an updated offset
 		 * editmesh bisect needs this. */
 		if (is_prop_valid) {
-			data->offset = WM_gizmo_target_property_float_get(gz, gz_prop);
+			const int transform_flag = RNA_enum_get(arrow->gizmo.ptr, "transform");
+			const bool constrained = (transform_flag & ED_GIZMO_ARROW_XFORM_FLAG_CONSTRAINED) != 0;
+			const bool inverted = (transform_flag & ED_GIZMO_ARROW_XFORM_FLAG_INVERTED) != 0;
+			const float value = WM_gizmo_target_property_float_get(gz, gz_prop);
+			data->offset = gizmo_offset_from_value(data, value, constrained, inverted);
 		}
 		return;
 	}
@@ -413,7 +416,8 @@ void ED_gizmo_arrow3d_set_ui_range(wmGizmo *gz, const float min, const float max
 
 	arrow->data.range = max - min;
 	arrow->data.min = min;
-	arrow->data.flag |= GIZMO_CUSTOM_RANGE_SET;
+	arrow->data.max = max;
+	arrow->data.is_custom_range_set = true;
 }
 
 /**

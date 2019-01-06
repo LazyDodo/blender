@@ -45,7 +45,7 @@ def physics_add(self, layout, md, name, type, typeicon, toggles):
             row.prop(md, "show_viewport", text="")
     else:
         row.operator(
-            "object.modifier_add", text=name, text_ctxt=i18n_contexts.default, icon=typeicon
+            "object.modifier_add", text=name, text_ctxt=i18n_contexts.default, icon='BLANK1'
         ).type = type
 
 
@@ -54,13 +54,13 @@ def physics_add_special(self, layout, data, name, addop, removeop, typeicon):
     if data:
         row.operator(removeop, text=name, text_ctxt=i18n_contexts.default, icon='X')
     else:
-        row.operator(addop, text=name, text_ctxt=i18n_contexts.default, icon=typeicon)
+        row.operator(addop, text=name, text_ctxt=i18n_contexts.default, icon='BLANK1')
 
 
 class PHYSICS_PT_add(PhysicButtonsPanel, Panel):
     bl_label = ""
     bl_options = {'HIDE_HEADER'}
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_WORKBENCH'}
 
     def draw(self, context):
         layout = self.layout
@@ -76,7 +76,7 @@ class PHYSICS_PT_add(PhysicButtonsPanel, Panel):
         col = flow.column()
 
         if obj.field.type == 'NONE':
-            col.operator("object.forcefield_toggle", text="Force Field", icon='FORCE_FORCE')
+            col.operator("object.forcefield_toggle", text="Force Field", icon='BLANK1')
         else:
             col.operator("object.forcefield_toggle", text="Force Field", icon='X')
 
@@ -132,8 +132,8 @@ def point_cache_ui(self, context, cache, enabled, cachetype):
             cache.point_caches, "active_index", rows=1
         )
         col = row.column(align=True)
-        col.operator("ptcache.add", icon='ZOOMIN', text="")
-        col.operator("ptcache.remove", icon='ZOOMOUT', text="")
+        col.operator("ptcache.add", icon='ADD', text="")
+        col.operator("ptcache.remove", icon='REMOVE', text="")
 
     if cachetype in {'PSYS', 'HAIR', 'SMOKE'}:
         col = layout.column()
@@ -242,7 +242,7 @@ def effector_weights_ui(self, context, weights, weight_type):
     # NOTE: TODO temporarly used until the animate properties are properly skipped.
     layout.use_property_decorate = False  # No animation (remove this later on).
 
-    layout.prop(weights, "group")
+    layout.prop(weights, "collection")
 
     flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=True)
 

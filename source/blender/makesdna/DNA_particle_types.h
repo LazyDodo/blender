@@ -106,7 +106,7 @@ typedef struct ParticleData {
 
 	int totkey;				/* amount of hair or keyed keys*/
 
-	float time, lifetime;	/* dietime is not nescessarily time+lifetime as */
+	float time, lifetime;	/* dietime is not necessarily time+lifetime as */
 	float dietime;			/* particles can die unnaturally (collision). */
 
 	/* WARNING! Those two indices, when not affected to vertices, are for !!! TESSELLATED FACES !!!, not POLYGONS! */
@@ -306,7 +306,14 @@ typedef struct ParticleSystem {
 	float cfra, tree_frame, bvhtree_frame;
 	int seed, child_seed;
 	int flag, totpart, totunexist, totchild, totcached, totchildcache;
-	short recalc, target_psys, totkeyed, bakespace;
+	/* NOTE: Recalc is one of ID_RECALC_PSYS_ALL flags.
+	 *
+	 * TODO(sergey): Use part->id.recalc instead of this duplicated flag
+	 * somehow. */
+	int recalc;
+	int pad1;
+	short target_psys, totkeyed, bakespace;
+	short pad2;
 
 	char bb_uvname[3][64];					/* billboard uv name, MAX_CUSTOMDATA_LAYER_NAME */
 
@@ -347,7 +354,9 @@ typedef enum eParticleDrawFlag {
 	PART_DRAW_VEL           = (1 << 0),
 	PART_DRAW_GLOBAL_OB	    = (1 << 1),
 	PART_DRAW_SIZE          = (1 << 2),
-	PART_DRAW_EMITTER       = (1 << 3), /* render emitter also */
+#ifdef DNA_DEPRECATED
+	PART_DRAW_EMITTER       = (1 << 3),  /* render emitter also */ /* DEPRECATED */
+#endif
 	PART_DRAW_HEALTH        = (1 << 4),
 	PART_ABS_PATH_TIME      = (1 << 5),
 	PART_DRAW_COUNT_GR      = (1 << 6),
@@ -367,7 +376,7 @@ typedef enum eParticleDrawFlag {
 } eParticleDrawFlag;
 
 /* part->type */
-/* hair is allways baked static in object/geometry space */
+/* hair is always baked static in object/geometry space */
 /* other types (normal particles) are in global space and not static baked */
 #define PART_EMITTER		0
 //#define PART_REACTOR		1
@@ -542,15 +551,6 @@ typedef enum eParticleShapeFlag {
 #define PART_CHILD_PARTICLES	1
 #define PART_CHILD_FACES		2
 
-/* psys->recalc */
-/* starts from (1 << 3) so that the first bits can be ob->recalc */
-#define PSYS_RECALC_REDO   (1 << 3) /* only do pathcache etc */
-#define PSYS_RECALC_RESET  (1 << 4) /* reset everything including pointcache */
-#define PSYS_RECALC_TYPE   (1 << 5) /* handle system type change */
-#define PSYS_RECALC_CHILD  (1 << 6) /* only child settings changed */
-#define PSYS_RECALC_PHYS   (1 << 7) /* physics type changed */
-#define PSYS_RECALC        (PSYS_RECALC_REDO | PSYS_RECALC_RESET | PSYS_RECALC_TYPE | PSYS_RECALC_CHILD | PSYS_RECALC_PHYS)
-
 /* psys->flag */
 #define PSYS_CURRENT		1
 #define PSYS_GLOBAL_HAIR	2
@@ -567,6 +567,7 @@ typedef enum eParticleShapeFlag {
 //#define PSYS_PROTECT_CACHE	4096 /* deprecated */
 #define PSYS_DISABLED			8192
 #define PSYS_OB_ANIM_RESTORE	16384 /* runtime flag */
+#define PSYS_SHARED_CACHES		32768
 
 /* pars->flag */
 #define PARS_UNEXIST		1

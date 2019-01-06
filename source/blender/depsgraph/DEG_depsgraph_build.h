@@ -43,6 +43,7 @@ struct Depsgraph;
 struct CacheFile;
 struct EffectorWeights;
 struct Collection;
+struct ID;
 struct Main;
 struct ModifierData;
 struct Object;
@@ -52,6 +53,8 @@ struct ViewLayer;
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "BLI_sys_types.h"
 
 /* Graph Building -------------------------------- */
 
@@ -113,7 +116,7 @@ typedef enum eDepsObjectComponentType {
 	DEG_OB_COMP_ANIMATION,
 	/* Transform Component (Parenting/Constraints) */
 	DEG_OB_COMP_TRANSFORM,
-	/* Geometry Component (DerivedMesh/Displist) */
+	/* Geometry Component (Mesh/Displist) */
 	DEG_OB_COMP_GEOMETRY,
 
 	/* Evaluation-Related Outer Types (with Subdata) */
@@ -123,19 +126,17 @@ typedef enum eDepsObjectComponentType {
 	/* Bone Component - Child/Subcomponent of Pose */
 	DEG_OB_COMP_BONE,
 
-	/* Particle Systems Component */
-	DEG_OB_COMP_EVAL_PARTICLES,
 	/* Material Shading Component */
 	DEG_OB_COMP_SHADING,
 	/* Cache Component */
 	DEG_OB_COMP_CACHE,
 } eDepsObjectComponentType;
 
-void DEG_add_scene_relation(struct DepsNodeHandle *node,
+void DEG_add_scene_relation(struct DepsNodeHandle *node_handle,
                             struct Scene *scene,
                             eDepsSceneComponentType component,
                             const char *description);
-void DEG_add_object_relation(struct DepsNodeHandle *node,
+void DEG_add_object_relation(struct DepsNodeHandle *node_handle,
                              struct Object *object,
                              eDepsObjectComponentType component,
                              const char *description);
@@ -148,10 +149,25 @@ void DEG_add_object_cache_relation(struct DepsNodeHandle *handle,
                                    struct CacheFile *cache_file,
                                    eDepsObjectComponentType component,
                                    const char *description);
+/* Adds relation from DEG_OPCODE_GENERIC_DATABLOCK_UPDATE of a given ID.
+ * Is used for such entities as textures and images. */
+void DEG_add_generic_id_relation(struct DepsNodeHandle *node_handle,
+                                 struct ID *id,
+                                 const char *description);
 
+/* Adds relations from the given component of a given object to the given node
+ * handle AND the component to the point cache component of the node's ID.
+ */
+void DEG_add_object_pointcache_relation(struct DepsNodeHandle *node_handle,
+                                        struct Object *object,
+                                        eDepsObjectComponentType component,
+                                        const char *description);
 
-struct Depsgraph *DEG_get_graph_from_handle(struct DepsNodeHandle *handle);
-void DEG_add_special_eval_flag(struct Depsgraph *graph, struct ID *id, short flag);
+void DEG_add_special_eval_flag(struct DepsNodeHandle *handle, struct ID *id, uint32_t flag);
+void DEG_add_customdata_mask(struct DepsNodeHandle *handle, struct Object *object, uint64_t mask);
+
+struct ID *DEG_get_id_from_handle(struct DepsNodeHandle *node_handle);
+struct Depsgraph *DEG_get_graph_from_handle(struct DepsNodeHandle *node_handle);
 
 /* ************************************************ */
 

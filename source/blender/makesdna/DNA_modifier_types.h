@@ -219,8 +219,9 @@ typedef struct MaskModifierData {
 	struct Object *ob_arm;  /* armature to use to in place of hardcoded vgroup */
 	char vgroup[64];        /* name of vertex group to use to mask, MAX_VGROUP_NAME */
 
-	int mode;               /* using armature or hardcoded vgroup */
-	int flag;               /* flags for various things */
+	short mode;               /* using armature or hardcoded vgroup */
+	short flag;               /* flags for various things */
+	float threshold;
 } MaskModifierData;
 
 /* Mask Modifier -> mode */
@@ -312,14 +313,20 @@ typedef struct MirrorModifierData {
 
 /* MirrorModifierData->flag */
 enum {
-	MOD_MIR_CLIPPING  = (1 << 0),
-	MOD_MIR_MIRROR_U  = (1 << 1),
-	MOD_MIR_MIRROR_V  = (1 << 2),
-	MOD_MIR_AXIS_X    = (1 << 3),
-	MOD_MIR_AXIS_Y    = (1 << 4),
-	MOD_MIR_AXIS_Z    = (1 << 5),
-	MOD_MIR_VGROUP    = (1 << 6),
-	MOD_MIR_NO_MERGE  = (1 << 7),
+	MOD_MIR_CLIPPING      = (1 << 0),
+	MOD_MIR_MIRROR_U      = (1 << 1),
+	MOD_MIR_MIRROR_V      = (1 << 2),
+	MOD_MIR_AXIS_X        = (1 << 3),
+	MOD_MIR_AXIS_Y        = (1 << 4),
+	MOD_MIR_AXIS_Z        = (1 << 5),
+	MOD_MIR_VGROUP        = (1 << 6),
+	MOD_MIR_NO_MERGE      = (1 << 7),
+	MOD_MIR_BISECT_AXIS_X = (1 << 8),
+	MOD_MIR_BISECT_AXIS_Y = (1 << 9),
+	MOD_MIR_BISECT_AXIS_Z = (1 << 10),
+	MOD_MIR_BISECT_FLIP_AXIS_X = (1 << 11),
+	MOD_MIR_BISECT_FLIP_AXIS_Y = (1 << 12),
+	MOD_MIR_BISECT_FLIP_AXIS_Z = (1 << 13),
 };
 
 typedef struct EdgeSplitModifierData {
@@ -350,13 +357,12 @@ typedef struct BevelModifierData {
 	short e_flags;        /* flags to direct how edge weights are applied to verts */
 	short mat;            /* material index if >= 0, else material inherited from surrounding faces */
 	short edge_flags;
-	int pad2;
+	short face_str_mode;
+	short pad2;
 	float profile;        /* controls profile shape (0->1, .5 is round) */
 	/* if the MOD_BEVEL_ANGLE is set, this will be how "sharp" an edge must be before it gets beveled */
 	float bevel_angle;
 	/* if the MOD_BEVEL_VWEIGHT option is set, this will be the name of the vert group, MAX_VGROUP_NAME */
-	int hnmode;
-	float hn_strength;
 	char defgrp_name[64];
 	struct BevelModNorEditData clnordata;
 } BevelModifierData;
@@ -379,7 +385,7 @@ enum {
 /*	MOD_BEVEL_DIST          = (1 << 12), */  /* same as above */
 	MOD_BEVEL_OVERLAP_OK    = (1 << 13),
 	MOD_BEVEL_EVEN_WIDTHS   = (1 << 14),
-	MOD_BEVEL_SET_WN_STR	= (1 << 15),
+	MOD_BEVEL_HARDEN_NORMALS = (1 << 15),
 };
 
 /* BevelModifierData->val_flags (not used as flags any more) */
@@ -396,12 +402,12 @@ enum {
 	MOD_BEVEL_MARK_SHARP = (1 << 1),
 };
 
-/* BevelModifierData->hnmode */
+/* BevelModifierData->face_str_mode */
 enum {
-	MOD_BEVEL_HN_NONE,
-	MOD_BEVEL_HN_FACE,
-	MOD_BEVEL_HN_ADJ,
-	MOD_BEVEL_FIX_SHA,
+	MOD_BEVEL_FACE_STRENGTH_NONE,
+	MOD_BEVEL_FACE_STRENGTH_NEW,
+	MOD_BEVEL_FACE_STRENGTH_AFFECTED,
+	MOD_BEVEL_FACE_STRENGTH_ALL,
 };
 
 typedef struct SmokeModifierData {
@@ -763,7 +769,7 @@ typedef struct MeshDeformModifierData {
 	float *bindcos;                 /* deprecated storage of cage coords */
 
 	/* runtime */
-	void (*bindfunc)(struct Scene *scene, struct MeshDeformModifierData *mmd, struct Mesh *cagemesh,
+	void (*bindfunc)(struct MeshDeformModifierData *mmd, struct Mesh *cagemesh,
 	                 float *vertexcos, int totvert, float cagemat[4][4]);
 } MeshDeformModifierData;
 
@@ -870,7 +876,7 @@ typedef struct ShrinkwrapModifierData {
 	float keepDist;           /* distance offset to keep from mesh/projection point */
 	short shrinkType;         /* shrink type projection */
 	char  shrinkOpts;         /* shrink options */
-	char  pad1;
+	char  shrinkMode;         /* shrink to surface mode */
 	float projLimit;          /* limit the projection ray cast */
 	char  projAxis;           /* axis to project over */
 
@@ -887,6 +893,21 @@ enum {
 	MOD_SHRINKWRAP_NEAREST_SURFACE = 0,
 	MOD_SHRINKWRAP_PROJECT         = 1,
 	MOD_SHRINKWRAP_NEAREST_VERTEX  = 2,
+	MOD_SHRINKWRAP_TARGET_PROJECT  = 3,
+};
+
+/* Shrinkwrap->shrinkMode */
+enum {
+	/* Move vertex to the surface of the target object (keepDist towards original position) */
+	MOD_SHRINKWRAP_ON_SURFACE      = 0,
+	/* Move the vertex inside the target object; don't change if already inside */
+	MOD_SHRINKWRAP_INSIDE          = 1,
+	/* Move the vertex outside the target object; don't change if already outside */
+	MOD_SHRINKWRAP_OUTSIDE         = 2,
+	/* Move vertex to the surface of the target object, with keepDist towards the outside */
+	MOD_SHRINKWRAP_OUTSIDE_SURFACE = 3,
+	/* Move vertex to the surface of the target object, with keepDist along the normal */
+	MOD_SHRINKWRAP_ABOVE_SURFACE   = 4,
 };
 
 /* Shrinkwrap->shrinkOpts */
@@ -901,10 +922,15 @@ enum {
 	/* ignore vertex moves if a vertex ends projected on a back face of the target */
 	MOD_SHRINKWRAP_CULL_TARGET_BACKFACE  = (1 << 4),
 
+#ifdef DNA_DEPRECATED_ALLOW
 	MOD_SHRINKWRAP_KEEP_ABOVE_SURFACE    = (1 << 5),  /* distance is measure to the front face of the target */
+#endif
 
 	MOD_SHRINKWRAP_INVERT_VGROUP         = (1 << 6),
+	MOD_SHRINKWRAP_INVERT_CULL_TARGET    = (1 << 7),
 };
+
+#define MOD_SHRINKWRAP_CULL_TARGET_MASK (MOD_SHRINKWRAP_CULL_TARGET_FRONTFACE | MOD_SHRINKWRAP_CULL_TARGET_BACKFACE)
 
 /* Shrinkwrap->projAxis */
 enum {
@@ -924,7 +950,7 @@ typedef struct SimpleDeformModifierData {
 	float limit[2];         /* lower and upper limit */
 
 	char mode;              /* deform function */
-	char axis;              /* lock axis (for taper and strech) */
+	char axis;              /* lock axis (for taper and stretch) */
 	char deform_axis;       /* axis to perform the deform on (default is X, but can be overridden by origin */
 	char flag;
 
@@ -1279,8 +1305,8 @@ enum {
 
 /* Remesh modifier */
 typedef enum eRemeshModifierFlags {
-	MOD_REMESH_FLOOD_FILL     = 1,
-	MOD_REMESH_SMOOTH_SHADING = 2,
+	MOD_REMESH_FLOOD_FILL     = (1 << 0),
+	MOD_REMESH_SMOOTH_SHADING = (1 << 1),
 } RemeshModifierFlags;
 
 typedef enum eRemeshModifierMode {
@@ -1512,9 +1538,9 @@ typedef struct LaplacianDeformModifierData {
 
 } LaplacianDeformModifierData;
 
-/* Smooth modifier flags */
+/* Laplacian Deform modifier flags */
 enum {
-	MOD_LAPLACIANDEFORM_BIND = 1,
+	MOD_LAPLACIANDEFORM_BIND = 1 << 0,
 };
 
 /* many of these options match 'solidify' */

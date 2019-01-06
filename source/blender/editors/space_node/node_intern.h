@@ -111,7 +111,7 @@ void NODE_OT_select(struct wmOperatorType *ot);
 void NODE_OT_select_all(struct wmOperatorType *ot);
 void NODE_OT_select_linked_to(struct wmOperatorType *ot);
 void NODE_OT_select_linked_from(struct wmOperatorType *ot);
-void NODE_OT_select_border(struct wmOperatorType *ot);
+void NODE_OT_select_box(struct wmOperatorType *ot);
 void NODE_OT_select_circle(struct wmOperatorType *ot);
 void NODE_OT_select_lasso(struct wmOperatorType *ot);
 void NODE_OT_select_grouped(struct wmOperatorType *ot);
@@ -200,7 +200,6 @@ void NODE_OT_preview_toggle(struct wmOperatorType *ot);
 void NODE_OT_options_toggle(struct wmOperatorType *ot);
 void NODE_OT_node_copy_color(struct wmOperatorType *ot);
 
-void NODE_OT_read_fullsamplelayers(struct wmOperatorType *ot);
 void NODE_OT_read_viewlayers(struct wmOperatorType *ot);
 void NODE_OT_render_changed(struct wmOperatorType *ot);
 
@@ -246,6 +245,7 @@ extern const char *node_context_dir[];
 #define NODE_HEIGHT(node) (node->height * UI_DPI_FAC)
 #define NODE_MARGIN_X   (0.75f * U.widget_unit)
 #define NODE_SOCKSIZE   (0.25f * U.widget_unit)
+#define NODE_RESIZE_MARGIN (0.20f * U.widget_unit)
 #define NODE_LINK_RESOL 12
 
 // XXX button events (butspace)

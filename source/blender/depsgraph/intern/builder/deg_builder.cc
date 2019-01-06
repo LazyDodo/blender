@@ -34,6 +34,8 @@
 #include "DNA_object_types.h"
 #include "DNA_ID.h"
 
+#include "BLI_utildefines.h"
+#include "BLI_ghash.h"
 #include "BLI_stack.h"
 
 extern "C" {
@@ -64,6 +66,13 @@ void deg_graph_build_flush_visibility(Depsgraph *graph)
 
 	BLI_Stack *stack = BLI_stack_new(sizeof(OperationDepsNode *),
 	                                 "DEG flush layers stack");
+	foreach (IDDepsNode *id_node, graph->id_nodes) {
+		GHASH_FOREACH_BEGIN(ComponentDepsNode *, comp_node, id_node->components)
+		{
+			comp_node->affects_directly_visible |= id_node->is_directly_visible;
+		}
+		GHASH_FOREACH_END();
+	}
 	foreach (OperationDepsNode *op_node, graph->operations) {
 		op_node->custom_flags = 0;
 		op_node->num_links_pending = 0;
@@ -86,8 +95,8 @@ void deg_graph_build_flush_visibility(Depsgraph *graph)
 		foreach (DepsRelation *rel, op_node->inlinks) {
 			if (rel->from->type == DEG_NODE_TYPE_OPERATION) {
 				OperationDepsNode *op_from = (OperationDepsNode *)rel->from;
-				op_from->owner->owner->is_visible |=
-				        op_node->owner->owner->is_visible;
+				op_from->owner->affects_directly_visible |=
+				        op_node->owner->affects_directly_visible;
 			}
 		}
 		/* Schedule parent nodes. */
@@ -126,16 +135,24 @@ void deg_graph_build_finalize(Main *bmain, Depsgraph *graph)
 		if ((id->recalc & ID_RECALC_ALL)) {
 			AnimData *adt = BKE_animdata_from_id(id);
 			if (adt != NULL && (adt->recalc & ADT_RECALC_ANIM) != 0) {
-				flag |= DEG_TAG_TIME;
+				flag |= ID_RECALC_ANIMATION;
 			}
 		}
+		/* Tag rebuild if special evaluation flags changed. */
+		if (id_node->eval_flags != id_node->previous_eval_flags) {
+			flag |= ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY;
+		}
+		/* Tag rebuild if the custom data mask changed. */
+		if (id_node->customdata_mask != id_node->previous_customdata_mask) {
+			flag |= ID_RECALC_GEOMETRY;
+		}
 		if (!deg_copy_on_write_is_expanded(id_node->id_cow)) {
-			flag |= DEG_TAG_COPY_ON_WRITE;
+			flag |= ID_RECALC_COPY_ON_WRITE;
 			/* This means ID is being added to the dependency graph first
 			 * time, which is similar to "ob-visible-change"
 			 */
 			if (GS(id->name) == ID_OB) {
-				flag |= OB_RECALC_OB | OB_RECALC_DATA;
+				flag |= ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY;
 			}
 		}
 		if (flag != 0) {

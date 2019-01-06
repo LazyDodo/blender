@@ -84,7 +84,7 @@ void clip_draw_graph(struct SpaceClip *sc, struct ARegion *ar, struct Scene *sce
 void ED_clip_graph_center_current_frame(struct Scene *scene, struct ARegion *ar);
 
 void CLIP_OT_graph_select(struct wmOperatorType *ot);
-void CLIP_OT_graph_select_border(struct wmOperatorType *ot);
+void CLIP_OT_graph_select_box(struct wmOperatorType *ot);
 void CLIP_OT_graph_select_all_markers(struct wmOperatorType *ot);
 void CLIP_OT_graph_delete_curve(struct wmOperatorType *ot);
 void CLIP_OT_graph_delete_knot(struct wmOperatorType *ot);
@@ -120,7 +120,6 @@ void CLIP_OT_cursor_set(struct wmOperatorType *ot);
 struct ARegion *ED_clip_has_properties_region(struct ScrArea *sa);
 void CLIP_OT_tools(struct wmOperatorType *ot);
 void CLIP_OT_properties(struct wmOperatorType *ot);
-void ED_clip_tool_props_register(struct ARegionType *art);
 
 /* clip_utils.c */
 void clip_graph_tracking_values_iterate_track(struct SpaceClip *sc, struct MovieTrackingTrack *track, void *userdata,
@@ -144,8 +143,6 @@ void clip_delete_plane_track(struct bContext *C, struct MovieClip *clip, struct 
 void clip_view_center_to_point(SpaceClip *sc, float x, float y);
 
 void clip_draw_sfra_efra(struct View2D *v2d, struct Scene *scene);
-
-void clip_on_marker_selection_changed(struct bContext *C);
 
 /* tracking_ops.c */
 struct MovieTrackingTrack *tracking_marker_check_slide(struct bContext *C, const struct wmEvent *event,
@@ -212,7 +209,7 @@ void CLIP_OT_keyframe_delete(struct wmOperatorType *ot);
 /* tracking_select.c */
 void CLIP_OT_select(struct wmOperatorType *ot);
 void CLIP_OT_select_all(struct wmOperatorType *ot);
-void CLIP_OT_select_border(struct wmOperatorType *ot);
+void CLIP_OT_select_box(struct wmOperatorType *ot);
 void CLIP_OT_select_lasso(struct wmOperatorType *ot);
 void CLIP_OT_select_circle(struct wmOperatorType *ot);
 void CLIP_OT_select_grouped(struct wmOperatorType *ot);

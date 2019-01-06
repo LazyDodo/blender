@@ -49,41 +49,39 @@
 
 #ifdef RNA_RUNTIME
 
-#include "BKE_main.h"
+#include "BKE_action.h"
+#include "BKE_armature.h"
+#include "BKE_brush.h"
 #include "BKE_camera.h"
 #include "BKE_collection.h"
 #include "BKE_curve.h"
 #include "BKE_displist.h"
-#include "BKE_mesh.h"
-#include "BKE_armature.h"
-#include "BKE_lamp.h"
-#include "BKE_library.h"
-#include "BKE_library_remap.h"
-#include "BKE_object.h"
-#include "BKE_material.h"
+#include "BKE_font.h"
+#include "BKE_gpencil.h"
 #include "BKE_icons.h"
 #include "BKE_idcode.h"
 #include "BKE_image.h"
-#include "BKE_texture.h"
+#include "BKE_lamp.h"
+#include "BKE_lattice.h"
+#include "BKE_library_remap.h"
+#include "BKE_lightprobe.h"
+#include "BKE_linestyle.h"
+#include "BKE_mask.h"
+#include "BKE_material.h"
+#include "BKE_mball.h"
+#include "BKE_mesh.h"
+#include "BKE_movieclip.h"
+#include "BKE_node.h"
+#include "BKE_object.h"
+#include "BKE_paint.h"
+#include "BKE_particle.h"
 #include "BKE_scene.h"
 #include "BKE_sound.h"
-#include "BKE_text.h"
-#include "BKE_action.h"
-#include "BKE_brush.h"
-#include "BKE_lattice.h"
-#include "BKE_mball.h"
-#include "BKE_world.h"
-#include "BKE_particle.h"
-#include "BKE_paint.h"
-#include "BKE_font.h"
-#include "BKE_node.h"
 #include "BKE_speaker.h"
-#include "BKE_lightprobe.h"
-#include "BKE_movieclip.h"
-#include "BKE_mask.h"
-#include "BKE_gpencil.h"
-#include "BKE_linestyle.h"
+#include "BKE_text.h"
+#include "BKE_texture.h"
 #include "BKE_workspace.h"
+#include "BKE_world.h"
 
 #include "DEG_depsgraph_build.h"
 #include "DEG_depsgraph_query.h"
@@ -310,7 +308,7 @@ static Mesh *rna_Main_meshes_new(Main *bmain, const char *name)
 /* copied from Mesh_getFromObject and adapted to RNA interface */
 Mesh *rna_Main_meshes_new_from_object(
         Main *bmain, ReportList *reports, Depsgraph *depsgraph,
-        Object *ob, bool apply_modifiers, bool calc_tessface, bool calc_undeformed)
+        Object *ob, bool apply_modifiers, bool calc_undeformed)
 {
 	Scene *sce = DEG_get_evaluated_scene(depsgraph);
 
@@ -326,7 +324,7 @@ Mesh *rna_Main_meshes_new_from_object(
 			return NULL;
 	}
 
-	return BKE_mesh_new_from_object(depsgraph, bmain, sce, ob, apply_modifiers, calc_tessface, calc_undeformed);
+	return BKE_mesh_new_from_object(depsgraph, bmain, sce, ob, apply_modifiers, calc_undeformed);
 }
 
 static Lamp *rna_Main_lights_new(Main *bmain, const char *name, int type)
@@ -887,13 +885,12 @@ void RNA_def_main_meshes(BlenderRNA *brna, PropertyRNA *cprop)
 	func = RNA_def_function(srna, "new_from_object", "rna_Main_meshes_new_from_object");
 	RNA_def_function_ui_description(func, "Add a new mesh created from object with modifiers applied");
 	RNA_def_function_flag(func, FUNC_USE_REPORTS);
-	parm = RNA_def_pointer(func, "depsgraph", "Depsgraph", "Dependency Graph", "Evaluated dependency graph within wich to evaluate modifiers");
+	parm = RNA_def_pointer(func, "depsgraph", "Depsgraph", "Dependency Graph", "Evaluated dependency graph within which to evaluate modifiers");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED);
 	parm = RNA_def_pointer(func, "object", "Object", "", "Object to create mesh from");
 	RNA_def_parameter_flags(parm, PROP_NEVER_NULL, PARM_REQUIRED);
 	parm = RNA_def_boolean(func, "apply_modifiers", 0, "", "Apply modifiers");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
-	RNA_def_boolean(func, "calc_tessface", true, "Calculate Tessellation", "Calculate tessellation faces");
 	RNA_def_boolean(func, "calc_undeformed", false, "Calculate Undeformed", "Calculate undeformed vertex coordinates");
 	parm = RNA_def_pointer(func, "mesh", "Mesh", "",
 	                       "Mesh created from object, remove it if it is only used for export");
@@ -1751,7 +1748,8 @@ void RNA_def_main_masks(BlenderRNA *brna, PropertyRNA *cprop)
 	/* new func */
 	func = RNA_def_function(srna, "new", "rna_Main_mask_new");
 	RNA_def_function_ui_description(func, "Add a new mask with a given name to the main database");
-	RNA_def_string_file_path(func, "name", NULL, MAX_ID_NAME - 2, "Mask", "Name of new mask data-block");
+	parm = RNA_def_string(func, "name", NULL, MAX_ID_NAME - 2, "Mask", "Name of new mask data-block");
+	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	/* return type */
 	parm = RNA_def_pointer(func, "mask", "Mask", "", "New mask data-block");
 	RNA_def_function_return(func, parm);

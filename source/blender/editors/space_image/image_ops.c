@@ -288,13 +288,12 @@ static bool image_sample_poll(bContext *C)
 {
 	SpaceImage *sima = CTX_wm_space_image(C);
 	if (sima) {
-		Scene *scene = CTX_data_scene(C);
 		Object *obedit = CTX_data_edit_object(C);
-		ToolSettings *toolsettings = scene->toolsettings;
-
 		if (obedit) {
-			if (ED_space_image_show_uvedit(sima, obedit) && (toolsettings->use_uv_sculpt))
+			/* Disable when UV editing so it doesn't swallow all click events (use for setting cursor). */
+			if (ED_space_image_show_uvedit(sima, obedit)) {
 				return false;
+			}
 		}
 		else if (sima->mode != SI_MODE_VIEW) {
 			return false;
@@ -1041,15 +1040,15 @@ void IMAGE_OT_view_zoom_border(wmOperatorType *ot)
 	ot->idname = "IMAGE_OT_view_zoom_border";
 
 	/* api callbacks */
-	ot->invoke = WM_gesture_border_invoke;
+	ot->invoke = WM_gesture_box_invoke;
 	ot->exec = image_view_zoom_border_exec;
-	ot->modal = WM_gesture_border_modal;
-	ot->cancel = WM_gesture_border_cancel;
+	ot->modal = WM_gesture_box_modal;
+	ot->cancel = WM_gesture_box_cancel;
 
 	ot->poll = space_image_main_region_poll;
 
 	/* rna */
-	WM_operator_properties_gesture_border_zoom(ot);
+	WM_operator_properties_gesture_box_zoom(ot);
 }
 
 /**************** load/replace/save callbacks ******************/
@@ -1095,8 +1094,8 @@ static void image_open_cancel(bContext *UNUSED(C), wmOperator *op)
 
 /**
  * \brief Get a list of frames from the list of image files matching the first file name sequence pattern
- * \param ptr [in] the RNA pointer containing the "directory" entry and "files" collection
- * \param frames_all [out] the list of frame numbers found in the files matching the first one by name
+ * \param ptr: [in] the RNA pointer containing the "directory" entry and "files" collection
+ * \param frames_all: [out] the list of frame numbers found in the files matching the first one by name
  */
 static void image_sequence_get_frame_ranges(PointerRNA *ptr, ListBase *frames_all)
 {
@@ -1137,7 +1136,7 @@ static void image_sequence_get_frame_ranges(PointerRNA *ptr, ListBase *frames_al
 		BLI_addtail(&frame_range->frames, frame);
 		MEM_freeN(filename);
 	}
-	RNA_END
+	RNA_END;
 }
 
 static int image_cmp_frame(const void *a, const void *b)
@@ -1778,7 +1777,7 @@ static void save_image_post(
 
 			BKE_color_managed_colorspace_settings_copy(&old_colorspace_settings,
 			                                           &ima->colorspace_settings);
-			IMB_colormanagment_colorspace_from_ibuf_ftype(&ima->colorspace_settings, ibuf);
+			IMB_colormanagement_colorspace_from_ibuf_ftype(&ima->colorspace_settings, ibuf);
 			if (!BKE_color_managed_colorspace_settings_equals(&old_colorspace_settings,
 			                                                  &ima->colorspace_settings))
 			{
@@ -2489,7 +2488,7 @@ static int image_new_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(e
 
 	/* Better for user feedback. */
 	RNA_string_set(op->ptr, "name", DATA_(IMA_DEF_NAME));
-	return WM_operator_props_dialog_popup(C, op, 15 * UI_UNIT_X, 5 * UI_UNIT_Y);
+	return WM_operator_props_dialog_popup(C, op, 300, 100);
 }
 
 static void image_new_draw(bContext *UNUSED(C), wmOperator *op)
@@ -3770,10 +3769,10 @@ void IMAGE_OT_render_border(wmOperatorType *ot)
 	ot->idname = "IMAGE_OT_render_border";
 
 	/* api callbacks */
-	ot->invoke = WM_gesture_border_invoke;
+	ot->invoke = WM_gesture_box_invoke;
 	ot->exec = render_border_exec;
-	ot->modal = WM_gesture_border_modal;
-	ot->cancel = WM_gesture_border_cancel;
+	ot->modal = WM_gesture_box_modal;
+	ot->cancel = WM_gesture_box_cancel;
 	ot->poll = image_cycle_render_slot_poll;
 
 	/* flags */

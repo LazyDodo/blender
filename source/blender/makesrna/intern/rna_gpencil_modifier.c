@@ -43,7 +43,6 @@
 
 #include "BKE_animsys.h"
 #include "BKE_data_transfer.h"
-#include "BKE_DerivedMesh.h"
 #include "BKE_dynamicpaint.h"
 #include "BKE_effect.h"
 #include "BKE_mesh_mapping.h"
@@ -62,52 +61,53 @@
 
 const EnumPropertyItem rna_enum_object_greasepencil_modifier_type_items[] = {
 	{0, "", 0, N_("Generate"), "" },
-	{eGpencilModifierType_Instance, "GP_INSTANCE", ICON_MOD_ARRAY, "Instance", "Create grid of duplicate instances"},
+	{eGpencilModifierType_Array, "GP_ARRAY", ICON_MOD_ARRAY, "Array", "Create array of duplicate instances"},
 	{eGpencilModifierType_Build, "GP_BUILD", ICON_MOD_BUILD, "Build", "Create duplication of strokes"},
-	{eGpencilModifierType_Simplify, "GP_SIMPLIFY", ICON_MOD_DECIM, "Simplify", "Simplify stroke reducing number of points"},
+	{eGpencilModifierType_Mirror, "GP_MIRROR", ICON_MOD_MIRROR, "Mirror", "Duplicate strokes like a mirror"},
+	{eGpencilModifierType_Simplify, "GP_SIMPLIFY", ICON_MOD_SIMPLIFY, "Simplify", "Simplify stroke reducing number of points"},
 	{eGpencilModifierType_Subdiv, "GP_SUBDIV", ICON_MOD_SUBSURF, "Subdivide", "Subdivide stroke adding more control points"},
 	{0, "", 0, N_("Deform"), "" },
 	{eGpencilModifierType_Armature, "GP_ARMATURE", ICON_MOD_ARMATURE, "Armature", "Deform stroke points using armature object"},
 	{eGpencilModifierType_Hook, "GP_HOOK", ICON_HOOK, "Hook", "Deform stroke points using objects"},
 	{eGpencilModifierType_Lattice, "GP_LATTICE", ICON_MOD_LATTICE, "Lattice", "Deform strokes using lattice"},
-	{eGpencilModifierType_Mirror, "GP_MIRROR", ICON_MOD_MIRROR, "Mirror", "Duplicate strokes like a mirror"},
-	{eGpencilModifierType_Noise, "GP_NOISE", ICON_RNDCURVE, "Noise", "Add noise to strokes"},
-	{eGpencilModifierType_Offset, "GP_OFFSET", ICON_MOD_DISPLACE, "Offset", "Change stroke location, rotation or scale"},
+	{eGpencilModifierType_Noise, "GP_NOISE", ICON_MOD_NOISE, "Noise", "Add noise to strokes"},
+	{eGpencilModifierType_Offset, "GP_OFFSET", ICON_MOD_OFFSET, "Offset", "Change stroke location, rotation or scale"},
 	{eGpencilModifierType_Smooth, "GP_SMOOTH", ICON_MOD_SMOOTH, "Smooth", "Smooth stroke"},
-	{eGpencilModifierType_Thick, "GP_THICK", ICON_MAN_ROT, "Thickness", "Change stroke thickness"},
+	{eGpencilModifierType_Thick, "GP_THICK", ICON_MOD_THICKNESS, "Thickness", "Change stroke thickness"},
+	{eGpencilModifierType_Time, "GP_TIME", ICON_MOD_TIME, "Time Offset", "Offset keyframes"},
 	{0, "", 0, N_("Color"), "" },
-	{eGpencilModifierType_Color, "GP_COLOR", ICON_GROUP_VCOL, "Hue/Saturation", "Apply changes to stroke colors"},
-	{eGpencilModifierType_Opacity, "GP_OPACITY", ICON_MOD_MASK, "Opacity", "Opacity of the strokes"},
-	{eGpencilModifierType_Tint, "GP_TINT", ICON_COLOR, "Tint", "Tint strokes with new color"},
+	{eGpencilModifierType_Color, "GP_COLOR", ICON_MOD_HUE_SATURATION, "Hue/Saturation", "Apply changes to stroke colors"},
+	{eGpencilModifierType_Opacity, "GP_OPACITY", ICON_MOD_OPACITY, "Opacity", "Opacity of the strokes"},
+	{eGpencilModifierType_Tint, "GP_TINT", ICON_MOD_TINT, "Tint", "Tint strokes with new color"},
 	{0, NULL, 0, NULL, NULL}
 };
 
 #ifndef RNA_RUNTIME
 static const EnumPropertyItem modifier_modify_color_items[] = {
-	{ GP_MODIFY_COLOR_BOTH, "BOTH", 0, "Both", "Modify fill and stroke colors" },
-	{ GP_MODIFY_COLOR_STROKE, "STROKE", 0, "Stroke", "Modify stroke color only" },
-	{ GP_MODIFY_COLOR_FILL, "FILL", 0, "Fill", "Modify fill color only" },
-	{ 0, NULL, 0, NULL, NULL }
+	{GP_MODIFY_COLOR_BOTH, "BOTH", 0, "Both", "Modify fill and stroke colors"},
+	{GP_MODIFY_COLOR_STROKE, "STROKE", 0, "Stroke", "Modify stroke color only"},
+	{GP_MODIFY_COLOR_FILL, "FILL", 0, "Fill", "Modify fill color only"},
+	{0, NULL, 0, NULL, NULL}
 };
 
 static const EnumPropertyItem modifier_gphook_falloff_items[] = {
-	{ eGPHook_Falloff_None,    "NONE", 0, "No Falloff", "" },
-	{ eGPHook_Falloff_Curve,   "CURVE", 0, "Curve", "" },
-	{ eGPHook_Falloff_Smooth,  "SMOOTH", ICON_SMOOTHCURVE, "Smooth", "" },
-	{ eGPHook_Falloff_Sphere,  "SPHERE", ICON_SPHERECURVE, "Sphere", "" },
-	{ eGPHook_Falloff_Root,    "ROOT", ICON_ROOTCURVE, "Root", "" },
-	{ eGPHook_Falloff_InvSquare, "INVERSE_SQUARE", ICON_ROOTCURVE, "Inverse Square", "" },
-	{ eGPHook_Falloff_Sharp,   "SHARP", ICON_SHARPCURVE, "Sharp", "" },
-	{ eGPHook_Falloff_Linear,  "LINEAR", ICON_LINCURVE, "Linear", "" },
-	{ eGPHook_Falloff_Const,   "CONSTANT", ICON_NOCURVE, "Constant", "" },
-	{ 0, NULL, 0, NULL, NULL }
+	{eGPHook_Falloff_None,    "NONE", 0, "No Falloff", ""},
+	{eGPHook_Falloff_Curve,   "CURVE", 0, "Curve", ""},
+	{eGPHook_Falloff_Smooth,  "SMOOTH", ICON_SMOOTHCURVE, "Smooth", ""},
+	{eGPHook_Falloff_Sphere,  "SPHERE", ICON_SPHERECURVE, "Sphere", ""},
+	{eGPHook_Falloff_Root,    "ROOT", ICON_ROOTCURVE, "Root", ""},
+	{eGPHook_Falloff_InvSquare, "INVERSE_SQUARE", ICON_ROOTCURVE, "Inverse Square", ""},
+	{eGPHook_Falloff_Sharp,   "SHARP", ICON_SHARPCURVE, "Sharp", ""},
+	{eGPHook_Falloff_Linear,  "LINEAR", ICON_LINCURVE, "Linear", ""},
+	{eGPHook_Falloff_Const,   "CONSTANT", ICON_NOCURVE, "Constant", ""},
+	{0, NULL, 0, NULL, NULL}
 };
 
-static const EnumPropertyItem rna_enum_gpencil_lockshift_items[] = {
-	{ GP_LOCKAXIS_X, "GP_LOCKAXIS_X", 0, "X", "Use X axis" },
-	{ GP_LOCKAXIS_Y, "GP_LOCKAXIS_Y", 0, "Y", "Use Y axis" },
-	{ GP_LOCKAXIS_Z, "GP_LOCKAXIS_Z", 0, "Z", "Use Z axis" },
-	{ 0, NULL, 0, NULL, NULL }
+static const EnumPropertyItem rna_enum_time_mode_items[] = {
+	{GP_TIME_MODE_NORMAL, "NORMAL", 0, "Normal", "Apply offset in normal animation direction"},
+	{GP_TIME_MODE_REVERSE, "REVERSE", 0, "Reverse", "Apply offset in reverse animation direction"},
+	{GP_TIME_MODE_FIX, "FIX", 0, "Fixed Frame", "Keep frame and do not change with time"},
+	{0, NULL, 0, NULL, NULL}
 };
 
 #endif
@@ -120,7 +120,6 @@ static const EnumPropertyItem rna_enum_gpencil_lockshift_items[] = {
 
 #include "BKE_cachefile.h"
 #include "BKE_context.h"
-#include "BKE_library.h"
 #include "BKE_gpencil_modifier.h"
 #include "BKE_object.h"
 #include "BKE_gpencil.h"
@@ -143,10 +142,12 @@ static StructRNA *rna_GpencilModifier_refine(struct PointerRNA *ptr)
 			return &RNA_ThickGpencilModifier;
 		case eGpencilModifierType_Tint:
 			return &RNA_TintGpencilModifier;
+		case eGpencilModifierType_Time:
+			return &RNA_TimeGpencilModifier;
 		case eGpencilModifierType_Color:
 			return &RNA_ColorGpencilModifier;
-		case eGpencilModifierType_Instance:
-			return &RNA_InstanceGpencilModifier;
+		case eGpencilModifierType_Array:
+			return &RNA_ArrayGpencilModifier;
 		case eGpencilModifierType_Build:
 			return &RNA_BuildGpencilModifier;
 		case eGpencilModifierType_Opacity:
@@ -204,7 +205,7 @@ static char *rna_GpencilModifier_path(PointerRNA *ptr)
 
 static void rna_GpencilModifier_update(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
-	DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA);
+	DEG_id_tag_update(ptr->id.data, ID_RECALC_GEOMETRY);
 	WM_main_add_notifier(NC_OBJECT | ND_MODIFIER, ptr->id.data);
 }
 
@@ -271,6 +272,28 @@ static void rna_HookGpencilModifier_object_set(PointerRNA *ptr, PointerRNA value
 	BKE_object_modifier_gpencil_hook_reset(ob, hmd);
 }
 
+static void rna_TimeModifier_start_frame_set(PointerRNA *ptr, int value)
+{
+	TimeGpencilModifierData *tmd = ptr->data;
+	CLAMP(value, MINFRAME, MAXFRAME);
+	tmd->sfra = value;
+
+	if (tmd->sfra >= tmd->efra) {
+		tmd->efra = MIN2(tmd->sfra, MAXFRAME);
+	}
+}
+
+static void rna_TimeModifier_end_frame_set(PointerRNA *ptr, int value)
+{
+	TimeGpencilModifierData *tmd = ptr->data;
+	CLAMP(value, MINFRAME, MAXFRAME);
+	tmd->efra = value;
+
+	if (tmd->sfra >= tmd->efra) {
+		tmd->sfra = MAX2(tmd->efra, MINFRAME);
+	}
+}
+
 #else
 
 static void rna_def_modifier_gpencilnoise(BlenderRNA *brna)
@@ -281,7 +304,7 @@ static void rna_def_modifier_gpencilnoise(BlenderRNA *brna)
 	srna = RNA_def_struct(brna, "NoiseGpencilModifier", "GpencilModifier");
 	RNA_def_struct_ui_text(srna, "Noise Modifier", "Noise effect modifier");
 	RNA_def_struct_sdna(srna, "NoiseGpencilModifierData");
-	RNA_def_struct_ui_icon(srna, ICON_RNDCURVE);
+	RNA_def_struct_ui_icon(srna, ICON_MOD_NOISE);
 
 	prop = RNA_def_property(srna, "layer", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "layername");
@@ -305,22 +328,22 @@ static void rna_def_modifier_gpencilnoise(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Random", "Use random values");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "affect_position", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "use_edit_position", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_NOISE_MOD_LOCATION);
 	RNA_def_property_ui_text(prop, "Affect Position", "The modifier affects the position of the point");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "affect_strength", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "use_edit_strength", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_NOISE_MOD_STRENGTH);
 	RNA_def_property_ui_text(prop, "Affect Strength", "The modifier affects the color strength of the point");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "affect_thickness", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "use_edit_thickness", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_NOISE_MOD_THICKNESS);
 	RNA_def_property_ui_text(prop, "Affect Thickness", "The modifier affects the thickness of the point");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "affect_uv", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "use_edit_uv", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_NOISE_MOD_UV);
 	RNA_def_property_ui_text(prop, "Affect UV", "The modifier affects the UV rotation factor of the point");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
@@ -352,7 +375,7 @@ static void rna_def_modifier_gpencilnoise(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Inverse Layers", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "invert_pass", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "invert_material_pass", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_NOISE_INVERT_PASS);
 	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
@@ -360,6 +383,17 @@ static void rna_def_modifier_gpencilnoise(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "invert_vertex", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_NOISE_INVERT_VGROUP);
 	RNA_def_property_ui_text(prop, "Inverse VertexGroup", "Inverse filter");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "layer_pass", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "layer_pass");
+	RNA_def_property_range(prop, 0, 100);
+	RNA_def_property_ui_text(prop, "Pass", "Layer pass index");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "invert_layer_pass", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_NOISE_INVERT_LAYERPASS);
+	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 }
 
@@ -390,22 +424,22 @@ static void rna_def_modifier_gpencilsmooth(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Factor", "Amount of smooth to apply");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "affect_position", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "use_edit_position", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_SMOOTH_MOD_LOCATION);
 	RNA_def_property_ui_text(prop, "Affect Position", "The modifier affects the position of the point");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "affect_strength", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "use_edit_strength", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_SMOOTH_MOD_STRENGTH);
 	RNA_def_property_ui_text(prop, "Affect Strength", "The modifier affects the color strength of the point");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "affect_thickness", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "use_edit_thickness", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_SMOOTH_MOD_THICKNESS);
 	RNA_def_property_ui_text(prop, "Affect Thickness", "The modifier affects the thickness of the point");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "affect_uv", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "use_edit_uv", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_SMOOTH_MOD_UV);
 	RNA_def_property_ui_text(prop, "Affect UV", "The modifier affects the UV rotation factor of the point");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
@@ -427,7 +461,7 @@ static void rna_def_modifier_gpencilsmooth(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Inverse Layers", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "invert_pass", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "invert_material_pass", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_SMOOTH_INVERT_PASS);
 	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
@@ -435,6 +469,17 @@ static void rna_def_modifier_gpencilsmooth(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "invert_vertex", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_SMOOTH_INVERT_VGROUP);
 	RNA_def_property_ui_text(prop, "Inverse VertexGroup", "Inverse filter");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "layer_pass", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "layer_pass");
+	RNA_def_property_range(prop, 0, 100);
+	RNA_def_property_ui_text(prop, "Pass", "Layer pass index");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "invert_layer_pass", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_SMOOTH_INVERT_LAYERPASS);
+	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 }
 
@@ -475,8 +520,19 @@ static void rna_def_modifier_gpencilsubdiv(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Inverse Layers", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "invert_pass", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "invert_material_pass", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_SUBDIV_INVERT_PASS);
+	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "layer_pass", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "layer_pass");
+	RNA_def_property_range(prop, 0, 100);
+	RNA_def_property_ui_text(prop, "Pass", "Layer pass index");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "invert_layer_pass", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_SUBDIV_INVERT_LAYERPASS);
 	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 }
@@ -487,17 +543,17 @@ static void rna_def_modifier_gpencilsimplify(BlenderRNA *brna)
 	PropertyRNA *prop;
 
 	static EnumPropertyItem prop_gpencil_simplify_mode_items[] = {
-		{ GP_SIMPLIFY_FIXED, "FIXED", ICON_IPO_CONSTANT, "Fixed",
-		"Delete alternative vertices in the stroke, except extrems" },
-		{ GP_SIMPLIFY_ADAPTATIVE, "ADAPTATIVE", ICON_IPO_EASE_IN_OUT, "Adaptative",
-		"Use a RDP algorithm to simplify" },
-		{ 0, NULL, 0, NULL, NULL }
+		{GP_SIMPLIFY_FIXED, "FIXED", ICON_IPO_CONSTANT, "Fixed",
+		 "Delete alternative vertices in the stroke, except extremes"},
+		{GP_SIMPLIFY_ADAPTIVE, "ADAPTIVE", ICON_IPO_EASE_IN_OUT, "Adaptive",
+		 "Use a RDP algorithm to simplify" },
+		{0, NULL, 0, NULL, NULL}
 	};
 
 	srna = RNA_def_struct(brna, "SimplifyGpencilModifier", "GpencilModifier");
 	RNA_def_struct_ui_text(srna, "Simplify Modifier", "Simplify Stroke modifier");
 	RNA_def_struct_sdna(srna, "SimplifyGpencilModifierData");
-	RNA_def_struct_ui_icon(srna, ICON_MOD_DECIM);
+	RNA_def_struct_ui_icon(srna, ICON_MOD_SIMPLIFY);
 
 	prop = RNA_def_property(srna, "layer", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "layername");
@@ -522,8 +578,19 @@ static void rna_def_modifier_gpencilsimplify(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Inverse Layers", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "invert_pass", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "invert_material_pass", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_SIMPLIFY_INVERT_PASS);
+	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "layer_pass", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "layer_pass");
+	RNA_def_property_range(prop, 0, 100);
+	RNA_def_property_ui_text(prop, "Pass", "Layer pass index");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "invert_layer_pass", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_SIMPLIFY_INVERT_LAYERPASS);
 	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
@@ -548,7 +615,7 @@ static void rna_def_modifier_gpencilthick(BlenderRNA *brna)
 	srna = RNA_def_struct(brna, "ThickGpencilModifier", "GpencilModifier");
 	RNA_def_struct_ui_text(srna, "Thick Modifier", "Subdivide and Smooth Stroke modifier");
 	RNA_def_struct_sdna(srna, "ThickGpencilModifierData");
-	RNA_def_struct_ui_icon(srna, ICON_MAN_ROT);
+	RNA_def_struct_ui_icon(srna, ICON_MOD_THICKNESS);
 
 	prop = RNA_def_property(srna, "layer", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "layername");
@@ -578,7 +645,7 @@ static void rna_def_modifier_gpencilthick(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Inverse Layers", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "invert_pass", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "invert_material_pass", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_THICK_INVERT_PASS);
 	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
@@ -586,6 +653,17 @@ static void rna_def_modifier_gpencilthick(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "invert_vertex", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_THICK_INVERT_VGROUP);
 	RNA_def_property_ui_text(prop, "Inverse VertexGroup", "Inverse filter");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "layer_pass", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "layer_pass");
+	RNA_def_property_range(prop, 0, 100);
+	RNA_def_property_ui_text(prop, "Pass", "Layer pass index");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "invert_layer_pass", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_THICK_INVERT_LAYERPASS);
+	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
 	prop = RNA_def_property(srna, "use_custom_curve", PROP_BOOLEAN, PROP_NONE);
@@ -612,7 +690,7 @@ static void rna_def_modifier_gpenciloffset(BlenderRNA *brna)
 	srna = RNA_def_struct(brna, "OffsetGpencilModifier", "GpencilModifier");
 	RNA_def_struct_ui_text(srna, "Offset Modifier", "Offset Stroke modifier");
 	RNA_def_struct_sdna(srna, "OffsetGpencilModifierData");
-	RNA_def_struct_ui_icon(srna, ICON_MOD_DISPLACE);
+	RNA_def_struct_ui_icon(srna, ICON_MOD_OFFSET);
 
 	prop = RNA_def_property(srna, "layer", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_sdna(prop, NULL, "layername");
@@ -636,7 +714,7 @@ static void rna_def_modifier_gpenciloffset(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Inverse Layers", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "invert_pass", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "invert_material_pass", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_OFFSET_INVERT_PASS);
 	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
@@ -644,6 +722,17 @@ static void rna_def_modifier_gpenciloffset(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "invert_vertex", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_OFFSET_INVERT_VGROUP);
 	RNA_def_property_ui_text(prop, "Inverse VertexGroup", "Inverse filter");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "layer_pass", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "layer_pass");
+	RNA_def_property_range(prop, 0, 100);
+	RNA_def_property_ui_text(prop, "Pass", "Layer pass index");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "invert_layer_pass", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_OFFSET_INVERT_LAYERPASS);
+	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
 	prop = RNA_def_property(srna, "location", PROP_FLOAT, PROP_TRANSLATION);
@@ -654,7 +743,7 @@ static void rna_def_modifier_gpenciloffset(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "rotation", PROP_FLOAT, PROP_EULER);
 	RNA_def_property_float_sdna(prop, NULL, "rot");
-	RNA_def_property_ui_text(prop, "Rotation", "Values for chages in rotation");
+	RNA_def_property_ui_text(prop, "Rotation", "Values for changes in rotation");
 	RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, RNA_TRANSLATION_PREC_DEFAULT);
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
@@ -714,9 +803,101 @@ static void rna_def_modifier_gpenciltint(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Inverse Layers", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "invert_pass", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "invert_material_pass", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_TINT_INVERT_PASS);
 	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "layer_pass", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "layer_pass");
+	RNA_def_property_range(prop, 0, 100);
+	RNA_def_property_ui_text(prop, "Pass", "Layer pass index");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "invert_layer_pass", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_TINT_INVERT_LAYERPASS);
+	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+}
+
+static void rna_def_modifier_gpenciltime(BlenderRNA *brna)
+{
+	StructRNA *srna;
+	PropertyRNA *prop;
+
+	srna = RNA_def_struct(brna, "TimeGpencilModifier", "GpencilModifier");
+	RNA_def_struct_ui_text(srna, "Time Offset Modifier", "Time offset modifier");
+	RNA_def_struct_sdna(srna, "TimeGpencilModifierData");
+	RNA_def_struct_ui_icon(srna, ICON_MOD_TIME);
+
+	prop = RNA_def_property(srna, "mode", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "mode");
+	RNA_def_property_enum_items(prop, rna_enum_time_mode_items);
+	RNA_def_property_ui_text(prop, "Mode", "");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "layer", PROP_STRING, PROP_NONE);
+	RNA_def_property_string_sdna(prop, NULL, "layername");
+	RNA_def_property_ui_text(prop, "Layer", "Layer name");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "invert_layers", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_TIME_INVERT_LAYER);
+	RNA_def_property_ui_text(prop, "Inverse Layers", "Inverse filter");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "layer_pass", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "layer_pass");
+	RNA_def_property_range(prop, 0, 100);
+	RNA_def_property_ui_text(prop, "Pass", "Layer pass index");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "invert_layer_pass", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_TIME_INVERT_LAYERPASS);
+	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "offset", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "offset");
+	RNA_def_property_range(prop, -INT_MAX, INT_MAX);
+	RNA_def_property_ui_text(prop, "Frame Offset",
+	                         "Number of frames to offset original keyframe number or frame to fix");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "frame_scale", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "frame_scale");
+	RNA_def_property_range(prop, 0.001f, 100.0f);
+	RNA_def_property_ui_text(prop, "Frame Scale", "Evaluation time in seconds");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "frame_start", PROP_INT, PROP_TIME);
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_int_sdna(prop, NULL, "sfra");
+	RNA_def_property_int_funcs(prop, NULL, "rna_TimeModifier_start_frame_set", NULL);
+	RNA_def_property_range(prop, MINFRAME, MAXFRAME);
+	RNA_def_property_int_default(prop, 1);
+	RNA_def_property_ui_text(prop, "Start Frame", "First frame of the range");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "frame_end", PROP_INT, PROP_TIME);
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_int_sdna(prop, NULL, "efra");
+	RNA_def_property_int_funcs(prop, NULL, "rna_TimeModifier_end_frame_set", NULL);
+	RNA_def_property_range(prop, MINFRAME, MAXFRAME);
+	RNA_def_property_int_default(prop, 250);
+	RNA_def_property_ui_text(prop, "End Frame", "Final frame of the range");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "use_keep_loop", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_TIME_KEEP_LOOP);
+	RNA_def_property_ui_text(prop, "Keep Loop",
+	                         "Retiming end frames and move to start of animation to keep loop");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "use_custom_frame_range", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_TIME_CUSTOM_RANGE);
+	RNA_def_property_ui_text(prop, "Custom Range",
+		"Define a custom range of frames to use in modifier");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 }
 
@@ -728,7 +909,7 @@ static void rna_def_modifier_gpencilcolor(BlenderRNA *brna)
 	srna = RNA_def_struct(brna, "ColorGpencilModifier", "GpencilModifier");
 	RNA_def_struct_ui_text(srna, "Hue/Saturation Modifier", "Change Hue/Saturation modifier");
 	RNA_def_struct_sdna(srna, "ColorGpencilModifierData");
-	RNA_def_struct_ui_icon(srna, ICON_GROUP_VCOL);
+	RNA_def_struct_ui_icon(srna, ICON_MOD_TINT);
 
 	prop = RNA_def_property(srna, "modify_color", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_items(prop, modifier_modify_color_items);  /* share the enum */
@@ -777,8 +958,19 @@ static void rna_def_modifier_gpencilcolor(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Inverse Layers", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "invert_pass", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "invert_material_pass", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_COLOR_INVERT_PASS);
+	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "layer_pass", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "layer_pass");
+	RNA_def_property_range(prop, 0, 100);
+	RNA_def_property_ui_text(prop, "Pass", "Layer pass index");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "invert_layer_pass", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_COLOR_INVERT_LAYERPASS);
 	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 }
@@ -791,7 +983,7 @@ static void rna_def_modifier_gpencilopacity(BlenderRNA *brna)
 	srna = RNA_def_struct(brna, "OpacityGpencilModifier", "GpencilModifier");
 	RNA_def_struct_ui_text(srna, "Opacity Modifier", "Opacity of Strokes modifier");
 	RNA_def_struct_sdna(srna, "OpacityGpencilModifierData");
-	RNA_def_struct_ui_icon(srna, ICON_MOD_MASK);
+	RNA_def_struct_ui_icon(srna, ICON_MOD_OPACITY);
 
 	prop = RNA_def_property(srna, "modify_color", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_items(prop, modifier_modify_color_items);  /* share the enum */
@@ -831,7 +1023,7 @@ static void rna_def_modifier_gpencilopacity(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Inverse Layers", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "invert_pass", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "invert_material_pass", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_OPACITY_INVERT_PASS);
 	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
@@ -840,6 +1032,17 @@ static void rna_def_modifier_gpencilopacity(BlenderRNA *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_OPACITY_INVERT_VGROUP);
 	RNA_def_property_ui_text(prop, "Inverse VertexGroup", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "layer_pass", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "layer_pass");
+	RNA_def_property_range(prop, 0, 100);
+	RNA_def_property_ui_text(prop, "Pass", "Layer pass index");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "invert_layer_pass", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_OPACITY_INVERT_LAYERPASS);
+	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 }
 
 static void rna_def_modifier_gpencilinstance(BlenderRNA *brna)
@@ -847,9 +1050,9 @@ static void rna_def_modifier_gpencilinstance(BlenderRNA *brna)
 	StructRNA *srna;
 	PropertyRNA *prop;
 
-	srna = RNA_def_struct(brna, "InstanceGpencilModifier", "GpencilModifier");
+	srna = RNA_def_struct(brna, "ArrayGpencilModifier", "GpencilModifier");
 	RNA_def_struct_ui_text(srna, "Instance Modifier", "Create grid of duplicate instances");
-	RNA_def_struct_sdna(srna, "InstanceGpencilModifierData");
+	RNA_def_struct_sdna(srna, "ArrayGpencilModifierData");
 	RNA_def_struct_ui_icon(srna, ICON_MOD_ARRAY);
 
 	prop = RNA_def_property(srna, "layer", PROP_STRING, PROP_NONE);
@@ -863,13 +1066,21 @@ static void rna_def_modifier_gpencilinstance(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Pass", "Pass index");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "count", PROP_INT, PROP_XYZ);
+	prop = RNA_def_property(srna, "count", PROP_INT, PROP_NONE);
 	RNA_def_property_range(prop, 1, INT_MAX);
-	RNA_def_property_ui_range(prop, 1, 20, 1, -1);
+	RNA_def_property_ui_range(prop, 1, 50, 1, -1);
 	RNA_def_property_ui_text(prop, "Count", "Number of items");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
 	/* Offset parameters */
+	prop = RNA_def_property(srna, "offset_object", PROP_POINTER, PROP_NONE);
+	RNA_def_property_pointer_sdna(prop, NULL, "object");
+	RNA_def_property_ui_text(prop, "Object Offset",
+		"Use the location and rotation of another object to determine the distance and "
+		"rotational change between arrayed items");
+	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_ID_SELF_CHECK);
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_dependency_update");
+
 	prop = RNA_def_property(srna, "offset", PROP_FLOAT, PROP_TRANSLATION);
 	RNA_def_property_float_sdna(prop, NULL, "offset");
 	RNA_def_property_ui_text(prop, "Offset", "Value for the distance between items");
@@ -878,20 +1089,13 @@ static void rna_def_modifier_gpencilinstance(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "shift", PROP_FLOAT, PROP_TRANSLATION);
 	RNA_def_property_float_sdna(prop, NULL, "shift");
-	RNA_def_property_ui_text(prop, "Shift", "Shiftness value");
+	RNA_def_property_ui_text(prop, "Shift", "Shiftiness value");
 	RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, RNA_TRANSLATION_PREC_DEFAULT);
-	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
-
-	prop = RNA_def_property(srna, "lock_axis", PROP_ENUM, PROP_NONE);
-	RNA_def_property_enum_sdna(prop, NULL, "lock_axis");
-	RNA_def_property_enum_items(prop, rna_enum_gpencil_lockshift_items);
-	//RNA_def_property_flag(prop, PROP_ENUM_FLAG);
-	RNA_def_property_ui_text(prop, "Axis", "");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
 	prop = RNA_def_property(srna, "rotation", PROP_FLOAT, PROP_EULER);
 	RNA_def_property_float_sdna(prop, NULL, "rot");
-	RNA_def_property_ui_text(prop, "Rotation", "Value for chages in rotation");
+	RNA_def_property_ui_text(prop, "Rotation", "Value for changes in rotation");
 	RNA_def_property_ui_range(prop, -FLT_MAX, FLT_MAX, 1, RNA_TRANSLATION_PREC_DEFAULT);
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
@@ -902,7 +1106,7 @@ static void rna_def_modifier_gpencilinstance(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
 	prop = RNA_def_property(srna, "random_rot", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_INSTANCE_RANDOM_ROT);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_ARRAY_RANDOM_ROT);
 	RNA_def_property_ui_text(prop, "Random Rotation", "Use random factors for rotation");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
@@ -913,7 +1117,7 @@ static void rna_def_modifier_gpencilinstance(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
 	prop = RNA_def_property(srna, "random_scale", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_INSTANCE_RANDOM_SIZE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_ARRAY_RANDOM_SIZE);
 	RNA_def_property_ui_text(prop, "Random Scale", "Use random factors for scale");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
@@ -923,16 +1127,38 @@ static void rna_def_modifier_gpencilinstance(BlenderRNA *brna)
 	RNA_def_property_range(prop, -10.0, 10.0);
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
+	prop = RNA_def_property(srna, "replace_material", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "mat_rpl");
+	RNA_def_property_range(prop, 0, INT_MAX);
+	RNA_def_property_ui_text(prop, "Material", "Index of the material used for generated strokes (0 keep original material)");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
 	prop = RNA_def_property(srna, "invert_layers", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_INSTANCE_INVERT_LAYER);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_ARRAY_INVERT_LAYER);
 	RNA_def_property_ui_text(prop, "Inverse Layers", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "invert_pass", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_INSTANCE_INVERT_PASS);
+	prop = RNA_def_property(srna, "invert_material_pass", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_ARRAY_INVERT_PASS);
 	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
+	prop = RNA_def_property(srna, "layer_pass", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "layer_pass");
+	RNA_def_property_range(prop, 0, 100);
+	RNA_def_property_ui_text(prop, "Pass", "Layer pass index");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "invert_layer_pass", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_ARRAY_INVERT_LAYERPASS);
+	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "keep_on_top", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_ARRAY_KEEP_ONTOP);
+	RNA_def_property_ui_text(prop, "Keep On Top",
+		"Keep the original stroke in front of new instances (only affect by layer)");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 }
 
 static void rna_def_modifier_gpencilbuild(BlenderRNA *brna)
@@ -1044,19 +1270,16 @@ static void rna_def_modifier_gpencilbuild(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Inverse Layers", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	/* Filters - Pass Index */
-#if 0
-	prop = RNA_def_property(srna, "pass_index", PROP_INT, PROP_NONE);
-	RNA_def_property_int_sdna(prop, NULL, "pass_index");
+	prop = RNA_def_property(srna, "layer_pass", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "layer_pass");
 	RNA_def_property_range(prop, 0, 100);
-	RNA_def_property_ui_text(prop, "Pass", "Pass index");
+	RNA_def_property_ui_text(prop, "Pass", "Layer pass index");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "invert_pass", PROP_BOOLEAN, PROP_NONE);
-	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_BUILD_INVERT_PASS);
+	prop = RNA_def_property(srna, "invert_layer_pass", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_BUILD_INVERT_LAYERPASS);
 	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
-#endif
 }
 
 static void rna_def_modifier_gpencillattice(BlenderRNA *brna)
@@ -1091,7 +1314,7 @@ static void rna_def_modifier_gpencillattice(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Inverse Layers", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "invert_pass", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "invert_material_pass", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_LATTICE_INVERT_PASS);
 	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
@@ -1099,6 +1322,17 @@ static void rna_def_modifier_gpencillattice(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "invert_vertex", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_LATTICE_INVERT_VGROUP);
 	RNA_def_property_ui_text(prop, "Inverse VertexGroup", "Inverse filter");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "layer_pass", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "layer_pass");
+	RNA_def_property_range(prop, 0, 100);
+	RNA_def_property_ui_text(prop, "Pass", "Layer pass index");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "invert_layer_pass", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_LATTICE_INVERT_LAYERPASS);
+	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
 	prop = RNA_def_property(srna, "object", PROP_POINTER, PROP_NONE);
@@ -1140,8 +1374,19 @@ static void rna_def_modifier_gpencilmirror(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Inverse Layers", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "invert_pass", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "invert_material_pass", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_MIRROR_INVERT_PASS);
+	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "layer_pass", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "layer_pass");
+	RNA_def_property_range(prop, 0, 100);
+	RNA_def_property_ui_text(prop, "Pass", "Layer pass index");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "invert_layer_pass", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_MIRROR_INVERT_LAYERPASS);
 	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
@@ -1216,7 +1461,7 @@ static void rna_def_modifier_gpencilhook(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Inverse Layers", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
-	prop = RNA_def_property(srna, "invert_pass", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "invert_material_pass", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_HOOK_INVERT_PASS);
 	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
@@ -1224,6 +1469,17 @@ static void rna_def_modifier_gpencilhook(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "invert_vertex", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_HOOK_INVERT_VGROUP);
 	RNA_def_property_ui_text(prop, "Inverse VertexGroup", "Inverse filter");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "layer_pass", PROP_INT, PROP_NONE);
+	RNA_def_property_int_sdna(prop, NULL, "layer_pass");
+	RNA_def_property_range(prop, 0, 100);
+	RNA_def_property_ui_text(prop, "Pass", "Layer pass index");
+	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
+
+	prop = RNA_def_property(srna, "invert_layer_pass", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", GP_HOOK_INVERT_LAYERPASS);
+	RNA_def_property_ui_text(prop, "Inverse Pass", "Inverse filter");
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
 
 	prop = RNA_def_property(srna, "strength", PROP_FLOAT, PROP_NONE);
@@ -1353,13 +1609,13 @@ void RNA_def_greasepencil_modifier(BlenderRNA *brna)
 	RNA_def_property_flag(prop, PROP_LIB_EXCEPTION);
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
 	RNA_def_property_update(prop, 0, "rna_GpencilModifier_update");
-	RNA_def_property_ui_icon(prop, ICON_RESTRICT_VIEW_OFF, 0);
+	RNA_def_property_ui_icon(prop, ICON_RESTRICT_VIEW_ON, 1);
 
 	prop = RNA_def_property(srna, "show_render", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "mode", eGpencilModifierMode_Render);
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
 	RNA_def_property_ui_text(prop, "Render", "Use modifier during render");
-	RNA_def_property_ui_icon(prop, ICON_SCENE, 0);
+	RNA_def_property_ui_icon(prop, ICON_RESTRICT_RENDER_ON, 1);
 	RNA_def_property_update(prop, NC_OBJECT | ND_MODIFIER, NULL);
 
 	prop = RNA_def_property(srna, "show_in_editmode", PROP_BOOLEAN, PROP_NONE);
@@ -1372,7 +1628,7 @@ void RNA_def_greasepencil_modifier(BlenderRNA *brna)
 	RNA_def_property_boolean_sdna(prop, NULL, "mode", eGpencilModifierMode_Expanded);
 	RNA_def_property_override_flag(prop, PROPOVERRIDE_OVERRIDABLE_STATIC);
 	RNA_def_property_ui_text(prop, "Expanded", "Set modifier expanded in the user interface");
-	RNA_def_property_ui_icon(prop, ICON_TRIA_RIGHT, 1);
+	RNA_def_property_ui_icon(prop, ICON_DISCLOSURE_TRI_RIGHT, 1);
 
 	/* types */
 	rna_def_modifier_gpencilnoise(brna);
@@ -1382,6 +1638,7 @@ void RNA_def_greasepencil_modifier(BlenderRNA *brna)
 	rna_def_modifier_gpencilthick(brna);
 	rna_def_modifier_gpenciloffset(brna);
 	rna_def_modifier_gpenciltint(brna);
+	rna_def_modifier_gpenciltime(brna);
 	rna_def_modifier_gpencilcolor(brna);
 	rna_def_modifier_gpencilinstance(brna);
 	rna_def_modifier_gpencilbuild(brna);

@@ -28,7 +28,7 @@
 
 #ifdef WITH_INPUT_NDOF
 //#  define NDOF_FLY_DEBUG
-//#  define NDOF_FLY_DRAW_TOOMUCH  /* is this needed for ndof? - commented so redraw doesnt thrash - campbell */
+//#  define NDOF_FLY_DRAW_TOOMUCH  /* is this needed for ndof? - commented so redraw doesn't thrash - campbell */
 #endif /* WITH_INPUT_NDOF */
 
 #include "DNA_object_types.h"
@@ -137,56 +137,6 @@ void fly_modal_keymap(wmKeyConfig *keyconf)
 
 	keymap = WM_modalkeymap_add(keyconf, "View3D Fly Modal", modal_items);
 
-	/* items for modal map */
-	WM_modalkeymap_add_item(keymap, RIGHTMOUSE, KM_ANY, KM_ANY, 0, FLY_MODAL_CANCEL);
-	WM_modalkeymap_add_item(keymap, ESCKEY, KM_PRESS, KM_ANY, 0, FLY_MODAL_CANCEL);
-
-	WM_modalkeymap_add_item(keymap, LEFTMOUSE, KM_ANY, KM_ANY, 0, FLY_MODAL_CONFIRM);
-	WM_modalkeymap_add_item(keymap, RETKEY, KM_PRESS, KM_ANY, 0, FLY_MODAL_CONFIRM);
-	WM_modalkeymap_add_item(keymap, SPACEKEY, KM_PRESS, KM_ANY, 0, FLY_MODAL_CONFIRM);
-	WM_modalkeymap_add_item(keymap, PADENTER, KM_PRESS, KM_ANY, 0, FLY_MODAL_CONFIRM);
-
-	WM_modalkeymap_add_item(keymap, PADPLUSKEY, KM_PRESS, KM_ANY, 0, FLY_MODAL_ACCELERATE);
-	WM_modalkeymap_add_item(keymap, PADMINUS, KM_PRESS, KM_ANY, 0, FLY_MODAL_DECELERATE);
-	WM_modalkeymap_add_item(keymap, WHEELUPMOUSE, KM_PRESS, KM_ANY, 0, FLY_MODAL_ACCELERATE);
-	WM_modalkeymap_add_item(keymap, WHEELDOWNMOUSE, KM_PRESS, KM_ANY, 0, FLY_MODAL_DECELERATE);
-
-	WM_modalkeymap_add_item(keymap, MOUSEPAN, 0, 0, 0, FLY_MODAL_SPEED);
-
-	WM_modalkeymap_add_item(keymap, MIDDLEMOUSE, KM_PRESS, KM_ANY, 0, FLY_MODAL_PAN_ENABLE);
-	/* XXX - Bug in the event system, middle mouse release doesnt work */
-	WM_modalkeymap_add_item(keymap, MIDDLEMOUSE, KM_RELEASE, KM_ANY, 0, FLY_MODAL_PAN_DISABLE);
-
-	/* WASD */
-	WM_modalkeymap_add_item(keymap, WKEY, KM_PRESS, 0, 0, FLY_MODAL_DIR_FORWARD);
-	WM_modalkeymap_add_item(keymap, SKEY, KM_PRESS, 0, 0, FLY_MODAL_DIR_BACKWARD);
-	WM_modalkeymap_add_item(keymap, AKEY, KM_PRESS, 0, 0, FLY_MODAL_DIR_LEFT);
-	WM_modalkeymap_add_item(keymap, DKEY, KM_PRESS, 0, 0, FLY_MODAL_DIR_RIGHT);
-	WM_modalkeymap_add_item(keymap, EKEY, KM_PRESS, 0, 0, FLY_MODAL_DIR_UP);
-	WM_modalkeymap_add_item(keymap, QKEY, KM_PRESS, 0, 0, FLY_MODAL_DIR_DOWN);
-
-	/* for legacy reasons, leave R/F working */
-	WM_modalkeymap_add_item(keymap, RKEY, KM_PRESS, 0, 0, FLY_MODAL_DIR_UP);
-	WM_modalkeymap_add_item(keymap, FKEY, KM_PRESS, 0, 0, FLY_MODAL_DIR_DOWN);
-
-	WM_modalkeymap_add_item(keymap, UPARROWKEY, KM_PRESS, 0, 0, FLY_MODAL_DIR_FORWARD);
-	WM_modalkeymap_add_item(keymap, DOWNARROWKEY, KM_PRESS, 0, 0, FLY_MODAL_DIR_BACKWARD);
-	WM_modalkeymap_add_item(keymap, LEFTARROWKEY, KM_PRESS, 0, 0, FLY_MODAL_DIR_LEFT);
-	WM_modalkeymap_add_item(keymap, RIGHTARROWKEY, KM_PRESS, 0, 0, FLY_MODAL_DIR_RIGHT);
-
-	WM_modalkeymap_add_item(keymap, XKEY, KM_PRESS, 0, 0, FLY_MODAL_AXIS_LOCK_X);
-	WM_modalkeymap_add_item(keymap, ZKEY, KM_PRESS, 0, 0, FLY_MODAL_AXIS_LOCK_Z);
-
-	WM_modalkeymap_add_item(keymap, LEFTALTKEY, KM_PRESS, KM_ANY, 0, FLY_MODAL_PRECISION_ENABLE);
-	WM_modalkeymap_add_item(keymap, LEFTALTKEY, KM_RELEASE, KM_ANY, 0, FLY_MODAL_PRECISION_DISABLE);
-
-	/* for legacy reasons, leave shift working */
-	WM_modalkeymap_add_item(keymap, LEFTSHIFTKEY, KM_PRESS, KM_ANY, 0, FLY_MODAL_PRECISION_ENABLE);
-	WM_modalkeymap_add_item(keymap, LEFTSHIFTKEY, KM_RELEASE, KM_ANY, 0, FLY_MODAL_PRECISION_DISABLE);
-
-	WM_modalkeymap_add_item(keymap, LEFTCTRLKEY, KM_PRESS, KM_ANY, 0, FLY_MODAL_FREELOOK_ENABLE);
-	WM_modalkeymap_add_item(keymap, LEFTCTRLKEY, KM_RELEASE, KM_ANY, 0, FLY_MODAL_FREELOOK_DISABLE);
-
 	/* assign map to operators */
 	WM_modalkeymap_assign(keymap, "VIEW3D_OT_fly");
 }
@@ -245,7 +195,7 @@ static void drawFlyPixel(const struct bContext *UNUSED(C), ARegion *UNUSED(ar), 
 	int xoff, yoff;
 	float x1, x2, y1, y2;
 
-	if (fly->scene->camera) {
+	if (ED_view3d_cameracontrol_object_get(fly->v3d_camera_control)) {
 		ED_view3d_calc_camera_border(fly->scene, fly->depsgraph, fly->ar, fly->v3d, fly->rv3d, &viewborder, false);
 		xoff = viewborder.xmin;
 		yoff = viewborder.ymin;
@@ -347,7 +297,6 @@ enum {
 static bool initFlyInfo(bContext *C, FlyInfo *fly, wmOperator *op, const wmEvent *event)
 {
 	wmWindow *win = CTX_wm_window(C);
-
 	rctf viewborder;
 
 	float upvec[3]; /* tmp */
@@ -427,7 +376,7 @@ static bool initFlyInfo(bContext *C, FlyInfo *fly, wmOperator *op, const wmEvent
 	        (U.uiflag & USER_CAM_LOCK_NO_PARENT) == 0);
 
 	/* calculate center */
-	if (fly->scene->camera) {
+	if (ED_view3d_cameracontrol_object_get(fly->v3d_camera_control)) {
 		ED_view3d_calc_camera_border(fly->scene, fly->depsgraph, fly->ar, fly->v3d, fly->rv3d, &viewborder, false);
 
 		fly->width = BLI_rctf_size_x(&viewborder);
@@ -746,7 +695,7 @@ static int flyApply(bContext *C, FlyInfo *fly)
 	RegionView3D *rv3d = fly->rv3d;
 
 	float mat[3][3]; /* 3x3 copy of the view matrix so we can move along the view axis */
-	float dvec[3] = {0, 0, 0}; /* this is the direction thast added to the view offset per redraw */
+	float dvec[3] = {0, 0, 0}; /* this is the direction that's added to the view offset per redraw */
 
 	/* Camera Uprighting variables */
 	float moffset[2]; /* mouse offset from the views center */

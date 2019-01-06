@@ -47,6 +47,13 @@ endif()
 
 cmake_minimum_required(VERSION 3.5)
 
+# Prever LEGACY OpenGL to eb compatible with all the existing releases and
+# platforms which don't hare GLVND yet. Only do it if preference was not set
+# externally.
+if(NOT DEFINED OpenGL_GL_PREFERENCE)
+	set(OpenGL_GL_PREFERENCE "LEGACY")
+endif()
+
 if(NOT EXECUTABLE_OUTPUT_PATH)
 	set(FIRST_RUN TRUE)
 else()
@@ -157,7 +164,6 @@ option_defaults_init(
 	_init_BUILDINFO
 	_init_CODEC_FFMPEG
 	_init_CYCLES_OSL
-	_init_CYCLES_OPENSUBDIV
 	_init_IMAGE_OPENEXR
 	_init_INPUT_NDOF
 	_init_JACK
@@ -166,7 +172,6 @@ option_defaults_init(
 	_init_SDL
 	_init_FFTW3
 	_init_OPENSUBDIV
-	_init_SYSTEM_OPENJPG
 )
 
 # customize...
@@ -175,7 +180,6 @@ if(UNIX AND NOT APPLE)
 	# disable less important dependencies by default
 	set(_init_CODEC_FFMPEG                   OFF)
 	set(_init_CYCLES_OSL                     OFF)
-	set(_init_CYCLES_OPENSUBDIV              OFF)
 	set(_init_IMAGE_OPENEXR                  OFF)
 	set(_init_JACK                           OFF)
 	set(_init_OPENCOLLADA                    OFF)
@@ -183,13 +187,10 @@ if(UNIX AND NOT APPLE)
 	set(_init_SDL                            OFF)
 	set(_init_FFTW3                          OFF)
 	set(_init_OPENSUBDIV                     OFF)
-	set(_init_SYSTEM_OPENJPG                 OFF)
 elseif(WIN32)
 	set(_init_JACK                           OFF)
 elseif(APPLE)
 	set(_init_JACK                           OFF)
-	set(_init_OPENSUBDIV                     OFF)
-	set(_init_SYSTEM_OPENJPG                 OFF)
 endif()
 
 
@@ -242,10 +243,7 @@ option(WITH_OPENCOLORIO   "Enable OpenColorIO color management" ${_init_OPENCOLO
 # Compositor
 option(WITH_COMPOSITOR         "Enable the tile based nodal compositor" ON)
 
-option(WITH_OPENSUBDIV    "Enable OpenSubdiv for surface subdivision" _init_OPENSUBDIV)
-
-option(WITH_OPENSUBDIV_MODIFIER    "Use OpenSubdiv for CPU side of Subsurf/Multires modifiers" OFF)
-mark_as_advanced(WITH_OPENSUBDIV_MODIFIER)
+option(WITH_OPENSUBDIV    "Enable OpenSubdiv for surface subdivision" ${_init_OPENSUBDIV})
 
 option(WITH_OPENVDB       "Enable features relying on OpenVDB" OFF)
 option(WITH_OPENVDB_BLOSC "Enable blosc compression for OpenVDB, only enable if OpenVDB was built with blosc support" OFF)
@@ -298,9 +296,6 @@ else()
 	set(WITH_SYSTEM_GLES OFF)
 endif()
 
-
-# (unix defaults to System OpenJPEG On)
-option(WITH_SYSTEM_OPENJPEG "Use the operating systems OpenJPEG library" ${_init_SYSTEM_OPENJPG})
 
 if(UNIX AND NOT APPLE)
 	option(WITH_SYSTEM_EIGEN3 "Use the systems Eigen3 library" OFF)
@@ -385,7 +380,9 @@ if(UNIX AND NOT APPLE)
 endif()
 
 option(WITH_PYTHON_INSTALL       "Copy system python into the blender install folder" ON)
-if(WITH_PYTHON_INSTALL OR (WITH_AUDASPACE AND NOT WITH_SYSTEM_AUDASPACE))
+if(WIN32 OR APPLE)
+	# Windows and macOS have this bundled with Python libraries.
+elseif(WITH_PYTHON_INSTALL OR (WITH_AUDASPACE AND NOT WITH_SYSTEM_AUDASPACE))
 	set(PYTHON_NUMPY_PATH            "" CACHE PATH "Path to python site-packages or dist-packages containing 'numpy' module")
 	mark_as_advanced(PYTHON_NUMPY_PATH)
 	set(PYTHON_NUMPY_INCLUDE_DIRS ${PYTHON_NUMPY_PATH}/numpy/core/include CACHE PATH "Path to the include directory of the numpy module")
@@ -409,12 +406,12 @@ option(WITH_CYCLES					"Enable Cycles Render Engine" ON)
 option(WITH_CYCLES_STANDALONE		"Build Cycles standalone application" OFF)
 option(WITH_CYCLES_STANDALONE_GUI	"Build Cycles standalone with GUI" OFF)
 option(WITH_CYCLES_OSL				"Build Cycles with OSL support" ${_init_CYCLES_OSL})
-option(WITH_CYCLES_OPENSUBDIV		"Build Cycles with OpenSubdiv support" ${_init_CYCLES_OPENSUBDIV})
+option(WITH_CYCLES_EMBREE			"Build Cycles with Embree support" OFF)
 option(WITH_CYCLES_CUDA_BINARIES	"Build Cycles CUDA binaries" OFF)
 option(WITH_CYCLES_CUBIN_COMPILER	"Build cubins with nvrtc based compiler instead of nvcc" OFF)
 option(WITH_CYCLES_CUDA_BUILD_SERIAL "Build cubins one after another (useful on machines with limited RAM)" OFF)
 mark_as_advanced(WITH_CYCLES_CUDA_BUILD_SERIAL)
-set(CYCLES_CUDA_BINARIES_ARCH sm_30 sm_35 sm_37 sm_50 sm_52 sm_60 sm_61 CACHE STRING "CUDA architectures to build binaries for")
+set(CYCLES_CUDA_BINARIES_ARCH sm_30 sm_35 sm_37 sm_50 sm_52 sm_60 sm_61 sm_70 sm_72 sm_75 CACHE STRING "CUDA architectures to build binaries for")
 mark_as_advanced(CYCLES_CUDA_BINARIES_ARCH)
 unset(PLATFORM_DEFAULT)
 option(WITH_CYCLES_LOGGING	"Build Cycles with logging support" ON)
@@ -571,6 +568,9 @@ if(WIN32)
 
 	option(WINDOWS_USE_VISUAL_STUDIO_FOLDERS "Organize the visual studio project according to source folders." ON)
 	mark_as_advanced(WINDOWS_USE_VISUAL_STUDIO_FOLDERS)
+
+	option(WINDOWS_PYTHON_DEBUG "Include the files needed for debugging python scripts with visual studio 2017+." OFF)
+	mark_as_advanced(WINDOWS_PYTHON_DEBUG)
 endif()
 
 # avoid using again
@@ -970,16 +970,11 @@ else()
 	unset(_SYSTEM_BIG_ENDIAN)
 endif()
 if(WITH_IMAGE_OPENJPEG)
-	if(WITH_SYSTEM_OPENJPEG)
-		# dealt with above
-		set(OPENJPEG_DEFINES "")
-	else()
-		set(OPENJPEG_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/extern/libopenjpeg")
-		set(OPENJPEG_DEFINES "-DOPJ_STATIC")
-	endif()
 	# Special handling of Windows platform where openjpeg is always static.
 	if(WIN32)
 		set(OPENJPEG_DEFINES "-DOPJ_STATIC")
+	else()
+		set(OPENJPEG_DEFINES "")
 	endif()
 endif()
 
@@ -1062,8 +1057,11 @@ if(WITH_GL_PROFILE_ES20)
 	endif()
 
 else()
-	list(APPEND BLENDER_GL_LIBRARIES "${OPENGL_gl_LIBRARY}")
-
+	if(OpenGL_GL_PREFERENCE STREQUAL "LEGACY" AND OPENGL_gl_LIBRARY)
+		list(APPEND BLENDER_GL_LIBRARIES ${OPENGL_gl_LIBRARY})
+	else()
+		list(APPEND BLENDER_GL_LIBRARIES ${OPENGL_opengl_LIBRARY} ${OPENGL_glx_LIBRARY})
+	endif()
 endif()
 
 if(WITH_GL_EGL)
@@ -1463,11 +1461,17 @@ elseif(CMAKE_C_COMPILER_ID MATCHES "MSVC")
 		"/wd4305"  # truncation from 'type1' to 'type2'
 		"/wd4800"  # forcing value to bool 'true' or 'false'
 		"/wd4828"  # The file contains a character that is illegal
+		"/wd4996"  # identifier was declared deprecated
 		# errors:
 		"/we4013"  # 'function' undefined; assuming extern returning int
 		"/we4133"  # incompatible pointer types
 		"/we4431"  # missing type specifier - int assumed
 	)
+
+	if(MSVC_VERSION GREATER_EQUAL 1911)
+		# see https://docs.microsoft.com/en-us/cpp/error-messages/compiler-warnings/c5038?view=vs-2017
+		set(_WARNINGS "${_WARNINGS} /w35038") #order of initialisation in c++ constructors
+	endif()
 
 	string(REPLACE ";" " " _WARNINGS "${_WARNINGS}")
 	set(C_WARNINGS "${_WARNINGS}")
@@ -1488,14 +1492,14 @@ if(WITH_PYTHON)
 		)
 	endif()
 
-	if(WIN32)
-		# pass, we have this in an archive to extract
+	if(WIN32 OR APPLE)
+		# Windows and macOS have this bundled with Python libraries.
 	elseif((WITH_PYTHON_INSTALL AND WITH_PYTHON_INSTALL_NUMPY) OR (WITH_AUDASPACE AND NOT WITH_SYSTEM_AUDASPACE))
 		if(("${PYTHON_NUMPY_PATH}" STREQUAL "") OR (${PYTHON_NUMPY_PATH} MATCHES NOTFOUND))
 			find_python_package(numpy)
 			unset(PYTHON_NUMPY_INCLUDE_DIRS CACHE)
 			set(PYTHON_NUMPY_INCLUDE_DIRS ${PYTHON_NUMPY_PATH}/numpy/core/include CACHE PATH "Path to the include directory of the numpy module")
-		        mark_as_advanced(PYTHON_NUMPY_INCLUDE_DIRS)
+			mark_as_advanced(PYTHON_NUMPY_INCLUDE_DIRS)
 		endif()
 	endif()
 
@@ -1526,12 +1530,8 @@ if(
 	(CMAKE_C_COMPILER_ID MATCHES "Clang" AND (NOT MSVC)) OR
 	(CMAKE_C_COMPILER_ID MATCHES "Intel")
 )
-	# Use C99 + GNU extensions, works with GCC, Clang, ICC
-	if(WITH_C11)
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11")
-	else()
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99")
-	endif()
+	# Use C11 + GNU extensions, works with GCC, Clang, ICC
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu11")
 endif()
 
 # Include warnings first, so its possible to disable them with user defined flags
@@ -1678,7 +1678,6 @@ if(FIRST_RUN)
 	info_cfg_option(WITH_MEM_JEMALLOC)
 	info_cfg_option(WITH_MEM_VALGRIND)
 	info_cfg_option(WITH_SYSTEM_GLEW)
-	info_cfg_option(WITH_SYSTEM_OPENJPEG)
 
 	info_cfg_text("Image Formats:")
 	info_cfg_option(WITH_OPENIMAGEIO)

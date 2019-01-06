@@ -174,7 +174,7 @@ bool EDBM_op_finish(BMEditMesh *em, BMOperator *bmop, wmOperator *op, const bool
 		}
 
 		if (em->ob) {
-			DEG_id_tag_update(&((Mesh *)em->ob->data)->id, DEG_TAG_COPY_ON_WRITE);
+			DEG_id_tag_update(&((Mesh *)em->ob->data)->id, ID_RECALC_COPY_ON_WRITE);
 		}
 
 		return false;
@@ -328,7 +328,7 @@ void EDBM_mesh_make(Object *ob, const int select_mode, const bool add_key_index)
 }
 
 /**
- * \warning This can invalidate the #DerivedMesh cache of other objects (for linked duplicates).
+ * \warning This can invalidate the #Mesh runtime cache of other objects (for linked duplicates).
  * Most callers should run #DEG_id_tag_update on \a ob->data, see: T46738, T46913
  */
 void EDBM_mesh_load(Main *bmain, Object *ob)
@@ -438,14 +438,14 @@ void EDBM_selectmode_flush(BMEditMesh *em)
 
 void EDBM_deselect_flush(BMEditMesh *em)
 {
-	/* function below doesnt use. just do this to keep the values in sync */
+	/* function below doesn't use. just do this to keep the values in sync */
 	em->bm->selectmode = em->selectmode;
 	BM_mesh_deselect_flush(em->bm);
 }
 
 void EDBM_select_flush(BMEditMesh *em)
 {
-	/* function below doesnt use. just do this to keep the values in sync */
+	/* function below doesn't use. just do this to keep the values in sync */
 	em->bm->selectmode = em->selectmode;
 	BM_mesh_select_flush(em->bm);
 }
@@ -991,12 +991,12 @@ static BMVert *cache_mirr_intptr_as_bmvert(intptr_t *index_lookup, int index)
 #define BM_SEARCH_MAXDIST_MIRR 0.00002f
 #define BM_CD_LAYER_ID "__mirror_index"
 /**
- * \param em  Editmesh.
- * \param use_self  Allow a vertex to point to its self (middle verts).
- * \param use_select  Restrict to selected verts.
- * \param use_topology  Use topology mirror.
- * \param maxdist  Distance for close point test.
- * \param r_index  Optional array to write into, as an alternative to a customdata layer (length of total verts).
+ * \param em: Editmesh.
+ * \param use_self: Allow a vertex to point to its self (middle verts).
+ * \param use_select: Restrict to selected verts.
+ * \param use_topology: Use topology mirror.
+ * \param maxdist: Distance for close point test.
+ * \param r_index: Optional array to write into, as an alternative to a customdata layer (length of total verts).
  */
 void EDBM_verts_mirror_cache_begin_ex(
         BMEditMesh *em, const int axis, const bool use_self, const bool use_select,
@@ -1333,7 +1333,7 @@ void EDBM_update_generic(BMEditMesh *em, const bool do_tessface, const bool is_d
 {
 	Object *ob = em->ob;
 	/* order of calling isn't important */
-	DEG_id_tag_update(ob->data, OB_RECALC_DATA);
+	DEG_id_tag_update(ob->data, ID_RECALC_GEOMETRY);
 	WM_main_add_notifier(NC_GEOM | ND_DATA, ob->data);
 
 	if (do_tessface) {
@@ -1363,19 +1363,6 @@ void EDBM_update_generic(BMEditMesh *em, const bool do_tessface, const bool is_d
 		}
 	}
 #endif
-}
-
-/** \} */
-
-/* -------------------------------------------------------------------- */
-/** \name Data Access
- * \{ */
-
-DerivedMesh *EDBM_mesh_deform_dm_get(BMEditMesh *em)
-{
-	return ((em->derivedFinal != NULL) &&
-	        (em->derivedFinal->type == DM_TYPE_EDITBMESH) &&
-	        (em->derivedFinal->deformedOnly != false)) ? em->derivedFinal : NULL;
 }
 
 /** \} */
@@ -1502,7 +1489,7 @@ bool BMBVH_EdgeVisible(struct BMBVHTree *tree, BMEdge *e,
 		ar->winy / 2.0f,
 	};
 
-	ED_view3d_win_to_segment(depsgraph, ar, v3d, mval_f, origin, end, false);
+	ED_view3d_win_to_segment_clipped(depsgraph, ar, v3d, mval_f, origin, end, false);
 
 	invert_m4_m4(invmat, obedit->obmat);
 	mul_m4_v3(invmat, origin);

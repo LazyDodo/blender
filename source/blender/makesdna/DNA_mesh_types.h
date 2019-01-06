@@ -53,6 +53,7 @@ struct MVert;
 struct Material;
 struct Mesh;
 struct Multires;
+struct SubdivCCG;
 
 #
 #
@@ -84,6 +85,11 @@ typedef struct Mesh_Runtime {
 	struct EditMeshData *edit_data;
 	void *batch_cache;
 
+	struct SubdivCCG *subdiv_ccg;
+	void  *pad1;
+	int subdiv_ccg_tot_level;
+	int pad2;
+
 	int64_t cd_dirty_vert;
 	int64_t cd_dirty_edge;
 	int64_t cd_dirty_loop;
@@ -94,8 +100,17 @@ typedef struct Mesh_Runtime {
 	/** 'BVHCache', for 'BKE_bvhutil.c' */
 	struct LinkNode *bvh_cache;
 
-	int deformed_only; /* set by modifier stack if only deformed from original */
-	char padding[4];
+	/** Non-manifold boundary data for Shrinkwrap Target Project. */
+	struct ShrinkwrapBoundaryData *shrinkwrap_data;
+
+	/** Set by modifier stack if only deformed from original. */
+	char deformed_only;
+	/**
+	 * Copied from edit-mesh (hint, draw with editmesh data).
+	 * In the future we may leave the mesh-data empty
+	 * since its not needed if we can use edit-mesh data. */
+	char is_original;
+	char padding[6];
 } Mesh_Runtime;
 
 typedef struct Mesh {
@@ -157,10 +172,8 @@ typedef struct Mesh {
 	float size[3];
 	float rot[3];
 
-	int drawflag;
 	short texflag, flag;
 	float smoothresh;
-	int pad2;
 
 	/* customdata flag, for bevel-weight and crease, which are now optional */
 	char cd_flag, pad;
@@ -215,15 +228,15 @@ enum {
 
 /* me->flag */
 enum {
-/*	ME_ISDONE                  = 1 << 0, */
-/*	ME_DEPRECATED              = 1 << 1, */
+	ME_FLAG_DEPRECATED_0       = 1 << 0,  /* cleared */
+	ME_FLAG_DEPRECATED_1       = 1 << 1,  /* cleared */
 	ME_TWOSIDED                = 1 << 2,
-	ME_UVEFFECT                = 1 << 3,
-	ME_VCOLEFFECT              = 1 << 4,
+	ME_FLAG_DEPRECATED_3       = 1 << 3,  /* cleared */
+	ME_FLAG_DEPRECATED_4       = 1 << 4,  /* cleared */
 	ME_AUTOSMOOTH              = 1 << 5,
-	ME_SMESH                   = 1 << 6,
-	ME_SUBSURF                 = 1 << 7,
-	ME_OPT_EDGES               = 1 << 8,
+	ME_FLAG_DEPRECATED_6       = 1 << 6,  /* cleared */
+	ME_FLAG_DEPRECATED_7       = 1 << 7,  /* cleared */
+	ME_FLAG_DEPRECATED_8       = 1 << 8,  /* cleared */
 	ME_DS_EXPAND               = 1 << 9,
 	ME_SCULPT_DYNAMIC_TOPOLOGY = 1 << 10,
 };
@@ -233,39 +246,6 @@ enum {
 	ME_CDFLAG_VERT_BWEIGHT = 1 << 0,
 	ME_CDFLAG_EDGE_BWEIGHT = 1 << 1,
 	ME_CDFLAG_EDGE_CREASE  = 1 << 2,
-};
-
-/* me->drawflag, short */
-enum {
-	ME_DRAWEDGES           = 1 << 0,
-	ME_DRAWFACES           = 1 << 1,
-	ME_DRAWNORMALS         = 1 << 2,
-	ME_DRAW_VNORMALS       = 1 << 3,
-
-	ME_DRAWEIGHT           = 1 << 4,
-	ME_DRAW_FACE_DOT       = 1 << 5,
-
-	ME_DRAWCREASES         = 1 << 6,
-	ME_DRAWSEAMS           = 1 << 7,
-	ME_DRAWSHARP           = 1 << 8,
-	ME_DRAWBWEIGHTS        = 1 << 9,
-
-	ME_DRAWEXTRA_EDGELEN   = 1 << 10,
-	ME_DRAWEXTRA_FACEAREA  = 1 << 11,
-	ME_DRAWEXTRA_FACEANG   = 1 << 12,
-	ME_DRAWEXTRA_EDGEANG   = 1 << 13,
-
-/* debug only option */
-	ME_DRAWEXTRA_INDICES   = 1 << 14,
-
-	ME_DRAW_FREESTYLE_EDGE = 1 << 15,
-	ME_DRAW_FREESTYLE_FACE = 1 << 16,
-
-/* draw stats */
-	ME_DRAW_STATVIS        = 1 << 17,
-
-/* draw loop normals */
-	ME_DRAW_LNORMALS       = 1 << 18,
 };
 
 /* Subsurf Type */

@@ -73,7 +73,14 @@ static SpaceLink *buttons_new(const ScrArea *UNUSED(area), const Scene *UNUSED(s
 
 	BLI_addtail(&sbuts->regionbase, ar);
 	ar->regiontype = RGN_TYPE_HEADER;
-	ar->alignment = RGN_ALIGN_TOP;
+	ar->alignment = (U.uiflag & USER_HEADER_BOTTOM) ? RGN_ALIGN_BOTTOM : RGN_ALIGN_TOP;
+
+	/* navigation bar */
+	ar = MEM_callocN(sizeof(ARegion), "navigation bar for buts");
+
+	BLI_addtail(&sbuts->regionbase, ar);
+	ar->regiontype = RGN_TYPE_NAV_BAR;
+	ar->alignment = RGN_ALIGN_LEFT;
 
 #if 0
 	/* context region */
@@ -146,6 +153,9 @@ static void buttons_main_region_layout_properties(const bContext *C, SpaceButs *
 			break;
 		case BCONTEXT_RENDER:
 			contexts[0] = "render";
+			break;
+		case BCONTEXT_OUTPUT:
+			contexts[0] = "output";
 			break;
 		case BCONTEXT_VIEW_LAYER:
 			contexts[0] = "view_layer";
@@ -248,35 +258,48 @@ static void buttons_main_region_layout_tool(const bContext *C, ARegion *ar)
 			case CTX_MODE_OBJECT:
 				ARRAY_SET_ITEMS(contexts, ".objectmode");
 				break;
-			case CTX_MODE_GPENCIL_PAINT:
+			case CTX_MODE_PAINT_GPENCIL:
 				ARRAY_SET_ITEMS(contexts, ".greasepencil_paint");
 				break;
-			case CTX_MODE_GPENCIL_SCULPT:
+			case CTX_MODE_SCULPT_GPENCIL:
 				ARRAY_SET_ITEMS(contexts, ".greasepencil_sculpt");
 				break;
-			case CTX_MODE_GPENCIL_WEIGHT:
+			case CTX_MODE_WEIGHT_GPENCIL:
 				ARRAY_SET_ITEMS(contexts, ".greasepencil_weight");
 				break;
 		}
 	}
 	else if (workspace->tools_space_type == SPACE_IMAGE) {
-		/* TODO */
+		switch (workspace->tools_mode) {
+			case SI_MODE_VIEW:
+				break;
+			case SI_MODE_PAINT:
+				ARRAY_SET_ITEMS(contexts, ".paint_common_2d", ".imagepaint_2d");
+				break;
+			case SI_MODE_MASK:
+				break;
+			case SI_MODE_UV:
+				if (mode == CTX_MODE_EDIT_MESH) {
+					ARRAY_SET_ITEMS(contexts, ".uv_sculpt");
+				}
+				break;
+		}
 	}
 
 	/* for grease pencil we don't use tool system yet, so we need check outside
 	 * workspace->tools_space_type because this value is not available
 	 */
 	switch (mode) {
-		case CTX_MODE_GPENCIL_PAINT:
+		case CTX_MODE_PAINT_GPENCIL:
 			ARRAY_SET_ITEMS(contexts, ".greasepencil_paint");
 			break;
-		case CTX_MODE_GPENCIL_SCULPT:
+		case CTX_MODE_SCULPT_GPENCIL:
 			ARRAY_SET_ITEMS(contexts, ".greasepencil_sculpt");
 			break;
-		case CTX_MODE_GPENCIL_WEIGHT:
+		case CTX_MODE_WEIGHT_GPENCIL:
 			ARRAY_SET_ITEMS(contexts, ".greasepencil_weight");
 			break;
-		case CTX_MODE_GPENCIL_EDIT:
+		case CTX_MODE_EDIT_GPENCIL:
 			ARRAY_SET_ITEMS(contexts, ".greasepencil_edit");
 			break;
 	}
@@ -330,14 +353,19 @@ static void buttons_operatortypes(void)
 
 static void buttons_keymap(struct wmKeyConfig *keyconf)
 {
-	wmKeyMap *keymap = WM_keymap_ensure(keyconf, "Property Editor", SPACE_BUTS, 0);
-
-	WM_keymap_add_item(keymap, "BUTTONS_OT_context_menu", RIGHTMOUSE, KM_PRESS, 0, 0);
+	WM_keymap_ensure(keyconf, "Property Editor", SPACE_BUTS, 0);
 }
 
 /* add handlers, stuff you only do once or on area/region changes */
 static void buttons_header_region_init(wmWindowManager *UNUSED(wm), ARegion *ar)
 {
+#ifdef USE_HEADER_CONTEXT_PATH
+	/* Reinsert context buttons header-type at the end of the list so it's drawn last. */
+	HeaderType *context_ht = BLI_findstring(&ar->type->headertypes, "BUTTONS_HT_context", offsetof(HeaderType, idname));
+	BLI_remlink(&ar->type->headertypes, context_ht);
+	BLI_addtail(&ar->type->headertypes, context_ht);
+#endif
+
 	ED_region_header_init(ar);
 }
 
@@ -368,13 +396,54 @@ static void buttons_header_region_message_subscribe(
 	 * where one has no active object, so that available contexts changes. */
 	WM_msg_subscribe_rna_anon_prop(mbus, Window, view_layer, &msg_sub_value_region_tag_redraw);
 
-	if (!ELEM(sbuts->mainb, BCONTEXT_RENDER, BCONTEXT_SCENE, BCONTEXT_WORLD)) {
+	if (!ELEM(sbuts->mainb, BCONTEXT_RENDER, BCONTEXT_OUTPUT, BCONTEXT_SCENE, BCONTEXT_WORLD)) {
 		WM_msg_subscribe_rna_anon_prop(mbus, ViewLayer, name, &msg_sub_value_region_tag_redraw);
 	}
 
 	if (sbuts->mainb == BCONTEXT_TOOL) {
 		WM_msg_subscribe_rna_anon_prop(mbus, WorkSpace, tools, &msg_sub_value_region_tag_redraw);
 	}
+
+#ifdef USE_HEADER_CONTEXT_PATH
+	WM_msg_subscribe_rna_anon_prop(mbus, SpaceProperties, context, &msg_sub_value_region_tag_redraw);
+#endif
+}
+
+static void buttons_navigation_bar_region_init(wmWindowManager *wm, ARegion *ar)
+{
+	wmKeyMap *keymap = WM_keymap_ensure(wm->defaultconf, "Property Editor", SPACE_BUTS, 0);
+	WM_event_add_keymap_handler(&ar->handlers, keymap);
+
+	ar->flag |= RGN_FLAG_PREFSIZE_OR_HIDDEN;
+
+	ED_region_panels_init(wm, ar);
+	ar->v2d.keepzoom |= V2D_LOCKZOOM_X | V2D_LOCKZOOM_Y;
+}
+
+static void buttons_navigation_bar_region_draw(const bContext *C, ARegion *ar)
+{
+	for (PanelType *pt = ar->type->paneltypes.first; pt; pt = pt->next) {
+		pt->flag |= PNL_LAYOUT_VERT_BAR;
+	}
+
+	ED_region_panels_layout(C, ar);
+	ar->v2d.scroll &= ~V2D_SCROLL_VERTICAL; /* ED_region_panels_layout adds vertical scrollbars, we don't want them. */
+	ED_region_panels_draw(C, ar);
+}
+
+static void buttons_navigation_bar_region_message_subscribe(
+        const bContext *UNUSED(C),
+        WorkSpace *UNUSED(workspace), Scene *UNUSED(scene),
+        bScreen *UNUSED(screen), ScrArea *UNUSED(sa), ARegion *ar,
+        struct wmMsgBus *mbus)
+{
+	wmMsgSubscribeValue msg_sub_value_region_tag_redraw = {
+		.owner = ar,
+		.user_data = ar,
+		.notify = ED_region_do_msg_notify_tag_redraw,
+	};
+
+	WM_msg_subscribe_rna_anon_prop(mbus, Window, view_layer, &msg_sub_value_region_tag_redraw);
 }
 
 /* draw a certain button set only if properties area is currently
@@ -511,6 +580,7 @@ static void buttons_area_listener(
 			break;
 		case NC_BRUSH:
 			buttons_area_redraw(sa, BCONTEXT_TEXTURE);
+			buttons_area_redraw(sa, BCONTEXT_TOOL);
 			sbuts->preview = 1;
 			break;
 		case NC_TEXTURE:
@@ -651,9 +721,10 @@ void ED_spacetype_buttons(void)
 	art->draw = ED_region_panels_draw;
 	art->listener = buttons_main_region_listener;
 	art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_FRAMES;
-	BLI_addhead(&st->regiontypes, art);
-
+#ifndef USE_HEADER_CONTEXT_PATH
 	buttons_context_register(art);
+#endif
+	BLI_addhead(&st->regiontypes, art);
 
 	/* regions: header */
 	art = MEM_callocN(sizeof(ARegionType), "spacetype buttons region");
@@ -664,6 +735,19 @@ void ED_spacetype_buttons(void)
 	art->init = buttons_header_region_init;
 	art->draw = buttons_header_region_draw;
 	art->message_subscribe = buttons_header_region_message_subscribe;
+#ifdef USE_HEADER_CONTEXT_PATH
+	buttons_context_register(art);
+#endif
+	BLI_addhead(&st->regiontypes, art);
+
+	/* regions: navigation bar */
+	art = MEM_callocN(sizeof(ARegionType), "spacetype nav buttons region");
+	art->regionid = RGN_TYPE_NAV_BAR;
+	art->prefsizex = AREAMINX - 3; /* XXX Works and looks best, should we update AREAMINX accordingly? */
+	art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_FRAMES;
+	art->init = buttons_navigation_bar_region_init;
+	art->draw = buttons_navigation_bar_region_draw;
+	art->message_subscribe = buttons_navigation_bar_region_message_subscribe;
 	BLI_addhead(&st->regiontypes, art);
 
 	BKE_spacetype_register(st);

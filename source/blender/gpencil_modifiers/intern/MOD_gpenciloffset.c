@@ -77,16 +77,18 @@ static void deformStroke(
 	float mat[4][4];
 	float loc[3], rot[3], scale[3];
 
-	if (!is_stroke_affected_by_modifier(ob,
-	        mmd->layername, mmd->pass_index, 1, gpl, gps,
-	        mmd->flag & GP_OFFSET_INVERT_LAYER, mmd->flag & GP_OFFSET_INVERT_PASS))
+	if (!is_stroke_affected_by_modifier(
+	            ob,
+	            mmd->layername, mmd->pass_index, mmd->layer_pass, 1, gpl, gps,
+	            mmd->flag & GP_OFFSET_INVERT_LAYER, mmd->flag & GP_OFFSET_INVERT_PASS,
+	            mmd->flag & GP_OFFSET_INVERT_LAYERPASS))
 	{
 		return;
 	}
 
 	for (int i = 0; i < gps->totpoints; i++) {
 		bGPDspoint *pt = &gps->points[i];
-		MDeformVert *dvert = &gps->dvert[i];
+		MDeformVert *dvert = gps->dvert != NULL ? &gps->dvert[i] : NULL;
 
 		/* verify vertex group */
 		const float weight = get_modifier_point_weight(dvert, (mmd->flag & GP_OFFSET_INVERT_VGROUP) != 0, def_nr);
@@ -130,7 +132,8 @@ GpencilModifierTypeInfo modifierType_Gpencil_Offset = {
 
 	/* deformStroke */      deformStroke,
 	/* generateStrokes */   NULL,
-	/* bakeModifier */    bakeModifier,
+	/* bakeModifier */      bakeModifier,
+	/* remapTime */         NULL,
 
 	/* initData */          initData,
 	/* freeData */          NULL,
@@ -140,4 +143,5 @@ GpencilModifierTypeInfo modifierType_Gpencil_Offset = {
 	/* foreachObjectLink */ NULL,
 	/* foreachIDLink */     NULL,
 	/* foreachTexLink */    NULL,
+	/* getDuplicationFactor */ NULL,
 };

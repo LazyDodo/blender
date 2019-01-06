@@ -79,7 +79,7 @@ void DepsgraphRelationBuilder::build_layer_collections(ListBase *lb)
 			continue;
 		}
 		if ((lc->flag & LAYER_COLLECTION_EXCLUDE) == 0) {
-			build_collection(NULL, lc->collection);
+			build_collection(lc, NULL, lc->collection);
 		}
 		build_layer_collections(&lc->layer_collections);
 	}
@@ -94,8 +94,13 @@ void DepsgraphRelationBuilder::build_view_layer(Scene *scene, ViewLayer *view_la
 	 * passed to the evaluation functions. During relations builder we only
 	 * do NULL-pointer check of the base, so it's fine to pass original one.
 	 */
+	const int base_flag = (graph_->mode == DAG_EVAL_VIEWPORT) ?
+		BASE_ENABLED_VIEWPORT : BASE_ENABLED_RENDER;
 	LISTBASE_FOREACH (Base *, base, &view_layer->object_bases) {
-		build_object(base, base->object);
+		const bool is_object_visible = (base->flag & base_flag);
+		if (is_object_visible) {
+			build_object(base, base->object);
+		}
 	}
 
 	build_layer_collections(&view_layer->layer_collections);
@@ -127,14 +132,9 @@ void DepsgraphRelationBuilder::build_view_layer(Scene *scene, ViewLayer *view_la
 	LISTBASE_FOREACH (MovieClip *, clip, &bmain_->movieclip) {
 		build_movieclip(clip);
 	}
-	/* TODO(sergey): Do this flush on CoW object? */
-	foreach (OperationDepsNode *node, graph_->operations) {
-		IDDepsNode *id_node = node->owner->owner;
-		ID *id = id_node->id_orig;
-		if (GS(id->name) == ID_OB) {
-			Object *object = (Object *)id;
-			object->customdata_mask |= node->customdata_mask;
-		}
+	/* Material override. */
+	if (view_layer->mat_override != NULL) {
+		build_material(view_layer->mat_override);
 	}
 	/* Build all set scenes. */
 	if (scene->set != NULL) {

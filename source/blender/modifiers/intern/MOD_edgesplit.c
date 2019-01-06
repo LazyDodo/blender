@@ -58,8 +58,10 @@ static Mesh *doEdgeSplit(Mesh *mesh, EdgeSplitModifierData *emd, const ModifierE
 	BMesh *bm;
 	BMIter iter;
 	BMEdge *e;
-	float threshold = cosf(emd->split_angle + 0.000000175f);
-	const bool calc_face_normals = (emd->flags & MOD_EDGESPLIT_FROMANGLE) != 0;
+	const float threshold = cosf(emd->split_angle + 0.000000175f);
+	const bool do_split_angle = (emd->flags & MOD_EDGESPLIT_FROMANGLE) != 0 && emd->split_angle < (float)M_PI;
+	const bool do_split_all = do_split_angle && emd->split_angle < FLT_EPSILON;
+	const bool calc_face_normals = do_split_angle && !do_split_all;
 
 	bm = BKE_mesh_to_bmesh_ex(
 	        mesh,
@@ -69,9 +71,10 @@ static Mesh *doEdgeSplit(Mesh *mesh, EdgeSplitModifierData *emd, const ModifierE
 	            .add_key_index = false,
 	            .use_shapekey = true,
 	            .active_shapekey = ctx->object->shapenr,
+	            .cd_mask_extra = CD_MASK_ORIGINDEX,
 	        });
 
-	if (emd->flags & MOD_EDGESPLIT_FROMANGLE) {
+	if (do_split_angle) {
 		BM_ITER_MESH (e, &iter, bm, BM_EDGES_OF_MESH) {
 			/* check for 1 edge having 2 face users */
 			BMLoop *l1, *l2;
@@ -80,6 +83,8 @@ static Mesh *doEdgeSplit(Mesh *mesh, EdgeSplitModifierData *emd, const ModifierE
 			{
 				if (/* 3+ faces on this edge, always split */
 				    UNLIKELY(l1 != l2->radial_next) ||
+				    /* O° angle setting, we want to split on all edges. */
+				    do_split_all ||
 				    /* 2 face edge - check angle*/
 				    (dot_v3v3(l1->f->no, l2->f->no) < threshold))
 				{
@@ -106,7 +111,7 @@ static Mesh *doEdgeSplit(Mesh *mesh, EdgeSplitModifierData *emd, const ModifierE
 
 	/* BM_mesh_validate(bm); */ /* for troubleshooting */
 
-	result = BKE_bmesh_to_mesh_nomain(bm, &((struct BMeshToMeshParams){0}));
+	result = BKE_mesh_from_bmesh_for_eval_nomain(bm, 0);
 	BM_mesh_free(bm);
 
 	result->runtime.cd_dirty_vert |= CD_MASK_NORMAL;
@@ -157,14 +162,12 @@ ModifierTypeInfo modifierType_EdgeSplit = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,

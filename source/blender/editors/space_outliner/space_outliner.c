@@ -108,7 +108,7 @@ static void outliner_main_region_draw(const bContext *C, ARegion *ar)
 	UI_view2d_view_restore(C);
 
 	/* scrollers */
-	scrollers = UI_view2d_scrollers_calc(C, v2d, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_ARG_DUMMY);
+	scrollers = UI_view2d_scrollers_calc(C, v2d, NULL, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_ARG_DUMMY);
 	UI_view2d_scrollers_draw(C, v2d, scrollers);
 	UI_view2d_scrollers_free(scrollers);
 }
@@ -228,6 +228,11 @@ static void outliner_main_region_listener(
 				ED_region_tag_redraw(ar);
 			}
 			break;
+		case NC_MASK:
+			if (ELEM(wmn->action, NA_ADDED)) {
+				ED_region_tag_redraw(ar);
+			}
+			break;
 	}
 
 }
@@ -301,7 +306,7 @@ static SpaceLink *outliner_new(const ScrArea *UNUSED(area), const Scene *UNUSED(
 
 	BLI_addtail(&soutliner->regionbase, ar);
 	ar->regiontype = RGN_TYPE_HEADER;
-	ar->alignment = RGN_ALIGN_TOP;
+	ar->alignment = (U.uiflag & USER_HEADER_BOTTOM) ? RGN_ALIGN_BOTTOM : RGN_ALIGN_TOP;
 
 	/* main region */
 	ar = MEM_callocN(sizeof(ARegion), "main region for outliner");

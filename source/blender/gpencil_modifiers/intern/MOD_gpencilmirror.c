@@ -83,26 +83,28 @@ static void update_position(Object *ob, MirrorGpencilModifierData *mmd, bGPDstro
 	float clear[3] = { 0.0f, 0.0f, 0.0f };
 	clear[axis] = 1.0f;
 
-	float origin[3];
+	float ob_origin[3];
 	float mirror_origin[3];
+	float pt_origin[3];
 
-	copy_v3_v3(origin, ob->loc);
+	copy_v3_v3(ob_origin, ob->loc);
 	/* only works with current axis */
-	mul_v3_v3(origin, clear);
+	mul_v3_v3(ob_origin, clear);
 	zero_v3(mirror_origin);
 
 	if (mmd->object) {
-		copy_v3_v3(mirror_origin, mmd->object->loc);
-		mul_v3_v3(mirror_origin, clear);
-		sub_v3_v3(origin, mirror_origin);
-	}
-	/* clear other axis */
-	for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
-		add_v3_v3(&pt->x, origin);
-		mul_v3_v3(&pt->x, factor);
-		add_v3_v3(&pt->x, mirror_origin);
+		mul_v3_v3v3(mirror_origin, mmd->object->loc, clear);
 	}
 
+	/* clear other axis */
+	for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+		mul_v3_v3(&pt->x, factor);
+		if (mmd->object) {
+			sub_v3_v3v3(pt_origin, ob_origin, mirror_origin);
+			mul_v3_fl(pt_origin, -2.0f);
+			add_v3_v3(&pt->x, pt_origin);
+		}
+	}
 }
 
 /* Generic "generateStrokes" callback */
@@ -124,8 +126,11 @@ static void generateStrokes(
 
 			for (i = 0, gps = gpf->strokes.first; i < tot_strokes; i++, gps = gps->next) {
 				if (is_stroke_affected_by_modifier(
-				            ob, mmd->layername, mmd->pass_index, 1, gpl, gps,
-				            mmd->flag & GP_MIRROR_INVERT_LAYER, mmd->flag & GP_MIRROR_INVERT_PASS))
+				            ob, mmd->layername, mmd->pass_index, mmd->layer_pass,
+				            1, gpl, gps,
+				            mmd->flag & GP_MIRROR_INVERT_LAYER,
+				            mmd->flag & GP_MIRROR_INVERT_PASS,
+				            mmd->flag & GP_MIRROR_INVERT_LAYERPASS))
 				{
 					gps_new = BKE_gpencil_stroke_duplicate(gps);
 					update_position(ob, mmd, gps_new, xi);
@@ -186,6 +191,21 @@ static void foreachObjectLink(
 	walk(userData, ob, &mmd->object, IDWALK_CB_NOP);
 }
 
+static int getDuplicationFactor(GpencilModifierData *md)
+{
+	MirrorGpencilModifierData *mmd = (MirrorGpencilModifierData *)md;
+	int factor = 1;
+	/* create a duplication for each axis */
+	for (int xi = 0; xi < 3; ++xi) {
+		if (mmd->flag & (GP_MIRROR_AXIS_X << xi)) {
+			factor++;
+		}
+	}
+	CLAMP_MIN(factor, 1);
+
+	return factor;
+}
+
 GpencilModifierTypeInfo modifierType_Gpencil_Mirror = {
 	/* name */              "Mirror",
 	/* structName */        "MirrorGpencilModifierData",
@@ -197,7 +217,8 @@ GpencilModifierTypeInfo modifierType_Gpencil_Mirror = {
 
 	/* deformStroke */      NULL,
 	/* generateStrokes */   generateStrokes,
-	/* bakeModifier */    bakeModifier,
+	/* bakeModifier */      bakeModifier,
+	/* remapTime */         NULL,
 
 	/* initData */          initData,
 	/* freeData */          NULL,
@@ -207,4 +228,5 @@ GpencilModifierTypeInfo modifierType_Gpencil_Mirror = {
 	/* foreachObjectLink */ foreachObjectLink,
 	/* foreachIDLink */     NULL,
 	/* foreachTexLink */    NULL,
+	/* getDuplicationFactor */ getDuplicationFactor,
 };

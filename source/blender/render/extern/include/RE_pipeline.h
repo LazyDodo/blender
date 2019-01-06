@@ -260,11 +260,6 @@ void RE_SetView(struct Render *re, float mat[4][4]);
 void RE_GetView(struct Render *re, float mat[4][4]);
 void RE_GetViewPlane(struct Render *re, rctf *r_viewplane, rcti *r_disprect);
 
-/* make or free the dbase */
-void RE_Database_CameraOnly(
-        struct Render *re, struct Main *bmain, struct Scene *scene,
-        int use_camera_view);
-
 /* set the render threads based on the commandline and autothreads setting */
 void RE_init_threadcount(Render *re);
 
@@ -279,7 +274,8 @@ bool RE_WriteRenderViewsMovie(
 void RE_BlenderFrame(struct Render *re, struct Main *bmain, struct Scene *scene,
                      struct ViewLayer *single_layer, struct Object *camera_override,
                      int frame, const bool write_still);
-void RE_BlenderAnim(struct Render *re, struct Main *bmain, struct Scene *scene, struct Object *camera_override,
+void RE_BlenderAnim(struct Render *re, struct Main *bmain, struct Scene *scene,
+                    struct ViewLayer *single_layer, struct Object *camera_override,
                     int sfra, int efra, int tfra);
 #ifdef WITH_FREESTYLE
 void RE_RenderFreestyleStrokes(struct Render *re, struct Main *bmain, struct Scene *scene, int render);
@@ -334,6 +330,7 @@ struct RenderPass *RE_pass_find_by_type(volatile struct RenderLayer *rl, int pas
 #define RE_BAKE_AO					2
 
 void RE_GetCameraWindow(struct Render *re, struct Object *camera, int frame, float mat[4][4]);
+void RE_GetCameraWindowWithOverscan(struct Render *re, float mat[4][4], float overscan);
 void RE_GetCameraModelMatrix(struct Render *re, struct Object *camera, float r_mat[4][4]);
 struct Scene *RE_GetScene(struct Render *re);
 void RE_SetScene(struct Render *re, struct Scene *sce);

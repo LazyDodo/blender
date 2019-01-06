@@ -70,16 +70,15 @@
 #include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_library_remap.h"
-#include "BKE_main.h"
 #include "BKE_modifier.h"
 #include "BKE_node.h"
+#include "BKE_object.h"
 #include "BKE_pointcache.h"
 #include "BKE_report.h"
 #include "BKE_scene.h"
 #include "BKE_sequencer.h"
 #include "BKE_sound.h"
 #include "BKE_writeavi.h"  /* <------ should be replaced once with generic movie module */
-#include "BKE_object.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
@@ -1210,9 +1209,6 @@ static void render_scene(Render *re, Scene *sce, int cfra)
 	resc->main = re->main;
 	resc->scene = sce;
 
-	/* ensure scene has depsgraph, base flags etc OK */
-	BKE_scene_set_background(re->main, sce);
-
 	/* copy callbacks */
 	resc->display_update = re->display_update;
 	resc->duh = re->duh;
@@ -1261,7 +1257,6 @@ static void ntree_render_scenes(Render *re)
 	bNode *node;
 	int cfra = re->scene->r.cfra;
 	Scene *restore_scene = re->scene;
-	bool scene_changed = false;
 
 	if (re->scene->nodetree == NULL) return;
 
@@ -1270,22 +1265,15 @@ static void ntree_render_scenes(Render *re)
 	for (node = re->scene->nodetree->nodes.first; node; node = node->next) {
 		if (node->type == CMP_NODE_R_LAYERS && (node->flag & NODE_MUTED) == 0) {
 			if (node->id && node->id != (ID *)re->scene) {
-				if (node->flag & NODE_TEST) {
-					Scene *scene = (Scene *)node->id;
+				Scene *scene = (Scene *)node->id;
 
-					scene_changed |= scene != restore_scene;
+				if (render_scene_has_layers_to_render(scene, false)) {
 					render_scene(re, scene, cfra);
-					node->flag &= ~NODE_TEST;
-
 					nodeUpdate(restore_scene->nodetree, node);
 				}
 			}
 		}
 	}
-
-	/* restore scene if we rendered another last */
-	if (scene_changed)
-		BKE_scene_set_background(re->main, re->scene);
 }
 
 /* bad call... need to think over proper method still */
@@ -1518,16 +1506,6 @@ static void do_render_seq(Render *re)
 
 	re->i.cfra = cfra;
 
-	if (recurs_depth == 0) {
-		/* otherwise sequencer animation isn't updated */
-		/* TODO(sergey): Currently depsgraph is only used to check whether it is an active
-		 * edit window or not to deal with unkeyed changes. We don't have depsgraph here yet,
-		 * but we also dont' deal with unkeyed changes. But still nice to get proper depsgraph
-		 * within tjhe render pipeline, somehow.
-		 */
-		BKE_animsys_evaluate_all_animation(re->main, NULL, re->scene, (float)cfra); // XXX, was BKE_scene_frame_get(re->scene)
-	}
-
 	recurs_depth++;
 
 	if ((re->r.mode & R_BORDER) && (re->r.mode & R_CROP) == 0) {
@@ -1632,6 +1610,7 @@ static void do_render_all_options(Render *re)
 {
 	Object *camera;
 	bool render_seq = false;
+	int cfra = re->r.cfra;
 
 	re->current_scene_update(re->suh, re->scene);
 
@@ -1642,6 +1621,12 @@ static void do_render_all_options(Render *re)
 	/* ensure no images are in memory from previous animated sequences */
 	BKE_image_all_free_anim_ibufs(re->main, re->r.cfra);
 	BKE_sequencer_all_free_anim_ibufs(re->main, re->r.cfra);
+
+	/* Update for sequencer and compositing animation.
+	 * TODO: ideally we would create a depsgraph with a copy of the scene
+	 * like the render engine, but sequencer and compositing do not (yet?)
+	 * work with copy-on-write. */
+	BKE_animsys_evaluate_all_animation(re->main, NULL, re->scene, (float)cfra);
 
 	if (RE_engine_render(re, 1)) {
 		/* in this case external render overrides all */
@@ -2081,7 +2066,7 @@ void RE_RenderFreestyleExternal(Render *re)
 				RE_SetView(re, mat);
 
 				/* force correct matrix for scaled cameras */
-				DEG_id_tag_update_ex(re->main, &camera->id, OB_RECALC_OB);
+				DEG_id_tag_update_ex(re->main, &camera->id, ID_RECALC_TRANSFORM);
 			}
 
 			printf("add freestyle\n");
@@ -2349,7 +2334,7 @@ static void re_movie_free_all(Render *re, bMovieHandle *mh, int totvideos)
 }
 
 /* saves images to disk */
-void RE_BlenderAnim(Render *re, Main *bmain, Scene *scene, Object *camera_override,
+void RE_BlenderAnim(Render *re, Main *bmain, Scene *scene, ViewLayer *single_layer, Object *camera_override,
                     int sfra, int efra, int tfra)
 {
 	RenderData rd = scene->r;
@@ -2364,7 +2349,7 @@ void RE_BlenderAnim(Render *re, Main *bmain, Scene *scene, Object *camera_overri
 	BLI_callback_exec(re->main, (ID *)scene, BLI_CB_EVT_RENDER_INIT);
 
 	/* do not fully call for each frame, it initializes & pops output window */
-	if (!render_initialize_from_main(re, &rd, bmain, scene, NULL, camera_override, 0, 1))
+	if (!render_initialize_from_main(re, &rd, bmain, scene, single_layer, camera_override, 0, 1))
 		return;
 
 	if (is_movie) {
@@ -2451,7 +2436,7 @@ void RE_BlenderAnim(Render *re, Main *bmain, Scene *scene, Object *camera_overri
 
 			/* only border now, todo: camera lens. (ton) */
 			render_initialize_from_main(re, &rd, bmain, scene,
-			                            NULL, camera_override, 1, 0);
+			                            single_layer, camera_override, 1, 0);
 
 			if (nfra != scene->r.cfra) {
 				/* Skip this frame, but could update for physics and particles system. */
@@ -2787,16 +2772,10 @@ RenderPass *RE_pass_find_by_type(volatile RenderLayer *rl, int passtype, const c
 	CHECK_PASS(VECTOR);
 	CHECK_PASS(NORMAL);
 	CHECK_PASS(UV);
-	CHECK_PASS(RGBA);
 	CHECK_PASS(EMIT);
-	CHECK_PASS(DIFFUSE);
-	CHECK_PASS(SPEC);
 	CHECK_PASS(SHADOW);
 	CHECK_PASS(AO);
 	CHECK_PASS(ENVIRONMENT);
-	CHECK_PASS(INDIRECT);
-	CHECK_PASS(REFLECT);
-	CHECK_PASS(REFRACT);
 	CHECK_PASS(INDEXOB);
 	CHECK_PASS(INDEXMA);
 	CHECK_PASS(MIST);

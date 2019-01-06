@@ -66,46 +66,58 @@ typedef enum eWM_GizmoFlagState {
  * #wmGizmo.flag
  * Flags for individual gizmos.
  */
-typedef enum eWM_GizmoFlagFlag {
-	WM_GIZMO_DRAW_HOVER  = (1 << 0), /* draw *only* while hovering */
-	WM_GIZMO_DRAW_MODAL  = (1 << 1), /* draw while dragging */
-	WM_GIZMO_DRAW_VALUE  = (1 << 2), /* draw an indicator for the current value while dragging */
-	WM_GIZMO_HIDDEN      = (1 << 3),
+typedef enum eWM_GizmoFlag {
+	WM_GIZMO_DRAW_HOVER    = (1 << 0), /* draw *only* while hovering */
+	WM_GIZMO_DRAW_MODAL    = (1 << 1), /* draw while dragging */
+	WM_GIZMO_DRAW_VALUE    = (1 << 2), /* draw an indicator for the current value while dragging */
+	WM_GIZMO_HIDDEN        = (1 << 3),
+	WM_GIZMO_HIDDEN_SELECT = (1 << 4),
 	/**
 	 * When set 'scale_final' value also scales the offset.
 	 * Use when offset is to avoid screen-space overlap instead of absolute positioning. */
-	WM_GIZMO_DRAW_OFFSET_SCALE  = (1 << 4),
+	WM_GIZMO_DRAW_OFFSET_SCALE  = (1 << 5),
 	/**
 	 * User should still use 'scale_final' for any handles and UI elements.
 	 * This simply skips scale when calculating the final matrix.
 	 * Needed when the gizmo needs to align with the interface underneath it. */
-	WM_GIZMO_DRAW_NO_SCALE  = (1 << 5),
+	WM_GIZMO_DRAW_NO_SCALE  = (1 << 6),
 	/**
 	 * Hide the cursor and lock it's position while interacting with this gizmo.
 	 */
-	WM_GIZMO_MOVE_CURSOR = (1 << 6),
+	WM_GIZMO_MOVE_CURSOR = (1 << 7),
 	/** Don't write into the depth buffer when selecting. */
-	WM_GIZMO_SELECT_BACKGROUND  = (1 << 7),
-} eWM_GizmoFlagFlag;
+	WM_GIZMO_SELECT_BACKGROUND  = (1 << 8),
+} eWM_GizmoFlag;
 
 /**
  * #wmGizmoGroupType.flag
  * Flags that influence the behavior of all gizmos in the group.
  */
 typedef enum eWM_GizmoFlagGroupTypeFlag {
-	/* Mark gizmo-group as being 3D */
+	/** Mark gizmo-group as being 3D */
 	WM_GIZMOGROUPTYPE_3D       = (1 << 0),
-	/* Scale gizmos as 3D object that respects zoom (otherwise zoom independent draw size).
+	/** Scale gizmos as 3D object that respects zoom (otherwise zoom independent draw size).
 	 * note: currently only for 3D views, 2D support needs adding. */
 	WM_GIZMOGROUPTYPE_SCALE    = (1 << 1),
-	/* Gizmos can be depth culled with scene objects (covered by other geometry - TODO) */
+	/** Gizmos can be depth culled with scene objects (covered by other geometry - TODO) */
 	WM_GIZMOGROUPTYPE_DEPTH_3D = (1 << 2),
-	/* Gizmos can be selected */
+	/** Gizmos can be selected */
 	WM_GIZMOGROUPTYPE_SELECT  = (1 << 3),
-	/* The gizmo group is to be kept (not removed on loading a new file for eg). */
+	/** The gizmo group is to be kept (not removed on loading a new file for eg). */
 	WM_GIZMOGROUPTYPE_PERSISTENT = (1 << 4),
-	/* Show all other gizmos when interacting. */
+	/** Show all other gizmos when interacting. */
 	WM_GIZMOGROUPTYPE_DRAW_MODAL_ALL = (1 << 5),
+	/**
+	 * When used with tool, only run when activating the tool,
+	 * instead of linking the gizmo while the tool is active.
+	 *
+	 * \warning this option has some limitations, we might even re-implement this differently.
+	 * Currently it's quite minimal so we can see how it works out.
+	 * The main issue is controlling how a gizmo is activated with a tool
+	 * when a tool can activate multiple operators based on the key-map.
+	 * We could even move the options into the key-map item.
+	 * ~ campbell */
+	WM_GIZMOGROUPTYPE_TOOL_INIT = (1 << 6),
 } eWM_GizmoFlagGroupTypeFlag;
 
 
@@ -179,7 +191,7 @@ struct wmGizmo {
 	struct PointerRNA *ptr;
 
 	/* flags that influence the behavior or how the gizmos are drawn */
-	eWM_GizmoFlagFlag flag;
+	eWM_GizmoFlag flag;
 	/* state flags (active, highlighted, selected) */
 	eWM_GizmoFlagState state;
 
@@ -360,6 +372,8 @@ typedef struct wmGizmoGroupType {
 	wmGizmoGroupFnRefresh refresh;
 	/* refresh data for drawing, called before each redraw */
 	wmGizmoGroupFnDrawPrepare draw_prepare;
+	/* Initialize data for before invoke. */
+	wmGizmoGroupFnInvokePrepare invoke_prepare;
 
 	/* Keymap init callback for this gizmo-group (optional),
 	 * will fall back to default tweak keymap when left NULL. */
@@ -375,11 +389,11 @@ typedef struct wmGizmoGroupType {
 	/* Only for convenient removal. */
 	struct wmKeyConfig *keyconf;
 
-	/* Disable for now, maybe some day we want properties. */
-#if 0
-	/* rna for properties */
+	/* Note: currently gizmo-group instances don't store properties,
+	 * they're kept in the tool properties. */
+
+	/* RNA for properties */
 	struct StructRNA *srna;
-#endif
 
 	/* RNA integration */
 	ExtensionRNA ext;

@@ -46,13 +46,12 @@ extern "C" {
 #include "DNA_material_types.h"
 #include "DNA_text_types.h"
 
+#include "BKE_context.h"
 #include "BKE_freestyle.h"
 #include "BKE_global.h"
 #include "BKE_library.h"
 #include "BKE_linestyle.h"
-#include "BKE_main.h"
 #include "BKE_text.h"
-#include "BKE_context.h"
 
 #include "BLT_translation.h"
 
@@ -448,7 +447,7 @@ static void prepare(Render *re, ViewLayer *view_layer)
 	RenderLayer *rl = RE_GetRenderLayer(re->result, view_layer->name);
 	bool diffuse = false, z = false;
 	for (RenderPass *rpass = (RenderPass *)rl->passes.first; rpass; rpass = rpass->next) {
-		if (STREQ(rpass->name, RE_PASSNAME_DIFFUSE)) {
+		if (STREQ(rpass->name, RE_PASSNAME_DIFFUSE_COLOR)) {
 			controller->setPassDiffuse(rpass->rect, rpass->rectx, rpass->recty);
 			diffuse = true;
 		}

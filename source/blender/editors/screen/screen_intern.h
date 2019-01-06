@@ -37,14 +37,13 @@ struct Main;
 
 /* internal exports only */
 
-#define AZONESPOT       (0.8f * U.widget_unit)
+#define AZONESPOT       (0.4f * U.widget_unit)
 #define AZONEFADEIN     (5.0f * U.widget_unit) /* when azone is totally visible */
 #define AZONEFADEOUT    (6.5f * U.widget_unit) /* when we start seeing the azone */
 
 /* area.c */
 void        ED_area_data_copy(ScrArea *sa_dst, ScrArea *sa_src, const bool do_free);
 void        ED_area_data_swap(ScrArea *sa1, ScrArea *sa2);
-void        screen_area_update_region_sizes(wmWindowManager *wm, wmWindow *win, ScrArea *area);
 void        region_toggle_hidden(struct bContext *C, ARegion *ar, const bool do_fade);
 
 /* screen_edit.c */
@@ -58,7 +57,6 @@ int         screen_area_join(struct bContext *C, bScreen *scr, ScrArea *sa1, Scr
 int         area_getorientation(ScrArea *sa, ScrArea *sb);
 
 struct AZone *ED_area_actionzone_find_xy(ScrArea *sa, const int xy[2]);
-struct AZone *ED_area_actionzone_refresh_xy(ScrArea *sa, const int xy[2]);
 
 /* screen_geometry.c */
 int         screen_geom_area_height(const ScrArea *area);

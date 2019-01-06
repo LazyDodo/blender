@@ -46,9 +46,9 @@ struct GPUVertexAttribs;
 struct PreviewImage;
 
 /* Pass Generation
- *  - Takes a list of nodes and a desired output, and makes a pass. This
- *    will take ownership of the nodes and free them early if unused or
- *    at the end if used.
+ * - Takes a list of nodes and a desired output, and makes a pass. This
+ *   will take ownership of the nodes and free them early if unused or
+ *   at the end if used.
  */
 
 typedef enum GPUDataSource {
@@ -169,17 +169,17 @@ struct GPUPass {
 	char *geometrycode;
 	char *vertexcode;
 	char *defines;
-	unsigned int refcount;       /* Orphaned GPUPasses gets freed by the garbage collector. */
+	uint refcount;               /* Orphaned GPUPasses gets freed by the garbage collector. */
 	uint32_t hash;               /* Identity hash generated from all GLSL code. */
 	bool compiled;               /* Did we already tried to compile the attached GPUShader. */
 };
 
 typedef struct GPUPass GPUPass;
 
-GPUPass *GPU_generate_pass_new(
+GPUPass *GPU_generate_pass(
         GPUMaterial *material,
         GPUNodeLink *frag_outlink, struct GPUVertexAttribs *attribs,
-        ListBase *nodes,
+        ListBase *nodes, int *builtins,
         const char *vert_code, const char *geom_code,
         const char *frag_lib, const char *defines);
 

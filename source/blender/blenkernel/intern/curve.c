@@ -197,7 +197,7 @@ Curve *BKE_curve_add(Main *bmain, const char *name, int type)
  *
  * WARNING! This function will not handle ID user count!
  *
- * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
+ * \param flag: Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
  */
 void BKE_curve_copy_data(Main *bmain, Curve *cu_dst, const Curve *cu_src, const int flag)
 {
@@ -277,7 +277,7 @@ void BKE_curve_curve_dimension_update(Curve *cu)
 	else {
 		for (; nu; nu = nu->next) {
 			nu->flag |= CU_2D;
-			BKE_nurb_test2D(nu);
+			BKE_nurb_test_2d(nu);
 
 			/* since the handles are moved they need to be auto-located again */
 			if (nu->type == CU_BEZIER)
@@ -325,16 +325,22 @@ void BKE_curve_boundbox_calc(Curve *cu, float r_loc[3], float r_size[3])
 
 BoundBox *BKE_curve_boundbox_get(Object *ob)
 {
-	Curve *cu = ob->data;
+	/* This is Object-level data access, DO NOT touch to Mesh's bb, would be totally thread-unsafe. */
+	if (ob->bb == NULL || ob->bb->flag & BOUNDBOX_DIRTY) {
+		Curve *cu = ob->data;
+		float min[3], max[3];
 
-	if (ob->bb)
-		return ob->bb;
+		INIT_MINMAX(min, max);
+		BKE_curve_minmax(cu, true, min, max);
 
-	if (cu->bb == NULL || (cu->bb->flag & BOUNDBOX_DIRTY)) {
-		BKE_curve_texspace_calc(cu);
+		if (ob->bb == NULL) {
+			ob->bb = MEM_mallocN(sizeof(*ob->bb), __func__);
+		}
+		BKE_boundbox_init_from_minmax(ob->bb, min, max);
+		ob->bb->flag &= ~BOUNDBOX_DIRTY;
 	}
 
-	return cu->bb;
+	return ob->bb;
 }
 
 void BKE_curve_texspace_calc(Curve *cu)
@@ -357,7 +363,7 @@ void BKE_curve_texspace_calc(Curve *cu)
 	}
 }
 
-void BKE_curve_texspace_get(Curve *cu, float r_loc[3], float r_rot[3], float r_size[3])
+BoundBox *BKE_curve_texspace_get(Curve *cu, float r_loc[3], float r_rot[3], float r_size[3])
 {
 	if (cu->bb == NULL || (cu->bb->flag & BOUNDBOX_DIRTY)) {
 		BKE_curve_texspace_calc(cu);
@@ -366,6 +372,8 @@ void BKE_curve_texspace_get(Curve *cu, float r_loc[3], float r_rot[3], float r_s
 	if (r_loc) copy_v3_v3(r_loc,  cu->loc);
 	if (r_rot) copy_v3_v3(r_rot,  cu->rot);
 	if (r_size) copy_v3_v3(r_size, cu->size);
+
+	return cu->bb;
 }
 
 bool BKE_nurbList_index_get_co(ListBase *nurb, const int index, float r_co[3])
@@ -549,7 +557,7 @@ void BKE_nurbList_duplicate(ListBase *lb1, const ListBase *lb2)
 	}
 }
 
-void BKE_nurb_test2D(Nurb *nu)
+void BKE_nurb_test_2d(Nurb *nu)
 {
 	BezTriple *bezt;
 	BPoint *bp;
@@ -1358,9 +1366,9 @@ void BKE_nurb_makeFaces(const Nurb *nu, float *coord_array, int rowstride, int r
 }
 
 /**
- * \param coord_array Has to be 3 * 4 * pntsu * resolu in size and zero-ed
- * \param tilt_array   set when non-NULL
- * \param radius_array set when non-NULL
+ * \param coord_array: Has to be 3 * 4 * pntsu * resolu in size and zero-ed
+ * \param tilt_array: set when non-NULL
+ * \param radius_array: set when non-NULL
  */
 void BKE_nurb_makeCurve(
         const Nurb *nu, float *coord_array, float *tilt_array, float *radius_array, float *weight_array,
@@ -2080,7 +2088,7 @@ static bool bevelinside(BevList *bl1, BevList *bl2)
 	copy_v3_v3(hvec2, hvec1);
 	hvec2[0] += 1000;
 
-	/* test it with all edges of potential surounding poly */
+	/* test it with all edges of potential surrounding poly */
 	/* count number of transitions left-right  */
 
 	bevp = bl1->bevpoints;
@@ -2643,7 +2651,7 @@ static void make_bevel_list_segment_2D(BevList *bl)
 static void make_bevel_list_2D(BevList *bl)
 {
 	/* note: bevp->dir and bevp->quat are not needed for beveling but are
-	 * used when making a path from a 2D curve, therefor they need to be set - Campbell */
+	 * used when making a path from a 2D curve, therefore they need to be set - Campbell */
 
 	BevPoint *bevp0, *bevp1, *bevp2;
 	int nr;
@@ -3410,44 +3418,16 @@ static void calchandleNurb_intern(
 			}
 			if (leftviolate || rightviolate) { /* align left handle */
 				BLI_assert(is_fcurve);
-#if 0
-				if (is_fcurve)
-#endif
-				{
-					/* simple 2d calculation */
-					float h1_x = p2_h1[0] - p2[0];
-					float h2_x = p2[0] - p2_h2[0];
+				/* simple 2d calculation */
+				float h1_x = p2_h1[0] - p2[0];
+				float h2_x = p2[0] - p2_h2[0];
 
-					if (leftviolate) {
-						p2_h2[1] = p2[1] + ((p2[1] - p2_h1[1]) / h1_x) * h2_x;
-					}
-					else {
-						p2_h1[1] = p2[1] + ((p2[1] - p2_h2[1]) / h2_x) * h1_x;
-					}
+				if (leftviolate) {
+					p2_h2[1] = p2[1] + ((p2[1] - p2_h1[1]) / h1_x) * h2_x;
 				}
-#if 0
 				else {
-					float h1[3], h2[3];
-					float dot;
-
-					sub_v3_v3v3(h1, p2_h1, p2);
-					sub_v3_v3v3(h2, p2, p2_h2);
-
-					len_a = normalize_v3(h1);
-					len_b = normalize_v3(h2);
-
-					dot = dot_v3v3(h1, h2);
-
-					if (leftviolate) {
-						mul_v3_fl(h1, dot * len_b);
-						sub_v3_v3v3(p2_h2, p2, h1);
-					}
-					else {
-						mul_v3_fl(h2, dot * len_a);
-						add_v3_v3v3(p2_h1, p2, h2);
-					}
+					p2_h1[1] = p2[1] + ((p2[1] - p2_h2[1]) / h2_x) * h1_x;
 				}
-#endif
 			}
 		}
 	}
@@ -3941,7 +3921,7 @@ static void bezier_handle_calc_smooth_fcurve(BezTriple *bezt, int total, int sta
 	float first_handle_adj = 0.0f, last_handle_adj = 0.0f;
 
 	if (full_cycle) {
-		/* reduce the number of uknowns by one */
+		/* reduce the number of unknowns by one */
 		int i = solve_count = count - 1;
 
 		dx[0] = dx[i];
@@ -4657,18 +4637,18 @@ float (*BKE_curve_nurbs_keyVertexCos_get(ListBase *lb, float *key))[3]
 			BezTriple *bezt = nu->bezt;
 
 			for (i = 0; i < nu->pntsu; i++, bezt++) {
-				copy_v3_v3(co, key); co += 3; key += 3;
-				copy_v3_v3(co, key); co += 3; key += 3;
-				copy_v3_v3(co, key); co += 3; key += 3;
-				key += 3; /* skip tilt */
+				copy_v3_v3(co, &key[0]); co += 3;
+				copy_v3_v3(co, &key[3]); co += 3;
+				copy_v3_v3(co, &key[6]); co += 3;
+				key += KEYELEM_FLOAT_LEN_BEZTRIPLE;
 			}
 		}
 		else {
 			BPoint *bp = nu->bp;
 
 			for (i = 0; i < nu->pntsu * nu->pntsv; i++, bp++) {
-				copy_v3_v3(co, key); co += 3; key += 3;
-				key++; /* skip tilt */
+				copy_v3_v3(co, key); co += 3;
+				key += KEYELEM_FLOAT_LEN_BPOINT;
 			}
 		}
 	}
@@ -4686,18 +4666,18 @@ void BKE_curve_nurbs_keyVertexTilts_apply(ListBase *lb, float *key)
 			BezTriple *bezt = nu->bezt;
 
 			for (i = 0; i < nu->pntsu; i++, bezt++) {
-				key += 3 * 3;
-				bezt->alfa = *key;
-				key += 3;
+				bezt->alfa = key[9];
+				bezt->radius = key[10];
+				key += KEYELEM_FLOAT_LEN_BEZTRIPLE;
 			}
 		}
 		else {
 			BPoint *bp = nu->bp;
 
 			for (i = 0; i < nu->pntsu * nu->pntsv; i++, bp++) {
-				key += 3;
-				bp->alfa = *key;
-				key++;
+				bp->alfa = key[3];
+				bp->radius = key[4];
+				key += KEYELEM_FLOAT_LEN_BPOINT;
 			}
 		}
 	}
@@ -4867,11 +4847,6 @@ bool BKE_nurb_type_convert(Nurb *nu, const short type, const bool use_handles)
 			nu->orderv = 1;
 			nu->type = type;
 
-#if 0       /* UNUSED */
-			if (nu->flagu & CU_NURB_CYCLIC) c = nu->orderu - 1;
-			else c = 0;
-#endif
-
 			if (type == CU_NURBS) {
 				nu->flagu &= CU_NURB_CYCLIC; /* disable all flags except for cyclic */
 				nu->flagu |= CU_NURB_BEZIER;
@@ -5013,12 +4988,6 @@ bool BKE_curve_nurb_vert_active_get(Curve *cu, Nurb **r_nu, void **r_vert)
 				vert = &nu->bp[cu->actvert];
 			}
 		}
-		/* get functions should never set! */
-#if 0
-		else {
-			cu->actnu = cu->actvert = CU_ACT_NONE;
-		}
-#endif
 	}
 
 	*r_nu = nu;
@@ -5167,8 +5136,29 @@ void BKE_curve_transform_ex(
 		KeyBlock *kb;
 		for (kb = cu->key->block.first; kb; kb = kb->next) {
 			float *fp = kb->data;
-			for (i = kb->totelem; i--; fp += 3) {
-				mul_m4_v3(mat, fp);
+			int n = kb->totelem;
+
+			for (nu = cu->nurb.first; nu; nu = nu->next) {
+				if (nu->type == CU_BEZIER) {
+					for (i = nu->pntsu; i && (n -= KEYELEM_ELEM_LEN_BEZTRIPLE) >= 0; i--) {
+						mul_m4_v3(mat, &fp[0]);
+						mul_m4_v3(mat, &fp[3]);
+						mul_m4_v3(mat, &fp[6]);
+						if (do_props) {
+							fp[10] *= unit_scale; /* radius */
+						}
+						fp += KEYELEM_FLOAT_LEN_BEZTRIPLE;
+					}
+				}
+				else {
+					for (i = nu->pntsu * nu->pntsv; i && (n -= KEYELEM_ELEM_LEN_BPOINT) >= 0; i--) {
+						mul_m4_v3(mat, fp);
+						if (do_props) {
+							fp[4] *= unit_scale; /* radius */
+						}
+						fp += KEYELEM_FLOAT_LEN_BPOINT;
+					}
+				}
 			}
 		}
 	}
@@ -5212,8 +5202,23 @@ void BKE_curve_translate(Curve *cu, float offset[3], const bool do_keys)
 		KeyBlock *kb;
 		for (kb = cu->key->block.first; kb; kb = kb->next) {
 			float *fp = kb->data;
-			for (i = kb->totelem; i--; fp += 3) {
-				add_v3_v3(fp, offset);
+			int n = kb->totelem;
+
+			for (nu = cu->nurb.first; nu; nu = nu->next) {
+				if (nu->type == CU_BEZIER) {
+					for (i = nu->pntsu; i && (n -= KEYELEM_ELEM_LEN_BEZTRIPLE) >= 0; i--) {
+						add_v3_v3(&fp[0], offset);
+						add_v3_v3(&fp[3], offset);
+						add_v3_v3(&fp[6], offset);
+						fp += KEYELEM_FLOAT_LEN_BEZTRIPLE;
+					}
+				}
+				else {
+					for (i = nu->pntsu * nu->pntsv; i && (n -= KEYELEM_ELEM_LEN_BPOINT) >= 0; i--) {
+						add_v3_v3(fp, offset);
+						fp += KEYELEM_FLOAT_LEN_BPOINT;
+					}
+				}
 			}
 		}
 	}
@@ -5291,7 +5296,7 @@ bool BKE_curve_material_index_validate(Curve *cu)
 	}
 
 	if (!is_valid) {
-		DEG_id_tag_update(&cu->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&cu->id, ID_RECALC_GEOMETRY);
 		return true;
 	}
 	else {

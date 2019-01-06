@@ -42,8 +42,8 @@
 #include "MOD_modifiertypes.h"
 
 #ifdef WITH_ALEMBIC
-#	include "ABC_alembic.h"
-#	include "BKE_global.h"
+#  include "ABC_alembic.h"
+#  include "BKE_global.h"
 #endif
 
 static void initData(ModifierData *md)
@@ -151,15 +151,20 @@ static Mesh *applyModifier(
 
 	return result ? result : mesh;
 #else
-	return mesh;
 	UNUSED_VARS(ctx, md);
+	return mesh;
 #endif
 }
 
 static bool dependsOnTime(ModifierData *md)
 {
+#ifdef WITH_ALEMBIC
+	MeshSeqCacheModifierData *mcmd = (MeshSeqCacheModifierData *) md;
+	return (mcmd->cache_file != NULL);
+#else
 	UNUSED_VARS(md);
-	return true;
+	return false;
+#endif
 }
 
 static void foreachIDLink(
@@ -196,14 +201,12 @@ ModifierTypeInfo modifierType_MeshSequenceCache = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,

@@ -164,17 +164,16 @@ BLI_INLINE void flush_handle_component_node(IDDepsNode *id_node,
 		return;
 	}
 	comp_node->custom_flags = COMPONENT_STATE_DONE;
-	/* Tag all required operations in component for update.  */
-	foreach (OperationDepsNode *op, comp_node->operations) {
-		/* We don't want to flush tags in "upstream" direction for
-		 * certain types of operations.
-		 *
-		 * TODO(sergey): Need a more generic solution for this.
-		 */
-		if (op->opcode == DEG_OPCODE_PARTICLE_SETTINGS_EVAL) {
-			continue;
+	/* Tag all required operations in component for update, unless this is a
+	 * special component where we don't want all operations to be tagged.
+	 *
+	 * TODO(sergey): Make this a more generic solution. */
+	if (comp_node->type != DEG_NODE_TYPE_PARTICLE_SETTINGS &&
+	    comp_node->type != DEG_NODE_TYPE_PARTICLE_SYSTEM)
+	{
+		foreach (OperationDepsNode *op, comp_node->operations) {
+			op->flag |= DEPSOP_FLAG_NEEDS_UPDATE;
 		}
-		op->flag |= DEPSOP_FLAG_NEEDS_UPDATE;
 	}
 	/* when some target changes bone, we might need to re-run the
 	 * whole IK solver, otherwise result might be unpredictable.
@@ -202,19 +201,32 @@ BLI_INLINE OperationDepsNode *flush_schedule_children(
 {
 	OperationDepsNode *result = NULL;
 	foreach (DepsRelation *rel, op_node->outlinks) {
+		/* Flush is forbidden, completely. */
 		if (rel->flag & DEPSREL_FLAG_NO_FLUSH) {
 			continue;
 		}
-		OperationDepsNode *to_node = (OperationDepsNode *)rel->to;
-		if (to_node->scheduled == false) {
-			if (result != NULL) {
-				queue->push_front(to_node);
-			}
-			else {
-				result = to_node;
-			}
-			to_node->scheduled = true;
+		/* Relation only allows flushes on user changes, but the node was not
+		 * affected by user. */
+		if ((rel->flag & DEPSREL_FLAG_FLUSH_USER_EDIT_ONLY) &&
+		    (op_node->flag & DEPSOP_FLAG_USER_MODIFIED) == 0)
+		{
+			continue;
 		}
+		OperationDepsNode *to_node = (OperationDepsNode *)rel->to;
+		/* Always flush flushable flags, so children always know what happened
+		 * to their parents. */
+		to_node->flag |= (op_node->flag & DEPSOP_FLAG_FLUSH);
+		/* Flush update over the relation, if it was not flushed yet. */
+		if (to_node->scheduled) {
+			continue;
+		}
+		if (result != NULL) {
+			queue->push_front(to_node);
+		}
+		else {
+			result = to_node;
+		}
+		to_node->scheduled = true;
 	}
 	return result;
 }
@@ -262,9 +274,17 @@ void flush_editors_id_update(Main *bmain,
 		DEG_DEBUG_PRINTF((::Depsgraph *)graph,
 		                 EVAL, "Accumulated recalc bits for %s: %u\n",
 		                 id_orig->name, (unsigned int)id_cow->recalc);
-		/* Inform editors. */
+
+		/* Inform editors. Only if the datablock is being evaluated a second
+		 * time, to distinguish between user edits and initial evaluation when
+		 * the datablock becomes visible.
+		 *
+		 * TODO: image datablocks do not use COW, so might not be detected
+		 * correctly. */
 		if (deg_copy_on_write_is_expanded(id_cow)) {
-			deg_editors_id_update(update_ctx, id_cow);
+			if (graph->is_active) {
+				deg_editors_id_update(update_ctx, id_orig);
+			}
 			/* ID may need to get its auto-override operations refreshed. */
 			if (ID_IS_STATIC_OVERRIDE_AUTO(id_orig)) {
 				id_orig->tag |= LIB_TAG_OVERRIDESTATIC_AUTOREFRESH;
@@ -324,10 +344,10 @@ void invalidate_tagged_evaluated_data(Depsgraph *graph)
 				continue;
 			}
 			switch (comp_node->type) {
-				case DEG_TAG_TRANSFORM:
+				case ID_RECALC_TRANSFORM:
 					invalidate_tagged_evaluated_transform(id_cow);
 					break;
-				case DEG_TAG_GEOMETRY:
+				case ID_RECALC_GEOMETRY:
 					invalidate_tagged_evaluated_geometry(id_cow);
 					break;
 				default:
@@ -400,7 +420,9 @@ static void graph_clear_operation_func(
 	Depsgraph *graph = (Depsgraph *)data_v;
 	OperationDepsNode *node = graph->operations[i];
 	/* Clear node's "pending update" settings. */
-	node->flag &= ~(DEPSOP_FLAG_DIRECTLY_MODIFIED | DEPSOP_FLAG_NEEDS_UPDATE);
+	node->flag &= ~(DEPSOP_FLAG_DIRECTLY_MODIFIED |
+	                DEPSOP_FLAG_NEEDS_UPDATE |
+	                DEPSOP_FLAG_USER_MODIFIED);
 }
 
 /* Clear tags from all operation nodes. */

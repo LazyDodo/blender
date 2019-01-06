@@ -25,13 +25,11 @@
  *                 Campbell Barton
  *
  * ***** END GPL LICENSE BLOCK *****
- *
  */
 
 /** \file blender/modifiers/intern/MOD_particleinstance.c
  *  \ingroup modifiers
  */
-
 
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
@@ -55,6 +53,8 @@
 
 #include "DEG_depsgraph_build.h"
 #include "DEG_depsgraph_query.h"
+
+#include "MOD_modifiertypes.h"
 
 static void initData(ModifierData *md)
 {
@@ -499,7 +499,7 @@ static Mesh *applyModifier(
 					const int ml_index = (ml - mloop);
 					if (mloopcols_index != NULL) {
 						const int part_index = vert_part_index[ml->v];
-						store_float_in_vcol(&mloopcols_index[ml_index], (float)part_index / psys->totpart);
+						store_float_in_vcol(&mloopcols_index[ml_index], (float)part_index / (float)(psys->totpart - 1));
 					}
 					if (mloopcols_value != NULL) {
 						const float part_value = vert_part_value[ml->v];
@@ -543,14 +543,12 @@ ModifierTypeInfo modifierType_ParticleInstance = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,

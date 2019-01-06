@@ -143,12 +143,13 @@ void    ED_area_tag_redraw_no_rebuild(ScrArea *sa);
 void    ED_area_tag_redraw_regiontype(ScrArea *sa, int type);
 void    ED_area_tag_refresh(ScrArea *sa);
 void    ED_area_do_refresh(struct bContext *C, ScrArea *sa);
-void    ED_area_azones_update(ScrArea *sa, const int mouse_xy[]);
+struct AZone *ED_area_azones_update(ScrArea *sa, const int mouse_xy[]);
 void    ED_area_status_text(ScrArea *sa, const char *str);
 void    ED_area_newspace(struct bContext *C, ScrArea *sa, int type, const bool skip_ar_exit);
 void    ED_area_prevspace(struct bContext *C, ScrArea *sa);
 void    ED_area_swapspace(struct bContext *C, ScrArea *sa1, ScrArea *sa2);
 int     ED_area_headersize(void);
+int     ED_area_header_alignment_or_fallback(const ScrArea *area, int fallback);
 int     ED_area_header_alignment(const ScrArea *area);
 int     ED_area_global_size_y(const ScrArea *area);
 int     ED_area_global_min_size_y(const ScrArea *area);
@@ -195,6 +196,7 @@ void    ED_screen_full_prevspace(struct bContext *C, ScrArea *sa);
 void    ED_screen_full_restore(struct bContext *C, ScrArea *sa);
 struct ScrArea *ED_screen_state_toggle(struct bContext *C, struct wmWindow *win, struct ScrArea *sa, const short state);
 void    ED_screens_header_tools_menu_create(struct bContext *C, struct uiLayout *layout, void *arg);
+void    ED_screens_navigation_bar_tools_menu_create(struct bContext *C, struct uiLayout *layout, void *arg);
 bool    ED_screen_stereo3d_required(const struct bScreen *screen, const struct Scene *scene);
 Scene   *ED_screen_scene_find(const struct bScreen *screen, const struct wmWindowManager *wm);
 Scene   *ED_screen_scene_find_with_window(const struct bScreen *screen, const struct wmWindowManager *wm, struct wmWindow **r_window);
@@ -308,7 +310,7 @@ bool ED_operator_camera(struct bContext *C);
 
 /* screen_user_menu.c */
 
-struct bUserMenu *ED_screen_user_menu_find(struct bContext *C);
+bUserMenu **ED_screen_user_menus_find(const struct bContext *C, uint *r_len);
 struct bUserMenu *ED_screen_user_menu_ensure(struct bContext *C);
 
 
@@ -342,18 +344,35 @@ void ED_region_cache_draw_background(const struct ARegion *ar);
 void ED_region_cache_draw_curfra_label(const int framenr, const float x, const float y);
 void ED_region_cache_draw_cached_segments(const struct ARegion *ar, const int num_segments, const int *points, const int sfra, const int efra);
 
+/* area_utils.c */
+void ED_region_generic_tools_region_message_subscribe(
+        const struct bContext *C,
+        struct WorkSpace *workspace, struct Scene *scene,
+        struct bScreen *screen, struct ScrArea *sa, struct ARegion *ar,
+        struct wmMsgBus *mbus);
+int ED_region_generic_tools_region_snap_size(const struct ARegion *ar, int size, int axis);
+
 /* interface_region_hud.c */
 struct ARegionType *ED_area_type_hud(int space_type);
 void ED_area_type_hud_clear(struct wmWindowManager *wm, ScrArea *sa_keep);
 void ED_area_type_hud_ensure(struct bContext *C, struct ScrArea *sa);
 
-/* default keymaps, bitflags */
-#define ED_KEYMAP_UI        1
-#define ED_KEYMAP_VIEW2D    2
-#define ED_KEYMAP_MARKERS   4
-#define ED_KEYMAP_ANIMATION 8
-#define ED_KEYMAP_FRAMES    16
-#define ED_KEYMAP_GPENCIL   32
-#define ED_KEYMAP_HEADER    64
+/* default keymaps, bitflags (matches order of evaluation). */
+enum {
+	ED_KEYMAP_UI        = (1 << 1),
+	ED_KEYMAP_GIZMO     = (1 << 2),
+	ED_KEYMAP_VIEW2D    = (1 << 3),
+	ED_KEYMAP_MARKERS   = (1 << 4),
+	ED_KEYMAP_ANIMATION = (1 << 5),
+	ED_KEYMAP_FRAMES    = (1 << 6),
+	ED_KEYMAP_HEADER    = (1 << 7),
+	ED_KEYMAP_GPENCIL   = (1 << 8),
+};
+
+/* SCREEN_OT_space_context_cycle direction */
+enum {
+	SPACE_CONTEXT_CYCLE_PREV,
+	SPACE_CONTEXT_CYCLE_NEXT,
+};
 
 #endif /* __ED_SCREEN_H__ */

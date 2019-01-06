@@ -112,7 +112,9 @@ static void basic_cache_populate(void *vedata, Object *ob)
 {
 	BASIC_StorageList *stl = ((BASIC_Data *)vedata)->stl;
 
-	if (!DRW_object_is_renderable(ob)) {
+	/* TODO(fclem) fix selection of smoke domains. */
+
+	if (!DRW_object_is_renderable(ob) || (ob->dt < OB_SOLID)) {
 		return;
 	}
 
@@ -125,7 +127,7 @@ static void basic_cache_populate(void *vedata, Object *ob)
 			if (!psys_check_enabled(ob, psys, false)) {
 				continue;
 			}
-			if (!DRW_check_psys_visible_within_active_context(ob, psys)) {
+			if (!DRW_object_is_visible_psys_in_active_context(ob, psys)) {
 				continue;
 			}
 			ParticleSettings *part = psys->part;
@@ -137,9 +139,29 @@ static void basic_cache_populate(void *vedata, Object *ob)
 		}
 	}
 
+	/* Make flat object selectable in ortho view if wireframe is enabled. */
+	if ((draw_ctx->v3d->overlay.flag & V3D_OVERLAY_WIREFRAMES) ||
+	    (draw_ctx->v3d->shading.type == OB_WIRE) ||
+	    (ob->dtx & OB_DRAWWIRE) ||
+	    (ob->dt == OB_WIRE))
+	{
+		int flat_axis = 0;
+		bool is_flat_object_viewed_from_side = (
+		        (draw_ctx->rv3d->persp == RV3D_ORTHO) &&
+		        DRW_object_is_flat(ob, &flat_axis) &&
+		        DRW_object_axis_orthogonal_to_view(ob, flat_axis));
+
+		if (is_flat_object_viewed_from_side) {
+			/* Avoid losing flat objects when in ortho views (see T56549) */
+			struct GPUBatch *geom = DRW_cache_object_all_edges_get(ob);
+			DRW_shgroup_call_object_add(stl->g_data->depth_shgrp, geom, ob);
+			return;
+		}
+	}
+
 	struct GPUBatch *geom = DRW_cache_object_surface_get(ob);
 	if (geom) {
-		const bool do_cull = (draw_ctx->v3d && (draw_ctx->v3d->flag2 & V3D_BACKFACE_CULLING));
+		const bool do_cull = (draw_ctx->v3d && (draw_ctx->v3d->shading.flag & V3D_SHADING_BACKFACE_CULLING));
 		/* Depth Prepass */
 		DRW_shgroup_call_add((do_cull) ? stl->g_data->depth_shgrp_cull : stl->g_data->depth_shgrp, geom, ob->obmat);
 	}

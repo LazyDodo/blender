@@ -44,7 +44,6 @@ set(INC_SYS
 
 set(SRC
 	drawobject.c
-	drawvolume.c
 	space_view3d.c
 	view3d_buttons.c
 	view3d_camera_control.c
@@ -67,7 +66,6 @@ set(SRC
 	view3d_gizmo_preselect_type.c
 	view3d_ops.c
 	view3d_project.c
-	view3d_ruler.c
 	view3d_select.c
 	view3d_snap.c
 	view3d_toolbar.c

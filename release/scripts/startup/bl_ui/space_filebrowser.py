@@ -154,7 +154,7 @@ class FILEBROWSER_PT_system_bookmarks(Panel):
 
     @classmethod
     def poll(cls, context):
-        return not context.user_preferences.filepaths.hide_system_bookmarks
+        return not context.preferences.filepaths.hide_system_bookmarks
 
     def draw(self, context):
         layout = self.layout
@@ -196,8 +196,8 @@ class FILEBROWSER_PT_bookmarks(Panel):
                               rows=(2 if num_rows < 2 else 4), maxrows=10)
 
             col = row.column(align=True)
-            col.operator("file.bookmark_add", icon='ZOOMIN', text="")
-            col.operator("file.bookmark_delete", icon='ZOOMOUT', text="")
+            col.operator("file.bookmark_add", icon='ADD', text="")
+            col.operator("file.bookmark_delete", icon='REMOVE', text="")
             col.menu("FILEBROWSER_MT_bookmarks_specials", icon='DOWNARROW_HLT', text="")
 
             if num_rows > 1:
@@ -205,7 +205,7 @@ class FILEBROWSER_PT_bookmarks(Panel):
                 col.operator("file.bookmark_move", icon='TRIA_UP', text="").direction = 'UP'
                 col.operator("file.bookmark_move", icon='TRIA_DOWN', text="").direction = 'DOWN'
         else:
-            layout.operator("file.bookmark_add", icon='ZOOMIN')
+            layout.operator("file.bookmark_add", icon='ADD')
 
 
 class FILEBROWSER_PT_recent_folders(Panel):
@@ -216,7 +216,7 @@ class FILEBROWSER_PT_recent_folders(Panel):
 
     @classmethod
     def poll(cls, context):
-        return not context.user_preferences.filepaths.hide_recent_locations
+        return not context.preferences.filepaths.hide_recent_locations
 
     def draw(self, context):
         layout = self.layout

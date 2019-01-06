@@ -54,9 +54,13 @@ struct wmEvent;
 struct wmOperator;
 struct wmOperatorType;
 struct wmWindowManager;
-struct DMCoNo;
 struct UndoStep;
 enum ePaintMode;
+
+typedef struct CoNo {
+	float co[3];
+	float no[3];
+} CoNo;
 
 /* paint_stroke.c */
 typedef bool (*StrokeGetLocation)(struct bContext *C, float location[3], const float mouse[2]);
@@ -116,7 +120,7 @@ void PAINT_OT_weight_gradient(struct wmOperatorType *ot);
 void PAINT_OT_vertex_paint_toggle(struct wmOperatorType *ot);
 void PAINT_OT_vertex_paint(struct wmOperatorType *ot);
 
-unsigned int vpaint_get_current_col(struct Scene *scene, struct VPaint *vp);
+unsigned int vpaint_get_current_col(struct Scene *scene, struct VPaint *vp, bool secondary);
 
 /* paint_vertex_color_utils.c */
 unsigned int ED_vpaint_blend_tool(
@@ -161,7 +165,7 @@ void PAINT_OT_weight_sample_group(struct wmOperatorType *ot);
 struct VertProjHandle;
 struct VertProjHandle *ED_vpaint_proj_handle_create(
         struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob,
-        struct DMCoNo **r_vcosnos);
+        struct CoNo **r_vcosnos);
 void  ED_vpaint_proj_handle_update(
         struct Depsgraph *depsgraph, struct VertProjHandle *vp_handle,
         /* runtime vars */
@@ -302,20 +306,6 @@ typedef enum BrushStrokeMode {
 	BRUSH_STROKE_SMOOTH
 } BrushStrokeMode;
 
-/* paint_ops.c */
-typedef enum {
-	RC_COLOR    = 1,
-	RC_ROTATION = 2,
-	RC_ZOOM     = 4,
-	RC_WEIGHT   = 8,
-	RC_SECONDARY_ROTATION = 16,
-	RC_COLOR_OVERRIDE = 32,
-} RCFlags;
-
-void set_brush_rc_props(
-        struct PointerRNA *ptr, const char *paint, const char *prop, const char *secondary_prop,
-        RCFlags flags);
-
 /* paint_hide.c */
 
 typedef enum {
@@ -351,9 +341,6 @@ void PAINTCURVE_OT_select(struct wmOperatorType *ot);
 void PAINTCURVE_OT_slide(struct wmOperatorType *ot);
 void PAINTCURVE_OT_draw(struct wmOperatorType *ot);
 void PAINTCURVE_OT_cursor(struct wmOperatorType *ot);
-
-/* paint_curve_undo.c */
-void ED_paintcurve_undo_push(struct bContext *C, struct wmOperator *op, struct PaintCurve *pc);
 
 /* image painting blur kernel */
 typedef struct {

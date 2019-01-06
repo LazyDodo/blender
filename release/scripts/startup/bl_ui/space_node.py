@@ -27,6 +27,10 @@ from .properties_grease_pencil_common import (
     AnnotationDataPanel,
     GreasePencilToolsPanel,
 )
+from .properties_material import (
+    EEVEE_MATERIAL_PT_settings,
+    MATERIAL_PT_viewport
+)
 
 
 class NODE_HT_header(Header):
@@ -39,7 +43,7 @@ class NODE_HT_header(Header):
         snode = context.space_data
         snode_id = snode.id
         id_from = snode.id_from
-        toolsettings = context.tool_settings
+        tool_settings = context.tool_settings
 
         row = layout.row(align=True)
         row.template_header()
@@ -63,10 +67,12 @@ class NODE_HT_header(Header):
                 layout.separator_spacer()
 
                 row = layout.row()
+                types_that_support_material = {'MESH', 'CURVE', 'SURFACE', 'FONT', 'META', 'GPENCIL'}
                 # disable material slot buttons when pinned, cannot find correct slot within id_from (#36589)
-                row.enabled = not snode.pin
+                # disable also when the selected object does not support materials
+                row.enabled = not snode.pin and ob.type in types_that_support_material
                 # Show material.new when no active ID/slot exists
-                if not id_from and ob.type in {'MESH', 'CURVE', 'SURFACE', 'FONT', 'METABALL'}:
+                if not id_from and ob.type in types_that_support_material:
                     row.template_ID(ob, "active_material", new="material.new")
                 # Material ID, but not for Lights
                 if id_from and ob.type != 'LIGHT':
@@ -139,23 +145,19 @@ class NODE_HT_header(Header):
 
             layout.template_ID(snode, "node_tree", new="node.new_node_tree")
 
+        layout.prop(snode, "pin", text="")
         layout.separator_spacer()
 
         layout.template_running_jobs()
 
-        layout.prop(snode, "pin", text="")
         layout.operator("node.tree_path_parent", text="", icon='FILE_PARENT')
 
         # Snap
         row = layout.row(align=True)
-        row.prop(toolsettings, "use_snap", text="")
-        row.prop(toolsettings, "snap_node_element", icon_only=True)
-        if toolsettings.snap_node_element != 'GRID':
-            row.prop(toolsettings, "snap_target", text="")
-
-        row = layout.row(align=True)
-        row.operator("node.clipboard_copy", text="", icon='COPYDOWN')
-        row.operator("node.clipboard_paste", text="", icon='PASTEDOWN')
+        row.prop(tool_settings, "use_snap", text="")
+        row.prop(tool_settings, "snap_node_element", icon_only=True)
+        if tool_settings.snap_node_element != 'GRID':
+            row.prop(tool_settings, "snap_target", text="")
 
 
 class NODE_MT_editor_menus(Menu):
@@ -163,10 +165,7 @@ class NODE_MT_editor_menus(Menu):
     bl_label = ""
 
     def draw(self, context):
-        self.draw_menus(self.layout, context)
-
-    @staticmethod
-    def draw_menus(layout, context):
+        layout = self.layout
         layout.menu("NODE_MT_view")
         layout.menu("NODE_MT_select")
         layout.menu("NODE_MT_add")
@@ -181,8 +180,10 @@ class NODE_MT_add(bpy.types.Menu):
         layout = self.layout
 
         layout.operator_context = 'INVOKE_DEFAULT'
-        props = layout.operator("node.add_search", text="Search ...")
+        props = layout.operator("node.add_search", text="Search...", icon='VIEWZOOM')
         props.use_transform = True
+
+        layout.separator()
 
         # actual node submenus are defined by draw functions from node categories
         nodeitems_utils.draw_node_categories_menu(self, context)
@@ -219,7 +220,7 @@ class NODE_MT_view(Menu):
 
             layout.operator("node.backimage_move", text="Backdrop Move")
             layout.operator("node.backimage_zoom", text="Backdrop Zoom In").factor = 1.2
-            layout.operator("node.backimage_zoom", text="Backdrop Zoom Out").factor = 0.83333
+            layout.operator("node.backimage_zoom", text="Backdrop Zoom Out").factor = 1.0 / 1.2
             layout.operator("node.backimage_fit", text="Fit Backdrop to Available Space")
 
         layout.separator()
@@ -233,7 +234,7 @@ class NODE_MT_select(Menu):
     def draw(self, context):
         layout = self.layout
 
-        layout.operator("node.select_border").tweak = False
+        layout.operator("node.select_box").tweak = False
         layout.operator("node.select_circle")
 
         layout.separator()
@@ -264,7 +265,8 @@ class NODE_MT_node(Menu):
         layout.operator("transform.resize")
 
         layout.separator()
-
+        layout.operator("node.clipboard_copy", text="Copy")
+        layout.operator("node.clipboard_paste", text="Paste")
         layout.operator("node.duplicate_move")
         layout.operator("node.delete")
         layout.operator("node.delete_reconnect")
@@ -300,7 +302,6 @@ class NODE_MT_node(Menu):
         layout.separator()
 
         layout.operator("node.read_viewlayers")
-        layout.operator("node.read_fullsamplelayers")
 
 
 class NODE_PT_node_color_presets(PresetMenu):
@@ -326,22 +327,39 @@ class NODE_MT_specials(Menu):
     def draw(self, context):
         layout = self.layout
 
+        selected_nodes_len = len(context.selected_nodes)
+
+        # If nothing is selected
+        # (disabled for now until it can be made more useful).
+        '''
+        if selected_nodes_len == 0:
+            layout.operator_context = 'INVOKE_DEFAULT'
+            layout.menu("NODE_MT_add")
+            layout.operator("node.clipboard_paste", text="Paste")
+            return
+        '''
+
+        # If something is selected
         layout.operator_context = 'INVOKE_DEFAULT'
         layout.operator("node.duplicate_move")
         layout.operator("node.delete")
+        layout.operator("node.clipboard_copy", text="Copy")
+        layout.operator("node.clipboard_paste", text="Paste")
         layout.operator_context = 'EXEC_DEFAULT'
 
         layout.operator("node.delete_reconnect")
 
-        layout.separator()
+        if selected_nodes_len > 1:
+            layout.separator()
 
-        layout.operator("node.link_make").replace = False
-        layout.operator("node.link_make", text="Make and Replace Links").replace = True
-        layout.operator("node.links_detach")
+            layout.operator("node.link_make").replace = False
+            layout.operator("node.link_make", text="Make and Replace Links").replace = True
+            layout.operator("node.links_detach")
 
-        layout.separator()
+            layout.separator()
 
-        layout.operator("node.group_make", text="Group")
+            layout.operator("node.group_make", text="Group")
+
         layout.operator("node.group_ungroup", text="Ungroup")
         layout.operator("node.group_edit").exit = False
 
@@ -358,6 +376,7 @@ class NODE_MT_specials(Menu):
 class NODE_PT_active_node_generic(Panel):
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Node"
     bl_label = "Node"
 
     @classmethod
@@ -375,6 +394,7 @@ class NODE_PT_active_node_generic(Panel):
 class NODE_PT_active_node_color(Panel):
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Node"
     bl_label = "Color"
     bl_options = {'DEFAULT_CLOSED'}
     bl_parent_id = 'NODE_PT_active_node_generic'
@@ -404,6 +424,7 @@ class NODE_PT_active_node_color(Panel):
 class NODE_PT_active_node_properties(Panel):
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Node"
     bl_label = "Properties"
     bl_options = {'DEFAULT_CLOSED'}
     bl_parent_id = 'NODE_PT_active_node_generic'
@@ -437,6 +458,7 @@ class NODE_PT_active_node_properties(Panel):
 class NODE_PT_backdrop(Panel):
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Node"
     bl_label = "Backdrop"
 
     @classmethod
@@ -471,6 +493,7 @@ class NODE_PT_backdrop(Panel):
 class NODE_PT_quality(bpy.types.Panel):
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Node"
     bl_label = "Performance"
 
     @classmethod
@@ -507,23 +530,24 @@ class NODE_UL_interface_sockets(bpy.types.UIList):
 
             # inputs get icon on the left
             if not socket.is_output:
-                row.template_node_socket(color)
+                row.template_node_socket(color=color)
 
             row.prop(socket, "name", text="", emboss=False, icon_value=icon)
 
             # outputs get icon on the right
             if socket.is_output:
-                row.template_node_socket(color)
+                row.template_node_socket(color=color)
 
         elif self.layout_type == 'GRID':
             layout.alignment = 'CENTER'
-            layout.template_node_socket(color)
+            layout.template_node_socket(color=color)
 
 
 # Grease Pencil properties
 class NODE_PT_grease_pencil(AnnotationDataPanel, Panel):
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Node"
     bl_options = {'DEFAULT_CLOSED'}
 
     # NOTE: this is just a wrapper around the generic GP Panel
@@ -537,6 +561,7 @@ class NODE_PT_grease_pencil(AnnotationDataPanel, Panel):
 class NODE_PT_grease_pencil_tools(GreasePencilToolsPanel, Panel):
     bl_space_type = 'NODE_EDITOR'
     bl_region_type = 'UI'
+    bl_category = "Node"
     bl_options = {'DEFAULT_CLOSED'}
 
     # NOTE: this is just a wrapper around the generic GP tools panel
@@ -544,16 +569,45 @@ class NODE_PT_grease_pencil_tools(GreasePencilToolsPanel, Panel):
     # toolbar, but which may not necessarily be open
 
 
-# Tool Shelf ------------------
-
-
-# Grease Pencil drawing tools
-class NODE_PT_tools_grease_pencil_draw(AnnotationDrawingToolsPanel, Panel):
+class EEVEE_NODE_PT_material_settings(Panel):
     bl_space_type = 'NODE_EDITOR'
-    bl_region_type = 'TOOLS'
+    bl_region_type = 'UI'
+    bl_category = "Node"
+    bl_label = "Settings"
+    COMPAT_ENGINES = {'BLENDER_EEVEE'}
+
+    @classmethod
+    def poll(cls, context):
+        snode = context.space_data
+        return (
+            (context.engine in cls.COMPAT_ENGINES) and
+            (snode.tree_type == 'ShaderNodeTree' and snode.id) and
+            (snode.id.bl_rna.identifier == 'Material')
+        )
+
+    def draw(self, context):
+        material = context.space_data.id
+        EEVEE_MATERIAL_PT_settings.draw_shared(self, material)
 
 
-# -----------------------------
+class NODE_PT_material_viewport(Panel):
+    bl_space_type = 'NODE_EDITOR'
+    bl_region_type = 'UI'
+    bl_category = "Node"
+    bl_label = "Viewport Display"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    @classmethod
+    def poll(cls, context):
+        snode = context.space_data
+        return (
+            (snode.tree_type == 'ShaderNodeTree' and snode.id) and
+            (snode.id.bl_rna.identifier == "Material")
+        )
+
+    def draw(self, context):
+        material = context.space_data.id
+        MATERIAL_PT_viewport.draw_shared(self, material)
 
 
 def node_draw_tree_view(layout, context):
@@ -578,7 +632,8 @@ classes = (
     NODE_UL_interface_sockets,
     NODE_PT_grease_pencil,
     NODE_PT_grease_pencil_tools,
-    NODE_PT_tools_grease_pencil_draw,
+    EEVEE_NODE_PT_material_settings,
+    NODE_PT_material_viewport,
 )
 
 

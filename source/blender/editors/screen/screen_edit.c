@@ -43,9 +43,9 @@
 #include "BLI_utildefines.h"
 
 #include "BKE_context.h"
+#include "BKE_global.h"
 #include "BKE_icons.h"
 #include "BKE_image.h"
-#include "BKE_global.h"
 #include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_library_remap.h"
@@ -639,7 +639,7 @@ void ED_screen_set_active_region(bContext *C, wmWindow *win, const int xy[2])
 		ED_screen_areas_iter(win, scr, area_iter) {
 			if (xy[0] > area_iter->totrct.xmin && xy[0] < area_iter->totrct.xmax) {
 				if (xy[1] > area_iter->totrct.ymin && xy[1] < area_iter->totrct.ymax) {
-					if (ED_area_actionzone_refresh_xy(area_iter, xy) == NULL) {
+					if (ED_area_azones_update(area_iter, xy) == NULL) {
 						sa = area_iter;
 						break;
 					}
@@ -680,7 +680,7 @@ void ED_screen_set_active_region(bContext *C, wmWindow *win, const int xy[2])
 			}
 		}
 
-		/* cursors, for time being set always on edges, otherwise aregion doesnt switch */
+		/* cursors, for time being set always on edges, otherwise aregion doesn't switch */
 		if (scr->active_region == NULL) {
 			screen_cursor_set(win, xy);
 		}
@@ -1251,7 +1251,7 @@ ScrArea *ED_screen_state_toggle(bContext *C, wmWindow *win, ScrArea *sa, const s
 			for (ar = newa->regionbase.first; ar; ar = ar->next) {
 				ar->flagfullscreen = ar->flag;
 
-				if (ELEM(ar->regiontype, RGN_TYPE_UI, RGN_TYPE_HEADER, RGN_TYPE_TOOLS)) {
+				if (ELEM(ar->regiontype, RGN_TYPE_UI, RGN_TYPE_HEADER, RGN_TYPE_TOOLS, RGN_TYPE_NAV_BAR, RGN_TYPE_EXECUTE)) {
 					ar->flag |= RGN_FLAG_HIDDEN;
 				}
 			}
@@ -1409,7 +1409,7 @@ void ED_update_for_newframe(Main *bmain, Depsgraph *depsgraph)
 		for (sc = bmain->screen.first; sc; sc = sc->id.next) {
 			BKE_screen_view3d_scene_sync(sc, scene);
 		}
-		DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_COPY_ON_WRITE);
 	}
 #endif
 

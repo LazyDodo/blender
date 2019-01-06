@@ -38,8 +38,8 @@
 #include "BLI_math.h"
 #include "BLI_string_utils.h"
 
-#include "BKE_animsys.h"
 #include "BKE_action.h"
+#include "BKE_animsys.h"
 #include "BKE_appdir.h"
 #include "BKE_armature.h"
 #include "BKE_blender_copybuffer.h"
@@ -47,9 +47,9 @@
 #include "BKE_deform.h"
 #include "BKE_global.h"
 #include "BKE_idprop.h"
+#include "BKE_layer.h"
 #include "BKE_main.h"
 #include "BKE_object.h"
-#include "BKE_layer.h"
 #include "BKE_report.h"
 
 #include "DEG_depsgraph.h"
@@ -137,8 +137,8 @@ static int apply_armature_pose2bones_exec(bContext *C, wmOperator *op)
 		copy_v3_v3(curbone->tail, pchan_eval->pose_tail);
 
 		/* fix roll:
-		 *	1. find auto-calculated roll value for this bone now
-		 *	2. remove this from the 'visual' y-rotation
+		 * 1. find auto-calculated roll value for this bone now
+		 * 2. remove this from the 'visual' y-rotation
 		 */
 		{
 			float premat[3][3], imat[3][3], pmat[3][3], tmat[3][3];
@@ -207,7 +207,7 @@ static int apply_armature_pose2bones_exec(bContext *C, wmOperator *op)
 
 	/* note, notifier might evolve */
 	WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
-	DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&ob->id, ID_RECALC_COPY_ON_WRITE);
 
 	return OPERATOR_FINISHED;
 }
@@ -232,9 +232,10 @@ void POSE_OT_armature_apply(wmOperatorType *ot)
 static int pose_visual_transform_apply_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	ViewLayer *view_layer = CTX_data_view_layer(C);
+	View3D *v3d = CTX_wm_view3d(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 
-	FOREACH_OBJECT_IN_MODE_BEGIN(view_layer, OB_MODE_POSE, ob)
+	FOREACH_OBJECT_IN_MODE_BEGIN(view_layer, v3d, OB_ARMATURE, OB_MODE_POSE, ob)
 	{
 		/* loop over all selected pchans
 		 *
@@ -260,7 +261,7 @@ static int pose_visual_transform_apply_exec(bContext *C, wmOperator *UNUSED(op))
 		}
 		FOREACH_PCHAN_SELECTED_IN_OBJECT_END;
 
-		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 
 		/* note, notifier might evolve */
 		WM_event_add_notifier(C, NC_OBJECT | ND_POSE, ob);
@@ -310,10 +311,10 @@ static void set_pose_keys(Object *ob)
 /**
  * Perform paste pose, for a single bone.
  *
- * \param ob Object where bone to paste to lives
- * \param chan Bone that pose to paste comes from
- * \param selOnly Only paste on selected bones
- * \param flip Flip on x-axis
+ * \param ob: Object where bone to paste to lives
+ * \param chan: Bone that pose to paste comes from
+ * \param selOnly: Only paste on selected bones
+ * \param flip: Flip on x-axis
  * \return Whether the bone that we pasted to if we succeeded
  */
 static bPoseChannel *pose_bone_do_paste(Object *ob, bPoseChannel *chan, const bool selOnly, const bool flip)
@@ -342,7 +343,7 @@ static bPoseChannel *pose_bone_do_paste(Object *ob, bPoseChannel *chan, const bo
 	/* continue? */
 	if (paste_ok) {
 		/* only loc rot size
-		 *	- only copies transform info for the pose
+		 * - only copies transform info for the pose
 		 */
 		copy_v3_v3(pchan->loc, chan->loc);
 		copy_v3_v3(pchan->size, chan->size);
@@ -580,11 +581,11 @@ static int pose_paste_exec(bContext *C, wmOperator *op)
 	BKE_main_free(tmp_bmain);
 
 	/* Update event for pose and deformation children. */
-	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+	DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 
 	/* Recalculate paths if any of the bones have paths... */
 	if ((ob->pose->avs.path_bakeflag & MOTIONPATH_BAKE_HAS_PATHS)) {
-		ED_pose_recalculate_paths(C, scene, ob);
+		ED_pose_recalculate_paths(C, scene, ob, false);
 	}
 
 	/* Notifiers for updates, */
@@ -779,7 +780,8 @@ static int pose_clear_transform_generic_exec(bContext *C, wmOperator *op,
 
 	/* only clear relevant transforms for selected bones */
 	ViewLayer *view_layer = CTX_data_view_layer(C);
-	FOREACH_OBJECT_IN_MODE_BEGIN (view_layer, OB_MODE_POSE, ob_iter)
+	View3D *v3d = CTX_wm_view3d(C);
+	FOREACH_OBJECT_IN_MODE_BEGIN (view_layer, v3d, OB_ARMATURE, OB_MODE_POSE, ob_iter)
 	{
 		Object *ob_eval = DEG_get_evaluated_object(CTX_data_depsgraph(C), ob_iter); // XXX: UGLY HACK (for autokey + clear transforms)
 		ListBase dsources = {NULL, NULL};
@@ -827,13 +829,13 @@ static int pose_clear_transform_generic_exec(bContext *C, wmOperator *op,
 
 				/* now recalculate paths */
 				if ((ob_iter->pose->avs.path_bakeflag & MOTIONPATH_BAKE_HAS_PATHS)) {
-					ED_pose_recalculate_paths(C, scene, ob_iter);
+					ED_pose_recalculate_paths(C, scene, ob_iter, false);
 				}
 
 				BLI_freelistN(&dsources);
 			}
 
-			DEG_id_tag_update(&ob_iter->id, OB_RECALC_DATA);
+			DEG_id_tag_update(&ob_iter->id, ID_RECALC_GEOMETRY);
 
 			/* note, notifier might evolve */
 			WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, ob_iter);
@@ -935,11 +937,12 @@ void POSE_OT_transforms_clear(wmOperatorType *ot)
 static int pose_clear_user_transforms_exec(bContext *C, wmOperator *op)
 {
 	ViewLayer *view_layer = CTX_data_view_layer(C);
+	View3D *v3d = CTX_wm_view3d(C);
 	Scene *scene = CTX_data_scene(C);
 	float cframe = (float)CFRA;
 	const bool only_select = RNA_boolean_get(op->ptr, "only_selected");
 
-	FOREACH_OBJECT_IN_MODE_BEGIN (view_layer, OB_MODE_POSE, ob)
+	FOREACH_OBJECT_IN_MODE_BEGIN (view_layer, v3d, OB_ARMATURE, OB_MODE_POSE, ob)
 	{
 		if ((ob->adt) && (ob->adt->action)) {
 			/* XXX: this is just like this to avoid contaminating anything else;
@@ -985,7 +988,7 @@ static int pose_clear_user_transforms_exec(bContext *C, wmOperator *op)
 		}
 
 		/* notifiers and updates */
-		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 		WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, ob);
 	}
 	FOREACH_OBJECT_IN_MODE_END;

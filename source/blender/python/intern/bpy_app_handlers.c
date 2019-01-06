@@ -46,27 +46,30 @@ void bpy_app_generic_callback(struct Main *main, struct ID *id, void *arg);
 static PyTypeObject BlenderAppCbType;
 
 static PyStructSequence_Field app_cb_info_fields[] = {
-	{(char *)"frame_change_pre",  (char *)"on frame change for playback and rendering (before)"},
-	{(char *)"frame_change_post", (char *)"on frame change for playback and rendering (after)"},
-	{(char *)"render_pre",        (char *)"on render (before)"},
-	{(char *)"render_post",       (char *)"on render (after)"},
-	{(char *)"render_write",      (char *)"on writing a render frame (directly after the frame is written)"},
-	{(char *)"render_stats",      (char *)"on printing render statistics"},
-	{(char *)"render_init",       (char *)"on initialization of a render job"},
-	{(char *)"render_complete",   (char *)"on completion of render job"},
-	{(char *)"render_cancel",     (char *)"on canceling a render job"},
-	{(char *)"load_pre",          (char *)"on loading a new blend file (before)"},
-	{(char *)"load_post",         (char *)"on loading a new blend file (after)"},
-	{(char *)"save_pre",          (char *)"on saving a blend file (before)"},
-	{(char *)"save_post",         (char *)"on saving a blend file (after)"},
-	{(char *)"undo_pre",          (char *)"on loading an undo step (before)"},
-	{(char *)"undo_post",         (char *)"on loading an undo step (after)"},
-	{(char *)"redo_pre",          (char *)"on loading a redo step (before)"},
-	{(char *)"redo_post",         (char *)"on loading a redo step (after)"},
-	{(char *)"version_update",    (char *)"on ending the versioning code"},
+	{(char *)"frame_change_pre",      (char *)"on frame change for playback and rendering (before)"},
+	{(char *)"frame_change_post",     (char *)"on frame change for playback and rendering (after)"},
+	{(char *)"render_pre",            (char *)"on render (before)"},
+	{(char *)"render_post",           (char *)"on render (after)"},
+	{(char *)"render_write",          (char *)"on writing a render frame (directly after the frame is written)"},
+	{(char *)"render_stats",          (char *)"on printing render statistics"},
+	{(char *)"render_init",           (char *)"on initialization of a render job"},
+	{(char *)"render_complete",       (char *)"on completion of render job"},
+	{(char *)"render_cancel",         (char *)"on canceling a render job"},
+	{(char *)"load_pre",              (char *)"on loading a new blend file (before)"},
+	{(char *)"load_post",             (char *)"on loading a new blend file (after)"},
+	{(char *)"save_pre",              (char *)"on saving a blend file (before)"},
+	{(char *)"save_post",             (char *)"on saving a blend file (after)"},
+	{(char *)"undo_pre",              (char *)"on loading an undo step (before)"},
+	{(char *)"undo_post",             (char *)"on loading an undo step (after)"},
+	{(char *)"redo_pre",              (char *)"on loading a redo step (before)"},
+	{(char *)"redo_post",             (char *)"on loading a redo step (after)"},
+	{(char *)"depsgraph_update_pre",  (char *)"on depsgraph update (pre)"},
+	{(char *)"depsgraph_update_post", (char *)"on depsgraph update (post)"},
+	{(char *)"version_update",        (char *)"on ending the versioning code"},
+	{(char *)"load_factory_startup_post", (char *)"on loading factory startup (after)"},
 
 	/* sets the permanent tag */
-#   define APP_CB_OTHER_FIELDS 1
+#define APP_CB_OTHER_FIELDS 1
 	{(char *)"persistent",        (char *)"Function decorator for callback functions not to be removed when loading new files"},
 
 	{NULL}
@@ -233,7 +236,7 @@ PyObject *BPY_app_handlers_struct(void)
 			funcstore = &funcstore_array[pos];
 			funcstore->func = bpy_app_generic_callback;
 			funcstore->alloc = 0;
-			funcstore->arg = SET_INT_IN_POINTER(pos);
+			funcstore->arg = POINTER_FROM_INT(pos);
 			BLI_callback_add(funcstore, pos);
 		}
 	}
@@ -292,7 +295,7 @@ void BPY_app_handlers_reset(const short do_all)
 /* the actual callback - not necessarily called from py */
 void bpy_app_generic_callback(struct Main *UNUSED(main), struct ID *id, void *arg)
 {
-	PyObject *cb_list = py_cb_array[GET_INT_FROM_POINTER(arg)];
+	PyObject *cb_list = py_cb_array[POINTER_AS_INT(arg)];
 	if (PyList_GET_SIZE(cb_list) > 0) {
 		PyGILState_STATE gilstate = PyGILState_Ensure();
 

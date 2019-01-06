@@ -104,7 +104,7 @@ static void deformVerts(
         ModifierData *md, const ModifierEvalContext *ctx,
         Mesh *mesh,
         float (*vertexCos)[3],
-        int UNUSED(numVerts))
+        int numVerts)
 {
 	Mesh *mesh_src = mesh;
 	ParticleSystemModifierData *psmd = (ParticleSystemModifierData *) md;
@@ -120,7 +120,7 @@ static void deformVerts(
 		return;
 
 	if (mesh_src == NULL) {
-		mesh_src = MOD_get_mesh_eval(ctx->object, NULL, NULL, vertexCos, false, true);
+		mesh_src = MOD_deform_mesh_eval_get(ctx->object, NULL, NULL, vertexCos, numVerts, false, true);
 		if (mesh_src == NULL) {
 			return;
 		}
@@ -141,16 +141,11 @@ static void deformVerts(
 	}
 	else {
 		/* no dm before, so recalc particles fully */
-		psys->recalc |= PSYS_RECALC_RESET;
+		psys->recalc |= ID_RECALC_PSYS_RESET;
 	}
 
 	/* make new mesh */
-	BKE_id_copy_ex(NULL, &mesh_src->id, (ID **)&psmd->mesh_final,
-	               LIB_ID_CREATE_NO_MAIN |
-	               LIB_ID_CREATE_NO_USER_REFCOUNT |
-	               LIB_ID_CREATE_NO_DEG_TAG |
-	               LIB_ID_COPY_NO_PREVIEW,
-	               false);
+	psmd->mesh_final = BKE_mesh_copy_for_eval(mesh_src, false);
 	BKE_mesh_apply_vert_coords(psmd->mesh_final, vertexCos);
 	BKE_mesh_calc_normals(psmd->mesh_final);
 
@@ -167,7 +162,7 @@ static void deformVerts(
 
 			if (edit_btmesh) {
 				/* In edit mode get directly from the edit mesh. */
-				psmd->mesh_original = BKE_bmesh_to_mesh_nomain(edit_btmesh->bm, &(struct BMeshToMeshParams){0});
+				psmd->mesh_original = BKE_mesh_from_bmesh_for_eval_nomain(edit_btmesh->bm, 0);
 			}
 			else {
 				/* Otherwise get regular mesh. */
@@ -182,12 +177,7 @@ static void deformVerts(
 			/* Make a persistent copy of the mesh. We don't actually need
 			 * all this data, just some topology for remapping. Could be
 			 * optimized once. */
-			BKE_id_copy_ex(NULL, &mesh_original->id, (ID **)&psmd->mesh_original,
-			               LIB_ID_CREATE_NO_MAIN |
-			               LIB_ID_CREATE_NO_USER_REFCOUNT |
-			               LIB_ID_CREATE_NO_DEG_TAG |
-			               LIB_ID_COPY_NO_PREVIEW,
-			               false);
+			psmd->mesh_original = BKE_mesh_copy_for_eval(mesh_original, false);
 		}
 
 		BKE_mesh_tessface_ensure(psmd->mesh_original);
@@ -202,7 +192,7 @@ static void deformVerts(
 	    psmd->mesh_final->totedge != psmd->totdmedge ||
 	    psmd->mesh_final->totface != psmd->totdmface)
 	{
-		psys->recalc |= PSYS_RECALC_RESET;
+		psys->recalc |= ID_RECALC_PSYS_RESET;
 
 		psmd->totdmvert = psmd->mesh_final->totvert;
 		psmd->totdmedge = psmd->mesh_final->totedge;
@@ -257,14 +247,12 @@ ModifierTypeInfo modifierType_ParticleSystem = {
 	/* deformMatrices_DM */ NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       deformVerts,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,

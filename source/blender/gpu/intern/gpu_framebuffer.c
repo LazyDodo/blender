@@ -75,7 +75,7 @@ struct GPUFrameBuffer {
 	int width, height;
 	bool multisample;
 	/* TODO Check that we always use the right context when binding
-	 * (FBOs are not shared accross ogl contexts). */
+	 * (FBOs are not shared across ogl contexts). */
 	// void *ctx;
 };
 
@@ -101,6 +101,7 @@ static GPUAttachmentType attachment_type_from_tex(GPUTexture *tex, int slot)
 		case GPU_DEPTH_COMPONENT16:
 			return GPU_FB_DEPTH_ATTACHMENT;
 		case GPU_DEPTH24_STENCIL8:
+		case GPU_DEPTH32F_STENCIL8:
 			return GPU_FB_DEPTH_STENCIL_ATTACHMENT;
 		default:
 			return GPU_FB_COLOR_ATTACHMENT0 + slot;
@@ -198,7 +199,7 @@ GPUFrameBuffer *GPU_framebuffer_create(void)
 {
 	/* We generate the FB object later at first use in order to
 	 * create the framebuffer in the right opengl context. */
-	return MEM_callocN(sizeof(GPUFrameBuffer), "GPUFrameBuffer");;
+	return MEM_callocN(sizeof(GPUFrameBuffer), "GPUFrameBuffer");
 }
 
 static void gpu_framebuffer_init(GPUFrameBuffer *fb)
@@ -415,6 +416,88 @@ static void gpu_framebuffer_update_attachments(GPUFrameBuffer *fb)
 		glDrawBuffer(GL_NONE);
 }
 
+/**
+ * Hack to solve the problem of some bugged AMD GPUs (see `GPU_unused_fb_slot_workaround`).
+ * If there is an empty color slot between the color slots,
+ * all textures after this slot are apparently skipped/discarded.
+ **/
+static void gpu_framebuffer_update_attachments_and_fill_empty_slots(GPUFrameBuffer *fb)
+{
+	GLenum gl_attachments[GPU_FB_MAX_COLOR_ATTACHMENT];
+	int dummy_tex = 0;
+
+	BLI_assert(GPU_framebuffer_active_get() == fb);
+
+	/* Update attachments */
+	for (GPUAttachmentType type = GPU_FB_MAX_ATTACHEMENT; type--;) {
+		GPUTexture *tex = fb->attachments[type].tex;
+
+		if (type >= GPU_FB_COLOR_ATTACHMENT0) {
+			int slot = type - GPU_FB_COLOR_ATTACHMENT0;
+			if (tex != NULL || (dummy_tex != 0)) {
+				gl_attachments[slot] = convert_attachment_type_to_gl(type);
+
+				if (dummy_tex == 0) {
+					dummy_tex = GPU_texture_opengl_bindcode(tex);
+				}
+			}
+			else {
+				gl_attachments[slot] = GL_NONE;
+			}
+		}
+		else {
+			dummy_tex = 0;
+		}
+
+		if ((dummy_tex != 0) && tex == NULL) {
+			/* Fill empty slot */
+			glFramebufferTexture(GL_FRAMEBUFFER, convert_attachment_type_to_gl(type), dummy_tex, 0);
+		}
+		else if (GPU_FB_ATTACHEMENT_IS_DIRTY(fb->dirty_flag, type)) {
+			if (tex != NULL) {
+				gpu_framebuffer_attachment_attach(&fb->attachments[type], type);
+
+				fb->multisample = (GPU_texture_samples(tex) > 0);
+				fb->width = GPU_texture_width(tex);
+				fb->height = GPU_texture_height(tex);
+			}
+			else {
+				gpu_framebuffer_attachment_detach(&fb->attachments[type], type);
+			}
+		}
+	}
+	fb->dirty_flag = 0;
+
+	/* Update draw buffers (color targets)
+	 * This state is saved in the FBO */
+	glDrawBuffers(GPU_FB_MAX_COLOR_ATTACHMENT, gl_attachments);
+}
+
+
+#define FRAMEBUFFER_STACK_DEPTH 16
+
+static struct {
+	GPUFrameBuffer *framebuffers[FRAMEBUFFER_STACK_DEPTH];
+	uint top;
+} FrameBufferStack = {{0}};
+
+static void gpuPushFrameBuffer(GPUFrameBuffer *fbo)
+{
+	BLI_assert(FrameBufferStack.top < FRAMEBUFFER_STACK_DEPTH);
+	FrameBufferStack.framebuffers[FrameBufferStack.top] = fbo;
+	FrameBufferStack.top++;
+}
+
+static GPUFrameBuffer *gpuPopFrameBuffer(void)
+{
+	BLI_assert(FrameBufferStack.top > 0);
+	FrameBufferStack.top--;
+	return FrameBufferStack.framebuffers[FrameBufferStack.top];
+}
+
+#undef FRAMEBUFFER_STACK_DEPTH
+
+
 void GPU_framebuffer_bind(GPUFrameBuffer *fb)
 {
 	if (fb->object == 0)
@@ -425,8 +508,15 @@ void GPU_framebuffer_bind(GPUFrameBuffer *fb)
 
 	gpu_framebuffer_current_set(fb);
 
-	if (fb->dirty_flag != 0)
-		gpu_framebuffer_update_attachments(fb);
+	if (fb->dirty_flag != 0) {
+		if (GPU_unused_fb_slot_workaround()) {
+			/* XXX: Please AMD, fix this. */
+			gpu_framebuffer_update_attachments_and_fill_empty_slots(fb);
+		}
+		else {
+			gpu_framebuffer_update_attachments(fb);
+		}
+	}
 
 	/* TODO manually check for errors? */
 #if 0
@@ -487,7 +577,7 @@ void GPU_framebuffer_viewport_set(GPUFrameBuffer *fb, int x, int y, int w, int h
 
 void GPU_framebuffer_clear(
         GPUFrameBuffer *fb, GPUFrameBufferBits buffers,
-        const float clear_col[4], float clear_depth, unsigned int clear_stencil)
+        const float clear_col[4], float clear_depth, uint clear_stencil)
 {
 	CHECK_FRAMEBUFFER_IS_BOUND(fb);
 
@@ -605,9 +695,13 @@ void GPU_framebuffer_blit(
 	if (fb_write == prev_fb) {
 		GPU_framebuffer_bind(fb_write); /* To update drawbuffers */
 	}
-	else {
+	else if (prev_fb) {
 		glBindFramebuffer(GL_FRAMEBUFFER, prev_fb->object);
 		gpu_framebuffer_current_set(prev_fb);
+	}
+	else {
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		gpu_framebuffer_current_set(NULL);
 	}
 }
 
@@ -628,6 +722,9 @@ void GPU_framebuffer_recursive_downsample(
 	GPUFrameBuffer *prev_fb = GPU_framebuffer_active_get();
 	gpu_framebuffer_current_set(NULL);
 
+	int levels = floor(log2(max_ii(fb->width, fb->height)));
+	max_lvl = min_ii(max_lvl, levels);
+
 	int i;
 	int current_dim[2] = {fb->width, fb->height};
 	for (i = 1; i < max_lvl + 1; i++) {
@@ -637,11 +734,15 @@ void GPU_framebuffer_recursive_downsample(
 
 		for (GPUAttachmentType type = 0; type < GPU_FB_MAX_ATTACHEMENT; ++type) {
 			if (fb->attachments[type].tex != NULL) {
+				/* Some Intel HDXXX have issue with rendering to a mipmap that is below
+				 * the texture GL_TEXTURE_MAX_LEVEL. So even if it not correct, in this case
+				 * we allow GL_TEXTURE_MAX_LEVEL to be one level lower. In practice it does work! */
+				int next_lvl = (GPU_mip_render_workaround()) ? i : i - 1;
 				/* bind next level for rendering but first restrict fetches only to previous level */
 				GPUTexture *tex = fb->attachments[type].tex;
 				GPU_texture_bind(tex, 0);
 				glTexParameteri(GPU_texture_target(tex), GL_TEXTURE_BASE_LEVEL, i - 1);
-				glTexParameteri(GPU_texture_target(tex), GL_TEXTURE_MAX_LEVEL, i - 1);
+				glTexParameteri(GPU_texture_target(tex), GL_TEXTURE_MAX_LEVEL, next_lvl);
 				GPU_texture_unbind(tex);
 				/* copy attachment and replace miplevel. */
 				GPUAttachment attachment = fb->attachments[type];
@@ -741,6 +842,8 @@ void GPU_offscreen_bind(GPUOffScreen *ofs, bool save)
 {
 	if (save) {
 		gpuPushAttrib(GPU_SCISSOR_BIT | GPU_VIEWPORT_BIT);
+		GPUFrameBuffer *fb = GPU_framebuffer_active_get();
+		gpuPushFrameBuffer(fb);
 	}
 	glDisable(GL_SCISSOR_TEST);
 	GPU_framebuffer_bind(ofs->fb);
@@ -748,9 +851,18 @@ void GPU_offscreen_bind(GPUOffScreen *ofs, bool save)
 
 void GPU_offscreen_unbind(GPUOffScreen *UNUSED(ofs), bool restore)
 {
-	GPU_framebuffer_restore();
+	GPUFrameBuffer *fb = NULL;
+
 	if (restore) {
 		gpuPopAttrib();
+		fb = gpuPopFrameBuffer();
+	}
+
+	if (fb) {
+		GPU_framebuffer_bind(fb);
+	}
+	else {
+		GPU_framebuffer_restore();
 	}
 }
 

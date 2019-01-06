@@ -78,10 +78,16 @@ void ANIM_list_elem_update(Main *bmain, Scene *scene, bAnimListElem *ale)
 	adt = BKE_animdata_from_id(id);
 	if (adt) {
 		adt->recalc |= ADT_RECALC_ANIM;
-		DEG_id_tag_update(id, OB_RECALC_TIME);
+		DEG_id_tag_update(id, ID_RECALC_ANIMATION);
 		if (adt->action != NULL) {
-			DEG_id_tag_update(&adt->action->id, DEG_TAG_COPY_ON_WRITE);
+			DEG_id_tag_update(&adt->action->id, ID_RECALC_COPY_ON_WRITE);
 		}
+	}
+
+	/* Tag copy on the main object if updating anything directly inside AnimData */
+	if (ELEM(ale->type, ANIMTYPE_ANIMDATA, ANIMTYPE_NLAACTION, ANIMTYPE_NLATRACK, ANIMTYPE_NLACURVE)) {
+		DEG_id_tag_update(id, ID_RECALC_ANIMATION | ID_RECALC_COPY_ON_WRITE);
+		return;
 	}
 
 	/* update data */
@@ -102,13 +108,13 @@ void ANIM_list_elem_update(Main *bmain, Scene *scene, bAnimListElem *ale)
 	else {
 		/* in other case we do standard depsgraph update, ideally
 		 * we'd be calling property update functions here too ... */
-		DEG_id_tag_update(id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME); // XXX or do we want something more restrictive?
+		DEG_id_tag_update(id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION); // XXX or do we want something more restrictive?
 	}
 }
 
 /* tags the given ID block for refreshes (if applicable) due to
  * Animation Editor editing */
-void ANIM_id_update(Scene *UNUSED(scene), ID *id)
+void ANIM_id_update(Main *bmain, ID *id)
 {
 	if (id) {
 		AnimData *adt = BKE_animdata_from_id(id);
@@ -118,14 +124,14 @@ void ANIM_id_update(Scene *UNUSED(scene), ID *id)
 			adt->recalc |= ADT_RECALC_ANIM;
 
 		/* set recalc flags */
-		DEG_id_tag_update(id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME); // XXX or do we want something more restrictive?
+		DEG_id_tag_update_ex(bmain, id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION); // XXX or do we want something more restrictive?
 	}
 }
 
 /* **************************** animation data <-> data syncing ******************************** */
 /* This code here is used to synchronize the
- *	- selection (to find selected data easier)
- *	- ... (insert other relevant items here later)
+ * - selection (to find selected data easier)
+ * - ... (insert other relevant items here later)
  * status in relevant Blender data with the status stored in animation channels.
  *
  * This should be called in the refresh() callbacks for various editors in
@@ -408,6 +414,10 @@ void ANIM_animdata_update(bAnimContext *ac, ListBase *anim_data)
 				ale->update &= ~ANIM_UPDATE_DEPS;
 				ANIM_list_elem_update(ac->bmain, ac->scene, ale);
 			}
+			/* disable handles to avoid crash */
+			if (ale->update & ANIM_UPDATE_HANDLES) {
+				ale->update &= ~ANIM_UPDATE_HANDLES;
+			}
 		}
 		else if (ale->datatype == ALE_FCURVE) {
 			FCurve *fcu = ale->key_data;
@@ -429,7 +439,7 @@ void ANIM_animdata_update(bAnimContext *ac, ListBase *anim_data)
 				ANIM_list_elem_update(ac->bmain, ac->scene, ale);
 			}
 		}
-		else if (ale->datatype == ALE_NLASTRIP) {
+		else if (ELEM(ale->type, ANIMTYPE_ANIMDATA, ANIMTYPE_NLAACTION, ANIMTYPE_NLATRACK, ANIMTYPE_NLACURVE)) {
 			if (ale->update & ANIM_UPDATE_DEPS) {
 				ale->update &= ~ANIM_UPDATE_DEPS;
 				ANIM_list_elem_update(ac->bmain, ac->scene, ale);

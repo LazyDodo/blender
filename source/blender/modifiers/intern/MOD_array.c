@@ -57,6 +57,7 @@
 #include "MOD_util.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 static void initData(ModifierData *md)
 {
@@ -101,13 +102,13 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 		DEG_add_object_relation(ctx->node, amd->end_cap, DEG_OB_COMP_GEOMETRY, "Array Modifier End Cap");
 	}
 	if (amd->curve_ob) {
-		struct Depsgraph *depsgraph = DEG_get_graph_from_handle(ctx->node);
 		DEG_add_object_relation(ctx->node, amd->curve_ob, DEG_OB_COMP_GEOMETRY, "Array Modifier Curve");
-		DEG_add_special_eval_flag(depsgraph, &amd->curve_ob->id, DAG_EVAL_NEED_CURVE_PATH);
+		DEG_add_special_eval_flag(ctx->node, &amd->curve_ob->id, DAG_EVAL_NEED_CURVE_PATH);
 	}
 	if (amd->offset_ob != NULL) {
 		DEG_add_object_relation(ctx->node, amd->offset_ob, DEG_OB_COMP_TRANSFORM, "Array Modifier Offset");
 	}
+	DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "Array Modifier");
 }
 
 BLI_INLINE float sum_v3(const float v[3])
@@ -278,7 +279,6 @@ static void mesh_merge_transform(
 	MEdge *me;
 	MLoop *ml;
 	MPoly *mp;
-	MDeformVert *dvert;
 
 	CustomData_copy_data(&cap_mesh->vdata, &result->vdata, 0, cap_verts_index, cap_nverts);
 	CustomData_copy_data(&cap_mesh->edata, &result->edata, 0, cap_edges_index, cap_nedges);
@@ -294,9 +294,8 @@ static void mesh_merge_transform(
 	}
 
 	/* remap the vertex groups if necessary */
-	dvert = result->dvert + cap_verts_index;
-	if (dvert != NULL) {
-		BKE_object_defgroup_index_map_apply(dvert, cap_nverts, remap, remap_len);
+	if (result->dvert != NULL) {
+		BKE_object_defgroup_index_map_apply(&result->dvert[cap_verts_index], cap_nverts, remap, remap_len);
 	}
 
 	/* adjust cap edge vertex indices */
@@ -364,7 +363,7 @@ static Mesh *arrayModifier_doArray(
 
 	const bool use_merge = (amd->flags & MOD_ARR_MERGE) != 0;
 	const bool use_recalc_normals = (mesh->runtime.cd_dirty_vert & CD_MASK_NORMAL) || use_merge;
-	const bool use_offset_ob = ((amd->offset_type & MOD_ARR_OFF_OBJ) && amd->offset_ob);
+	const bool use_offset_ob = ((amd->offset_type & MOD_ARR_OFF_OBJ) && amd->offset_ob != NULL);
 
 	int start_cap_nverts = 0, start_cap_nedges = 0, start_cap_npolys = 0, start_cap_nloops = 0;
 	int end_cap_nverts = 0, end_cap_nedges = 0, end_cap_npolys = 0, end_cap_nloops = 0;
@@ -387,11 +386,12 @@ static Mesh *arrayModifier_doArray(
 
 	count = amd->count;
 
-	if (amd->start_cap && amd->start_cap != ctx->object && amd->start_cap->type == OB_MESH) {
+	Object *start_cap_ob = DEG_get_evaluated_object(ctx->depsgraph, amd->start_cap);
+	if (start_cap_ob && start_cap_ob != ctx->object && start_cap_ob->type == OB_MESH) {
 		vgroup_start_cap_remap = BKE_object_defgroup_index_map_create(
-		                             amd->start_cap, ctx->object, &vgroup_start_cap_remap_len);
+		                             start_cap_ob, ctx->object, &vgroup_start_cap_remap_len);
 
-		start_cap_mesh = BKE_modifier_get_evaluated_mesh_from_evaluated_object(amd->start_cap, &start_cap_mesh_free);
+		start_cap_mesh = BKE_modifier_get_evaluated_mesh_from_evaluated_object(start_cap_ob, &start_cap_mesh_free);
 		if (start_cap_mesh) {
 			start_cap_nverts = start_cap_mesh->totvert;
 			start_cap_nedges = start_cap_mesh->totedge;
@@ -399,11 +399,12 @@ static Mesh *arrayModifier_doArray(
 			start_cap_npolys = start_cap_mesh->totpoly;
 		}
 	}
-	if (amd->end_cap && amd->end_cap != ctx->object && amd->end_cap->type == OB_MESH) {
+	Object *end_cap_ob = DEG_get_evaluated_object(ctx->depsgraph, amd->end_cap);
+	if (end_cap_ob && end_cap_ob != ctx->object && end_cap_ob->type == OB_MESH) {
 		vgroup_end_cap_remap = BKE_object_defgroup_index_map_create(
-		                           amd->end_cap, ctx->object, &vgroup_end_cap_remap_len);
+		                           end_cap_ob, ctx->object, &vgroup_end_cap_remap_len);
 
-		end_cap_mesh = BKE_modifier_get_evaluated_mesh_from_evaluated_object(amd->end_cap, &end_cap_mesh_free);
+		end_cap_mesh = BKE_modifier_get_evaluated_mesh_from_evaluated_object(end_cap_ob, &end_cap_mesh_free);
 		if (end_cap_mesh) {
 			end_cap_nverts = end_cap_mesh->totvert;
 			end_cap_nedges = end_cap_mesh->totedge;
@@ -444,8 +445,7 @@ static Mesh *arrayModifier_doArray(
 		else
 			unit_m4(obinv);
 
-		mul_m4_series(result_mat, offset,
-		              obinv, amd->offset_ob->obmat);
+		mul_m4_series(result_mat, offset, obinv, DEG_get_evaluated_object(ctx->depsgraph, amd->offset_ob)->obmat);
 		copy_m4_m4(offset, result_mat);
 	}
 
@@ -453,12 +453,13 @@ static Mesh *arrayModifier_doArray(
 	mat4_to_size(scale, offset);
 	offset_has_scale = !is_one_v3(scale);
 
-	if (amd->fit_type == MOD_ARR_FITCURVE && amd->curve_ob) {
-		Curve *cu = amd->curve_ob->data;
+	if (amd->fit_type == MOD_ARR_FITCURVE && amd->curve_ob != NULL) {
+		Object *curve_ob = DEG_get_evaluated_object(ctx->depsgraph, amd->curve_ob);
+		Curve *cu = curve_ob->data;
 		if (cu) {
-			CurveCache *curve_cache = amd->curve_ob->runtime.curve_cache;
+			CurveCache *curve_cache = curve_ob->runtime.curve_cache;
 			if (curve_cache != NULL && curve_cache->path != NULL) {
-				float scale_fac = mat4_to_scale(amd->curve_ob->obmat);
+				float scale_fac = mat4_to_scale(curve_ob->obmat);
 				length = scale_fac * curve_cache->path->totdist;
 			}
 		}
@@ -707,7 +708,7 @@ static Mesh *arrayModifier_doArray(
 			int new_i = full_doubles_map[i];
 			if (new_i != -1) {
 				/* We have to follow chains of doubles (merge start/end especially is likely to create some),
-				 * those are not supported at all by CDDM_merge_verts! */
+				 * those are not supported at all by BKE_mesh_merge_verts! */
 				while (!ELEM(full_doubles_map[new_i], -1, new_i)) {
 					new_i = full_doubles_map[new_i];
 				}
@@ -777,14 +778,12 @@ ModifierTypeInfo modifierType_Array = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,

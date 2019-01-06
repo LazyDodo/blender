@@ -115,7 +115,7 @@ int ED_undo_gpencil_step(bContext *C, int step, const char *name)
 			}
 		}
 		/* drawing batch cache is dirty now */
-		DEG_id_tag_update(&new_gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+		DEG_id_tag_update(&new_gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 		new_gpd->flag |= GP_DATA_CACHE_IS_DIRTY;
 	}
 
@@ -161,8 +161,8 @@ void gpencil_undo_push(bGPdata *gpd)
 	}
 
 	/* limit number of undo steps to the maximum undo steps
-	 *  - to prevent running out of memory during **really**
-	 *    long drawing sessions (triggering swapping)
+	 * - to prevent running out of memory during **really**
+	 *   long drawing sessions (triggering swapping)
 	 */
 	/* TODO: Undo-memory constraint is not respected yet, but can be added if we have any need for it */
 	if (U.undosteps && !BLI_listbase_is_empty(&undo_nodes)) {

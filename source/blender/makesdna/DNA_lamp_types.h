@@ -86,7 +86,7 @@ typedef struct Lamp {
 
 	float contact_dist, contact_bias, contact_spread, contact_thickness;
 
-	float spec_fac, pad;
+	float spec_fac, att_dist;
 
 	/* preview */
 	struct PreviewImage *preview;
@@ -98,17 +98,17 @@ typedef struct Lamp {
 /* **************** LAMP ********************* */
 
 /* flag */
-#define LA_DS_EXPAND	1
+#define LA_DS_EXPAND    (1 << 0)
 	/* NOTE: this must have the same value as MA_DS_SHOW_TEXS,
 	 * otherwise anim-editors will not read correctly
 	 */
-#define LA_DS_SHOW_TEXS	4
+#define LA_DS_SHOW_TEXS (1 << 2)
 
 /* type */
 #define LA_LOCAL		0
 #define LA_SUN			1
 #define LA_SPOT			2
-#define LA_HEMI			3
+/* #define LA_HEMI			3 */ /* not used anymore */
 #define LA_AREA			4
 
 /* mode */
@@ -134,6 +134,7 @@ typedef struct Lamp {
 #define LA_SHOW_CONE    (1 << 17)
 /* #define LA_SHOW_SHADOW_BOX (1 << 18) */
 #define LA_SHAD_CONTACT (1 << 19)
+#define LA_CUSTOM_ATTENUATION (1 << 20)
 
 /* falloff_type */
 #define LA_FALLOFF_CONSTANT			0

@@ -35,9 +35,8 @@
 #include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 
-#include "BLI_kdtree.h"
 #include "BKE_editmesh.h"
-#include "BKE_library.h"
+#include "BLI_kdtree.h"
 #include "BKE_mesh.h"
 
 #include "ED_mesh.h"
@@ -267,7 +266,7 @@ void ED_mesh_mirrtopo_init(
 		/* sort so we can count unique values */
 		qsort(topo_hash_prev, totvert, sizeof(MirrTopoHash_t), mirrtopo_hash_sort);
 
-		tot_unique = 1; /* account for skiping the first value */
+		tot_unique = 1; /* account for skipping the first value */
 		for (a = 1; a < totvert; a++) {
 			if (topo_hash_prev[a - 1] != topo_hash_prev[a]) {
 				tot_unique++;

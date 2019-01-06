@@ -44,7 +44,6 @@
 #include "BKE_modifier.h"
 #include "BKE_report.h"
 #include "BKE_editmesh.h"
-#include "BKE_DerivedMesh.h"
 #include "BKE_unit.h"
 #include "BKE_layer.h"
 
@@ -124,7 +123,7 @@ static void edgering_select(RingSelOpData *lcd)
 			Object *ob_iter = lcd->objects[ob_index];
 			BMEditMesh *em = BKE_editmesh_from_object(ob_iter);
 			EDBM_flag_disable_all(em, BM_ELEM_SELECT);
-			DEG_id_tag_update(ob_iter->data, DEG_TAG_SELECT_UPDATE);
+			DEG_id_tag_update(ob_iter->data, ID_RECALC_SELECT);
 			WM_main_add_notifier(NC_GEOM | ND_SELECT, ob_iter->data);
 		}
 	}
@@ -228,7 +227,7 @@ static void ringsel_finish(bContext *C, wmOperator *op)
 				BM_select_history_store(em->bm, lcd->eed);
 
 			EDBM_selectmode_flush(lcd->em);
-			DEG_id_tag_update(lcd->ob->data, DEG_TAG_SELECT_UPDATE);
+			DEG_id_tag_update(lcd->ob->data, ID_RECALC_SELECT);
 			WM_event_add_notifier(C, NC_GEOM | ND_SELECT, lcd->ob->data);
 		}
 	}
@@ -360,7 +359,7 @@ static int loopcut_init(bContext *C, wmOperator *op, const wmEvent *event)
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 
 	uint objects_len;
-	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode(view_layer, &objects_len);
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode(view_layer, CTX_wm_view3d(C), &objects_len);
 
 	if (is_interactive) {
 		for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
@@ -455,7 +454,7 @@ static int ringcut_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 		ARegion *ar = CTX_wm_region(C);
 		wmGizmoMap *gzmap = ar->gizmo_map;
 		wmGizmoGroup *gzgroup = gzmap ? WM_gizmomap_group_find(gzmap, "VIEW3D_GGT_mesh_preselect_edgering") : NULL;
-		if (gzgroup != NULL) {
+		if ((gzgroup != NULL) && gzgroup->gizmos.first) {
 			wmGizmo *gz = gzgroup->gizmos.first;
 			const int object_index = RNA_int_get(gz->ptr, "object_index");
 			const int edge_index = RNA_int_get(gz->ptr, "edge_index");

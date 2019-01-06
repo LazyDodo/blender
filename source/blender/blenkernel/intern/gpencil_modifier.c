@@ -227,7 +227,7 @@ static void gpencil_rdp_stroke(bGPDstroke *gps, vec2f *points2d, float epsilon)
 		old_dvert = MEM_dupallocN(gps->dvert);
 	}
 	/* resize gps */
-	gps->flag |= GP_STROKE_RECALC_CACHES;
+	gps->flag |= GP_STROKE_RECALC_GEOMETRY;
 	gps->tot_triangles = 0;
 
 	int j = 0;
@@ -275,7 +275,7 @@ void BKE_gpencil_simplify_stroke(bGPDstroke *gps, float factor)
 	MEM_SAFE_FREE(points2d);
 }
 
-/* Simplify alternate vertex of stroke except extrems */
+/* Simplify alternate vertex of stroke except extremes */
 void BKE_gpencil_simplify_fixed(bGPDstroke *gps)
 {
 	if (gps->totpoints < 5) {
@@ -302,7 +302,7 @@ void BKE_gpencil_simplify_fixed(bGPDstroke *gps)
 	if (gps->dvert != NULL) {
 		gps->dvert = MEM_recallocN(gps->dvert, sizeof(*gps->dvert) * newtot);
 	}
-	gps->flag |= GP_STROKE_RECALC_CACHES;
+	gps->flag |= GP_STROKE_RECALC_GEOMETRY;
 	gps->tot_triangles = 0;
 
 	int j = 0;
@@ -402,6 +402,20 @@ bool BKE_gpencil_has_geometry_modifiers(Object *ob)
 	return false;
 }
 
+/* check if exist time modifiers */
+bool BKE_gpencil_has_time_modifiers(Object *ob)
+{
+	GpencilModifierData *md;
+	for (md = ob->greasepencil_modifiers.first; md; md = md->next) {
+		const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo(md->type);
+
+		if (mti && mti->remapTime) {
+			return true;
+		}
+	}
+	return false;
+}
+
 /* apply stroke modifiers */
 void BKE_gpencil_stroke_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer *gpl, bGPDframe *UNUSED(gpf), bGPDstroke *gps, bool is_render)
 {
@@ -429,7 +443,7 @@ void BKE_gpencil_stroke_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer *g
 					         eGpencilModifierType_Offset))
 					{
 
-						gps->flag |= GP_STROKE_RECALC_CACHES;
+						gps->flag |= GP_STROKE_RECALC_GEOMETRY;
 					}
 				}
 			}
@@ -459,6 +473,36 @@ void BKE_gpencil_geometry_modifiers(Depsgraph *depsgraph, Object *ob, bGPDlayer 
 	}
 }
 
+/* apply time modifiers */
+int BKE_gpencil_time_modifier(Depsgraph *depsgraph, Scene *scene, Object *ob,
+	bGPDlayer *gpl, int cfra, bool is_render)
+{
+	GpencilModifierData *md;
+	bGPdata *gpd = ob->data;
+	const bool is_edit = GPENCIL_ANY_EDIT_MODE(gpd);
+	int nfra = cfra;
+
+	for (md = ob->greasepencil_modifiers.first; md; md = md->next) {
+		if (GPENCIL_MODIFIER_ACTIVE(md, is_render)) {
+			const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo(md->type);
+
+			if (GPENCIL_MODIFIER_EDIT(md, is_edit)) {
+				continue;
+			}
+
+			if (mti->remapTime) {
+				nfra = mti->remapTime(md, depsgraph, scene, ob, gpl, cfra);
+				/* if the frame number changed, don't evaluate more and return */
+				if (nfra != cfra) {
+					return nfra;
+				}
+			}
+		}
+	}
+
+	/* if no time modifier, return original frame number */
+	return nfra;
+}
 /* *************************************************** */
 
 void BKE_gpencil_eval_geometry(Depsgraph *depsgraph,
@@ -583,7 +627,7 @@ void BKE_gpencil_modifier_copyData_generic(const GpencilModifierData *md_src, Gp
 {
 	const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo(md_src->type);
 
-	/* md_dst may have alredy be fully initialized with some extra allocated data,
+	/* md_dst may have already be fully initialized with some extra allocated data,
 	 * we need to free it now to avoid memleak. */
 	if (mti->freeData) {
 		mti->freeData(md_dst);
@@ -648,7 +692,9 @@ void BKE_gpencil_modifiers_foreachIDLink(Object *ob, GreasePencilIDWalkFunc walk
 	for (; md; md = md->next) {
 		const GpencilModifierTypeInfo *mti = BKE_gpencil_modifierType_getInfo(md->type);
 
-		if (mti->foreachIDLink) mti->foreachIDLink(md, ob, walk, userData);
+		if (mti->foreachIDLink) {
+			mti->foreachIDLink(md, ob, walk, userData);
+		}
 		else if (mti->foreachObjectLink) {
 			/* each Object can masquerade as an ID, so this should be OK */
 			GreasePencilObjectWalkFunc fp = (GreasePencilObjectWalkFunc)walk;
@@ -674,47 +720,6 @@ GpencilModifierData *BKE_gpencil_modifiers_findByName(Object *ob, const char *na
 	return BLI_findstring(&(ob->greasepencil_modifiers), name, offsetof(GpencilModifierData, name));
 }
 
-/* helper function for per-instance positioning */
-void BKE_gpencil_instance_modifier_instance_tfm(InstanceGpencilModifierData *mmd, const int elem_idx[3], float r_mat[4][4])
-{
-	float offset[3], rot[3], scale[3];
-	int ri = mmd->rnd[0];
-	float factor;
-
-	offset[0] = mmd->offset[0] * elem_idx[0];
-	offset[1] = mmd->offset[1] * elem_idx[1];
-	offset[2] = mmd->offset[2] * elem_idx[2];
-
-	/* rotation */
-	if (mmd->flag & GP_INSTANCE_RANDOM_ROT) {
-		factor = mmd->rnd_rot * mmd->rnd[ri];
-		mul_v3_v3fl(rot, mmd->rot, factor);
-		add_v3_v3(rot, mmd->rot);
-	}
-	else {
-		copy_v3_v3(rot, mmd->rot);
-	}
-
-	/* scale */
-	if (mmd->flag & GP_INSTANCE_RANDOM_SIZE) {
-		factor = mmd->rnd_size * mmd->rnd[ri];
-		mul_v3_v3fl(scale, mmd->scale, factor);
-		add_v3_v3(scale, mmd->scale);
-	}
-	else {
-		copy_v3_v3(scale, mmd->scale);
-	}
-
-	/* advance random index */
-	mmd->rnd[0]++;
-	if (mmd->rnd[0] > 19) {
-		mmd->rnd[0] = 1;
-	}
-
-	/* calculate matrix */
-	loc_eul_size_to_mat4(r_mat, offset, rot, scale);
-}
-
 void BKE_gpencil_subdivide(bGPDstroke *gps, int level, int flag)
 {
 	bGPDspoint *temp_points;
@@ -731,14 +736,15 @@ void BKE_gpencil_subdivide(bGPDstroke *gps, int level, int flag)
 		temp_points = MEM_dupallocN(gps->points);
 		oldtotpoints = gps->totpoints;
 
-		/* resize the points arrys */
+		/* resize the points arrays */
 		gps->totpoints += totnewpoints;
 		gps->points = MEM_recallocN(gps->points, sizeof(*gps->points) * gps->totpoints);
 		if (gps->dvert != NULL) {
 			temp_dverts = MEM_dupallocN(gps->dvert);
 			gps->dvert = MEM_recallocN(gps->dvert, sizeof(*gps->dvert) * gps->totpoints);
 		}
-		gps->flag |= GP_STROKE_RECALC_CACHES;
+		gps->flag |= GP_STROKE_RECALC_GEOMETRY;
+		gps->tot_triangles = 0;
 
 		/* move points from last to first to new place */
 		i2 = gps->totpoints - 1;

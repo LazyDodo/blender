@@ -214,8 +214,7 @@ static void BKE_sequence_free_ex(Scene *scene, Sequence *seq, const bool do_cach
 
 	if (seq->type & SEQ_TYPE_EFFECT) {
 		struct SeqEffectHandle sh = BKE_sequence_get_effect(seq);
-
-		sh.free(seq);
+		sh.free(seq, do_id_user);
 	}
 
 	if (seq->sound && do_id_user) {
@@ -288,16 +287,16 @@ void BKE_sequence_free_anim(Sequence *seq)
 
 /* cache must be freed before calling this function
  * since it leaves the seqbase in an invalid state */
-static void seq_free_sequence_recurse(Scene *scene, Sequence *seq)
+static void seq_free_sequence_recurse(Scene *scene, Sequence *seq, const bool do_id_user)
 {
 	Sequence *iseq, *iseq_next;
 
 	for (iseq = seq->seqbase.first; iseq; iseq = iseq_next) {
 		iseq_next = iseq->next;
-		seq_free_sequence_recurse(scene, iseq);
+		seq_free_sequence_recurse(scene, iseq, do_id_user);
 	}
 
-	BKE_sequence_free_ex(scene, seq, false, true);
+	BKE_sequence_free_ex(scene, seq, false, do_id_user);
 }
 
 
@@ -317,7 +316,7 @@ void BKE_sequencer_free_clipboard(void)
 
 	for (seq = seqbase_clipboard.first; seq; seq = nseq) {
 		nseq = seq->next;
-		seq_free_sequence_recurse(NULL, seq);
+		seq_free_sequence_recurse(NULL, seq, false);
 	}
 	BLI_listbase_clear(&seqbase_clipboard);
 }
@@ -330,7 +329,7 @@ void BKE_sequencer_free_clipboard(void)
  * since those datablocks are fully out of Main lists).
  */
 #define ID_PT (*id_pt)
-static void seqclipboard_ptr_free(ID **id_pt)
+static void seqclipboard_ptr_free(Main *UNUSED(bmain), ID **id_pt)
 {
 	if (ID_PT) {
 		BLI_assert(ID_PT->newid != NULL);
@@ -338,7 +337,7 @@ static void seqclipboard_ptr_free(ID **id_pt)
 		ID_PT = NULL;
 	}
 }
-static void seqclipboard_ptr_store(ID **id_pt)
+static void seqclipboard_ptr_store(Main *UNUSED(bmain), ID **id_pt)
 {
 	if (ID_PT) {
 		ID *id_prev = ID_PT;
@@ -388,58 +387,43 @@ static void seqclipboard_ptr_restore(Main *bmain, ID **id_pt)
 			}
 		}
 
+		/* Replace with pointer to actual datablock. */
+		seqclipboard_ptr_free(bmain, id_pt);
 		ID_PT = id_restore;
 	}
 }
 #undef ID_PT
 
-void BKE_sequence_clipboard_pointers_free(Sequence *seq)
+static void sequence_clipboard_pointers(Main *bmain, Sequence *seq, void (*callback)(Main *, ID **))
 {
-	seqclipboard_ptr_free((ID **)&seq->scene);
-	seqclipboard_ptr_free((ID **)&seq->scene_camera);
-	seqclipboard_ptr_free((ID **)&seq->clip);
-	seqclipboard_ptr_free((ID **)&seq->mask);
-	seqclipboard_ptr_free((ID **)&seq->sound);
+	callback(bmain, (ID **)&seq->scene);
+	callback(bmain, (ID **)&seq->scene_camera);
+	callback(bmain, (ID **)&seq->clip);
+	callback(bmain, (ID **)&seq->mask);
+	callback(bmain, (ID **)&seq->sound);
 }
-void BKE_sequence_clipboard_pointers_store(Sequence *seq)
-{
-	seqclipboard_ptr_store((ID **)&seq->scene);
-	seqclipboard_ptr_store((ID **)&seq->scene_camera);
-	seqclipboard_ptr_store((ID **)&seq->clip);
-	seqclipboard_ptr_store((ID **)&seq->mask);
-	seqclipboard_ptr_store((ID **)&seq->sound);
-}
-void BKE_sequence_clipboard_pointers_restore(Sequence *seq, Main *bmain)
-{
-	seqclipboard_ptr_restore(bmain, (ID **)&seq->scene);
-	seqclipboard_ptr_restore(bmain, (ID **)&seq->scene_camera);
-	seqclipboard_ptr_restore(bmain, (ID **)&seq->clip);
-	seqclipboard_ptr_restore(bmain, (ID **)&seq->mask);
-	seqclipboard_ptr_restore(bmain, (ID **)&seq->sound);
-}
-
-/* recursive versions of funcions above */
+/* recursive versions of functions above */
 void BKE_sequencer_base_clipboard_pointers_free(ListBase *seqbase)
 {
 	Sequence *seq;
 	for (seq = seqbase->first; seq; seq = seq->next) {
-		BKE_sequence_clipboard_pointers_free(seq);
+		sequence_clipboard_pointers(NULL, seq, seqclipboard_ptr_free);
 		BKE_sequencer_base_clipboard_pointers_free(&seq->seqbase);
 	}
 }
-void BKE_sequencer_base_clipboard_pointers_store(ListBase *seqbase)
+void BKE_sequencer_base_clipboard_pointers_store(Main *bmain, ListBase *seqbase)
 {
 	Sequence *seq;
 	for (seq = seqbase->first; seq; seq = seq->next) {
-		BKE_sequence_clipboard_pointers_store(seq);
-		BKE_sequencer_base_clipboard_pointers_store(&seq->seqbase);
+		sequence_clipboard_pointers(bmain, seq, seqclipboard_ptr_store);
+		BKE_sequencer_base_clipboard_pointers_store(bmain, &seq->seqbase);
 	}
 }
 void BKE_sequencer_base_clipboard_pointers_restore(ListBase *seqbase, Main *bmain)
 {
 	Sequence *seq;
 	for (seq = seqbase->first; seq; seq = seq->next) {
-		BKE_sequence_clipboard_pointers_restore(seq, bmain);
+		sequence_clipboard_pointers(bmain, seq, seqclipboard_ptr_restore);
 		BKE_sequencer_base_clipboard_pointers_restore(&seq->seqbase, bmain);
 	}
 }
@@ -474,8 +458,7 @@ void BKE_sequencer_editing_free(Scene *scene, const bool do_id_user)
 	{
 		/* handle cache freeing above */
 		BKE_sequence_free_ex(scene, seq, false, do_id_user);
-	}
-	SEQ_END
+	} SEQ_END;
 
 	BLI_freelistN(&ed->metastack);
 
@@ -1065,7 +1048,7 @@ void BKE_sequencer_sort(Scene *scene)
 	*(ed->seqbasep) = seqbase;
 }
 
-/** Comparision function suitable to be used with BLI_listbase_sort()... */
+/** Comparison function suitable to be used with BLI_listbase_sort()... */
 int BKE_sequencer_cmp_time_startdisp(const void *a, const void *b)
 {
 	const Sequence *seq_a = a;
@@ -1596,12 +1579,8 @@ static void seq_open_anim_file(Scene *scene, Sequence *seq, bool openfile)
 				}
 
 				if (sanim->anim) {
-#if 0
-					seq_anim_add_suffix(scene, sanim->anim, i);
-#else
 					/* we already have the suffix */
 					IMB_suffix_anim(sanim->anim, suffix);
-#endif
 				}
 				else {
 					if (openfile) {
@@ -2089,7 +2068,7 @@ void BKE_sequencer_proxy_rebuild_finish(SeqIndexBuildContext *context, bool stop
 		IMB_anim_index_rebuild_finish(context->index_context, stop);
 	}
 
-	seq_free_sequence_recurse(NULL, context->seq);
+	seq_free_sequence_recurse(NULL, context->seq, true);
 
 	MEM_freeN(context);
 }
@@ -3495,7 +3474,7 @@ static ImBuf *do_render_strip_uncached(
 					if (BLI_linklist_index(state->scene_parents, seq->scene) != -1) {
 						break;
 					}
-					LinkNode scene_parent = {.next = state->scene_parents, .link = seq->scene};
+					LinkNode scene_parent = { .next = state->scene_parents, .link = seq->scene, };
 					state->scene_parents = &scene_parent;
 					/* end check */
 
@@ -4520,7 +4499,7 @@ Sequence *BKE_sequencer_foreground_frame_get(Scene *scene, int frame)
 	return best_seq;
 }
 
-/* return 0 if there werent enough space */
+/* return 0 if there weren't enough space */
 bool BKE_sequence_base_shuffle_ex(ListBase *seqbasep, Sequence *test, Scene *evil_scene, int channel_delta)
 {
 	const int orig_machine = test->machine;
@@ -5253,11 +5232,6 @@ Sequence *BKE_sequencer_add_sound_strip(bContext *C, ListBase *seqbasep, SeqLoad
 
 	if (sound->playback_handle == NULL) {
 		BKE_libblock_free(bmain, sound);
-#if 0
-		if (op)
-			BKE_report(op->reports, RPT_ERROR, "Unsupported audio format");
-#endif
-
 		return NULL;
 	}
 
@@ -5265,10 +5239,6 @@ Sequence *BKE_sequencer_add_sound_strip(bContext *C, ListBase *seqbasep, SeqLoad
 
 	if (info.specs.channels == AUD_CHANNELS_INVALID) {
 		BKE_libblock_free(bmain, sound);
-#if 0
-		if (op)
-			BKE_report(op->reports, RPT_ERROR, "Unsupported audio format");
-#endif
 		return NULL;
 	}
 
@@ -5518,7 +5488,7 @@ static Sequence *seq_dupli(const Scene *scene_src, Scene *scene_dst, Sequence *s
 		struct SeqEffectHandle sh;
 		sh = BKE_sequence_get_effect(seq);
 		if (sh.copy)
-			sh.copy(seq, seqn);
+			sh.copy(seq, seqn, flag);
 
 		seqn->strip->stripdata = NULL;
 

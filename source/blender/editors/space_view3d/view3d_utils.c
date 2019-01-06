@@ -36,6 +36,7 @@
 #include "DNA_curve_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
+#include "DNA_world_types.h"
 
 #include "MEM_guardedalloc.h"
 
@@ -65,6 +66,8 @@
 #include "ED_screen.h"
 #include "ED_view3d.h"
 
+#include "UI_resources.h"
+
 #include "view3d_intern.h"  /* own include */
 
 /* -------------------------------------------------------------------- */
@@ -72,25 +75,31 @@
  *
  * \{ */
 
-View3DCursor *ED_view3d_cursor3d_get(Scene *scene, View3D *v3d)
+void ED_view3d_background_color_get(const Scene *scene, const View3D *v3d, float r_color[3])
 {
-	if (v3d && v3d->localvd) {
-		return &v3d->cursor;
+	if (v3d->shading.background_type == V3D_SHADING_BACKGROUND_WORLD) {
+		if (scene->world) {
+			copy_v3_v3(r_color, &scene->world->horr);
+			return;
+		}
 	}
-	else {
-		return &scene->cursor;
+	else if (v3d->shading.background_type == V3D_SHADING_BACKGROUND_VIEWPORT) {
+		copy_v3_v3(r_color, v3d->shading.background_color);
+		return;
 	}
+
+	UI_GetThemeColor3fv(TH_HIGH_GRAD, r_color);
 }
 
-void ED_view3d_cursor3d_calc_mat3(const Scene *scene, const View3D *v3d, float mat[3][3])
+void ED_view3d_cursor3d_calc_mat3(const Scene *scene, float mat[3][3])
 {
-	const View3DCursor *cursor = ED_view3d_cursor3d_get((Scene *)scene, (View3D *)v3d);
+	const View3DCursor *cursor = &scene->cursor;
 	quat_to_mat3(mat, cursor->rotation);
 }
 
-void ED_view3d_cursor3d_calc_mat4(const Scene *scene, const View3D *v3d, float mat[4][4])
+void ED_view3d_cursor3d_calc_mat4(const Scene *scene, float mat[4][4])
 {
-	const View3DCursor *cursor = ED_view3d_cursor3d_get((Scene *)scene, (View3D *)v3d);
+	const View3DCursor *cursor = &scene->cursor;
 	quat_to_mat4(mat, cursor->rotation);
 	copy_v3_v3(mat[3], cursor->location);
 }
@@ -522,7 +531,7 @@ bool ED_view3d_camera_lock_sync(const Depsgraph *depsgraph, View3D *v3d, RegionV
 
 			ob_update = v3d->camera;
 			while (ob_update) {
-				DEG_id_tag_update(&ob_update->id, OB_RECALC_OB);
+				DEG_id_tag_update(&ob_update->id, ID_RECALC_TRANSFORM);
 				WM_main_add_notifier(NC_OBJECT | ND_TRANSFORM, ob_update);
 				ob_update = ob_update->parent;
 			}
@@ -534,7 +543,7 @@ bool ED_view3d_camera_lock_sync(const Depsgraph *depsgraph, View3D *v3d, RegionV
 			ED_view3d_to_object(depsgraph, v3d->camera, rv3d->ofs, rv3d->viewquat, rv3d->dist);
 			BKE_object_tfm_protected_restore(v3d->camera, &obtfm, v3d->camera->protectflag | protect_scale_all);
 
-			DEG_id_tag_update(&v3d->camera->id, OB_RECALC_OB);
+			DEG_id_tag_update(&v3d->camera->id, ID_RECALC_TRANSFORM);
 			WM_main_add_notifier(NC_OBJECT | ND_TRANSFORM, v3d->camera);
 		}
 
@@ -1060,10 +1069,10 @@ float ED_view3d_radius_to_dist_ortho(const float lens, const float radius)
  *           +
  * </pre>
  *
- * \param ar  Can be NULL if \a use_aspect is false.
- * \param persp  Allow the caller to tell what kind of perspective to use (ortho/view/camera)
- * \param use_aspect  Increase the distance to account for non 1:1 view aspect.
- * \param radius  The radius will be fitted exactly, typically pre-scaled by a margin (#VIEW3D_MARGIN).
+ * \param ar: Can be NULL if \a use_aspect is false.
+ * \param persp: Allow the caller to tell what kind of perspective to use (ortho/view/camera)
+ * \param use_aspect: Increase the distance to account for non 1:1 view aspect.
+ * \param radius: The radius will be fitted exactly, typically pre-scaled by a margin (#VIEW3D_MARGIN).
  */
 float ED_view3d_radius_to_dist(
         const View3D *v3d, const ARegion *ar,
@@ -1274,10 +1283,10 @@ bool ED_view3d_lock(RegionView3D *rv3d)
 /**
  * Set the view transformation from a 4x4 matrix.
  *
- * \param mat The view 4x4 transformation matrix to assign.
- * \param ofs The view offset, normally from RegionView3D.ofs.
- * \param quat The view rotation, quaternion normally from RegionView3D.viewquat.
- * \param dist The view distance from ofs, normally from RegionView3D.dist.
+ * \param mat: The view 4x4 transformation matrix to assign.
+ * \param ofs: The view offset, normally from RegionView3D.ofs.
+ * \param quat: The view rotation, quaternion normally from RegionView3D.viewquat.
+ * \param dist: The view distance from ofs, normally from RegionView3D.dist.
  */
 void ED_view3d_from_m4(const float mat[4][4], float ofs[3], float quat[4], float *dist)
 {
@@ -1307,10 +1316,10 @@ void ED_view3d_from_m4(const float mat[4][4], float ofs[3], float quat[4], float
 /**
  * Calculate the view transformation matrix from RegionView3D input.
  * The resulting matrix is equivalent to RegionView3D.viewinv
- * \param mat The view 4x4 transformation matrix to calculate.
- * \param ofs The view offset, normally from RegionView3D.ofs.
- * \param quat The view rotation, quaternion normally from RegionView3D.viewquat.
- * \param dist The view distance from ofs, normally from RegionView3D.dist.
+ * \param mat: The view 4x4 transformation matrix to calculate.
+ * \param ofs: The view offset, normally from RegionView3D.ofs.
+ * \param quat: The view rotation, quaternion normally from RegionView3D.viewquat.
+ * \param dist: The view distance from ofs, normally from RegionView3D.dist.
  */
 void ED_view3d_to_m4(float mat[4][4], const float ofs[3], const float quat[4], const float dist)
 {
@@ -1324,12 +1333,11 @@ void ED_view3d_to_m4(float mat[4][4], const float ofs[3], const float quat[4], c
 
 /**
  * Set the RegionView3D members from an objects transformation and optionally lens.
- * \param depsgraph The depsgraph to get the evaluated object for the lens calculation.
- * \param ob The object to set the view to.
- * \param ofs The view offset to be set, normally from RegionView3D.ofs.
- * \param quat The view rotation to be set, quaternion normally from RegionView3D.viewquat.
- * \param dist The view distance from ofs to be set, normally from RegionView3D.dist.
- * \param lens The view lens angle set for cameras and lamps, normally from View3D.lens.
+ * \param ob: The object to set the view to.
+ * \param ofs: The view offset to be set, normally from RegionView3D.ofs.
+ * \param quat: The view rotation to be set, quaternion normally from RegionView3D.viewquat.
+ * \param dist: The view distance from ofs to be set, normally from RegionView3D.dist.
+ * \param lens: The view lens angle set for cameras and lamps, normally from View3D.lens.
  */
 void ED_view3d_from_object(const Object *ob, float ofs[3], float quat[4], float *dist, float *lens)
 {
@@ -1346,11 +1354,11 @@ void ED_view3d_from_object(const Object *ob, float ofs[3], float quat[4], float 
 
 /**
  * Set the object transformation from RegionView3D members.
- * \param depsgraph The depsgraph to get the evaluated object parent for the transformation calculation.
- * \param ob The object which has the transformation assigned.
- * \param ofs The view offset, normally from RegionView3D.ofs.
- * \param quat The view rotation, quaternion normally from RegionView3D.viewquat.
- * \param dist The view distance from ofs, normally from RegionView3D.dist.
+ * \param depsgraph: The depsgraph to get the evaluated object parent for the transformation calculation.
+ * \param ob: The object which has the transformation assigned.
+ * \param ofs: The view offset, normally from RegionView3D.ofs.
+ * \param quat: The view rotation, quaternion normally from RegionView3D.viewquat.
+ * \param dist: The view distance from ofs, normally from RegionView3D.dist.
  */
 void ED_view3d_to_object(const Depsgraph *depsgraph, Object *ob, const float ofs[3], const float quat[4], const float dist)
 {

@@ -51,7 +51,6 @@ extern "C" {
 #include "BKE_global.h"
 #include "BKE_layer.h"
 #include "BKE_library.h"
-#include "BKE_main.h"
 #include "BKE_scene.h"
 
 #include "DEG_depsgraph.h"
@@ -421,11 +420,11 @@ bool ABC_export(
 /**
  * Generates an AbcObjectReader for this Alembic object and its children.
  *
- * \param object The Alembic IObject to visit.
- * \param readers The created AbcObjectReader * will be appended to this vector.
- * \param settings Import settings, not used directly but passed to the
+ * \param object: The Alembic IObject to visit.
+ * \param readers: The created AbcObjectReader * will be appended to this vector.
+ * \param settings: Import settings, not used directly but passed to the
  *                 AbcObjectReader subclass constructors.
- * \param r_assign_as_parent Return parameter, contains a list of reader
+ * \param r_assign_as_parent: Return parameter, contains a list of reader
  *                 pointers, whose parent pointer should still be set.
  *                 This is filled when this call to visit_object() didn't create
  *                 a reader that should be the parent.
@@ -633,6 +632,7 @@ struct ImportJobData {
 	Main *bmain;
 	Scene *scene;
 	ViewLayer *view_layer;
+	wmWindowManager *wm;
 
 	char filename[1024];
 	ImportSettings settings;
@@ -648,39 +648,6 @@ struct ImportJobData {
 	bool import_ok;
 };
 
-#if 0
-ABC_INLINE bool is_mesh_and_strands(const IObject &object)
-{
-	bool has_mesh = false;
-	bool has_curve = false;
-
-	for (int i = 0; i < object.getNumChildren(); ++i) {
-		const IObject &child = object.getChild(i);
-
-		if (!child.valid()) {
-			continue;
-		}
-
-		const MetaData &md = child.getMetaData();
-
-		if (IPolyMesh::matches(md)) {
-			has_mesh = true;
-		}
-		else if (ISubD::matches(md)) {
-			has_mesh = true;
-		}
-		else if (ICurves::matches(md)) {
-			has_curve = true;
-		}
-		else if (IPoints::matches(md)) {
-			has_curve = true;
-		}
-	}
-
-	return has_mesh && has_curve;
-}
-#endif
-
 static void import_startjob(void *user_data, short *stop, short *do_update, float *progress)
 {
 	SCOPE_TIMER("Alembic import, objects reading and creation");
@@ -690,6 +657,8 @@ static void import_startjob(void *user_data, short *stop, short *do_update, floa
 	data->stop = stop;
 	data->do_update = do_update;
 	data->progress = progress;
+
+	WM_set_locked_interface(data->wm, true);
 
 	ArchiveReader *archive = new ArchiveReader(data->filename);
 
@@ -849,14 +818,15 @@ static void import_endjob(void *user_data)
 			BKE_collection_object_add(data->bmain, lc->collection, ob);
 
 			base = BKE_view_layer_base_find(view_layer, ob);
-			BKE_view_layer_base_select(view_layer, base);
+			/* TODO: is setting active needed? */
+			BKE_view_layer_base_select_and_set_active(view_layer, base);
 
-			DEG_id_tag_update(&lc->collection->id, DEG_TAG_COPY_ON_WRITE);
+			DEG_id_tag_update(&lc->collection->id, ID_RECALC_COPY_ON_WRITE);
 			DEG_id_tag_update_ex(data->bmain, &ob->id,
-			                     OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME | DEG_TAG_BASE_FLAGS_UPDATE);
+			                     ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION | ID_RECALC_BASE_FLAGS);
 		}
 
-		DEG_id_tag_update(&data->scene->id, DEG_TAG_BASE_FLAGS_UPDATE);
+		DEG_id_tag_update(&data->scene->id, ID_RECALC_BASE_FLAGS);
 		DEG_relations_tag_update(data->bmain);
 	}
 
@@ -868,6 +838,8 @@ static void import_endjob(void *user_data)
 			delete reader;
 		}
 	}
+
+	WM_set_locked_interface(data->wm, false);
 
 	switch (data->error_code) {
 		default:
@@ -901,6 +873,7 @@ bool ABC_import(bContext *C, const char *filepath, float scale, bool is_sequence
 	job->bmain = CTX_data_main(C);
 	job->scene = CTX_data_scene(C);
 	job->view_layer = CTX_data_view_layer(C);
+	job->wm = CTX_wm_manager(C);
 	job->import_ok = false;
 	BLI_strncpy(job->filename, filepath, 1024);
 

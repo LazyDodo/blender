@@ -28,6 +28,7 @@
 #include "DNA_lattice_types.h"
 #include "DNA_meta_types.h"
 #include "DNA_mesh_types.h"
+#include "DNA_meshdata_types.h"
 #include "DNA_armature_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
@@ -43,6 +44,7 @@
 #include "BKE_editmesh.h"
 #include "BKE_context.h"
 #include "BKE_mesh_runtime.h"
+#include "BKE_mesh_iterators.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_query.h"
@@ -115,9 +117,12 @@ void meshobject_foreachScreenVert(
         void *userData, eV3DProjTest clip_flag)
 {
 	foreachScreenObjectVert_userData data;
-	DerivedMesh *dm;
+	Mesh *me;
 
-	dm = mesh_get_derived_deform(vc->depsgraph, vc->scene, vc->obact, CD_MASK_BAREMESH);
+	Scene *scene_eval = DEG_get_evaluated_scene(vc->depsgraph);
+	Object *ob_eval = DEG_get_evaluated_object(vc->depsgraph, vc->obact);
+
+	me = mesh_get_eval_deform(vc->depsgraph, scene_eval, ob_eval, CD_MASK_BAREMESH);
 
 	ED_view3d_check_mats_rv3d(vc->rv3d);
 
@@ -130,9 +135,7 @@ void meshobject_foreachScreenVert(
 		ED_view3d_clipping_local(vc->rv3d, vc->obact->obmat);
 	}
 
-	dm->foreachMappedVert(dm, meshobject_foreachScreenVert__mapFunc, &data, DM_FOREACH_NOP);
-
-	dm->release(dm);
+	BKE_mesh_foreach_mapped_vert(me, meshobject_foreachScreenVert__mapFunc, &data, MESH_FOREACH_NOP);
 }
 
 static void mesh_foreachScreenVert__mapFunc(void *userData, int index, const float co[3],
@@ -158,9 +161,8 @@ void mesh_foreachScreenVert(
         void *userData, eV3DProjTest clip_flag)
 {
 	foreachScreenVert_userData data;
-	DerivedMesh *dm;
 
-	dm = editbmesh_get_derived_cage(vc->depsgraph, vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
+	Mesh *me = editbmesh_get_eval_cage_from_orig(vc->depsgraph, vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
 
 	ED_view3d_check_mats_rv3d(vc->rv3d);
 
@@ -174,9 +176,7 @@ void mesh_foreachScreenVert(
 	}
 
 	BM_mesh_elem_table_ensure(vc->em->bm, BM_VERT);
-	dm->foreachMappedVert(dm, mesh_foreachScreenVert__mapFunc, &data, DM_FOREACH_NOP);
-
-	dm->release(dm);
+	BKE_mesh_foreach_mapped_vert(me, mesh_foreachScreenVert__mapFunc, &data, MESH_FOREACH_NOP);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -214,9 +214,8 @@ void mesh_foreachScreenEdge(
         void *userData, eV3DProjTest clip_flag)
 {
 	foreachScreenEdge_userData data;
-	DerivedMesh *dm;
 
-	dm = editbmesh_get_derived_cage(vc->depsgraph, vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
+	Mesh *me = editbmesh_get_eval_cage_from_orig(vc->depsgraph, vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
 
 	ED_view3d_check_mats_rv3d(vc->rv3d);
 
@@ -236,9 +235,7 @@ void mesh_foreachScreenEdge(
 	}
 
 	BM_mesh_elem_table_ensure(vc->em->bm, BM_EDGE);
-	dm->foreachMappedEdge(dm, mesh_foreachScreenEdge__mapFunc, &data);
-
-	dm->release(dm);
+	BKE_mesh_foreach_mapped_edge(me, mesh_foreachScreenEdge__mapFunc, &data);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -262,10 +259,8 @@ void mesh_foreachScreenFace(
         void *userData, const eV3DProjTest clip_flag)
 {
 	foreachScreenFace_userData data;
-	DerivedMesh *dm;
 
-	dm = editbmesh_get_derived_cage(vc->depsgraph, vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
-
+	Mesh *me = editbmesh_get_eval_cage_from_orig(vc->depsgraph, vc->scene, vc->obedit, vc->em, CD_MASK_BAREMESH);
 	ED_view3d_check_mats_rv3d(vc->rv3d);
 
 	data.vc = *vc;
@@ -274,9 +269,7 @@ void mesh_foreachScreenFace(
 	data.clip_flag = clip_flag;
 
 	BM_mesh_elem_table_ensure(vc->em->bm, BM_FACE);
-	dm->foreachMappedFaceCenter(dm, mesh_foreachScreenFace__mapFunc, &data, DM_FOREACH_NOP);
-
-	dm->release(dm);
+	BKE_mesh_foreach_mapped_face_center(me, mesh_foreachScreenFace__mapFunc, &data, MESH_FOREACH_NOP);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -305,7 +298,7 @@ void nurbs_foreachScreenVert(
 				if (bezt->hide == 0) {
 					float screen_co[2];
 
-					if (cu->drawflag & CU_HIDE_HANDLES) {
+					if ((vc->v3d->overlay.edit_flag & V3D_OVERLAY_EDIT_CU_HANDLES) == 0) {
 						if (ED_view3d_project_float_object(vc->ar, bezt->vec[1], screen_co,
 						                                   V3D_PROJ_RET_CLIP_BB | V3D_PROJ_RET_CLIP_WIN) == V3D_PROJ_RET_OK)
 						{

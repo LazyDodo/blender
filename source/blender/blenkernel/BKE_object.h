@@ -53,6 +53,7 @@ struct RigidBodyWorld;
 struct HookModifierData;
 struct ModifierData;
 struct HookGpencilModifierData;
+struct RegionView3D;
 
 #include "DNA_object_enums.h"
 
@@ -96,13 +97,14 @@ bool BKE_object_is_mode_compat(const struct Object *ob, eObjectMode object_mode)
 
 bool BKE_object_data_is_in_editmode(const struct ID *id);
 
-typedef enum eObjectVisibilityCheck {
-	OB_VISIBILITY_CHECK_FOR_VIEWPORT,
-	OB_VISIBILITY_CHECK_FOR_RENDER,
-	OB_VISIBILITY_CHECK_UNKNOWN_RENDER_MODE,
-} eObjectVisibilityCheck;
+typedef enum eObjectVisibilityResult {
+	OB_VISIBLE_SELF = 1,
+	OB_VISIBLE_PARTICLES = 2,
+	OB_VISIBLE_INSTANCES = 4,
+	OB_VISIBLE_ALL = (OB_VISIBLE_SELF | OB_VISIBLE_PARTICLES | OB_VISIBLE_INSTANCES),
+} eObjectVisibilityResult;
 
-bool BKE_object_is_visible(struct Object *ob, const eObjectVisibilityCheck mode);
+int BKE_object_visibility(const struct Object *ob, const int dag_eval_mode);
 
 void BKE_object_init(struct Object *ob);
 struct Object *BKE_object_add_only_object(
@@ -145,19 +147,20 @@ void BKE_object_matrix_local_get(struct Object *ob, float mat[4][4]);
 
 bool BKE_object_pose_context_check(const struct Object *ob);
 struct Object *BKE_object_pose_armature_get(struct Object *ob);
-struct Object *BKE_object_pose_armature_get_visible(struct Object *ob, struct ViewLayer *view_layer);
+struct Object *BKE_object_pose_armature_get_visible(struct Object *ob, struct ViewLayer *view_layer, struct View3D *v3d);
 
-struct Object **BKE_object_pose_array_get_ex(struct ViewLayer *view_layer, unsigned int *r_objects_len, bool unique);
-struct Object **BKE_object_pose_array_get_unique(struct ViewLayer *view_layer, unsigned int *r_objects_len);
-struct Object **BKE_object_pose_array_get(struct ViewLayer *view_layer, unsigned int *r_objects_len);
+struct Object **BKE_object_pose_array_get_ex(struct ViewLayer *view_layer, struct View3D *v3d, unsigned int *r_objects_len, bool unique);
+struct Object **BKE_object_pose_array_get_unique(struct ViewLayer *view_layer, struct View3D *v3d, unsigned int *r_objects_len);
+struct Object **BKE_object_pose_array_get(struct ViewLayer *view_layer, struct View3D *v3d, unsigned int *r_objects_len);
 
-struct Base **BKE_object_pose_base_array_get_ex(struct ViewLayer *view_layer, unsigned int *r_bases_len, bool unique);
-struct Base **BKE_object_pose_base_array_get_unique(struct ViewLayer *view_layer, unsigned int *r_bases_len);
-struct Base **BKE_object_pose_base_array_get(struct ViewLayer *view_layer, unsigned int *r_bases_len);
+struct Base **BKE_object_pose_base_array_get_ex(struct ViewLayer *view_layer, struct View3D *v3d, unsigned int *r_bases_len, bool unique);
+struct Base **BKE_object_pose_base_array_get_unique(struct ViewLayer *view_layer, struct View3D *v3d, unsigned int *r_bases_len);
+struct Base **BKE_object_pose_base_array_get(struct ViewLayer *view_layer, struct View3D *v3d, unsigned int *r_bases_len);
 
 void BKE_object_get_parent_matrix(
-        struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob,
-        struct Object *par, float parentmat[4][4]);
+        struct Object *ob, struct Object *par, float parentmat[4][4]);
+void BKE_object_get_parent_matrix_for_dupli(
+        struct Object *ob, struct Object *par, float dupli_ctime, int dupli_transflag, float parentmat[4][4]);
 void BKE_object_where_is_calc(
         struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob);
 void BKE_object_where_is_calc_ex(
@@ -165,11 +168,12 @@ void BKE_object_where_is_calc_ex(
         struct Object *ob, float r_originmat[3][3]);
 void BKE_object_where_is_calc_time(
         struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob, float ctime);
+void BKE_object_where_is_calc_time_for_dupli(
+        struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob, float ctime, int dupli_transflag);
 void BKE_object_where_is_calc_time_ex(
-        struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob, float ctime,
+        struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob, float ctime, int dupli_transflag,
         struct RigidBodyWorld *rbw, float r_originmat[3][3]);
-void BKE_object_where_is_calc_mat4(
-        struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob, float obmat[4][4]);
+void BKE_object_where_is_calc_mat4(struct Object *ob, float obmat[4][4]);
 
 /* possibly belong in own moduke? */
 struct BoundBox *BKE_boundbox_alloc_unit(void);
@@ -180,9 +184,10 @@ void BKE_boundbox_minmax(const struct BoundBox *bb, float obmat[4][4], float r_m
 
 struct BoundBox *BKE_object_boundbox_get(struct Object *ob);
 void BKE_object_dimensions_get(struct Object *ob, float vec[3]);
-void BKE_object_dimensions_set(struct Object *ob, const float value[3]);
+void BKE_object_dimensions_set(struct Object *ob, const float value[3], int axis_mask);
 void BKE_object_empty_draw_type_set(struct Object *ob, const int value);
 void BKE_object_boundbox_flag(struct Object *ob, int flag, const bool set);
+void BKE_object_boundbox_calc_from_mesh(struct Object *ob, struct Mesh *me_eval);
 void BKE_object_minmax(struct Object *ob, float r_min[3], float r_max[3], const bool use_hidden);
 bool BKE_object_minmax_dupli(
         struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob,
@@ -219,19 +224,23 @@ void BKE_object_tfm_protected_restore(
         const ObjectTfmProtectedChannels *obtfm,
         const short protectflag);
 
+
+void BKE_object_eval_reset(
+        struct Object *ob_eval);
+
 /* Dependency graph evaluation callbacks. */
 void BKE_object_eval_local_transform(
         struct Depsgraph *depsgraph,
         struct Object *ob);
 void BKE_object_eval_parent(
         struct Depsgraph *depsgraph,
-        struct Scene *scene,
         struct Object *ob);
 void BKE_object_eval_constraints(
         struct Depsgraph *depsgraph,
         struct Scene *scene,
         struct Object *ob);
-void BKE_object_eval_done(struct Depsgraph *depsgraph, struct Object *ob);
+void BKE_object_eval_transform_final(
+        struct Depsgraph *depsgraph, struct Object *ob);
 
 bool BKE_object_eval_proxy_copy(
         struct Depsgraph *depsgraph,
@@ -244,7 +253,12 @@ void BKE_object_eval_uber_data(
         struct Scene *scene,
         struct Object *ob);
 
-void BKE_object_eval_cloth(
+void BKE_object_eval_boundbox(struct Depsgraph *depsgraph,
+                              struct Object *object);
+void BKE_object_synchronize_to_original(struct Depsgraph *depsgraph,
+                                        struct Object *object);
+
+void BKE_object_eval_ptcache_reset(
         struct Depsgraph *depsgraph,
         struct Scene *scene,
         struct Object *object);
@@ -301,12 +315,10 @@ bool BKE_object_is_animated(struct Scene *scene, struct Object *ob);
 int BKE_object_is_modified(struct Scene *scene, struct Object *ob);
 int BKE_object_is_deform_modified(struct Scene *scene, struct Object *ob);
 
-void BKE_object_relink(struct Object *ob);
-void BKE_object_data_relink(struct Object *ob);
-
 struct MovieClip *BKE_object_movieclip_get(struct Scene *scene, struct Object *ob, bool use_default);
 
 void BKE_object_runtime_reset(struct Object *object);
+void BKE_object_runtime_reset_on_copy(struct Object *object);
 
 void BKE_object_batch_cache_dirty_tag(struct Object *ob);
 
@@ -340,6 +352,10 @@ bool BKE_object_modifier_use_time(struct Object *ob, struct ModifierData *md);
 bool BKE_object_modifier_update_subframe(
         struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob,
         bool update_mesh, int parent_recursion, float frame, int type);
+
+void BKE_object_type_set_empty_for_versioning(struct Object *ob);
+
+bool BKE_object_empty_image_is_visible_in_view3d(const struct Object *ob, const struct RegionView3D *rv3d);
 
 #ifdef __cplusplus
 }

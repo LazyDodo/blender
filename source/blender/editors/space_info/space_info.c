@@ -79,7 +79,7 @@ static SpaceLink *info_new(const ScrArea *UNUSED(area), const Scene *UNUSED(scen
 
 	BLI_addtail(&sinfo->regionbase, ar);
 	ar->regiontype = RGN_TYPE_HEADER;
-	ar->alignment = RGN_ALIGN_TOP;
+	ar->alignment = (U.uiflag & USER_HEADER_BOTTOM) ? RGN_ALIGN_BOTTOM : RGN_ALIGN_TOP;
 
 	/* main region */
 	ar = MEM_callocN(sizeof(ARegion), "main region for info");
@@ -175,7 +175,7 @@ static void info_main_region_draw(const bContext *C, ARegion *ar)
 	UI_view2d_view_restore(C);
 
 	/* scrollers */
-	scrollers = UI_view2d_scrollers_calc(C, v2d, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_GRID_CLAMP);
+	scrollers = UI_view2d_scrollers_calc(C, v2d, NULL, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_ARG_DUMMY, V2D_GRID_CLAMP);
 	UI_view2d_scrollers_draw(C, v2d, scrollers);
 	UI_view2d_scrollers_free(scrollers);
 }
@@ -198,7 +198,7 @@ static void info_operatortypes(void)
 	/* info_report.c */
 	WM_operatortype_append(INFO_OT_select_pick);
 	WM_operatortype_append(INFO_OT_select_all_toggle);
-	WM_operatortype_append(INFO_OT_select_border);
+	WM_operatortype_append(INFO_OT_select_box);
 
 	WM_operatortype_append(INFO_OT_report_replay);
 	WM_operatortype_append(INFO_OT_report_delete);
@@ -207,28 +207,8 @@ static void info_operatortypes(void)
 
 static void info_keymap(struct wmKeyConfig *keyconf)
 {
-	wmKeyMap *keymap = WM_keymap_ensure(keyconf, "Window", 0, 0);
-
-	WM_keymap_verify_item(keymap, "INFO_OT_reports_display_update", TIMERREPORT, KM_ANY, KM_ANY, 0);
-
-	/* info space */
-	keymap = WM_keymap_ensure(keyconf, "Info", SPACE_INFO, 0);
-
-
-	/* report selection */
-	WM_keymap_add_item(keymap, "INFO_OT_select_pick", SELECTMOUSE, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "INFO_OT_select_all_toggle", AKEY, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "INFO_OT_select_border", BKEY, KM_PRESS, 0, 0);
-
-	WM_keymap_add_item(keymap, "INFO_OT_report_replay", RKEY, KM_PRESS, 0, 0);
-
-	WM_keymap_add_item(keymap, "INFO_OT_report_delete", XKEY, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "INFO_OT_report_delete", DELKEY, KM_PRESS, 0, 0);
-
-	WM_keymap_add_item(keymap, "INFO_OT_report_copy", CKEY, KM_PRESS, KM_CTRL, 0);
-#ifdef __APPLE__
-	WM_keymap_add_item(keymap, "INFO_OT_report_copy", CKEY, KM_PRESS, KM_OSKEY, 0);
-#endif
+	WM_keymap_ensure(keyconf, "Window", 0, 0);
+	WM_keymap_ensure(keyconf, "Info", SPACE_INFO, 0);
 }
 
 /* add handlers, stuff you only do once or on area/region changes */

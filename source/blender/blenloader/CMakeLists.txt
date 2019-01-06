@@ -36,6 +36,7 @@ set(INC
 	../makesrna
 	../nodes
 	../render/extern/include
+	../windowmanager
 	../../../intern/guardedalloc
 
 	# for writefile.c: dna_type_offsets.h
@@ -59,6 +60,7 @@ set(SRC
 	intern/versioning_280.c
 	intern/versioning_defaults.c
 	intern/versioning_legacy.c
+	intern/versioning_userdef.c
 	intern/writefile.c
 
 	BLO_blend_defs.h

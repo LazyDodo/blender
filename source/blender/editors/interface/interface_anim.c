@@ -76,6 +76,7 @@ void ui_but_anim_flag(uiBut *but, float cfra)
 	bool special;
 
 	but->flag &= ~(UI_BUT_ANIMATED | UI_BUT_ANIMATED_KEY | UI_BUT_DRIVEN);
+	but->drawflag &= ~UI_BUT_ANIMATED_CHANGED;
 
 	/* NOTE: "special" is reserved for special F-Curves stored on the animation data
 	 *        itself (which are used to animate properties of the animation data).
@@ -96,6 +97,9 @@ void ui_but_anim_flag(uiBut *but, float cfra)
 
 			if (fcurve_frame_has_keyframe(fcu, cfra, 0))
 				but->flag |= UI_BUT_ANIMATED_KEY;
+
+			if (fcurve_is_changed(but->rnapoin, but->rnaprop, fcu, cfra))
+				but->drawflag |= UI_BUT_ANIMATED_CHANGED;
 		}
 		else {
 			but->flag |= UI_BUT_DRIVEN;
@@ -168,7 +172,7 @@ bool ui_but_anim_expression_set(uiBut *but, const char *str)
 			BLI_strncpy_utf8(driver->expression, str, sizeof(driver->expression));
 
 			/* tag driver as needing to be recompiled */
-			driver->flag |= DRIVER_FLAG_RECOMPILE;
+			BKE_driver_invalidate_expression(driver, true, false);
 
 			/* clear invalid flags which may prevent this from working */
 			driver->flag &= ~DRIVER_FLAG_INVALID;
@@ -237,7 +241,7 @@ bool ui_but_anim_expression_create(uiBut *but, const char *str)
 			BLI_strncpy_utf8(driver->expression, str, sizeof(driver->expression));
 
 			/* updates */
-			driver->flag |= DRIVER_FLAG_RECOMPILE;
+			BKE_driver_invalidate_expression(driver, true, false);
 			DEG_relations_tag_update(CTX_data_main(C));
 			WM_event_add_notifier(C, NC_ANIMATION | ND_KEYFRAME, NULL);
 			ok = true;
@@ -270,7 +274,7 @@ void ui_but_anim_autokey(bContext *C, uiBut *but, Scene *scene, float cfra)
 			ReportList *reports = CTX_wm_reports(C);
 			ToolSettings *ts = scene->toolsettings;
 
-			insert_keyframe_direct(depsgraph, reports, but->rnapoin, but->rnaprop, fcu, cfra, ts->keyframe_type, 0);
+			insert_keyframe_direct(depsgraph, reports, but->rnapoin, but->rnaprop, fcu, cfra, ts->keyframe_type, NULL, 0);
 			WM_event_add_notifier(C, NC_ANIMATION | ND_KEYFRAME | NA_EDITED, NULL);
 		}
 	}
@@ -283,7 +287,7 @@ void ui_but_anim_autokey(bContext *C, uiBut *but, Scene *scene, float cfra)
 			ReportList *reports = CTX_wm_reports(C);
 			ToolSettings *ts = scene->toolsettings;
 
-			insert_keyframe_direct(depsgraph, reports, but->rnapoin, but->rnaprop, fcu, cfra, ts->keyframe_type, INSERTKEY_DRIVER);
+			insert_keyframe_direct(depsgraph, reports, but->rnapoin, but->rnaprop, fcu, cfra, ts->keyframe_type, NULL, INSERTKEY_DRIVER);
 			WM_event_add_notifier(C, NC_ANIMATION | ND_KEYFRAME | NA_EDITED, NULL);
 		}
 	}
@@ -305,7 +309,7 @@ void ui_but_anim_autokey(bContext *C, uiBut *but, Scene *scene, float cfra)
 			BLI_assert((fcu->array_index == but->rnaindex) || (but->rnaindex == -1));
 			insert_keyframe(bmain, depsgraph, reports, id, action,
 			                ((fcu->grp) ? (fcu->grp->name) : (NULL)),
-			                fcu->rna_path, but->rnaindex, cfra, ts->keyframe_type, flag);
+			                fcu->rna_path, but->rnaindex, cfra, ts->keyframe_type, NULL, flag);
 
 			WM_event_add_notifier(C, NC_ANIMATION | ND_KEYFRAME | NA_EDITED, NULL);
 		}

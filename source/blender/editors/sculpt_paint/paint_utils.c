@@ -53,6 +53,7 @@
 #include "BKE_customdata.h"
 #include "BKE_image.h"
 #include "BKE_material.h"
+#include "BKE_mesh_runtime.h"
 #include "BKE_object.h"
 #include "BKE_paint.h"
 #include "BKE_report.h"
@@ -285,13 +286,15 @@ static void imapaint_tri_weights(
 /* compute uv coordinates of mouse in face */
 static void imapaint_pick_uv(Mesh *me_eval, Scene *scene, Object *ob_eval, unsigned int faceindex, const int xy[2], float uv[2])
 {
-	const int tottri = me_eval->runtime.looptris.len;
 	int i, findex;
 	float p[2], w[3], absw, minabsw;
 	float matrix[4][4], proj[4][4];
 	GLint view[4];
 	const eImagePaintMode mode = scene->toolsettings->imapaint.mode;
-	const MLoopTri *lt = me_eval->runtime.looptris.array;
+
+	const MLoopTri *lt = BKE_mesh_runtime_looptri_ensure(me_eval);
+	const int tottri = me_eval->runtime.looptris.len;
+
 	const MVert *mvert = me_eval->mvert;
 	const MPoly *mpoly = me_eval->mpoly;
 	const MLoop *mloop = me_eval->mloop;
@@ -327,7 +330,7 @@ static void imapaint_pick_uv(Mesh *me_eval, Scene *scene, Object *ob_eval, unsig
 				const Material *ma;
 				const TexPaintSlot *slot;
 
-				ma = give_current_material(ob_eval, mp->mat_nr);
+				ma = give_current_material(ob_eval, mp->mat_nr + 1);
 				slot = &ma->texpaintslot[ma->paint_active_slot];
 
 				if (!(slot && slot->uvname &&
@@ -466,7 +469,7 @@ void paint_sample_color(bContext *C, ARegion *ar, int x, int y, bool texpaint_pr
 
 		if (ob) {
 			Mesh *me = (Mesh *)ob->data;
-			Mesh *me_eval = BKE_object_get_evaluated_mesh(depsgraph, ob);  /* Or shall we just do ob_eval->mesh_eval ? */
+			Mesh *me_eval = ob_eval->runtime.mesh_eval;
 
 			ViewContext vc;
 			const int mval[2] = {x, y};
@@ -652,7 +655,7 @@ void PAINT_OT_face_select_linked_pick(wmOperatorType *ot)
 static int face_select_all_exec(bContext *C, wmOperator *op)
 {
 	Object *ob = CTX_data_active_object(C);
-	paintface_deselect_all_visible(ob, RNA_enum_get(op->ptr, "action"), true);
+	paintface_deselect_all_visible(C, ob, RNA_enum_get(op->ptr, "action"), true);
 	ED_region_tag_redraw(CTX_wm_region(C));
 	return OPERATOR_FINISHED;
 }
@@ -677,6 +680,7 @@ static int vert_select_all_exec(bContext *C, wmOperator *op)
 {
 	Object *ob = CTX_data_active_object(C);
 	paintvert_deselect_all_visible(ob, RNA_enum_get(op->ptr, "action"), true);
+	paintvert_tag_select_update(C, ob);
 	ED_region_tag_redraw(CTX_wm_region(C));
 	return OPERATOR_FINISHED;
 }
@@ -708,6 +712,7 @@ static int vert_select_ungrouped_exec(bContext *C, wmOperator *op)
 	}
 
 	paintvert_select_ungrouped(ob, RNA_boolean_get(op->ptr, "extend"), true);
+	paintvert_tag_select_update(C, ob);
 	ED_region_tag_redraw(CTX_wm_region(C));
 	return OPERATOR_FINISHED;
 }
@@ -733,7 +738,7 @@ static int face_select_hide_exec(bContext *C, wmOperator *op)
 {
 	const bool unselected = RNA_boolean_get(op->ptr, "unselected");
 	Object *ob = CTX_data_active_object(C);
-	paintface_hide(ob, unselected);
+	paintface_hide(C, ob, unselected);
 	ED_region_tag_redraw(CTX_wm_region(C));
 	return OPERATOR_FINISHED;
 }
@@ -756,7 +761,7 @@ static int face_select_reveal_exec(bContext *C, wmOperator *op)
 {
 	const bool select = RNA_boolean_get(op->ptr, "select");
 	Object *ob = CTX_data_active_object(C);
-	paintface_reveal(ob, select);
+	paintface_reveal(C, ob, select);
 	ED_region_tag_redraw(CTX_wm_region(C));
 	return OPERATOR_FINISHED;
 }

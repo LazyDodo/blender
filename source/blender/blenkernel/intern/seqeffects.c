@@ -751,7 +751,7 @@ static void load_gammacross(Sequence *UNUSED(seq))
 {
 }
 
-static void free_gammacross(Sequence *UNUSED(seq))
+static void free_gammacross(Sequence *UNUSED(seq), const bool UNUSED(do_id_user))
 {
 }
 
@@ -1202,8 +1202,8 @@ static void do_mul_effect_byte(
 	fac3 = (int)(256.0f * facf1);
 
 	/* formula:
-	 *		fac * (a * b) + (1 - fac) * a  => fac * a * (b - 1) + axaux = c * px + py * s; //+centx
-	 *		yaux = -s * px + c * py; //+centy
+	 * fac * (a * b) + (1 - fac) * a  => fac * a * (b - 1) + axaux = c * px + py * s; //+centx
+	 * yaux = -s * px + c * py; //+centy
 	 */
 
 	while (y--) {
@@ -1767,76 +1767,6 @@ static float check_zone(WipeZone *wipezone, int x, int y, Sequence *seq, float f
 			if (output != output) output = 1;
 			if (wipe->forward) output = 1 - output;
 			break;
-			/* BOX WIPE IS NOT WORKING YET */
-			/* case DO_CROSS_WIPE: */
-			/* BOX WIPE IS NOT WORKING YET */
-#if 0
-		case DO_BOX_WIPE:
-			if (!wipe->forward) {
-				facf0 = 1.0f - facf0;  /* Go the other direction */
-			}
-
-			width = (int)(wipe->edgeWidth * ((xo + yo) / 2.0));
-			hwidth = (float)width / 2.0;
-			if (angle == 0) angle = 0.000001;
-			b1 = posy / 2 - (-angle) * posx / 2;
-			b3 = (yo - posy / 2) - (-angle) * (xo - posx / 2);
-			b2 = y - (-angle) * x;
-
-			hyp = abs(angle * x + y + (-posy / 2 - angle * posx / 2)) * wipezone->pythangle;
-			hyp2 = abs(angle * x + y + (-(yo - posy / 2) - angle * (xo - posx / 2))) * wipezone->pythangle;
-
-			temp1 = xo * (1 - facf0 / 2) - xo * facf0 / 2;
-			temp2 = yo * (1 - facf0 / 2) - yo * facf0 / 2;
-			pointdist = hypot(temp1, temp2);
-
-			if (b2 < b1 && b2 < b3) {
-				if (hwidth < pointdist)
-					output = in_band(hwidth, hyp, 0, 1);
-			}
-			else if (b2 > b1 && b2 > b3) {
-				if (hwidth < pointdist)
-					output = in_band(hwidth, hyp2, 0, 1);
-			}
-			else {
-				if (hyp < hwidth && hyp2 > hwidth)
-					output = in_band(hwidth, hyp, 1, 1);
-				else if (hyp > hwidth && hyp2 < hwidth)
-					output = in_band(hwidth, hyp2, 1, 1);
-				else
-					output = in_band(hwidth, hyp2, 1, 1) * in_band(hwidth, hyp, 1, 1);
-			}
-
-			if (!wipe->forward) {
-				facf0 = 1.0f - facf0;  /* Go the other direction */
-			}
-			angle = -1 / angle;
-			b1 = posy / 2 - (-angle) * posx / 2;
-			b3 = (yo - posy / 2) - (-angle) * (xo - posx / 2);
-			b2 = y - (-angle) * x;
-
-			hyp = abs(angle * x + y + (-posy / 2 - angle * posx / 2)) * wipezone->pythangle;
-			hyp2 = abs(angle * x + y + (-(yo - posy / 2) - angle * (xo - posx / 2))) * wipezone->pythangle;
-
-			if (b2 < b1 && b2 < b3) {
-				if (hwidth < pointdist)
-					output *= in_band(hwidth, hyp, 0, 1);
-			}
-			else if (b2 > b1 && b2 > b3) {
-				if (hwidth < pointdist)
-					output *= in_band(hwidth, hyp2, 0, 1);
-			}
-			else {
-				if (hyp < hwidth && hyp2 > hwidth)
-					output *= in_band(hwidth, hyp, 1, 1);
-				else if (hyp > hwidth && hyp2 < hwidth)
-					output *= in_band(hwidth, hyp2, 1, 1);
-				else
-					output *= in_band(hwidth, hyp2, 1, 1) * in_band(hwidth, hyp, 1, 1);
-			}
-
-			break;
-#endif
 		case DO_IRIS_WIPE:
 			if (xo > yo) yo = xo;
 			else xo = yo;
@@ -1875,7 +1805,7 @@ static int num_inputs_wipe(void)
 	return 2;
 }
 
-static void free_wipe_effect(Sequence *seq)
+static void free_wipe_effect(Sequence *seq, const bool UNUSED(do_id_user))
 {
 	if (seq->effectdata)
 		MEM_freeN(seq->effectdata);
@@ -1883,7 +1813,7 @@ static void free_wipe_effect(Sequence *seq)
 	seq->effectdata = NULL;
 }
 
-static void copy_wipe_effect(Sequence *dst, Sequence *src)
+static void copy_wipe_effect(Sequence *dst, Sequence *src, const int UNUSED(flag))
 {
 	dst->effectdata = MEM_dupallocN(src->effectdata);
 }
@@ -2066,13 +1996,13 @@ static int num_inputs_transform(void)
 	return 1;
 }
 
-static void free_transform_effect(Sequence *seq)
+static void free_transform_effect(Sequence *seq, const bool UNUSED(do_id_user))
 {
 	if (seq->effectdata) MEM_freeN(seq->effectdata);
 	seq->effectdata = NULL;
 }
 
-static void copy_transform_effect(Sequence *dst, Sequence *src)
+static void copy_transform_effect(Sequence *dst, Sequence *src, const int UNUSED(flag))
 {
 	dst->effectdata = MEM_dupallocN(src->effectdata);
 }
@@ -2175,7 +2105,7 @@ static ImBuf *do_transform_effect(
 static void RVBlurBitmap2_float(float *map, int width, int height, float blur, int quality)
 /*	MUUUCCH better than the previous blur. */
 /*	We do the blurring in two passes which is a whole lot faster. */
-/*	I changed the math arount to implement an actual Gaussian */
+/*	I changed the math around to implement an actual Gaussian */
 /*	distribution. */
 /* */
 /*	Watch out though, it tends to misbehaven with large blur values on */
@@ -2384,7 +2314,7 @@ static int num_inputs_glow(void)
 	return 1;
 }
 
-static void free_glow_effect(Sequence *seq)
+static void free_glow_effect(Sequence *seq, const bool UNUSED(do_id_user))
 {
 	if (seq->effectdata)
 		MEM_freeN(seq->effectdata);
@@ -2392,7 +2322,7 @@ static void free_glow_effect(Sequence *seq)
 	seq->effectdata = NULL;
 }
 
-static void copy_glow_effect(Sequence *dst, Sequence *src)
+static void copy_glow_effect(Sequence *dst, Sequence *src, const int UNUSED(flag))
 {
 	dst->effectdata = MEM_dupallocN(src->effectdata);
 }
@@ -2478,7 +2408,7 @@ static int num_inputs_color(void)
 	return 0;
 }
 
-static void free_solid_color(Sequence *seq)
+static void free_solid_color(Sequence *seq, const bool UNUSED(do_id_user))
 {
 	if (seq->effectdata)
 		MEM_freeN(seq->effectdata);
@@ -2486,7 +2416,7 @@ static void free_solid_color(Sequence *seq)
 	seq->effectdata = NULL;
 }
 
-static void copy_solid_color(Sequence *dst, Sequence *src)
+static void copy_solid_color(Sequence *dst, Sequence *src, const int UNUSED(flag))
 {
 	dst->effectdata = MEM_dupallocN(src->effectdata);
 }
@@ -2734,7 +2664,7 @@ static int num_inputs_speed(void)
 	return 1;
 }
 
-static void free_speed_effect(Sequence *seq)
+static void free_speed_effect(Sequence *seq, const bool UNUSED(do_id_user))
 {
 	SpeedControlVars *v = (SpeedControlVars *)seq->effectdata;
 	if (v->frameMap)
@@ -2744,7 +2674,7 @@ static void free_speed_effect(Sequence *seq)
 	seq->effectdata = NULL;
 }
 
-static void copy_speed_effect(Sequence *dst, Sequence *src)
+static void copy_speed_effect(Sequence *dst, Sequence *src, const int UNUSED(flag))
 {
 	SpeedControlVars *v;
 	dst->effectdata = MEM_dupallocN(src->effectdata);
@@ -2959,7 +2889,7 @@ static int num_inputs_gaussian_blur(void)
 	return 1;
 }
 
-static void free_gaussian_blur_effect(Sequence *seq)
+static void free_gaussian_blur_effect(Sequence *seq, const bool UNUSED(do_id_user))
 {
 	if (seq->effectdata)
 		MEM_freeN(seq->effectdata);
@@ -2967,7 +2897,7 @@ static void free_gaussian_blur_effect(Sequence *seq)
 	seq->effectdata = NULL;
 }
 
-static void copy_gaussian_blur_effect(Sequence *dst, Sequence *src)
+static void copy_gaussian_blur_effect(Sequence *dst, Sequence *src, const int UNUSED(flag))
 {
 	dst->effectdata = MEM_dupallocN(src->effectdata);
 }
@@ -3021,7 +2951,7 @@ static void do_gaussian_blur_effect_byte_x(
 	const int size_x = (int) (data->size_x + 0.5f);
 	int i, j;
 
-	/* Make gaussian weight tabke. */
+	/* Make gaussian weight table. */
 	float *gausstab_x;
 	gausstab_x = make_gaussian_blur_kernel(data->size_x, size_x);
 
@@ -3074,7 +3004,7 @@ static void do_gaussian_blur_effect_byte_y(
 	const int size_y = (int) (data->size_y + 0.5f);
 	int i, j;
 
-	/* Make gaussian weight tabke. */
+	/* Make gaussian weight table. */
 	float *gausstab_y;
 	gausstab_y = make_gaussian_blur_kernel(data->size_y, size_y);
 
@@ -3127,7 +3057,7 @@ static void do_gaussian_blur_effect_float_x(
 	const int size_x = (int) (data->size_x + 0.5f);
 	int i, j;
 
-	/* Make gaussian weight tabke. */
+	/* Make gaussian weight table. */
 	float *gausstab_x;
 	gausstab_x = make_gaussian_blur_kernel(data->size_x, size_x);
 
@@ -3171,7 +3101,7 @@ static void do_gaussian_blur_effect_float_y(
 	const int size_y = (int) (data->size_y + 0.5f);
 	int i, j;
 
-	/* Make gaussian weight tabke. */
+	/* Make gaussian weight table. */
 	float *gausstab_y;
 	gausstab_y = make_gaussian_blur_kernel(data->size_y, size_y);
 
@@ -3573,7 +3503,7 @@ static void load_noop(Sequence *UNUSED(seq))
 
 }
 
-static void free_noop(Sequence *UNUSED(seq))
+static void free_noop(Sequence *UNUSED(seq), const bool UNUSED(do_id_user))
 {
 
 }
@@ -3583,12 +3513,12 @@ static int num_inputs_default(void)
 	return 2;
 }
 
-static void copy_effect_default(Sequence *dst, Sequence *src)
+static void copy_effect_default(Sequence *dst, Sequence *src, const int UNUSED(flag))
 {
 	dst->effectdata = MEM_dupallocN(src->effectdata);
 }
 
-static void free_effect_default(Sequence *seq)
+static void free_effect_default(Sequence *seq, const bool UNUSED(do_id_user))
 {
 	if (seq->effectdata)
 		MEM_freeN(seq->effectdata);

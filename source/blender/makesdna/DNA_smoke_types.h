@@ -72,6 +72,12 @@ enum {
 	SLICE_AXIS_Z    = 3,
 };
 
+/* axis aligned method */
+enum {
+	VOLUME_INTERP_LINEAR   = 0,
+	VOLUME_INTERP_CUBIC    = 1,
+};
+
 enum {
 	VECTOR_DRAW_NEEDLE     = 0,
 	VECTOR_DRAW_STREAMLINE = 1,
@@ -113,7 +119,7 @@ enum {
 #define SM_HRES_LINEAR		1
 #define SM_HRES_FULLSAMPLE	2
 
-/* smoke data fileds (active_fields) */
+/* smoke data fields (active_fields) */
 #define SM_ACTIVE_HEAT		(1<<0)
 #define SM_ACTIVE_FIRE		(1<<1)
 #define SM_ACTIVE_COLORS	(1<<2)
@@ -137,6 +143,9 @@ typedef struct SmokeDomainSettings {
 	struct GPUTexture *tex_wt;
 	struct GPUTexture *tex_shadow;
 	struct GPUTexture *tex_flame;
+	struct GPUTexture *tex_flame_coba;
+	struct GPUTexture *tex_coba;
+	struct GPUTexture *tex_field;
 	struct GPUTexture *tex_velocity_x;
 	struct GPUTexture *tex_velocity_y;
 	struct GPUTexture *tex_velocity_z;
@@ -219,7 +228,7 @@ typedef struct SmokeDomainSettings {
 	char vector_draw_type;
 	char use_coba;
 	char coba_field;  /* simulation field used for the color mapping */
-	char pad2;
+	char interp_method;
 
 	float clipping;
 	float pad3;
@@ -250,7 +259,7 @@ typedef struct SmokeDomainSettings {
 
 typedef struct SmokeFlowSettings {
 	struct SmokeModifierData *smd; /* for fast RNA access */
-	struct DerivedMesh *dm;
+	struct Mesh *mesh;
 	struct ParticleSystem *psys;
 	struct Tex *noise_texture;
 
@@ -290,7 +299,7 @@ typedef struct SmokeFlowSettings {
 /* collision objects (filled with smoke) */
 typedef struct SmokeCollSettings {
 	struct SmokeModifierData *smd; /* for fast RNA access */
-	struct DerivedMesh *dm;
+	struct Mesh *mesh;
 	float *verts_old;
 	int numverts;
 	short type; // static = 0, rigid = 1, dynamic = 2

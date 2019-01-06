@@ -100,7 +100,8 @@ BlenderStrokeRenderer::BlenderStrokeRenderer(Render *re, int render_count) : Str
 	freestyle_scene->r.tiley = old_scene->r.tiley;
 	freestyle_scene->r.size = 100; // old_scene->r.size
 	freestyle_scene->r.color_mgt_flag = 0; // old_scene->r.color_mgt_flag;
-	freestyle_scene->r.scemode = old_scene->r.scemode & ~(R_SINGLE_LAYER | R_NO_FRAME_UPDATE | R_MULTIVIEW);
+	freestyle_scene->r.scemode = (old_scene->r.scemode & ~(R_SINGLE_LAYER | R_NO_FRAME_UPDATE | R_MULTIVIEW)) &
+	                             (re->r.scemode | ~R_FULL_SAMPLE);
 	freestyle_scene->r.flag = old_scene->r.flag;
 	freestyle_scene->r.threads = old_scene->r.threads;
 	freestyle_scene->r.border.xmin = old_scene->r.border.xmin;
@@ -125,8 +126,10 @@ BlenderStrokeRenderer::BlenderStrokeRenderer(Render *re, int render_count) : Str
 		freestyle_scene->id.properties = IDP_CopyProperty_ex(old_scene->id.properties, 0);
 	}
 
+	/* Render with transparent background. */
+	freestyle_scene->r.alphamode = R_ALPHAPREMUL;
+
 	if (STREQ(freestyle_scene->r.engine, RE_engine_id_CYCLES)) {
-		/* Render with transparent background. */
 		PointerRNA freestyle_scene_ptr;
 		RNA_id_pointer_create(&freestyle_scene->id, &freestyle_scene_ptr);
 		PointerRNA freestyle_cycles_ptr = RNA_pointer_get(&freestyle_scene_ptr, "cycles");
@@ -868,7 +871,7 @@ Object *BlenderStrokeRenderer::NewMesh() const
 	DEG_graph_id_tag_update(freestyle_bmain,
 	                        freestyle_depsgraph,
 	                        &ob->id,
-	                        OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+	                        ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION);
 
 	return ob;
 }

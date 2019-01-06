@@ -85,7 +85,7 @@ static void do_outliner_activate_obdata(bContext *C, Scene *scene, ViewLayer *vi
 
 	if (obact == NULL) {
 		ED_object_base_activate(C, base);
-		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 		obact = base->object;
 		use_all = true;
@@ -109,7 +109,7 @@ static void do_outliner_activate_obdata(bContext *C, Scene *scene, ViewLayer *vi
 			}
 			if (ok) {
 				ED_object_base_select(base, (ob->mode & OB_MODE_EDIT) ? BA_SELECT : BA_DESELECT);
-				DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+				DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 				WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 			}
 		}
@@ -124,7 +124,7 @@ static void do_outliner_activate_pose(bContext *C, ViewLayer *view_layer, Base *
 	if (obact == NULL) {
 		ED_object_base_activate(C, base);
 		Scene *scene = CTX_data_scene(C);
-		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 		obact = base->object;
 		use_all = true;
@@ -151,7 +151,7 @@ static void do_outliner_activate_pose(bContext *C, ViewLayer *view_layer, Base *
 				ED_object_base_select(base, (ob->mode & OB_MODE_POSE) ? BA_SELECT : BA_DESELECT);
 
 				Scene *scene = CTX_data_scene(C);
-				DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+				DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 				WM_event_add_notifier(C, NC_SCENE | ND_MODE | NS_MODE_OBJECT, NULL);
 				WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 			}
@@ -211,7 +211,7 @@ static void do_outliner_object_select_recursive(ViewLayer *view_layer, Object *o
 
 	for (base = FIRSTBASE(view_layer); base; base = base->next) {
 		Object *ob = base->object;
-		if ((((base->flag & BASE_VISIBLE) == 0) && BKE_object_is_child_recursive(ob_parent, ob))) {
+		if ((((base->flag & BASE_VISIBLE) != 0) && BKE_object_is_child_recursive(ob_parent, ob))) {
 			ED_object_base_select(base, select ? BA_SELECT : BA_DESELECT);
 		}
 	}
@@ -318,7 +318,7 @@ static eOLDrawState tree_element_set_active_object(
 
 		if (set != OL_SETSEL_NONE) {
 			ED_object_base_activate(C, base); /* adds notifier */
-			DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+			DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 			WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 		}
 
@@ -376,7 +376,7 @@ static eOLDrawState tree_element_active_material(
 		/* Tagging object for update seems a bit stupid here, but looks like we have to do it
 		 * for render views to update. See T42973.
 		 * Note that RNA material update does it too, see e.g. rna_MaterialSlot_update(). */
-		DEG_id_tag_update((ID *)ob, OB_RECALC_OB);
+		DEG_id_tag_update((ID *)ob, ID_RECALC_TRANSFORM);
 		WM_event_add_notifier(C, NC_MATERIAL | ND_SHADING_LINKS, NULL);
 	}
 	return OL_DRAWSEL_NONE;
@@ -462,7 +462,7 @@ static eOLDrawState tree_element_active_defgroup(
 		BLI_assert(te->index + 1 >= 0);
 		ob->actdef = te->index + 1;
 
-		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 		WM_event_add_notifier(C, NC_OBJECT | ND_TRANSFORM, ob);
 	}
 	else {
@@ -1020,7 +1020,7 @@ static void do_outliner_item_activate_tree_element(
 				FOREACH_COLLECTION_OBJECT_RECURSIVE_END;
 			}
 
-			DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+			DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 			WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 		}
 		else if (OB_DATA_SUPPORT_EDITMODE(te->idcode)) {
@@ -1187,8 +1187,8 @@ void OUTLINER_OT_item_activate(wmOperatorType *ot)
 
 /* ****************************************************** */
 
-/* **************** Border Select Tool ****************** */
-static void outliner_item_border_select(Scene *scene, rctf *rectf, TreeElement *te, bool select)
+/* **************** Box Select Tool ****************** */
+static void outliner_item_box_select(Scene *scene, rctf *rectf, TreeElement *te, bool select)
 {
 	TreeStoreElem *tselem = TREESTORE(te);
 
@@ -1204,12 +1204,12 @@ static void outliner_item_border_select(Scene *scene, rctf *rectf, TreeElement *
 	/* Look at its children. */
 	if ((tselem->flag & TSE_CLOSED) == 0) {
 		for (te = te->subtree.first; te; te = te->next) {
-			outliner_item_border_select(scene, rectf, te, select);
+			outliner_item_box_select(scene, rectf, te, select);
 		}
 	}
 }
 
-static int outliner_border_select_exec(bContext *C, wmOperator *op)
+static int outliner_box_select_exec(bContext *C, wmOperator *op)
 {
 	Scene *scene = CTX_data_scene(C);
 	SpaceOops *soops = CTX_wm_space_outliner(C);
@@ -1222,28 +1222,28 @@ static int outliner_border_select_exec(bContext *C, wmOperator *op)
 	UI_view2d_region_to_view_rctf(&ar->v2d, &rectf, &rectf);
 
 	for (te = soops->tree.first; te; te = te->next) {
-		outliner_item_border_select(scene, &rectf, te, select);
+		outliner_item_box_select(scene, &rectf, te, select);
 	}
 
-	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+	DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 	ED_region_tag_redraw(ar);
 
 	return OPERATOR_FINISHED;
 }
 
-void OUTLINER_OT_select_border(wmOperatorType *ot)
+void OUTLINER_OT_select_box(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name = "Border Select";
-	ot->idname = "OUTLINER_OT_select_border";
+	ot->name = "Box Select";
+	ot->idname = "OUTLINER_OT_select_box";
 	ot->description = "Use box selection to select tree elements";
 
 	/* api callbacks */
-	ot->invoke = WM_gesture_border_invoke;
-	ot->exec = outliner_border_select_exec;
-	ot->modal = WM_gesture_border_modal;
-	ot->cancel = WM_gesture_border_cancel;
+	ot->invoke = WM_gesture_box_invoke;
+	ot->exec = outliner_box_select_exec;
+	ot->modal = WM_gesture_box_modal;
+	ot->cancel = WM_gesture_box_cancel;
 
 	ot->poll = ED_operator_outliner_active;
 
@@ -1251,7 +1251,7 @@ void OUTLINER_OT_select_border(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	/* rna */
-	WM_operator_properties_gesture_border_ex(ot, true, false);
+	WM_operator_properties_gesture_box_ex(ot, true, false);
 }
 
 /* ****************************************************** */

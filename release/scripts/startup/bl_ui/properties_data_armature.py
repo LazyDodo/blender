@@ -68,6 +68,7 @@ class DATA_PT_skeleton(ArmatureButtonsPanel, Panel):
 
 class DATA_PT_display(ArmatureButtonsPanel, Panel):
     bl_label = "Display"
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context):
         layout = self.layout
@@ -100,6 +101,7 @@ class DATA_MT_bone_group_specials(Menu):
 
 class DATA_PT_bone_groups(ArmatureButtonsPanel, Panel):
     bl_label = "Bone Groups"
+    bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def poll(cls, context):
@@ -121,8 +123,8 @@ class DATA_PT_bone_groups(ArmatureButtonsPanel, Panel):
 
         col = row.column(align=True)
         col.active = (ob.proxy is None)
-        col.operator("pose.group_add", icon='ZOOMIN', text="")
-        col.operator("pose.group_remove", icon='ZOOMOUT', text="")
+        col.operator("pose.group_add", icon='ADD', text="")
+        col.operator("pose.group_remove", icon='REMOVE', text="")
         col.menu("DATA_MT_bone_group_specials", icon='DOWNARROW_HLT', text="")
         if group:
             col.separator()
@@ -173,7 +175,7 @@ class DATA_PT_pose_library(ArmatureButtonsPanel, Panel):
 
         if poselib:
             # warning about poselib being in an invalid state
-            if len(poselib.fcurves) > 0 and len(poselib.pose_markers) == 0:
+            if poselib.fcurves and not poselib.pose_markers:
                 layout.label(icon='ERROR', text="Error: Potentially corrupt library, run 'Sanitize' operator to fix")
 
             # list of poses in pose library
@@ -187,14 +189,14 @@ class DATA_PT_pose_library(ArmatureButtonsPanel, Panel):
 
             # invoke should still be used for 'add', as it is needed to allow
             # add/replace options to be used properly
-            col.operator("poselib.pose_add", icon='ZOOMIN', text="")
+            col.operator("poselib.pose_add", icon='ADD', text="")
 
             col.operator_context = 'EXEC_DEFAULT'  # exec not invoke, so that menu doesn't need showing
 
             pose_marker_active = poselib.pose_markers.active
 
             if pose_marker_active is not None:
-                col.operator("poselib.pose_remove", icon='ZOOMOUT', text="")
+                col.operator("poselib.pose_remove", icon='REMOVE', text="")
                 col.operator(
                     "poselib.apply_pose",
                     icon='ZOOM_SELECTED',
@@ -288,13 +290,38 @@ class DATA_PT_iksolver_itasc(ArmatureButtonsPanel, Panel):
 
 from .properties_animviz import (
     MotionPathButtonsPanel,
+    MotionPathButtonsPanel_display,
     OnionSkinButtonsPanel,
 )
 
 
 class DATA_PT_motion_paths(MotionPathButtonsPanel, Panel):
     #bl_label = "Bones Motion Paths"
+    bl_options = {'DEFAULT_CLOSED'}
     bl_context = "data"
+
+    @classmethod
+    def poll(cls, context):
+        # XXX: include pose-mode check?
+        return (context.object) and (context.armature)
+
+    def draw(self, context):
+        # layout = self.layout
+
+        ob = context.object
+        avs = ob.pose.animation_visualization
+
+        pchan = context.active_pose_bone
+        mpath = pchan.motion_path if pchan else None
+
+        self.draw_settings(context, avs, mpath, bones=True)
+
+
+class DATA_PT_motion_paths_display(MotionPathButtonsPanel_display, Panel):
+    #bl_label = "Bones Motion Paths"
+    bl_context = "data"
+    bl_parent_id = "DATA_PT_motion_paths"
+    bl_options = {'DEFAULT_CLOSED'}
 
     @classmethod
     def poll(cls, context):
@@ -320,7 +347,7 @@ class DATA_PT_onion_skinning(OnionSkinButtonsPanel):  # , Panel): # inherit from
     @classmethod
     def poll(cls, context):
         # XXX: include pose-mode check?
-        return (context.object) and (context.armature)
+        return context.object and context.armature
 
     def draw(self, context):
         ob = context.object
@@ -329,7 +356,7 @@ class DATA_PT_onion_skinning(OnionSkinButtonsPanel):  # , Panel): # inherit from
 
 
 class DATA_PT_custom_props_arm(ArmatureButtonsPanel, PropertyPanel, Panel):
-    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_OPENGL'}
+    COMPAT_ENGINES = {'BLENDER_RENDER', 'BLENDER_EEVEE', 'BLENDER_WORKBENCH'}
     _context_path = "object.data"
     _property_type = bpy.types.Armature
 
@@ -342,6 +369,7 @@ classes = (
     DATA_PT_bone_groups,
     DATA_PT_pose_library,
     DATA_PT_motion_paths,
+    DATA_PT_motion_paths_display,
     DATA_PT_ghost,
     DATA_PT_iksolver_itasc,
     DATA_PT_custom_props_arm,

@@ -30,6 +30,7 @@ set(INC
 	../../../intern/guardedalloc
 	../../../intern/atomic
 	../../../intern/eigen
+	../../../intern/numaapi/include
 	../../../extern/wcwidth
 )
 
@@ -47,6 +48,7 @@ set(SRC
 	intern/BLI_ghash.c
 	intern/BLI_ghash_utils.c
 	intern/BLI_heap.c
+	intern/BLI_heap_simple.c
 	intern/BLI_kdopbvh.c
 	intern/BLI_kdtree.c
 	intern/BLI_linklist.c
@@ -54,11 +56,13 @@ set(SRC
 	intern/BLI_memarena.c
 	intern/BLI_memiter.c
 	intern/BLI_mempool.c
+	intern/BLI_timer.c
 	intern/DLRB_tree.c
 	intern/array_store.c
 	intern/array_store_utils.c
 	intern/array_utils.c
 	intern/astar.c
+	intern/bitmap.c
 	intern/bitmap_draw_2d.c
 	intern/boxpack_2d.c
 	intern/buffer.c
@@ -68,6 +72,7 @@ set(SRC
 	intern/easing.c
 	intern/edgehash.c
 	intern/endian_switch.c
+	intern/expr_pylike_eval.c
 	intern/fileops.c
 	intern/fnmatch.c
 	intern/freetypefont.c
@@ -151,6 +156,7 @@ set(SRC
 	BLI_edgehash.h
 	BLI_endian_switch.h
 	BLI_endian_switch_inline.h
+	BLI_expr_pylike_eval.h
 	BLI_fileops.h
 	BLI_fileops_types.h
 	BLI_fnmatch.h
@@ -161,6 +167,7 @@ set(SRC
 	BLI_hash_mm2a.h
 	BLI_hash_mm3.h
 	BLI_heap.h
+	BLI_heap_simple.h
 	BLI_iterator.h
 	BLI_jitter_2d.h
 	BLI_kdopbvh.h
@@ -210,6 +217,7 @@ set(SRC
 	BLI_task.h
 	BLI_threads.h
 	BLI_timecode.h
+	BLI_timer.h
 	BLI_utildefines.h
 	BLI_utildefines_iter.h
 	BLI_utildefines_stack.h

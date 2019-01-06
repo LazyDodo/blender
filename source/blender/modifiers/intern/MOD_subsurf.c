@@ -44,6 +44,7 @@
 #include "BKE_cdderivedmesh.h"
 #include "BKE_scene.h"
 #include "BKE_subdiv.h"
+#include "BKE_subdiv_ccg.h"
 #include "BKE_subdiv_mesh.h"
 #include "BKE_subsurf.h"
 
@@ -98,56 +99,6 @@ static bool isDisabled(const Scene *scene, ModifierData *md, bool useRenderParam
 	return get_render_subsurf_level(&scene->r, levels, useRenderParams != 0) == 0;
 }
 
-static DerivedMesh *applyModifier(
-        ModifierData *md, const ModifierEvalContext *ctx,
-        DerivedMesh *derivedData)
-{
-	SubsurfModifierData *smd = (SubsurfModifierData *) md;
-	struct Scene *scene = DEG_get_evaluated_scene(ctx->depsgraph);
-	SubsurfFlags subsurf_flags = 0;
-	DerivedMesh *result;
-	const bool useRenderParams = (ctx->flag & MOD_APPLY_RENDER) != 0;
-	const bool isFinalCalc = (ctx->flag & MOD_APPLY_USECACHE) != 0;
-
-	bool do_cddm_convert = useRenderParams || !isFinalCalc;
-
-	if (useRenderParams)
-		subsurf_flags |= SUBSURF_USE_RENDER_PARAMS;
-	if (isFinalCalc)
-		subsurf_flags |= SUBSURF_IS_FINAL_CALC;
-	if (ctx->object->mode & OB_MODE_EDIT)
-		subsurf_flags |= SUBSURF_IN_EDIT_MODE;
-
-	result = subsurf_make_derived_from_derived(derivedData, smd, scene, NULL, subsurf_flags);
-	result->cd_flag = derivedData->cd_flag;
-
-	{
-		DerivedMesh *cddm = CDDM_copy(result);
-		result->release(result);
-		result = cddm;
-	}
-
-	(void) do_cddm_convert;
-
-	return result;
-}
-
-static DerivedMesh *applyModifierEM(
-        ModifierData *md, const ModifierEvalContext *ctx,
-        struct BMEditMesh *UNUSED(editData),
-        DerivedMesh *derivedData)
-{
-	SubsurfModifierData *smd = (SubsurfModifierData *) md;
-	struct Scene *scene = DEG_get_evaluated_scene(ctx->depsgraph);
-	DerivedMesh *result;
-	/* 'orco' using editmode flags would cause cache to be used twice in editbmesh_calc_modifiers */
-	SubsurfFlags ss_flags = (ctx->flag & MOD_APPLY_ORCO) ? 0 : (SUBSURF_FOR_EDIT_MODE | SUBSURF_IN_EDIT_MODE);
-
-	result = subsurf_make_derived_from_derived(derivedData, smd, scene, NULL, ss_flags);
-	return result;
-}
-
-#ifdef WITH_OPENSUBDIV_MODIFIER
 static int subdiv_levels_for_modifier_get(const SubsurfModifierData *smd,
                                           const ModifierEvalContext *ctx)
 {
@@ -164,11 +115,14 @@ static void subdiv_settings_init(SubdivSettings *settings,
                                  const SubsurfModifierData *smd)
 {
 	settings->is_simple = (smd->subdivType == SUBSURF_TYPE_SIMPLE);
-	settings->is_adaptive = !settings->is_simple;
-	settings->level = smd->quality;
+	settings->is_adaptive = true;
+	settings->level = settings->is_simple ? 1 : smd->quality;
+	settings->vtx_boundary_interpolation = SUBDIV_VTX_BOUNDARY_EDGE_ONLY;
 	settings->fvar_linear_interpolation =
 	        BKE_subdiv_fvar_interpolation_from_uv_smooth(smd->uv_smooth);
 }
+
+/* Subdivide into fully qualified mesh. */
 
 static void subdiv_mesh_settings_init(SubdivToMeshSettings *settings,
                                       const SubsurfModifierData *smd,
@@ -176,22 +130,63 @@ static void subdiv_mesh_settings_init(SubdivToMeshSettings *settings,
 {
 	const int level = subdiv_levels_for_modifier_get(smd, ctx);
 	settings->resolution = (1 << level) + 1;
+	settings->use_optimal_display =
+	        (smd->flags & eSubsurfModifierFlag_ControlEdges);
 }
 
-static Mesh *applyModifier_subdiv(ModifierData *md,
-                                  const ModifierEvalContext *ctx,
-                                  Mesh *mesh)
+static Mesh *subdiv_as_mesh(SubsurfModifierData *smd,
+                            const ModifierEvalContext *ctx,
+                            Mesh *mesh,
+                            Subdiv *subdiv)
+{
+	Mesh *result = mesh;
+	SubdivToMeshSettings mesh_settings;
+	subdiv_mesh_settings_init(&mesh_settings, smd, ctx);
+	if (mesh_settings.resolution < 3) {
+		return result;
+	}
+	result = BKE_subdiv_to_mesh(subdiv, &mesh_settings, mesh);
+	return result;
+}
+
+/* Subdivide into CCG. */
+
+static void subdiv_ccg_settings_init(SubdivToCCGSettings *settings,
+                                     const SubsurfModifierData *smd,
+                                     const ModifierEvalContext *ctx)
+{
+	const int level = subdiv_levels_for_modifier_get(smd, ctx);
+	settings->resolution = (1 << level) + 1;
+	settings->need_normal = true;
+	settings->need_mask = false;
+}
+
+static Mesh *subdiv_as_ccg(SubsurfModifierData *smd,
+                            const ModifierEvalContext *ctx,
+                            Mesh *mesh,
+                            Subdiv *subdiv)
+{
+	Mesh *result = mesh;
+	SubdivToCCGSettings ccg_settings;
+	subdiv_ccg_settings_init(&ccg_settings, smd, ctx);
+	if (ccg_settings.resolution < 3) {
+		return result;
+	}
+	result = BKE_subdiv_to_ccg_mesh(subdiv, &ccg_settings, mesh);
+	return result;
+}
+
+/* Modifier itself. */
+
+static Mesh *applyModifier(ModifierData *md,
+                           const ModifierEvalContext *ctx,
+                           Mesh *mesh)
 {
 	Mesh *result = mesh;
 	SubsurfModifierData *smd = (SubsurfModifierData *) md;
 	SubdivSettings subdiv_settings;
 	subdiv_settings_init(&subdiv_settings, smd);
-	SubdivToMeshSettings mesh_settings;
-	subdiv_mesh_settings_init(&mesh_settings, smd, ctx);
-	if (subdiv_settings.level == 0 || mesh_settings.resolution < 3) {
-		/* NOTE: Shouldn't really happen, is supposed to be catched by
-		 * isDisabled() callback.
-		 */
+	if (subdiv_settings.level == 0) {
 		return result;
 	}
 	/* TODO(sergey): Try to re-use subdiv when possible. */
@@ -200,13 +195,20 @@ static Mesh *applyModifier_subdiv(ModifierData *md,
 		/* Happens on bad topology, ut also on empty input mesh. */
 		return result;
 	}
-	result = BKE_subdiv_to_mesh(subdiv, &mesh_settings, mesh);
+	/* TODO(sergey): Decide whether we ever want to use CCG for subsurf,
+	 * maybe when it is a last modifier in the stack?
+	 */
+	if (true) {
+		result = subdiv_as_mesh(smd, ctx, mesh, subdiv);
+	}
+	else {
+		result = subdiv_as_ccg(smd, ctx, mesh, subdiv);
+	}
 	/* TODO(sergey): Cache subdiv somehow. */
 	// BKE_subdiv_stats_print(&subdiv->stats);
 	BKE_subdiv_free(subdiv);
 	return result;
 }
-#endif
 
 ModifierTypeInfo modifierType_Subsurf = {
 	/* name */              "Subdivision",
@@ -225,19 +227,13 @@ ModifierTypeInfo modifierType_Subsurf = {
 	/* deformMatrices_DM */ NULL,
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
-	/* applyModifier_DM */  applyModifier,
-	/* applyModifierEM_DM */applyModifierEM,
+	/* applyModifier_DM */  NULL,
 
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
-#ifdef WITH_OPENSUBDIV_MODIFIER
-	/* applyModifier */     applyModifier_subdiv,
-#else
-	/* applyModifier */     NULL,
-#endif
-	/* applyModifierEM */   NULL,
+	/* applyModifier */     applyModifier,
 
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,

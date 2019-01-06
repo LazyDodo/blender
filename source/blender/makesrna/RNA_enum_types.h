@@ -61,6 +61,7 @@ extern const EnumPropertyItem rna_enum_mesh_delimit_mode_items[];
 extern const EnumPropertyItem rna_enum_space_graph_mode_items[];
 extern const EnumPropertyItem rna_enum_space_type_items[];
 extern const EnumPropertyItem rna_enum_space_image_mode_items[];
+extern const EnumPropertyItem rna_enum_space_image_mode_all_items[];
 extern const EnumPropertyItem rna_enum_space_action_mode_items[];
 extern const EnumPropertyItem rna_enum_region_type_items[];
 extern const EnumPropertyItem rna_enum_object_modifier_type_items[];
@@ -72,6 +73,7 @@ extern const EnumPropertyItem rna_enum_object_shaderfx_type_items[];
 
 extern const EnumPropertyItem rna_enum_modifier_triangulate_quad_method_items[];
 extern const EnumPropertyItem rna_enum_modifier_triangulate_ngon_method_items[];
+extern const EnumPropertyItem rna_enum_modifier_shrinkwrap_mode_items[];
 
 extern const EnumPropertyItem rna_enum_image_type_items[];
 extern const EnumPropertyItem rna_enum_image_color_mode_items[];
@@ -114,16 +116,20 @@ extern const EnumPropertyItem rna_enum_motionpath_bake_location_items[];
 
 extern const EnumPropertyItem rna_enum_event_value_items[];
 extern const EnumPropertyItem rna_enum_event_type_items[];
+extern const EnumPropertyItem rna_enum_event_type_mask_items[];
 extern const EnumPropertyItem rna_enum_operator_return_items[];
 extern const EnumPropertyItem rna_enum_operator_property_tags[];
 
 extern const EnumPropertyItem rna_enum_brush_sculpt_tool_items[];
 extern const EnumPropertyItem rna_enum_brush_vertex_tool_items[];
+extern const EnumPropertyItem rna_enum_brush_weight_tool_items[];
+extern const EnumPropertyItem rna_enum_brush_gpencil_types_items[];
 extern const EnumPropertyItem rna_enum_brush_image_tool_items[];
 
 extern const EnumPropertyItem rna_enum_particle_edit_hair_brush_items[];
 extern const EnumPropertyItem rna_enum_particle_edit_disconnected_hair_brush_items[];
 extern const EnumPropertyItem rna_enum_gpencil_sculpt_brush_items[];
+extern const EnumPropertyItem rna_enum_gpencil_weight_brush_items[];
 
 extern const EnumPropertyItem rna_enum_uv_sculpt_tool_items[];
 
@@ -181,7 +187,6 @@ extern const EnumPropertyItem rna_enum_navigation_mode_items[];
 extern const EnumPropertyItem rna_enum_file_sort_items[];
 
 extern const EnumPropertyItem rna_enum_node_socket_in_out_items[];
-extern const EnumPropertyItem rna_enum_node_icon_items[];
 
 extern const EnumPropertyItem rna_enum_node_math_items[];
 extern const EnumPropertyItem rna_enum_node_vec_math_items[];
@@ -237,8 +242,6 @@ struct PointerRNA;
 struct PropertyRNA;
 
 const EnumPropertyItem *rna_TransformOrientation_itemf(struct bContext *C, struct PointerRNA *ptr, struct PropertyRNA *prop, bool *r_free);
-const EnumPropertyItem *rna_Sensor_type_itemf(struct bContext *C, struct PointerRNA *ptr, struct PropertyRNA *prop, bool *r_free);
-const EnumPropertyItem *rna_Actuator_type_itemf(struct bContext *C, struct PointerRNA *ptr, struct PropertyRNA *prop, bool *r_free);
 
 /* Generic functions, return an enum from library data, index is the position
  * in the linked list can add more for different types as needed */

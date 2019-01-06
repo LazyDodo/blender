@@ -50,7 +50,7 @@ struct Brush;
 struct Object;
 struct bDeformGroup;
 struct SimplifyGpencilModifierData;
-struct InstanceGpencilModifierData;
+struct ArrayGpencilModifierData;
 struct LatticeGpencilModifierData;
 
 struct MDeformVert;
@@ -65,7 +65,6 @@ bool BKE_gpencil_free_strokes(struct bGPDframe *gpf);
 void BKE_gpencil_free_frames(struct bGPDlayer *gpl);
 void BKE_gpencil_free_layers(struct ListBase *list);
 bool BKE_gpencil_free_frame_runtime_data(struct bGPDframe *derived_gpf);
-void BKE_gpencil_free_derived_frames(struct bGPdata *gpd);
 void BKE_gpencil_free(struct bGPdata *gpd, bool free_all);
 
 void BKE_gpencil_batch_cache_dirty_tag(struct bGPdata *gpd);
@@ -122,7 +121,7 @@ bool gpencil_layer_is_editable(const struct bGPDlayer *gpl);
  * is no existing GP-Frame on the frame requested.
  */
 typedef enum eGP_GetFrame_Mode {
-	/* Use the preceeding gp-frame (i.e. don't add anything) */
+	/* Use the preceding gp-frame (i.e. don't add anything) */
 	GP_GETFRAME_USE_PREV  = 0,
 
 	/* Add a new empty/blank frame */
@@ -143,12 +142,17 @@ struct Material *BKE_gpencil_get_material_from_brush(struct Brush *brush);
 struct Material *BKE_gpencil_material_ensure(struct Main *bmain, struct Object *ob);
 
 /* object boundbox */
+bool BKE_gpencil_data_minmax(
+	struct Object *ob, const struct bGPdata *gpd,
+	float r_min[3], float r_max[3]);
 bool BKE_gpencil_stroke_minmax(
 	const struct bGPDstroke *gps, const bool use_select,
 	float r_min[3], float r_max[3]);
+bool BKE_gpencil_stroke_select_check(
+	const struct bGPDstroke *gps);
 
 struct BoundBox *BKE_gpencil_boundbox_get(struct Object *ob);
-void BKE_gpencil_centroid_3D(struct bGPdata *gpd, float r_centroid[3]);
+void BKE_gpencil_centroid_3d(struct bGPdata *gpd, float r_centroid[3]);
 
 /* vertex groups */
 void BKE_gpencil_dvert_ensure(struct bGPDstroke *gps);
@@ -163,6 +167,9 @@ void BKE_gpencil_stroke_normal(const struct bGPDstroke *gps, float r_normal[3]);
 void BKE_gpencil_simplify_stroke(struct bGPDstroke *gps, float factor);
 void BKE_gpencil_simplify_fixed(struct bGPDstroke *gps);
 void BKE_gpencil_subdivide(struct bGPDstroke *gps, int level, int flag);
+
+void BKE_gpencil_stroke_2d_flat(
+	const struct bGPDspoint *points, int totpoints, float(*points2d)[2], int *r_direction);
 
 void BKE_gpencil_transform(struct bGPdata *gpd, float mat[4][4]);
 

@@ -65,7 +65,7 @@
 
 #ifdef WITH_INPUT_NDOF
 //#  define NDOF_WALK_DEBUG
-//#  define NDOF_WALK_DRAW_TOOMUCH  /* is this needed for ndof? - commented so redraw doesnt thrash - campbell */
+//#  define NDOF_WALK_DRAW_TOOMUCH  /* is this needed for ndof? - commented so redraw doesn't thrash - campbell */
 #endif
 
 #define USE_TABLET_SUPPORT
@@ -177,59 +177,6 @@ void walk_modal_keymap(wmKeyConfig *keyconf)
 
 	keymap = WM_modalkeymap_add(keyconf, "View3D Walk Modal", modal_items);
 
-	/* items for modal map */
-	WM_modalkeymap_add_item(keymap, RIGHTMOUSE, KM_ANY, KM_ANY, 0, WALK_MODAL_CANCEL);
-	WM_modalkeymap_add_item(keymap, ESCKEY, KM_PRESS, KM_ANY, 0, WALK_MODAL_CANCEL);
-
-	WM_modalkeymap_add_item(keymap, LEFTMOUSE, KM_ANY, KM_ANY, 0, WALK_MODAL_CONFIRM);
-	WM_modalkeymap_add_item(keymap, RETKEY, KM_PRESS, KM_ANY, 0, WALK_MODAL_CONFIRM);
-	WM_modalkeymap_add_item(keymap, PADENTER, KM_PRESS, KM_ANY, 0, WALK_MODAL_CONFIRM);
-
-	WM_modalkeymap_add_item(keymap, LEFTSHIFTKEY, KM_PRESS, KM_ANY, 0, WALK_MODAL_FAST_ENABLE);
-	WM_modalkeymap_add_item(keymap, LEFTSHIFTKEY, KM_RELEASE, KM_ANY, 0, WALK_MODAL_FAST_DISABLE);
-
-	WM_modalkeymap_add_item(keymap, LEFTALTKEY, KM_PRESS, KM_ANY, 0, WALK_MODAL_SLOW_ENABLE);
-	WM_modalkeymap_add_item(keymap, LEFTALTKEY, KM_RELEASE, KM_ANY, 0, WALK_MODAL_SLOW_DISABLE);
-
-	/* WASD */
-	WM_modalkeymap_add_item(keymap, WKEY, KM_PRESS, KM_ANY, 0, WALK_MODAL_DIR_FORWARD);
-	WM_modalkeymap_add_item(keymap, SKEY, KM_PRESS, KM_ANY, 0, WALK_MODAL_DIR_BACKWARD);
-	WM_modalkeymap_add_item(keymap, AKEY, KM_PRESS, KM_ANY, 0, WALK_MODAL_DIR_LEFT);
-	WM_modalkeymap_add_item(keymap, DKEY, KM_PRESS, KM_ANY, 0, WALK_MODAL_DIR_RIGHT);
-	WM_modalkeymap_add_item(keymap, EKEY, KM_PRESS, KM_ANY, 0, WALK_MODAL_DIR_UP);
-	WM_modalkeymap_add_item(keymap, QKEY, KM_PRESS, KM_ANY, 0, WALK_MODAL_DIR_DOWN);
-
-	WM_modalkeymap_add_item(keymap, WKEY, KM_RELEASE, KM_ANY, 0, WALK_MODAL_DIR_FORWARD_STOP);
-	WM_modalkeymap_add_item(keymap, SKEY, KM_RELEASE, KM_ANY, 0, WALK_MODAL_DIR_BACKWARD_STOP);
-	WM_modalkeymap_add_item(keymap, AKEY, KM_RELEASE, KM_ANY, 0, WALK_MODAL_DIR_LEFT_STOP);
-	WM_modalkeymap_add_item(keymap, DKEY, KM_RELEASE, KM_ANY, 0, WALK_MODAL_DIR_RIGHT_STOP);
-	WM_modalkeymap_add_item(keymap, EKEY, KM_RELEASE, KM_ANY, 0, WALK_MODAL_DIR_UP_STOP);
-	WM_modalkeymap_add_item(keymap, QKEY, KM_RELEASE, KM_ANY, 0, WALK_MODAL_DIR_DOWN_STOP);
-
-	WM_modalkeymap_add_item(keymap, UPARROWKEY, KM_PRESS, 0, 0, WALK_MODAL_DIR_FORWARD);
-	WM_modalkeymap_add_item(keymap, DOWNARROWKEY, KM_PRESS, 0, 0, WALK_MODAL_DIR_BACKWARD);
-	WM_modalkeymap_add_item(keymap, LEFTARROWKEY, KM_PRESS, 0, 0, WALK_MODAL_DIR_LEFT);
-	WM_modalkeymap_add_item(keymap, RIGHTARROWKEY, KM_PRESS, 0, 0, WALK_MODAL_DIR_RIGHT);
-
-	WM_modalkeymap_add_item(keymap, UPARROWKEY, KM_RELEASE, KM_ANY, 0, WALK_MODAL_DIR_FORWARD_STOP);
-	WM_modalkeymap_add_item(keymap, DOWNARROWKEY, KM_RELEASE, KM_ANY, 0, WALK_MODAL_DIR_BACKWARD_STOP);
-	WM_modalkeymap_add_item(keymap, LEFTARROWKEY, KM_RELEASE, KM_ANY, 0, WALK_MODAL_DIR_LEFT_STOP);
-	WM_modalkeymap_add_item(keymap, RIGHTARROWKEY, KM_RELEASE, KM_ANY, 0, WALK_MODAL_DIR_RIGHT_STOP);
-
-	WM_modalkeymap_add_item(keymap, TABKEY, KM_PRESS, 0, 0, WALK_MODAL_TOGGLE);
-	WM_modalkeymap_add_item(keymap, GKEY, KM_PRESS, 0, 0, WALK_MODAL_TOGGLE);
-
-	WM_modalkeymap_add_item(keymap, VKEY, KM_PRESS, KM_ANY, 0, WALK_MODAL_JUMP);
-	WM_modalkeymap_add_item(keymap, VKEY, KM_RELEASE, KM_ANY, 0, WALK_MODAL_JUMP_STOP);
-
-	WM_modalkeymap_add_item(keymap, SPACEKEY, KM_PRESS, KM_ANY, 0, WALK_MODAL_TELEPORT);
-	WM_modalkeymap_add_item(keymap, MIDDLEMOUSE, KM_ANY, KM_ANY, 0, WALK_MODAL_TELEPORT);
-
-	WM_modalkeymap_add_item(keymap, PADPLUSKEY, KM_PRESS, KM_ANY, 0, WALK_MODAL_ACCELERATE);
-	WM_modalkeymap_add_item(keymap, PADMINUS, KM_PRESS, KM_ANY, 0, WALK_MODAL_DECELERATE);
-	WM_modalkeymap_add_item(keymap, WHEELUPMOUSE, KM_PRESS, KM_ANY, 0, WALK_MODAL_ACCELERATE);
-	WM_modalkeymap_add_item(keymap, WHEELDOWNMOUSE, KM_PRESS, KM_ANY, 0, WALK_MODAL_DECELERATE);
-
 	/* assign map to operators */
 	WM_modalkeymap_assign(keymap, "VIEW3D_OT_walk");
 }
@@ -333,7 +280,7 @@ static void drawWalkPixel(const struct bContext *UNUSED(C), ARegion *ar, void *a
 	int xoff, yoff;
 	rctf viewborder;
 
-	if (walk->scene->camera) {
+	if (ED_view3d_cameracontrol_object_get(walk->v3d_camera_control)) {
 		ED_view3d_calc_camera_border(walk->scene, walk->depsgraph, ar, walk->v3d, walk->rv3d, &viewborder, false);
 		xoff = viewborder.xmin + BLI_rctf_size_x(&viewborder) * 0.5f;
 		yoff = viewborder.ymin + BLI_rctf_size_y(&viewborder) * 0.5f;
@@ -422,7 +369,7 @@ static void walk_navigation_mode_set(bContext *C, wmOperator *op, WalkInfo *walk
 }
 
 /**
- * \param r_distance  Distance to the hit point
+ * \param r_distance: Distance to the hit point
  */
 static bool walk_floor_distance_get(
         RegionView3D *rv3d, WalkInfo *walk, const float dvec[3],
@@ -450,15 +397,15 @@ static bool walk_floor_distance_get(
 	        ray_start, ray_normal, r_distance,
 	        r_location, r_normal_dummy);
 
-	/* artifically scale the distance to the scene size */
+	/* artificially scale the distance to the scene size */
 	*r_distance /= walk->grid;
 	return ret;
 }
 
 /**
- * \param ray_distance  Distance to the hit point
- * \param r_location  Location of the hit point
- * \param r_normal  Normal of the hit surface, transformed to always face the camera
+ * \param ray_distance: Distance to the hit point
+ * \param r_location: Location of the hit point
+ * \param r_normal: Normal of the hit surface, transformed to always face the camera
  */
 static bool walk_ray_cast(
         RegionView3D *rv3d, WalkInfo *walk,
@@ -489,7 +436,7 @@ static bool walk_ray_cast(
 		negate_v3(r_normal);
 	}
 
-	/* artifically scale the distance to the scene size */
+	/* artificially scale the distance to the scene size */
 	*ray_distance /= walk->grid;
 
 	return ret;
@@ -1069,7 +1016,7 @@ static int walkApply(bContext *C, wmOperator *op, WalkInfo *walk)
 					/* speed factor */
 					y *= WALK_ROTATE_FAC;
 
-					/* user adjustement factor */
+					/* user adjustment factor */
 					y *= walk->mouse_speed;
 
 					/* clamp the angle limits */
@@ -1107,7 +1054,7 @@ static int walkApply(bContext *C, wmOperator *op, WalkInfo *walk)
 					/* speed factor */
 					x *= WALK_ROTATE_FAC;
 
-					/* user adjustement factor */
+					/* user adjustment factor */
 					x *= walk->mouse_speed;
 
 					/* Rotate about the relative up vec */

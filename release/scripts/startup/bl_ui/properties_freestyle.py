@@ -47,14 +47,14 @@ class RENDER_PT_freestyle(RenderFreestyleButtonsPanel, Panel):
 
     def draw(self, context):
         layout = self.layout
+        layout.use_property_split = True
+        layout.use_property_decorate = False  # No animation.
 
         rd = context.scene.render
 
         layout.active = rd.use_freestyle
 
-        row = layout.row()
-        row.label(text="Line Thickness:")
-        row.prop(rd, "line_thickness_mode", expand=True)
+        layout.prop(rd, "line_thickness_mode", expand=True)
 
         if (rd.line_thickness_mode == 'ABSOLUTE'):
             layout.prop(rd, "line_thickness")
@@ -116,7 +116,6 @@ class VIEWLAYER_PT_freestyle(ViewLayerFreestyleButtonsPanel, Panel):
     def draw(self, context):
         layout = self.layout
 
-        scene = context.scene
         view_layer = context.view_layer
         freestyle = view_layer.freestyle_settings
 
@@ -153,13 +152,13 @@ class VIEWLAYER_PT_freestyle(ViewLayerFreestyleButtonsPanel, Panel):
             row = layout.row()
             row.label(text="Style modules:")
             row.operator("scene.freestyle_module_add", text="Add")
-            for i, module in enumerate(freestyle.modules):
+            for module in freestyle.modules:
                 box = layout.box()
                 box.context_pointer_set("freestyle_module", module)
                 row = box.row(align=True)
                 row.prop(module, "use", text="")
                 row.prop(module, "script", text="")
-                row.operator("scene.freestyle_module_open", icon='FILESEL', text="")
+                row.operator("scene.freestyle_module_open", icon='FILEBROWSER', text="")
                 row.operator("scene.freestyle_module_remove", icon='X', text="")
                 row.operator("scene.freestyle_module_move", icon='TRIA_UP', text="").direction = 'UP'
                 row.operator("scene.freestyle_module_move", icon='TRIA_DOWN', text="").direction = 'DOWN'
@@ -183,9 +182,6 @@ class VIEWLAYER_PT_freestyle_lineset(ViewLayerFreestyleEditorButtonsPanel, Panel
     def draw(self, context):
         layout = self.layout
 
-        scene = context.scene
-        rd = scene.render
-
         view_layer = context.view_layer
         freestyle = view_layer.freestyle_settings
         lineset = freestyle.linesets.active
@@ -197,8 +193,8 @@ class VIEWLAYER_PT_freestyle_lineset(ViewLayerFreestyleEditorButtonsPanel, Panel
         row.template_list("VIEWLAYER_UL_linesets", "", freestyle, "linesets", freestyle.linesets, "active_index", rows=rows)
 
         sub = row.column(align=True)
-        sub.operator("scene.freestyle_lineset_add", icon='ZOOMIN', text="")
-        sub.operator("scene.freestyle_lineset_remove", icon='ZOOMOUT', text="")
+        sub.operator("scene.freestyle_lineset_add", icon='ADD', text="")
+        sub.operator("scene.freestyle_lineset_remove", icon='REMOVE', text="")
         sub.menu("RENDER_MT_lineset_specials", icon='DOWNARROW_HLT', text="")
         if lineset:
             sub.separator()
@@ -212,7 +208,7 @@ class VIEWLAYER_PT_freestyle_lineset(ViewLayerFreestyleEditorButtonsPanel, Panel
             row.prop(lineset, "select_by_visibility", text="Visibility", toggle=True)
             row.prop(lineset, "select_by_edge_types", text="Edge Types", toggle=True)
             row.prop(lineset, "select_by_face_marks", text="Face Marks", toggle=True)
-            row.prop(lineset, "select_by_group", text="Group", toggle=True)
+            row.prop(lineset, "select_by_collection", text="Collection", toggle=True)
             row.prop(lineset, "select_by_image_border", text="Image Border", toggle=True)
 
             if lineset.select_by_visibility:
@@ -251,11 +247,11 @@ class VIEWLAYER_PT_freestyle_lineset(ViewLayerFreestyleEditorButtonsPanel, Panel
                 row.prop(lineset, "face_mark_negation", expand=True)
                 row.prop(lineset, "face_mark_condition", expand=True)
 
-            if lineset.select_by_group:
-                col.label(text="Group:")
+            if lineset.select_by_collection:
+                col.label(text="Collection:")
                 row = col.row()
-                row.prop(lineset, "group", text="")
-                row.prop(lineset, "group_negation", expand=True)
+                row.prop(lineset, "collection", text="")
+                row.prop(lineset, "collection_negation", expand=True)
 
 
 class VIEWLAYER_PT_freestyle_linestyle(ViewLayerFreestyleEditorButtonsPanel, Panel):
@@ -613,7 +609,6 @@ class VIEWLAYER_PT_freestyle_linestyle(ViewLayerFreestyleEditorButtonsPanel, Pan
     def draw(self, context):
         layout = self.layout
 
-        scene = context.scene
         view_layer = context.view_layer
         lineset = view_layer.freestyle_settings.linesets.active
 
@@ -809,8 +804,10 @@ class MaterialFreestyleButtonsPanel:
         scene = context.scene
         material = context.material
         with_freestyle = bpy.app.build_options.freestyle
-        return with_freestyle and material and scene and scene.render.use_freestyle and \
+        return (
+            with_freestyle and material and scene and scene.render.use_freestyle and
             (context.engine in cls.COMPAT_ENGINES)
+        )
 
 
 class MATERIAL_PT_freestyle_line(MaterialFreestyleButtonsPanel, Panel):

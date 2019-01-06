@@ -24,7 +24,7 @@
  */
 
 /** \file cage2d_gizmo.c
- *  \ingroup wm
+ *  \ingroup edgizmolib
  *
  * \name Cage Gizmo
  *
@@ -413,7 +413,7 @@ static void cage2d_draw_box_interaction(
 		if (is_solid) {
 			BLI_assert(ELEM(prim_type, GPU_PRIM_TRI_FAN));
 			immBegin(prim_type, verts_len);
-			immAttrib3f(attr_id.col, 0.0f, 0.0f, 0.0f);
+			immAttr3f(attr_id.col, 0.0f, 0.0f, 0.0f);
 			for (uint i = 0; i < verts_len; i++) {
 				immVertex2fv(attr_id.pos, verts[i]);
 			}
@@ -424,7 +424,7 @@ static void cage2d_draw_box_interaction(
 			GPU_line_width(line_width + 3.0f);
 
 			immBegin(prim_type, verts_len);
-			immAttrib3f(attr_id.col, 0.0f, 0.0f, 0.0f);
+			immAttr3f(attr_id.col, 0.0f, 0.0f, 0.0f);
 			for (uint i = 0; i < verts_len; i++) {
 				immVertex2fv(attr_id.pos, verts[i]);
 			}
@@ -433,7 +433,7 @@ static void cage2d_draw_box_interaction(
 			GPU_line_width(line_width);
 
 			immBegin(prim_type, verts_len);
-			immAttrib3fv(attr_id.col, color);
+			immAttr3fv(attr_id.col, color);
 			for (uint i = 0; i < verts_len; i++) {
 				immVertex2fv(attr_id.pos, verts[i]);
 			}
@@ -761,10 +761,10 @@ static int gizmo_cage2d_test_select(
 
 	/* if gizmo does not have a scale intersection, don't do it */
 	if (transform_flag & (ED_GIZMO_CAGE2D_XFORM_FLAG_SCALE | ED_GIZMO_CAGE2D_XFORM_FLAG_SCALE_UNIFORM)) {
-		const rctf r_xmin = {.xmin = -size[0], .ymin = -size[1], .xmax = -size[0] + margin[0], .ymax = size[1]};
-		const rctf r_xmax = {.xmin = size[0] - margin[0], .ymin = -size[1], .xmax = size[0], .ymax = size[1]};
-		const rctf r_ymin = {.xmin = -size[0], .ymin = -size[1], .xmax = size[0], .ymax = -size[1] + margin[1]};
-		const rctf r_ymax = {.xmin = -size[0], .ymin = size[1] - margin[1], .xmax = size[0], .ymax = size[1]};
+		const rctf r_xmin = { .xmin = -size[0], .ymin = -size[1], .xmax = -size[0] + margin[0], .ymax = size[1], };
+		const rctf r_xmax = { .xmin = size[0] - margin[0], .ymin = -size[1], .xmax = size[0], .ymax = size[1], };
+		const rctf r_ymin = { .xmin = -size[0], .ymin = -size[1], .xmax = size[0], .ymax = -size[1] + margin[1], };
+		const rctf r_ymax = { .xmin = -size[0], .ymin = size[1] - margin[1], .xmax = size[0], .ymax = size[1], };
 
 		if (BLI_rctf_isect_pt_v(&r_xmin, point_local)) {
 			if (BLI_rctf_isect_pt_v(&r_ymin, point_local)) {
@@ -849,7 +849,10 @@ static int gizmo_cage2d_modal(
         bContext *C, wmGizmo *gz, const wmEvent *event,
         eWM_GizmoFlagTweak UNUSED(tweak_flag))
 {
-	/* For transform logic to be managable we operate in -0.5..0.5 2D space,
+	if (event->type != MOUSEMOVE) {
+		return OPERATOR_RUNNING_MODAL;
+	}
+	/* For transform logic to be manageable we operate in -0.5..0.5 2D space,
 	 * no matter the size of the rectangle, mouse coorts are scaled to unit space.
 	 * The mouse coords have been projected into the matrix so we don't need to worry about axis alignment.
 	 *

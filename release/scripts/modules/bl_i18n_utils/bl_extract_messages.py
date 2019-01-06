@@ -379,7 +379,8 @@ def dump_rna_messages(msgs, reports, settings, verbose=False):
         km_i18n_context = bpy.app.translations.contexts.id_windowmanager
         for lvl in hier:
             msgsrc = msgsrc_prev + "." + lvl[1]
-            process_msg(msgs, km_i18n_context, lvl[0], msgsrc, reports, None, settings)
+            if isinstance(lvl[0], str):  # Can be a function too, now, with tool system...
+                process_msg(msgs, km_i18n_context, lvl[0], msgsrc, reports, None, settings)
             if lvl[3]:
                 walk_keymap_hierarchy(lvl[3], msgsrc)
 
@@ -437,8 +438,8 @@ def dump_rna_messages(msgs, reports, settings, verbose=False):
                     reports, check_ctxt_rna, settings)
 
     # And parse keymaps!
-    from bpy_extras.keyconfig_utils import KM_HIERARCHY
-    walk_keymap_hierarchy(KM_HIERARCHY, "KM_HIERARCHY")
+    from bl_keymap_utils import keymap_hierarchy
+    walk_keymap_hierarchy(keymap_hierarchy.generate(), "KM_HIERARCHY")
 
 
 ##### Python source code #####
@@ -545,7 +546,7 @@ def dump_py_messages_from_files(msgs, reports, files, settings):
         for n in opname.split('.'):
             op = getattr(op, n)
         try:
-            return op.get_rna().bl_rna.translation_context
+            return op.get_rna_type().translation_context
         except Exception as e:
             default_op_context = i18n_contexts.operator_default
             print("ERROR: ", str(e))
@@ -987,7 +988,7 @@ def main():
     args = parser.parse_args(argv)
 
     settings = settings_i18n.I18nSettings()
-    settings.from_json(args.settings)
+    settings.load(args.settings)
 
     if args.output:
         settings.FILE_NAME_POT = args.output

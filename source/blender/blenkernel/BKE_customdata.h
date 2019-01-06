@@ -82,6 +82,7 @@ void customData_mask_layers__print(CustomDataMask mask);
 
 typedef void (*cd_interp)(const void **sources, const float *weights, const float *sub_weights, int count, void *dest);
 typedef void (*cd_copy)(const void *source, void *dest, int count);
+typedef bool (*cd_validate)(void *item, const uint totitems, const bool do_fixes);
 
 /**
  * Checks if the layer at physical offset \a layer_n (in data->layers) support math
@@ -224,12 +225,19 @@ void CustomData_copy_data(const struct CustomData *source,
                           struct CustomData *dest, int source_index,
                           int dest_index, int count);
 void CustomData_copy_data_named(const struct CustomData *source,
-                          struct CustomData *dest, int source_index,
-                          int dest_index, int count);
+                                struct CustomData *dest, int source_index,
+                                int dest_index, int count);
 void CustomData_copy_elements(int type, void *src_data_ofs, void *dst_data_ofs, int count);
 void CustomData_bmesh_copy_data(const struct CustomData *source,
                                 struct CustomData *dest, void *src_block,
                                 void **dest_block);
+
+/* Copies data of a single layer of a given type. */
+void CustomData_copy_layer_type_data(const struct CustomData *source,
+                                     struct CustomData *destination,
+                                     int type,
+                                     int source_index, int destination_index,
+                                     int count);
 
 /* frees data in a CustomData object
  * return 1 on success, 0 on failure
@@ -392,6 +400,9 @@ void CustomData_bmesh_init_pool(struct CustomData *data, int totelem, const char
 bool CustomData_from_bmeshpoly_test(CustomData *fdata, CustomData *ldata, bool fallback);
 #endif
 
+/* Layer data validation. */
+bool CustomData_layer_validate(struct CustomDataLayer *layer, const uint totitems, const bool do_fixes);
+
 /* External file storage */
 
 void CustomData_external_add(struct CustomData *data,
@@ -477,7 +488,7 @@ typedef struct CustomDataTransferLayerMap {
 
 	size_t data_size;    /* Size of actual data we transfer. */
 	size_t data_offset;  /* Offset of actual data we transfer (in element contained in data_src/dst). */
-	uint64_t data_flag;  /* For bitflag transfer, flag(s) to affect in transfered data. */
+	uint64_t data_flag;  /* For bitflag transfer, flag(s) to affect in transferred data. */
 
 	void *interp_data;   /* Opaque pointer, to be used by specific interp callback (e.g. transformspace for normals). */
 

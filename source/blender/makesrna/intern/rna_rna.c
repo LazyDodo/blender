@@ -751,46 +751,27 @@ static bool rna_NumberProperty_is_array_get(PointerRNA *ptr)
 static void rna_IntProperty_default_array_get(PointerRNA *ptr, int *values)
 {
 	PropertyRNA *prop = (PropertyRNA *)ptr->data;
-	IntPropertyRNA *nprop = (IntPropertyRNA *)prop;
 	rna_idproperty_check(&prop, ptr);
-
-	if (nprop->defaultarray) {
-		memcpy(values, nprop->defaultarray, prop->totarraylength * sizeof(int));
-	}
-	else {
-		int i;
-		for (i = 0; i < prop->totarraylength; i++)
-			values[i] = nprop->defaultvalue;
+	if (prop->totarraylength > 0) {
+		RNA_property_int_get_default_array(ptr, prop, values);
 	}
 }
+
 static void rna_BoolProperty_default_array_get(PointerRNA *ptr, bool *values)
 {
 	PropertyRNA *prop = (PropertyRNA *)ptr->data;
-	BoolPropertyRNA *nprop = (BoolPropertyRNA *)prop;
 	rna_idproperty_check(&prop, ptr);
-
-	if (nprop->defaultarray) {
-		memcpy(values, nprop->defaultarray, prop->totarraylength * sizeof(bool));
-	}
-	else {
-		int i;
-		for (i = 0; i < prop->totarraylength; i++)
-			values[i] = nprop->defaultvalue;
+	if (prop->totarraylength > 0) {
+		RNA_property_boolean_get_default_array(ptr, prop, values);
 	}
 }
+
 static void rna_FloatProperty_default_array_get(PointerRNA *ptr, float *values)
 {
 	PropertyRNA *prop = (PropertyRNA *)ptr->data;
-	FloatPropertyRNA *nprop = (FloatPropertyRNA *)prop;
 	rna_idproperty_check(&prop, ptr);
-
-	if (nprop->defaultarray) {
-		memcpy(values, nprop->defaultarray, prop->totarraylength * sizeof(float));
-	}
-	else {
-		int i;
-		for (i = 0; i < prop->totarraylength; i++)
-			values[i] = nprop->defaultvalue;
+	if (prop->totarraylength > 0) {
+		RNA_property_float_get_default_array(ptr, prop, values);
 	}
 }
 
@@ -897,8 +878,9 @@ static int rna_StringProperty_max_length_get(PointerRNA *ptr)
 	return ((StringPropertyRNA *)prop)->maxlength;
 }
 
-static const EnumPropertyItem *rna_EnumProperty_default_itemf(bContext *C, PointerRNA *ptr,
-                                                        PropertyRNA *prop_parent, bool *r_free)
+static const EnumPropertyItem *rna_EnumProperty_default_itemf(
+        bContext *C, PointerRNA *ptr,
+        PropertyRNA *prop_parent, bool *r_free)
 {
 	PropertyRNA *prop = (PropertyRNA *)ptr->data;
 	EnumPropertyRNA *eprop;
@@ -1333,7 +1315,7 @@ int rna_property_override_diff_default(
 						}
 					}
 					else {
-						/* Already overriden prop, we'll have to check arrays items etc. */
+						/* Already overridden prop, we'll have to check arrays items etc. */
 					}
 				}
 
@@ -1391,7 +1373,7 @@ int rna_property_override_diff_default(
 						}
 					}
 					else {
-						/* Already overriden prop, we'll have to check arrays items etc. */
+						/* Already overridden prop, we'll have to check arrays items etc. */
 					}
 				}
 
@@ -1450,7 +1432,7 @@ int rna_property_override_diff_default(
 						}
 					}
 					else {
-						/* Already overriden prop, we'll have to check arrays items etc. */
+						/* Already overridden prop, we'll have to check arrays items etc. */
 					}
 				}
 
@@ -1788,7 +1770,7 @@ bool rna_property_override_store_default(
 	}
 
 	/* XXX TODO About range limits.
-	 * Ideally, it woudl be great to get rid of RNA range in that specific case.
+	 * Ideally, it would be great to get rid of RNA range in that specific case.
 	 * However, this won't be that easy and will add yet another layer of complexity in generated code,
 	 * not to mention that we could most likely *not* bypass custom setters anyway.
 	 * So for now, if needed second operand value is not in valid range, we simply fall back

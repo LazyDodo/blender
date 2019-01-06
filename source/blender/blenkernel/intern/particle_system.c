@@ -369,7 +369,7 @@ void psys_calc_dmcache(Object *ob, Mesh *mesh_final, Mesh *mesh_original, Partic
 
 		for (i=0, node=nodedmelem; i<totdmelem; i++, node++) {
 			int origindex_final;
-			node->link = SET_INT_IN_POINTER(i);
+			node->link = POINTER_FROM_INT(i);
 
 			/* may be vertex or face origindex */
 			if (use_modifier_stack) {
@@ -412,7 +412,7 @@ void psys_calc_dmcache(Object *ob, Mesh *mesh_final, Mesh *mesh_original, Partic
 			else {
 				if (psys->part->from == PART_FROM_VERT) {
 					if (pa->num < totelem && nodearray[pa->num])
-						pa->num_dmcache= GET_INT_FROM_POINTER(nodearray[pa->num]->link);
+						pa->num_dmcache= POINTER_AS_INT(nodearray[pa->num]->link);
 					else
 						pa->num_dmcache = DMCACHE_NOTFOUND;
 				}
@@ -1550,7 +1550,7 @@ static EdgeHash *sph_springhash_build(ParticleSystem *psys)
 	springhash = BLI_edgehash_new_ex(__func__, psys->tot_fluidsprings);
 
 	for (i=0, spring=psys->fluid_springs; i<psys->tot_fluidsprings; i++, spring++)
-		BLI_edgehash_insert(springhash, spring->particle_index[0], spring->particle_index[1], SET_INT_IN_POINTER(i+1));
+		BLI_edgehash_insert(springhash, spring->particle_index[0], spring->particle_index[1], POINTER_FROM_INT(i+1));
 
 	return springhash;
 }
@@ -1614,9 +1614,9 @@ static void sph_density_accum_cb(void *userdata, int index, const float co[3], f
 
 	/* Ugh! One particle has too many neighbors! If some aren't taken into
 	 * account, the forces will be biased by the tree search order. This
-	 * effectively adds enery to the system, and results in a churning motion.
+	 * effectively adds energy to the system, and results in a churning motion.
 	 * But, we have to stop somewhere, and it's not the end of the world.
-	 *  - jahka and z0r
+	 * - jahka and z0r
 	 */
 	if (pfr->tot_neighbors >= SPH_NEIGHBORS)
 		return;
@@ -1752,7 +1752,7 @@ static void sph_force_cb(void *sphdata_v, ParticleKey *state, float *force, floa
 			/* Viscoelastic spring force */
 			if (pfn->psys == psys[0] && fluid->flag & SPH_VISCOELASTIC_SPRINGS && springhash) {
 				/* BLI_edgehash_lookup appears to be thread-safe. - z0r */
-				spring_index = GET_INT_FROM_POINTER(BLI_edgehash_lookup(springhash, index, pfn->index));
+				spring_index = POINTER_AS_INT(BLI_edgehash_lookup(springhash, index, pfn->index));
 
 				if (spring_index) {
 					spring = psys[0]->fluid_springs + spring_index - 1;
@@ -2192,7 +2192,7 @@ static void basic_rotate(ParticleSettings *part, ParticleData *pa, float dfra, f
 }
 
 /************************************************
- *			Collisions
+ * Collisions
  *
  * The algorithm is roughly:
  *  1. Use a BVH tree to search for faces that a particle may collide with.
@@ -2916,10 +2916,10 @@ static void psys_update_path_cache(ParticleSimulationData *sim, float cfra, cons
 	ParticleEditSettings *pset = &sim->scene->toolsettings->particle;
 	int distr=0, alloc=0, skip=0;
 
-	if ((psys->part->childtype && psys->totchild != psys_get_tot_child(sim->scene, psys, use_render_params)) || psys->recalc&PSYS_RECALC_RESET)
+	if ((psys->part->childtype && psys->totchild != psys_get_tot_child(sim->scene, psys, use_render_params)) || psys->recalc&ID_RECALC_PSYS_RESET)
 		alloc=1;
 
-	if (alloc || psys->recalc&PSYS_RECALC_CHILD || (psys->vgroup[PSYS_VG_DENSITY] && (sim->ob && sim->ob->mode & OB_MODE_WEIGHT_PAINT)))
+	if (alloc || psys->recalc&ID_RECALC_PSYS_CHILD || (psys->vgroup[PSYS_VG_DENSITY] && (sim->ob && sim->ob->mode & OB_MODE_WEIGHT_PAINT)))
 		distr=1;
 
 	if (distr) {
@@ -3170,8 +3170,7 @@ static void do_hair_dynamics(ParticleSimulationData *sim)
 	if (!psys->clmd) {
 		psys->clmd = (ClothModifierData*)modifier_new(eModifierType_Cloth);
 		psys->clmd->sim_parms->goalspring = 0.0f;
-		psys->clmd->sim_parms->vel_damping = 1.0f;
-		psys->clmd->sim_parms->flags |= CLOTH_SIMSETTINGS_FLAG_GOAL|CLOTH_SIMSETTINGS_FLAG_RESIST_SPRING_COMPRESS;
+		psys->clmd->sim_parms->flags |= CLOTH_SIMSETTINGS_FLAG_RESIST_SPRING_COMPRESS;
 		psys->clmd->coll_parms->flags &= ~CLOTH_COLLSETTINGS_FLAG_SELF;
 	}
 
@@ -3249,7 +3248,7 @@ static void hair_step(ParticleSimulationData *sim, float cfra, const bool use_re
 			pa->flag &= ~PARS_NO_DISP;
 	}
 
-	if (psys->recalc & PSYS_RECALC_RESET) {
+	if (psys->recalc & ID_RECALC_PSYS_RESET) {
 		/* need this for changing subsurf levels */
 		psys_calc_dmcache(sim->ob, sim->psmd->mesh_final, sim->psmd->mesh_original, psys);
 
@@ -3965,7 +3964,7 @@ static void system_step(ParticleSimulationData *sim, float cfra, const bool use_
 		BKE_ptcache_id_time(pid, sim->scene, 0.0f, &startframe, &endframe, NULL);
 
 		/* clear everything on start frame, or when psys needs full reset! */
-		if ((cfra == startframe) || (psys->recalc & PSYS_RECALC_RESET)) {
+		if ((cfra == startframe) || (psys->recalc & ID_RECALC_PSYS_RESET)) {
 			BKE_ptcache_id_reset(sim->scene, pid, PTCACHE_RESET_OUTDATED);
 			BKE_ptcache_validate(cache, startframe);
 			cache->flag &= ~PTCACHE_REDO_NEEDED;
@@ -3976,7 +3975,7 @@ static void system_step(ParticleSimulationData *sim, float cfra, const bool use_
 
 /* 1. emit particles and redo particles if needed */
 	oldtotpart = psys->totpart;
-	if (emit_particles(sim, pid, cfra) || psys->recalc & PSYS_RECALC_RESET) {
+	if (emit_particles(sim, pid, cfra) || psys->recalc & ID_RECALC_PSYS_RESET) {
 		distribute_particles(sim, part->from);
 		initialize_all_particles(sim);
 		/* reset only just created particles (on startframe all particles are recreated) */
@@ -4069,9 +4068,7 @@ static void system_step(ParticleSimulationData *sim, float cfra, const bool use_
 				sim->courant_num = 0.0f;
 				dynamics_step(sim, cfra+dframe+t_frac - 1.f);
 				psys->cfra = cfra+dframe+t_frac - 1.f;
-#if 0
-				printf("%f,%f,%f,%f\n", cfra+dframe+t_frac - 1.f, t_frac, dt_frac, sim->courant_num);
-#endif
+
 				if (part->time_flag & PART_TIME_AUTOSF)
 					update_timestep(psys, sim);
 				/* Even without AUTOSF dt_frac may not add up to 1.0 due to float precision. */
@@ -4203,7 +4200,7 @@ static void psys_prepare_physics(ParticleSimulationData *sim)
 static int hair_needs_recalc(ParticleSystem *psys)
 {
 	if (!(psys->flag & PSYS_EDITED) && (!psys->edit || !psys->edit->edited) &&
-	    ((psys->flag & PSYS_HAIR_DONE)==0 || psys->recalc & PSYS_RECALC_RESET || (psys->part->flag & PART_HAIR_REGROW && !psys->edit)))
+	    ((psys->flag & PSYS_HAIR_DONE)==0 || psys->recalc & ID_RECALC_PSYS_RESET || (psys->part->flag & PART_HAIR_REGROW && !psys->edit)))
 	{
 		return 1;
 	}
@@ -4256,7 +4253,7 @@ void particle_system_update(struct Depsgraph *depsgraph, Scene *scene, Object *o
 	/* to verify if we need to restore object afterwards */
 	psys->flag &= ~PSYS_OB_ANIM_RESTORE;
 
-	if (psys->recalc & PSYS_RECALC_RESET)
+	if (psys->recalc & ID_RECALC_PSYS_RESET)
 		psys->totunexist = 0;
 
 	/* setup necessary physics type dependent additional data if it doesn't yet exist */
@@ -4323,10 +4320,10 @@ void particle_system_update(struct Depsgraph *depsgraph, Scene *scene, Object *o
 					bool free_unexisting = false;
 
 					/* Particles without dynamics haven't been reset yet because they don't use pointcache */
-					if (psys->recalc & PSYS_RECALC_RESET)
+					if (psys->recalc & ID_RECALC_PSYS_RESET)
 						psys_reset(psys, PSYS_RESET_ALL);
 
-					if (emit_particles(&sim, NULL, cfra) || (psys->recalc & PSYS_RECALC_RESET)) {
+					if (emit_particles(&sim, NULL, cfra) || (psys->recalc & ID_RECALC_PSYS_RESET)) {
 						free_keyed_keys(psys);
 						distribute_particles(&sim, part->from);
 						initialize_all_particles(&sim);
@@ -4349,7 +4346,7 @@ void particle_system_update(struct Depsgraph *depsgraph, Scene *scene, Object *o
 							pa->flag &= ~PARS_NO_DISP;
 					}
 
-					/* free unexisting after reseting particles */
+					/* free unexisting after resetting particles */
 					if (free_unexisting)
 						free_unexisting_particles(&sim);
 
@@ -4389,7 +4386,7 @@ void particle_system_update(struct Depsgraph *depsgraph, Scene *scene, Object *o
 				psys_orig->edit->psys_eval = psys;
 				psys_orig->edit->psmd_eval = psmd;
 			}
-			psys_orig->flag = psys->flag;
+			psys_orig->flag = (psys->flag & ~PSYS_SHARED_CACHES);
 		}
 	}
 
@@ -4430,16 +4427,25 @@ void BKE_particlesystem_id_loop(ParticleSystem *psys, ParticleSystemIDFunc func,
 
 /* **** Depsgraph evaluation **** */
 
-void BKE_particle_system_eval_init(struct Depsgraph *depsgraph,
-                                   Scene *scene,
-                                   Object *ob)
+void BKE_particle_settings_eval_reset(
+        struct Depsgraph *depsgraph,
+        ParticleSettings *particle_settings)
 {
-	DEG_debug_print_eval(depsgraph, __func__, ob->id.name, ob);
-	for (ParticleSystem *psys = ob->particlesystem.first;
+	DEG_debug_print_eval(depsgraph,
+	                     __func__,
+	                     particle_settings->id.name,
+	                     particle_settings);
+	particle_settings->id.recalc |= ID_RECALC_PSYS_RESET;
+}
+
+void BKE_particle_system_eval_init(struct Depsgraph *depsgraph,
+                                   Object *object)
+{
+	DEG_debug_print_eval(depsgraph, __func__, object->id.name, object);
+	for (ParticleSystem *psys = object->particlesystem.first;
 	     psys != NULL;
 	     psys = psys->next)
 	{
-		psys->recalc |= (psys->part->id.recalc & DEG_TAG_PSYS_ALL);
+		psys->recalc |= (psys->part->id.recalc & ID_RECALC_PSYS_ALL);
 	}
-	BKE_ptcache_object_reset(scene, ob, PTCACHE_RESET_DEPSGRAPH);
 }

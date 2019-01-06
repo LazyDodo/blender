@@ -39,6 +39,7 @@
 #include "BLI_rect.h"
 #include "BLI_listbase.h"
 #include "BLI_utildefines.h"
+#include "BLI_math_color.h"
 
 #include "BKE_context.h"
 #include "BKE_screen.h"
@@ -80,6 +81,14 @@ static bool last_redo_poll(const bContext *C)
 		success = WM_operator_poll((bContext *)C, op->type);
 	}
 	return success;
+}
+
+static void hud_region_hide(ARegion *ar)
+{
+	ar->flag |= RGN_FLAG_HIDDEN;
+	/* Avoids setting 'AREA_FLAG_REGION_SIZE_UPDATE'
+	 * since other regions don't depend on this. */
+	BLI_rcti_init(&ar->winrct, 0, 0, 0, 0);
 }
 
 /** \} */
@@ -125,6 +134,7 @@ static void hud_panels_register(ARegionType *art, int space_type, int region_typ
 	pt->poll = hud_panel_operator_redo_poll;
 	pt->space_type = space_type;
 	pt->region_type = region_type;
+	pt->flag |= PNL_DEFAULT_CLOSED;
 	BLI_addtail(&art->paneltypes, pt);
 }
 
@@ -168,7 +178,7 @@ static void hud_region_layout(const bContext *C, ARegion *ar)
 
 	if (!ok) {
 		ED_region_tag_redraw(ar);
-		ar->flag |= RGN_FLAG_HIDDEN;
+		hud_region_hide(ar);
 		return;
 	}
 
@@ -178,13 +188,17 @@ static void hud_region_layout(const bContext *C, ARegion *ar)
 
 	if (ar->panels.first && (ar->sizey != size_y)) {
 		View2D *v2d = &ar->v2d;
-		ar->winx = ar->sizex;
-		ar->winy = ar->sizey;
+		ar->winx = ar->sizex * UI_DPI_FAC;
+		ar->winy = ar->sizey * UI_DPI_FAC;
 
 		ar->winrct.xmax = (ar->winrct.xmin + ar->winx) - 1;
 		ar->winrct.ymax = (ar->winrct.ymin + ar->winy) - 1;
 
 		UI_view2d_region_reinit(v2d, V2D_COMMONVIEW_PANELS_UI, ar->winx, ar->winy);
+
+		/* Weak, but needed to avoid glitches, especially with hi-dpi (where resizing the view glitches often).
+		 * Fortunately this only happens occasionally. */
+		ED_region_panels_layout(C, ar);
 	}
 
 	/* restore view matrix */
@@ -199,12 +213,7 @@ static void hud_region_draw(const bContext *C, ARegion *ar)
 	GPU_clear(GPU_COLOR_BIT);
 
 	if ((ar->flag & RGN_FLAG_HIDDEN) == 0) {
-		float color[4];
-		UI_GetThemeColor4fv(TH_BUTBACK, color);
-		if ((U.uiflag2 & USER_REGION_OVERLAP) == 0) {
-			color[3] = 1.0f;
-		}
-		ui_draw_widget_back_color(UI_WTYPE_BOX, false, &(rcti){.xmax = ar->winx, .ymax = ar->winy}, color);
+		ui_draw_menu_back(NULL, NULL, &(rcti){.xmax = ar->winx, .ymax = ar->winy});
 		ED_region_panels_draw(C, ar);
 	}
 }
@@ -252,7 +261,7 @@ void ED_area_type_hud_clear(wmWindowManager *wm, ScrArea *sa_keep)
 				for (ARegion *ar = sa->regionbase.first; ar; ar = ar->next) {
 					if (ar->regiontype == RGN_TYPE_HUD) {
 						if ((ar->flag & RGN_FLAG_HIDDEN) == 0) {
-							ar->flag |= RGN_FLAG_HIDDEN;
+							hud_region_hide(ar);
 							ED_region_tag_redraw(ar);
 							ED_area_tag_redraw(sa);
 						}
@@ -273,12 +282,13 @@ void ED_area_type_hud_ensure(bContext *C, ScrArea *sa)
 		return;
 	}
 
-	bool init = false;
 	ARegion *ar = BKE_area_find_region_type(sa, RGN_TYPE_HUD);
+	bool init = false;
+	bool was_hidden = ar == NULL || ar->visible == false;
 	if (!last_redo_poll(C)) {
 		if (ar) {
 			ED_region_tag_redraw(ar);
-			ar->flag |= RGN_FLAG_HIDDEN;
+			hud_region_hide(ar);
 		}
 		return;
 	}
@@ -288,14 +298,6 @@ void ED_area_type_hud_ensure(bContext *C, ScrArea *sa)
 		ar = hud_region_add(sa);
 		ar->type = art;
 	}
-
-	ED_region_init(ar);
-	ED_region_tag_redraw(ar);
-
-	/* Reset zoom level (not well supported). */
-	ar->v2d.cur = ar->v2d.tot = (rctf){.xmax = ar->winx, .ymax = ar->winy};
-	ar->v2d.minzoom = 1.0f;
-	ar->v2d.maxzoom = 1.0f;
 
 	/* Let 'ED_area_update_region_sizes' do the work of placing the region.
 	 * Otherwise we could set the 'ar->winrct' & 'ar->winx/winy' here. */
@@ -325,15 +327,37 @@ void ED_area_type_hud_ensure(bContext *C, ScrArea *sa)
 		}
 	}
 
-	/* XXX, should be handled in more general way. */
-	ar->visible = !((ar->flag & RGN_FLAG_HIDDEN) || (ar->flag & RGN_FLAG_TOO_SMALL));
+	if (init) {
+		/* This is needed or 'winrct' will be invalid. */
+		wmWindow *win = CTX_wm_window(C);
+		ED_area_update_region_sizes(wm, win, sa);
+	}
+
+	ED_region_init(ar);
+	ED_region_tag_redraw(ar);
+
+	/* Reset zoom level (not well supported). */
+	ar->v2d.cur = ar->v2d.tot = (rctf){.xmax = ar->winx, .ymax = ar->winy};
+	ar->v2d.minzoom = 1.0f;
+	ar->v2d.maxzoom = 1.0f;
+
+	ar->visible = !(ar->flag & RGN_FLAG_HIDDEN);
 
 	/* We shouldn't need to do this every time :S */
 	/* XXX, this is evil! - it also makes the menu show on first draw. :( */
-	ARegion *ar_prev = CTX_wm_region(C);
-	CTX_wm_region_set((bContext *)C, ar);
-	hud_region_layout(C, ar);
-	CTX_wm_region_set((bContext *)C, ar_prev);
+	if (ar->visible) {
+		ARegion *ar_prev = CTX_wm_region(C);
+		CTX_wm_region_set((bContext *)C, ar);
+		hud_region_layout(C, ar);
+		if (was_hidden) {
+			ar->winx = ar->v2d.winx;
+			ar->winy = ar->v2d.winy;
+			ar->v2d.cur = ar->v2d.tot = (rctf){.xmax = ar->winx, .ymax = ar->winy};
+		}
+		CTX_wm_region_set((bContext *)C, ar_prev);
+	}
+
+	ar->visible = !((ar->flag & RGN_FLAG_HIDDEN) || (ar->flag & RGN_FLAG_TOO_SMALL));
 }
 
 /** \} */

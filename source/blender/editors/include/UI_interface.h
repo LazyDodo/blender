@@ -209,11 +209,12 @@ enum {
 	UI_BUT_TEXTEDIT_UPDATE = (1 << 29),  /* when widget is in textedit mode, update value on each char stroke */
 	UI_BUT_VALUE_CLEAR     = (1 << 30),  /* show 'x' icon to clear/unlink value of text or search button */
 
-	UI_BUT_OVERRIDEN       = (1 << 31),  /* RNA property of the button is overriden from linked reference data. */
+	UI_BUT_OVERRIDEN       = (1u << 31u),  /* RNA property of the button is overridden from linked reference data. */
 };
 
 #define UI_PANEL_WIDTH          340
 #define UI_COMPACT_PANEL_WIDTH  160
+#define UI_NAVIGATION_REGION_WIDTH UI_COMPACT_PANEL_WIDTH
 
 #define UI_PANEL_CATEGORY_MARGIN_WIDTH (U.widget_unit * 1.0f)
 
@@ -249,7 +250,12 @@ enum {
 	UI_BUT_ACTIVE_LEFT       = (1 << 21), /* Active left part of number button */
 	UI_BUT_ACTIVE_RIGHT      = (1 << 22), /* Active right part of number button */
 
-	UI_BUT_HAS_SHORTCUT      = (1 << 23), /* Button has shortcut text */
+	/* (also used by search buttons to enforce shortcut display for their items). */
+	UI_BUT_HAS_SHORTCUT      = (1 << 23), /* Button has shortcut text. */
+
+	UI_BUT_ICON_REVERSE      = (1 << 24), /* Reverse order of consecutive off/on icons */
+
+	UI_BUT_ANIMATED_CHANGED  = (1 << 25), /* Value is animated, but the current value differs from the animated one. */
 };
 
 /* scale fixed button widths by this to account for DPI */
@@ -375,7 +381,7 @@ void UI_draw_widget_scroll(struct uiWidgetColors *wcol, const struct rcti *rect,
 
 /* Shortening string helper. */
 float UI_text_clip_middle_ex(
-        struct uiFontStyle *fstyle, char *str, float okwidth, const float minwidth,
+        const struct uiFontStyle *fstyle, char *str, float okwidth, const float minwidth,
         const size_t max_len, const char rpart_sep);
 
 /* Callbacks
@@ -501,6 +507,8 @@ void UI_popup_block_ex(struct bContext *C, uiBlockCreateFunc func, uiBlockHandle
 
 void UI_popup_block_close(struct bContext *C, struct wmWindow *win, uiBlock *block);
 
+bool UI_popup_block_name_exists(struct bContext *C, const char *name);
+
 /* Blocks
  *
  * Functions for creating, drawing and freeing blocks. A Block is a
@@ -520,6 +528,11 @@ void UI_blocklist_update_window_matrix(const struct bContext *C, const struct Li
 void UI_blocklist_draw(const struct bContext *C, const struct ListBase *lb);
 void UI_block_update_from_old(const struct bContext *C, struct uiBlock *block);
 
+enum {
+	UI_BLOCK_THEME_STYLE_REGULAR = 0,
+	UI_BLOCK_THEME_STYLE_POPUP = 1,
+};
+void UI_block_theme_style_set(uiBlock *block, char theme_style);
 void UI_block_emboss_set(uiBlock *block, char dt);
 
 void UI_block_free(const struct bContext *C, uiBlock *block);
@@ -924,6 +937,7 @@ void UI_exit(void);
 #define UI_LAYOUT_MENU          2
 #define UI_LAYOUT_TOOLBAR       3
 #define UI_LAYOUT_PIEMENU       4
+#define UI_LAYOUT_VERT_BAR      5
 
 #define UI_UNIT_X               ((void)0, U.widget_unit)
 #define UI_UNIT_Y               ((void)0, U.widget_unit)
@@ -945,7 +959,7 @@ void UI_exit(void);
 #define UI_ITEM_O_DEPRESS       (1 << 9)
 #define UI_ITEM_R_COMPACT       (1 << 10)
 
-#define UI_HEADER_OFFSET ((void)0, 0.2f * UI_UNIT_X)
+#define UI_HEADER_OFFSET ((void)0, 0.4f * UI_UNIT_X)
 
 /* uiLayoutOperatorButs flags */
 enum {
@@ -1002,9 +1016,12 @@ void uiLayoutSetAlignment(uiLayout *layout, char alignment);
 void uiLayoutSetKeepAspect(uiLayout *layout, bool keepaspect);
 void uiLayoutSetScaleX(uiLayout *layout, float scale);
 void uiLayoutSetScaleY(uiLayout *layout, float scale);
+void uiLayoutSetUnitsX(uiLayout *layout, float unit);
+void uiLayoutSetUnitsY(uiLayout *layout, float unit);
 void uiLayoutSetEmboss(uiLayout *layout, char emboss);
 void uiLayoutSetPropSep(uiLayout *layout, bool is_sep);
 void uiLayoutSetPropDecorate(uiLayout *layout, bool is_sep);
+int uiLayoutGetLocalDir(const uiLayout *layout);
 
 int uiLayoutGetOperatorContext(uiLayout *layout);
 bool uiLayoutGetActive(uiLayout *layout);
@@ -1015,6 +1032,8 @@ bool uiLayoutGetKeepAspect(uiLayout *layout);
 int uiLayoutGetWidth(uiLayout *layout);
 float uiLayoutGetScaleX(uiLayout *layout);
 float uiLayoutGetScaleY(uiLayout *layout);
+float uiLayoutGetUnitsX(uiLayout *layout);
+float uiLayoutGetUnitsY(uiLayout *layout);
 int uiLayoutGetEmboss(uiLayout *layout);
 bool uiLayoutGetPropSep(uiLayout *layout);
 bool uiLayoutGetPropDecorate(uiLayout *layout);
@@ -1046,11 +1065,12 @@ void uiTemplateIDBrowse(
         const char *newop, const char *openop, const char *unlinkop, int filter);
 void uiTemplateIDPreview(
         uiLayout *layout, struct bContext *C, struct PointerRNA *ptr, const char *propname,
-        const char *newop, const char *openop, const char *unlinkop, int rows, int cols, int filter);
+        const char *newop, const char *openop, const char *unlinkop, int rows, int cols,
+        int filter, const bool hide_buttons);
 void uiTemplateIDTabs(
         uiLayout *layout, struct bContext *C,
         PointerRNA *ptr, const char *propname,
-        const char *newop, const char *openop, const char *menu,
+        const char *newop, const char *menu,
         int filter);
 void uiTemplateAnyID(
         uiLayout *layout, struct PointerRNA *ptr, const char *propname,
@@ -1072,8 +1092,8 @@ void uiTemplatePathBuilder(
 uiLayout *uiTemplateModifier(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr);
 uiLayout *uiTemplateGpencilModifier(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr);
 void uiTemplateGpencilColorPreview(
-	uiLayout *layout, struct bContext *C, struct PointerRNA *ptr, const char *propname,
-	int rows, int cols, float scale, int filter);
+        uiLayout *layout, struct bContext *C, struct PointerRNA *ptr, const char *propname,
+        int rows, int cols, float scale, int filter);
 
 uiLayout *uiTemplateShaderFx(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr);
 
@@ -1085,7 +1105,9 @@ void uiTemplatePreview(
         struct MTex *slot, const char *preview_id);
 void uiTemplateColorRamp(uiLayout *layout, struct PointerRNA *ptr, const char *propname, bool expand);
 void uiTemplateIcon(uiLayout *layout, int icon_value, float icon_scale);
-void uiTemplateIconView(uiLayout *layout, struct PointerRNA *ptr, const char *propname, bool show_labels, float icon_scale);
+void uiTemplateIconView(
+        uiLayout *layout, struct PointerRNA *ptr, const char *propname, bool show_labels,
+        float icon_scale, float icon_scale_popup);
 void uiTemplateHistogram(uiLayout *layout, struct PointerRNA *ptr, const char *propname);
 void uiTemplateWaveform(uiLayout *layout, struct PointerRNA *ptr, const char *propname);
 void uiTemplateVectorscope(uiLayout *layout, struct PointerRNA *ptr, const char *propname);
@@ -1127,7 +1149,7 @@ void uiTemplateList(
         uiLayout *layout, struct bContext *C, const char *listtype_name, const char *list_id,
         struct PointerRNA *dataptr, const char *propname, struct PointerRNA *active_dataptr,
         const char *active_propname, const char *item_dyntip_propname,
-        int rows, int maxrows, int layout_type, int columns);
+        int rows, int maxrows, int layout_type, int columns, bool reverse);
 void uiTemplateNodeLink(uiLayout *layout, struct bNodeTree *ntree, struct bNode *node, struct bNodeSocket *input);
 void uiTemplateNodeView(uiLayout *layout, struct bContext *C, struct bNodeTree *ntree, struct bNode *node, struct bNodeSocket *input);
 void uiTemplateTextureUser(uiLayout *layout, struct bContext *C);
@@ -1140,6 +1162,8 @@ void uiTemplateMovieclipInformation(struct uiLayout *layout, struct PointerRNA *
 
 void uiTemplateColorspaceSettings(struct uiLayout *layout, struct PointerRNA *ptr, const char *propname);
 void uiTemplateColormanagedViewSettings(struct uiLayout *layout, struct bContext *C, struct PointerRNA *ptr, const char *propname);
+
+int uiTemplateRecentFiles(struct uiLayout *layout, int rows);
 
 /* items */
 void uiItemO(uiLayout *layout, const char *name, int icon, const char *opname);
@@ -1187,8 +1211,10 @@ void uiItemsFullEnumO_items(
 void uiItemL(uiLayout *layout, const char *name, int icon); /* label */
 void uiItemLDrag(uiLayout *layout, struct PointerRNA *ptr, const char *name, int icon); /* label icon for dragging */
 void uiItemM(uiLayout *layout, const char *menuname, const char *name, int icon); /* menu */
+void uiItemMContents(uiLayout *layout, const char *menuname); /* menu contents */
 void uiItemV(uiLayout *layout, const char *name, int icon, int argval); /* value */
 void uiItemS(uiLayout *layout); /* separator */
+void uiItemS_ex(uiLayout *layout, float factor);
 void uiItemSpacer(uiLayout *layout); /* Special separator. */
 
 void uiItemPopoverPanel_ptr(
@@ -1205,10 +1231,12 @@ void uiItemPopoverPanelFromGroup(
         const char *context, const char *category);
 
 void uiItemMenuF(uiLayout *layout, const char *name, int icon, uiMenuCreateFunc func, void *arg);
+void uiItemMenuFN(uiLayout *layout, const char *name, int icon, uiMenuCreateFunc func, void *argN);
 void uiItemMenuEnumO_ptr(uiLayout *layout, struct bContext *C, struct wmOperatorType *ot, const char *propname, const char *name, int icon);
 void uiItemMenuEnumO(uiLayout *layout, struct bContext *C, const char *opname, const char *propname, const char *name, int icon);
 void uiItemMenuEnumR_prop(uiLayout *layout, struct PointerRNA *ptr, PropertyRNA *prop, const char *name, int icon);
 void uiItemMenuEnumR(uiLayout *layout, struct PointerRNA *ptr, const char *propname, const char *name, int icon);
+void uiItemTabsEnumR_prop(uiLayout *layout, struct bContext *C, struct PointerRNA *ptr, PropertyRNA *prop, bool icon_only);
 
 /* UI Operators */
 typedef struct uiDragColorHandle {
@@ -1244,20 +1272,33 @@ struct ID *UI_context_active_but_get_tab_ID(struct bContext *C);
 
 uiBut *UI_region_active_but_get(struct ARegion *ar);
 
+/* uiFontStyle.align */
+typedef enum eFontStyle_Align {
+	UI_STYLE_TEXT_LEFT		= 0,
+	UI_STYLE_TEXT_CENTER	= 1,
+	UI_STYLE_TEXT_RIGHT		= 2
+} eFontStyle_Align;
+
+struct uiFontStyleDraw_Params {
+	eFontStyle_Align align;
+	uint word_wrap : 1;
+};
+
 /* Styled text draw */
 void UI_fontstyle_set(const struct uiFontStyle *fs);
 void UI_fontstyle_draw_ex(
         const struct uiFontStyle *fs, const struct rcti *rect, const char *str,
-        const unsigned char col[4], size_t len, float *r_xofs, float *r_yofs);
+        const uchar col[4], const struct uiFontStyleDraw_Params *fs_params,
+        size_t len, float *r_xofs, float *r_yofs);
 void UI_fontstyle_draw(
         const struct uiFontStyle *fs, const struct rcti *rect, const char *str,
-        const unsigned char col[4]);
+        const uchar col[4], const struct uiFontStyleDraw_Params *fs_params);
 void UI_fontstyle_draw_rotated(
         const struct uiFontStyle *fs, const struct rcti *rect, const char *str,
-        const unsigned char col[4]);
+        const uchar col[4]);
 void UI_fontstyle_draw_simple(
         const struct uiFontStyle *fs, float x, float y, const char *str,
-        const unsigned char col[4]);
+        const uchar col[4]);
 void UI_fontstyle_draw_simple_backdrop(
         const struct uiFontStyle *fs, float x, float y, const char *str,
         const float col_fg[4], const float col_bg[4]);

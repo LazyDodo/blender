@@ -41,6 +41,7 @@ struct ImageUser;
 struct Main;
 struct Object;
 struct Scene;
+struct View3D;
 struct ViewLayer;
 struct SpaceImage;
 struct bNode;
@@ -110,8 +111,12 @@ void uvedit_uv_select_disable(
         const int cd_loop_uv_offset);
 
 bool ED_uvedit_nearest_uv(
-        struct Scene *scene, struct Object *obedit, struct Image *ima,
-        const float co[2], float r_uv[2]);
+        struct Scene *scene, struct Object *obedit, struct Image *ima, const float co[2],
+        float *dist_sq, float r_uv[2]);
+bool ED_uvedit_nearest_uv_multi(
+        struct Scene *scene, struct Image *ima,
+        struct Object **objects, const uint objects_len, const float co[2],
+        float *dist_sq, float r_uv[2]);
 
 void ED_uvedit_get_aspect(struct Scene *scene, struct Object *ob, struct BMesh *em, float *aspx, float *aspy);
 
@@ -121,13 +126,7 @@ void ED_uvedit_live_unwrap_re_solve(void);
 void ED_uvedit_live_unwrap_end(short cancel);
 
 void ED_uvedit_live_unwrap(struct Scene *scene, struct Object *obedit);
-void ED_uvedit_pack_islands(
-        struct Scene *scene, struct Object *ob, struct BMesh *bm, bool selected, bool correct_aspect, bool do_rotate);
-void ED_uvedit_pack_islands_multi(
-        struct Scene *scene, struct Object **objects, const uint objects_len,
-        bool selected, bool correct_aspect, bool do_rotate);
-void ED_uvedit_unwrap_cube_project(
-        struct BMesh *bm, float cube_size, bool use_select, const float center[3]);
+void ED_uvedit_add_simple_uvs(struct Main *bmain, struct Scene *scene, struct Object *ob);
 
 /* single call up unwrap using scene settings, used for edge tag unwrapping */
 void ED_unwrap_lscm(struct Scene *scene, struct Object *obedit, const short sel, const bool pack);

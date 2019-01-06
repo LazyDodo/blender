@@ -114,12 +114,8 @@ typedef enum GPUBuiltin {
 	GPU_VOLUME_FLAME =          (1 << 17),
 	GPU_VOLUME_TEMPERATURE =    (1 << 18),
 	GPU_BARYCENTRIC_TEXCO =     (1 << 19),
+	GPU_BARYCENTRIC_DIST =      (1 << 20),
 } GPUBuiltin;
-
-typedef enum GPUMatType {
-	GPU_MATERIAL_TYPE_MESH  = 1,
-	GPU_MATERIAL_TYPE_WORLD = 2,
-} GPUMatType;
 
 typedef enum GPUMatFlag {
 	GPU_MATFLAG_DIFFUSE       = (1 << 0),
@@ -159,7 +155,6 @@ GPUNodeLink *GPU_uniform(float *num);
 GPUNodeLink *GPU_image(struct Image *ima, struct ImageUser *iuser, bool is_data);
 GPUNodeLink *GPU_color_band(GPUMaterial *mat, int size, float *pixels, float *layer);
 GPUNodeLink *GPU_builtin(GPUBuiltin builtin);
-void GPU_node_link_set_type(GPUNodeLink *link, GPUType type);
 
 bool GPU_link(GPUMaterial *mat, const char *name, ...);
 bool GPU_stack_link(GPUMaterial *mat, struct bNode *node, const char *name, GPUNodeStack *in, GPUNodeStack *out, ...);
@@ -186,13 +181,13 @@ void GPU_material_free(struct ListBase *gpumaterial);
 void GPU_materials_free(struct Main *bmain);
 
 struct Scene *GPU_material_scene(GPUMaterial *material);
-GPUMatType GPU_Material_get_type(GPUMaterial *material);
 struct GPUPass *GPU_material_get_pass(GPUMaterial *material);
 struct ListBase *GPU_material_get_inputs(GPUMaterial *material);
 GPUMaterialStatus GPU_material_status(GPUMaterial *mat);
 
 struct GPUUniformBuffer *GPU_material_uniform_buffer_get(GPUMaterial *material);
 void GPU_material_uniform_buffer_create(GPUMaterial *material, ListBase *inputs);
+struct GPUUniformBuffer *GPU_material_create_sss_profile_ubo(void);
 
 void GPU_material_vertex_attributes(
         GPUMaterial *material,

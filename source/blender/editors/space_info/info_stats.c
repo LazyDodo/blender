@@ -57,6 +57,10 @@
 #include "BKE_editmesh.h"
 #include "BKE_object.h"
 #include "BKE_gpencil.h"
+#include "BKE_scene.h"
+#include "BKE_subdiv_ccg.h"
+
+#include "DEG_depsgraph_query.h"
 
 #include "ED_info.h"
 #include "ED_armature.h"
@@ -67,14 +71,14 @@
 #define MAX_INFO_NUM_LEN 16
 
 typedef struct SceneStats {
-	int totvert, totvertsel;
-	int totedge, totedgesel;
-	int totface, totfacesel;
-	int totbone, totbonesel;
-	int totobj,  totobjsel;
-	int totlamp, totlampsel;
-	int tottri;
-	int totgplayer, totgpframe, totgpstroke, totgppoint;
+	uint64_t totvert, totvertsel;
+	uint64_t totedge, totedgesel;
+	uint64_t totface, totfacesel;
+	uint64_t totbone, totbonesel;
+	uint64_t totobj,  totobjsel;
+	uint64_t totlamp, totlampsel;
+	uint64_t tottri;
+	uint64_t totgplayer, totgpframe, totgpstroke, totgppoint;
 
 	char infostr[MAX_INFO_LEN];
 } SceneStats;
@@ -92,6 +96,37 @@ typedef struct SceneStatsFmt {
 	char totgpstroke[MAX_INFO_NUM_LEN], totgppoint[MAX_INFO_NUM_LEN];
 } SceneStatsFmt;
 
+static bool stats_mesheval(Mesh *me_eval, int sel, int totob, SceneStats *stats)
+{
+	if (me_eval == NULL) {
+		return false;
+	}
+
+	int totvert, totedge, totface, totloop;
+	if (me_eval->runtime.subdiv_ccg != NULL) {
+		const SubdivCCG *subdiv_ccg = me_eval->runtime.subdiv_ccg;
+		BKE_subdiv_ccg_topology_counters(
+		        subdiv_ccg, &totvert, &totedge, &totface, &totloop);
+	}
+	else {
+		totvert = me_eval->totvert;
+		totedge = me_eval->totedge;
+		totface = me_eval->totpoly;
+		totloop = me_eval->totloop;
+	}
+
+	stats->totvert += totvert * totob;
+	stats->totedge += totedge * totob;
+	stats->totface += totface * totob;
+	stats->tottri  += poly_to_tri_count(totface, totloop) * totob;
+
+	if (sel) {
+		stats->totvertsel += totvert;
+		stats->totfacesel += totface;
+	}
+	return true;
+}
+
 static void stats_object(Object *ob, int sel, int totob, SceneStats *stats)
 {
 	switch (ob->type) {
@@ -99,24 +134,7 @@ static void stats_object(Object *ob, int sel, int totob, SceneStats *stats)
 		{
 			/* we assume evaluated mesh is already built, this strictly does stats now. */
 			Mesh *me_eval = ob->runtime.mesh_eval;
-			int totvert, totedge, totface, totloop;
-
-			if (me_eval) {
-				totvert = me_eval->totvert;
-				totedge = me_eval->totedge;
-				totface = me_eval->totpoly;
-				totloop = me_eval->totloop;
-
-				stats->totvert += totvert * totob;
-				stats->totedge += totedge * totob;
-				stats->totface += totface * totob;
-				stats->tottri  += poly_to_tri_count(totface, totloop) * totob;
-
-				if (sel) {
-					stats->totvertsel += totvert;
-					stats->totfacesel += totface;
-				}
-			}
+			stats_mesheval(me_eval, sel, totob, stats);
 			break;
 		}
 		case OB_LAMP:
@@ -128,6 +146,13 @@ static void stats_object(Object *ob, int sel, int totob, SceneStats *stats)
 		case OB_SURF:
 		case OB_CURVE:
 		case OB_FONT:
+		{
+			Mesh *me_eval = ob->runtime.mesh_eval;
+			if (stats_mesheval(me_eval, sel, totob, stats)) {
+				break;
+			}
+			ATTR_FALLTHROUGH;  /* Falltrough to displist. */
+		}
 		case OB_MBALL:
 		{
 			int totv = 0, totf = 0, tottri = 0;
@@ -151,16 +176,18 @@ static void stats_object(Object *ob, int sel, int totob, SceneStats *stats)
 		}
 		case OB_GPENCIL:
 		{
-			bGPdata *gpd = (bGPdata *)ob->data;
-			/* GPXX Review if we can move to other place when object change
-			 * maybe to depsgraph evaluation
-			 */
-			BKE_gpencil_stats_update(gpd);
+			if (sel) {
+				bGPdata *gpd = (bGPdata *)ob->data;
+				/* GPXX Review if we can move to other place when object change
+				 * maybe to depsgraph evaluation
+				 */
+				BKE_gpencil_stats_update(gpd);
 
-			stats->totgplayer = gpd->totlayer;
-			stats->totgpframe = gpd->totframe;
-			stats->totgpstroke = gpd->totstroke;
-			stats->totgppoint = gpd->totpoint;
+				stats->totgplayer += gpd->totlayer;
+				stats->totgpframe += gpd->totframe;
+				stats->totgpstroke += gpd->totstroke;
+				stats->totgppoint += gpd->totpoint;
+			}
 			break;
 		}
 	}
@@ -171,16 +198,16 @@ static void stats_object_edit(Object *obedit, SceneStats *stats)
 	if (obedit->type == OB_MESH) {
 		BMEditMesh *em = BKE_editmesh_from_object(obedit);
 
-		stats->totvert = em->bm->totvert;
-		stats->totvertsel = em->bm->totvertsel;
+		stats->totvert += em->bm->totvert;
+		stats->totvertsel += em->bm->totvertsel;
 
-		stats->totedge = em->bm->totedge;
-		stats->totedgesel = em->bm->totedgesel;
+		stats->totedge += em->bm->totedge;
+		stats->totedgesel += em->bm->totedgesel;
 
-		stats->totface = em->bm->totface;
-		stats->totfacesel = em->bm->totfacesel;
+		stats->totface += em->bm->totface;
+		stats->totfacesel += em->bm->totfacesel;
 
-		stats->tottri = em->tottri;
+		stats->tottri += em->tottri;
 	}
 	else if (obedit->type == OB_ARMATURE) {
 		/* Armature Edit */
@@ -314,9 +341,10 @@ static void stats_dupli_object_group_doit(Collection *collection, SceneStats *st
 	}
 }
 
-static void stats_dupli_object(Base *base, Object *ob, SceneStats *stats)
+static void stats_dupli_object(Object *ob, SceneStats *stats)
 {
-	if (base->flag & BASE_SELECTED) stats->totobjsel++;
+	const bool is_selected = (ob->base_flag & BASE_SELECTED) != 0;
+	if (is_selected) stats->totobjsel++;
 
 	if (ob->transflag & OB_DUPLIPARTS) {
 		/* Dupli Particles */
@@ -339,7 +367,7 @@ static void stats_dupli_object(Base *base, Object *ob, SceneStats *stats)
 			}
 		}
 
-		stats_object(ob, base->flag & BASE_SELECTED, 1, stats);
+		stats_object(ob, is_selected, 1, stats);
 		stats->totobj++;
 	}
 	else if (ob->parent && (ob->parent->transflag & (OB_DUPLIVERTS | OB_DUPLIFACES))) {
@@ -355,23 +383,23 @@ static void stats_dupli_object(Base *base, Object *ob, SceneStats *stats)
 		}
 
 		stats->totobj += tot;
-		stats_object(ob, base->flag & BASE_SELECTED, tot, stats);
+		stats_object(ob, is_selected, tot, stats);
 	}
 	else if (ob->transflag & OB_DUPLIFRAMES) {
 		/* Dupli Frames */
 		int tot = count_duplilist(ob);
 		stats->totobj += tot;
-		stats_object(ob, base->flag & BASE_SELECTED, tot, stats);
+		stats_object(ob, is_selected, tot, stats);
 	}
 	else if ((ob->transflag & OB_DUPLICOLLECTION) && ob->dup_group) {
 		/* Dupli Group */
 		int tot = count_duplilist(ob);
 		stats->totobj += tot;
-		stats_object(ob, base->flag & BASE_SELECTED, tot, stats);
+		stats_object(ob, is_selected, tot, stats);
 	}
 	else {
 		/* No Dupli */
-		stats_object(ob, base->flag & BASE_SELECTED, 1, stats);
+		stats_object(ob, is_selected, 1, stats);
 		stats->totobj++;
 	}
 }
@@ -384,16 +412,19 @@ static bool stats_is_object_dynamic_topology_sculpt(Object *ob, const eObjectMod
 }
 
 /* Statistics displayed in info header. Called regularly on scene changes. */
-static void stats_update(ViewLayer *view_layer)
+static void stats_update(Depsgraph *depsgraph, ViewLayer *view_layer)
 {
 	SceneStats stats = {0};
 	Object *ob = OBACT(view_layer);
 	Object *obedit = OBEDIT_FROM_VIEW_LAYER(view_layer);
-	Base *base;
 
 	if (obedit) {
 		/* Edit Mode */
-		stats_object_edit(ob, &stats);
+		FOREACH_OBJECT_IN_MODE_BEGIN(view_layer, ((View3D *)NULL), ob->type, ob->mode, ob_iter)
+		{
+			stats_object_edit(ob_iter, &stats);
+		}
+		FOREACH_OBJECT_IN_MODE_END;
 	}
 	else if (ob && (ob->mode & OB_MODE_POSE)) {
 		/* Pose Mode */
@@ -405,10 +436,11 @@ static void stats_update(ViewLayer *view_layer)
 	}
 	else {
 		/* Objects */
-		for (base = view_layer->object_bases.first; base; base = base->next)
-			if (base->flag & BASE_VISIBLE) {
-				stats_dupli_object(base, base->object, &stats);
-			}
+		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob_iter)
+		{
+			stats_dupli_object(ob_iter, &stats);
+		}
+		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END;
 	}
 
 	if (!view_layer->stats) {
@@ -423,6 +455,7 @@ static void stats_string(ViewLayer *view_layer)
 #define MAX_INFO_MEM_LEN  64
 	SceneStats *stats = view_layer->stats;
 	SceneStatsFmt stats_fmt;
+	LayerCollection *layer_collection = view_layer->active_collection;
 	Object *ob = OBACT(view_layer);
 	Object *obedit = OBEDIT_FROM_OBACT(ob);
 	eObjectMode object_mode = ob ? ob->mode : OB_MODE_OBJECT;
@@ -439,7 +472,7 @@ static void stats_string(ViewLayer *view_layer)
 
 	/* Generate formatted numbers */
 #define SCENE_STATS_FMT_INT(_id) \
-	BLI_str_format_int_grouped(stats_fmt._id, stats->_id)
+	BLI_str_format_uint64_grouped(stats_fmt._id, stats->_id)
 
 	SCENE_STATS_FMT_INT(totvert);
 	SCENE_STATS_FMT_INT(totvertsel);
@@ -495,6 +528,10 @@ static void stats_string(ViewLayer *view_layer)
 	s = stats->infostr;
 	ofs = 0;
 
+	if (object_mode == OB_MODE_OBJECT) {
+		ofs += BLI_snprintf(s + ofs, MAX_INFO_LEN - ofs, "%s | ", BKE_collection_ui_name_get(layer_collection->collection));
+	}
+
 	if (ob) {
 		ofs += BLI_snprintf(s + ofs, MAX_INFO_LEN - ofs, "%s | ", ob->id.name + 2);
 	}
@@ -527,8 +564,9 @@ static void stats_string(ViewLayer *view_layer)
 	}
 	else if ((ob) && (ob->type == OB_GPENCIL)) {
 		ofs += BLI_snprintf(s + ofs, MAX_INFO_LEN - ofs,
-			IFACE_("Layers:%s | Frames:%s | Strokes:%s | Points:%s"),
-			stats_fmt.totgplayer, stats_fmt.totgpframe, stats_fmt.totgpstroke, stats_fmt.totgppoint);
+			IFACE_("Layers:%s | Frames:%s | Strokes:%s | Points:%s | Objects:%s/%s"),
+			stats_fmt.totgplayer, stats_fmt.totgpframe, stats_fmt.totgpstroke,
+			stats_fmt.totgppoint, stats_fmt.totobjsel, stats_fmt.totobj);
 
 		ofs += BLI_strncpy_rlen(s + ofs, memstr, MAX_INFO_LEN - ofs);
 		ofs += BLI_strncpy_rlen(s + ofs, gpumemstr, MAX_INFO_LEN - ofs);
@@ -559,10 +597,11 @@ void ED_info_stats_clear(ViewLayer *view_layer)
 	}
 }
 
-const char *ED_info_stats_string(Scene *UNUSED(scene), ViewLayer *view_layer)
+const char *ED_info_stats_string(Scene *scene, ViewLayer *view_layer)
 {
+	Depsgraph *depsgraph = BKE_scene_get_depsgraph(scene, view_layer, true);
 	if (!view_layer->stats) {
-		stats_update(view_layer);
+		stats_update(depsgraph, view_layer);
 	}
 	stats_string(view_layer);
 	return view_layer->stats->infostr;

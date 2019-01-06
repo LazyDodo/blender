@@ -39,12 +39,12 @@
 #include "DNA_mesh_types.h"
 #include "DNA_object_types.h"
 
-#include "BKE_DerivedMesh.h"  /* XXX To be removed, only used for DMCoNo struct */
 #include "BKE_context.h"
 #include "BKE_mesh_iterators.h"
 #include "BKE_mesh_runtime.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "ED_screen.h"
 #include "ED_view3d.h"
@@ -56,7 +56,7 @@
 
 /* stored while painting */
 struct VertProjHandle {
-	DMCoNo *vcosnos;
+	CoNo *vcosnos;
 
 	bool use_update;
 
@@ -85,7 +85,7 @@ static void vpaint_proj_dm_map_cosnos_init__map_cb(
         const float no_f[3], const short no_s[3])
 {
 	struct VertProjHandle *vp_handle = userData;
-	DMCoNo *co_no = &vp_handle->vcosnos[index];
+	CoNo *co_no = &vp_handle->vcosnos[index];
 
 	/* check if we've been here before (normal should not be 0) */
 	if (!is_zero_v3(co_no->no)) {
@@ -104,11 +104,13 @@ static void vpaint_proj_dm_map_cosnos_init__map_cb(
 }
 
 static void vpaint_proj_dm_map_cosnos_init(
-        struct Depsgraph *depsgraph, Scene *scene, Object *ob,
+        struct Depsgraph *depsgraph, Scene *UNUSED(scene), Object *ob,
         struct VertProjHandle *vp_handle)
 {
+	Scene *scene_eval = DEG_get_evaluated_scene(depsgraph);
+	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
 	Mesh *me = ob->data;
-	Mesh *me_eval = mesh_get_eval_final(depsgraph, scene, ob, CD_MASK_BAREMESH | CD_MASK_ORIGINDEX);
+	Mesh *me_eval = mesh_get_eval_final(depsgraph, scene_eval, ob_eval, CD_MASK_BAREMESH | CD_MASK_ORIGINDEX);
 
 	memset(vp_handle->vcosnos, 0, sizeof(*vp_handle->vcosnos) * me->totvert);
 	BKE_mesh_foreach_mapped_vert(me_eval, vpaint_proj_dm_map_cosnos_init__map_cb, vp_handle, MESH_FOREACH_USE_NORMAL);
@@ -127,7 +129,7 @@ static void vpaint_proj_dm_map_cosnos_update__map_cb(
 	struct VertProjUpdate *vp_update = userData;
 	struct VertProjHandle *vp_handle = vp_update->vp_handle;
 
-	DMCoNo *co_no = &vp_handle->vcosnos[index];
+	CoNo *co_no = &vp_handle->vcosnos[index];
 
 	/* find closest vertex */
 	{
@@ -169,10 +171,11 @@ static void vpaint_proj_dm_map_cosnos_update(
 {
 	struct VertProjUpdate vp_update = {vp_handle, ar, mval_fl};
 
-	Scene *scene = vp_handle->scene;
 	Object *ob = vp_handle->ob;
+	Scene *scene_eval = DEG_get_evaluated_scene(depsgraph);
+	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
 	Mesh *me = ob->data;
-	Mesh *me_eval = mesh_get_eval_final(depsgraph, scene, ob, CD_MASK_BAREMESH | CD_MASK_ORIGINDEX);
+	Mesh *me_eval = mesh_get_eval_final(depsgraph, scene_eval, ob_eval, CD_MASK_BAREMESH | CD_MASK_ORIGINDEX);
 
 	/* quick sanity check - we shouldn't have to run this if there are no modifiers */
 	BLI_assert(BLI_listbase_is_empty(&ob->modifiers) == false);
@@ -187,13 +190,13 @@ static void vpaint_proj_dm_map_cosnos_update(
 
 struct VertProjHandle *ED_vpaint_proj_handle_create(
         struct Depsgraph *depsgraph, Scene *scene, Object *ob,
-        DMCoNo **r_vcosnos)
+        CoNo **r_vcosnos)
 {
 	struct VertProjHandle *vp_handle = MEM_mallocN(sizeof(struct VertProjHandle), __func__);
 	Mesh *me = ob->data;
 
 	/* setup the handle */
-	vp_handle->vcosnos = MEM_mallocN(sizeof(DMCoNo) * me->totvert, "vertexcosnos map");
+	vp_handle->vcosnos = MEM_mallocN(sizeof(CoNo) * me->totvert, "vertexcosnos map");
 	vp_handle->use_update = false;
 
 	/* sets 'use_update' if needed */

@@ -80,7 +80,7 @@ void BKE_lamp_init(Lamp *la)
 	la->coeff_lin = 0.0f;
 	la->coeff_quad = 0.0f;
 	la->curfalloff = curvemapping_add(1, 0.0f, 1.0f, 1.0f, 0.0f);
-	la->cascade_max_dist = 1000.0f;
+	la->cascade_max_dist = 200.0f;
 	la->cascade_count = 4;
 	la->cascade_exponent = 0.8f;
 	la->cascade_fade = 0.1f;
@@ -89,6 +89,7 @@ void BKE_lamp_init(Lamp *la)
 	la->contact_spread = 0.2f;
 	la->contact_thickness = 0.2f;
 	la->spec_fac = 1.0f;
+	la->att_dist = 40.0f;
 
 	curvemapping_initialize(la->curfalloff);
 }
@@ -110,7 +111,7 @@ Lamp *BKE_lamp_add(Main *bmain, const char *name)
  *
  * WARNING! This function will not handle ID user count!
  *
- * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
+ * \param flag: Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
  */
 void BKE_lamp_copy_data(Main *bmain, Lamp *la_dst, const Lamp *la_src, const int flag)
 {
@@ -139,14 +140,17 @@ Lamp *BKE_lamp_copy(Main *bmain, const Lamp *la)
 
 Lamp *BKE_lamp_localize(Lamp *la)
 {
-	/* TODO replace with something like
-	 * 	Lamp *la_copy;
-	 * 	BKE_id_copy_ex(bmain, &la->id, (ID **)&la_copy, LIB_ID_COPY_NO_MAIN | LIB_ID_COPY_NO_PREVIEW | LIB_ID_COPY_NO_USER_REFCOUNT, false);
-	 * 	return la_copy;
+	/* TODO(bastien): Replace with something like:
 	 *
-	 * ... Once f*** nodes are fully converted to that too :( */
+	 *   Lamp *la_copy;
+	 *   BKE_id_copy_ex(bmain, &la->id, (ID **)&la_copy,
+	 *                  LIB_ID_COPY_NO_MAIN | LIB_ID_COPY_NO_PREVIEW | LIB_ID_COPY_NO_USER_REFCOUNT,
+	 *                  false);
+	 *   return la_copy;
+	 *
+	 * NOTE: Only possible once nested node trees are fully converted to that too. */
 
-	Lamp *lan = BKE_libblock_copy_nolib(&la->id, false);
+	Lamp *lan = BKE_libblock_copy_for_localize(&la->id);
 
 	lan->curfalloff = curvemapping_copy(la->curfalloff);
 
@@ -154,6 +158,8 @@ Lamp *BKE_lamp_localize(Lamp *la)
 		lan->nodetree = ntreeLocalize(la->nodetree);
 
 	lan->preview = NULL;
+
+	lan->id.tag |= LIB_TAG_LOCALIZED;
 
 	return lan;
 }
@@ -171,7 +177,7 @@ void BKE_lamp_free(Lamp *la)
 
 	/* is no lib link block, but lamp extension */
 	if (la->nodetree) {
-		ntreeFreeTree(la->nodetree);
+		ntreeFreeNestedTree(la->nodetree);
 		MEM_freeN(la->nodetree);
 		la->nodetree = NULL;
 	}

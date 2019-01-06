@@ -40,10 +40,9 @@
 extern "C" {
 	#include "BLI_utildefines.h"
 
-	#include "BKE_main.h"
+	#include "BKE_customdata.h"
 	#include "BKE_global.h"
 	#include "BKE_library.h"
-	#include "BKE_customdata.h"
 	#include "BKE_material.h"
 	#include "BKE_mesh.h"
 }
@@ -51,18 +50,12 @@ extern "C" {
 #include "collada_internal.h"
 #include "collada_utils.h"
 
-// TODO: optimize UV sets by making indexed list with duplicates removed
-GeometryExporter::GeometryExporter(COLLADASW::StreamWriter *sw, const ExportSettings *export_settings) : COLLADASW::LibraryGeometries(sw), export_settings(export_settings)
-{
-}
 
-void GeometryExporter::exportGeom(Main *bmain, struct Depsgraph *depsgraph, Scene *sce)
+void GeometryExporter::exportGeom()
 {
+	Scene *sce = blender_context.get_scene();
 	openLibrary();
 
-	mDepsgraph = depsgraph;
-	m_bmain = bmain;
-	mScene = sce;
 	GeometryFunctor gf;
 	gf.forEachMeshObjectInExportSet<GeometryExporter>(sce, *this, this->export_settings->export_set);
 
@@ -73,8 +66,7 @@ void GeometryExporter::operator()(Object *ob)
 {
 	bool use_instantiation = this->export_settings->use_object_instantiation;
 	Mesh *me = bc_get_mesh_copy(
-					mDepsgraph,
-					mScene,
+					blender_context,
 					ob,
 					this->export_settings->export_mesh_type,
 					this->export_settings->apply_modifiers,
@@ -92,6 +84,7 @@ void GeometryExporter::operator()(Object *ob)
 	}
 
 	std::string geom_name = (use_instantiation) ? id_name(ob->data) : id_name(ob);
+	geom_name = encode_xml(geom_name);
 
 	exportedGeometry.insert(geom_id);
 
@@ -108,7 +101,7 @@ void GeometryExporter::operator()(Object *ob)
 	// writes <source> for normal coords
 	createNormalsSource(geom_id, me, nor);
 
-	bool has_uvs = (bool)CustomData_has_layer(&me->fdata, CD_MTFACE);
+	bool has_uvs = (bool)CustomData_has_layer(&me->ldata, CD_MLOOPUV);
 
 	// writes <source> for uv coords if mesh has uv coords
 	if (has_uvs) {
@@ -151,9 +144,9 @@ void GeometryExporter::operator()(Object *ob)
 	closeGeometry();
 
 	if (this->export_settings->include_shapekeys) {
-		Key * key = BKE_key_from_object(ob);
+		Key *key = BKE_key_from_object(ob);
 		if (key) {
-			KeyBlock * kb = (KeyBlock *)key->block.first;
+			KeyBlock *kb = (KeyBlock *)key->block.first;
 			//skip the basis
 			kb = kb->next;
 			for (; kb; kb = kb->next) {
@@ -194,7 +187,7 @@ void GeometryExporter::export_key_mesh(Object *ob, Mesh *me, KeyBlock *kb)
 	// writes <source> for normal coords
 	createNormalsSource(geom_id, me, nor);
 
-	bool has_uvs = (bool)CustomData_has_layer(&me->fdata, CD_MTFACE);
+	bool has_uvs = (bool)CustomData_has_layer(&me->ldata, CD_MLOOPUV);
 
 	// writes <source> for uv coords if mesh has uv coords
 	if (has_uvs) {
@@ -353,16 +346,17 @@ void GeometryExporter::createPolylist(short material_index,
 	til.push_back(input2);
 
 	// if mesh has uv coords writes <input> for TEXCOORD
-	int num_layers = CustomData_number_of_layers(&me->fdata, CD_MTFACE);
-	int active_uv_index = CustomData_get_active_layer_index(&me->fdata, CD_MTFACE)-1;
+	int num_layers = CustomData_number_of_layers(&me->ldata, CD_MLOOPUV);
+	int active_uv_index = CustomData_get_active_layer_index(&me->ldata, CD_MLOOPUV);
 	for (i = 0; i < num_layers; i++) {
-		if (!this->export_settings->active_uv_only || i == active_uv_index) {
+		int layer_index = CustomData_get_layer_index_n(&me->ldata, CD_MLOOPUV, i);
+		if (!this->export_settings->active_uv_only || layer_index == active_uv_index) {
 
-			// char *name = CustomData_get_layer_name(&me->fdata, CD_MTFACE, i);
+			// char *name = CustomData_get_layer_name(&me->ldata, CD_MLOOPUV, i);
 			COLLADASW::Input input3(COLLADASW::InputSemantic::TEXCOORD,
 									makeUrl(makeTexcoordSourceId(geom_id, i, this->export_settings->active_uv_only)),
 									2, // this is only until we have optimized UV sets
-									(this->export_settings->active_uv_only) ? 0 : i  // only_active_uv exported -> we have only one set
+									(this->export_settings->active_uv_only) ? 0 : layer_index  // only_active_uv exported -> we have only one set
 									);
 			til.push_back(input3);
 		}

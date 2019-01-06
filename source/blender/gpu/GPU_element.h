@@ -53,7 +53,8 @@ typedef struct GPUIndexBuf {
 	uint max_index;
 	uint base_index;
 #endif
-	uint32_t vbo_id; /* 0 indicates not yet sent to VRAM */
+	uint32_t ibo_id; /* 0 indicates not yet sent to VRAM */
+	void *data; /* non-NULL indicates not yet sent to VRAM */
 	bool use_prim_restart;
 } GPUIndexBuf;
 
@@ -89,6 +90,7 @@ void GPU_indexbuf_build_in_place(GPUIndexBufBuilder *, GPUIndexBuf *);
 
 void GPU_indexbuf_discard(GPUIndexBuf *);
 
+int GPU_indexbuf_primitive_len(GPUPrimType prim_type);
 
 /* Macros */
 

@@ -731,14 +731,14 @@ def BuildRNAInfo():
         operators = dir(op_mod)
         for op in sorted(operators):
             try:
-                rna_prop = getattr(op_mod, op).get_rna()
+                rna_prop = getattr(op_mod, op).get_rna_type()
             except AttributeError:
                 rna_prop = None
             except TypeError:
                 rna_prop = None
 
             if rna_prop:
-                GetInfoOperatorRNA(rna_prop.bl_rna)
+                GetInfoOperatorRNA(rna_prop)
 
     for rna_info in InfoOperatorRNA.global_lookup.values():
         rna_info.build()
@@ -754,14 +754,14 @@ def main():
     import rna_info
     struct = rna_info.BuildRNAInfo()[0]
     data = []
-    for struct_id, v in sorted(struct.items()):
+    for _struct_id, v in sorted(struct.items()):
         struct_id_str = v.identifier  # "".join(sid for sid in struct_id if struct_id)
 
         for base in v.get_bases():
             struct_id_str = base.identifier + "|" + struct_id_str
 
         props = [(prop.identifier, prop) for prop in v.properties]
-        for prop_id, prop in sorted(props):
+        for _prop_id, prop in sorted(props):
             # if prop.type == "boolean":
             #     continue
             prop_type = prop.type

@@ -111,9 +111,9 @@ GPUUniformBuffer *GPU_uniformbuffer_create(int size, const void *data, char err_
 
 /**
  * Create dynamic UBO from parameters
- * Return NULL if failed to create or if \param inputs is empty.
+ * Return NULL if failed to create or if \param inputs: is empty.
  *
- * \param inputs ListBase of BLI_genericNodeN(GPUInput)
+ * \param inputs: ListBase of BLI_genericNodeN(GPUInput)
  */
 GPUUniformBuffer *GPU_uniformbuffer_dynamic_create(ListBase *inputs, char err_out[256])
 {
@@ -291,7 +291,7 @@ static void gpu_uniformbuffer_inputs_sort(ListBase *inputs)
 	while (link != NULL && ((GPUInput *)link->data)->type == GPU_VEC3) {
 		LinkData *link_next = link->next;
 
-		/* If GPU_VEC3 is followed by nothing or a GPU_FLOAT, no need for aligment. */
+		/* If GPU_VEC3 is followed by nothing or a GPU_FLOAT, no need for alignment. */
 		if ((link_next == NULL) ||
 		    ((GPUInput *)link_next->data)->type == GPU_FLOAT)
 		{

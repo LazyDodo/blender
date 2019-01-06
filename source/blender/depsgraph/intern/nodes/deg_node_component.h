@@ -69,9 +69,9 @@ struct ComponentDepsNode : public DepsNode {
 	ComponentDepsNode();
 	~ComponentDepsNode();
 
-	void init(const ID *id, const char *subdata);
+	void init(const ID *id, const char *subdata) override;
 
-	string identifier() const;
+	virtual string identifier() const override;
 
 	/* Find an existing operation, if requested operation does not exist
 	 * NULL will be returned.
@@ -120,10 +120,10 @@ struct ComponentDepsNode : public DepsNode {
 
 	void clear_operations();
 
-	void tag_update(Depsgraph *graph);
+	virtual void tag_update(Depsgraph *graph, eDepsTag_Source source) override;
 
-	OperationDepsNode *get_entry_operation();
-	OperationDepsNode *get_exit_operation();
+	virtual OperationDepsNode *get_entry_operation() override;
+	virtual OperationDepsNode *get_exit_operation() override;
 
 	void finalize_build(Depsgraph *graph);
 
@@ -150,6 +150,11 @@ struct ComponentDepsNode : public DepsNode {
 	 * is tagged for update.
 	 */
 	virtual bool need_tag_cow_before_update() { return true; }
+
+	/* Denotes whether this component affects (possibly indirectly) on a
+	 * directly visible object.
+	 */
+	bool affects_directly_visible;
 };
 
 /* ---------------------------------------- */
@@ -186,13 +191,18 @@ DEG_COMPONENT_NODE_DECLARE_GENERIC(Geometry);
 DEG_COMPONENT_NODE_DECLARE_GENERIC(LayerCollections);
 DEG_COMPONENT_NODE_DECLARE_GENERIC(Parameters);
 DEG_COMPONENT_NODE_DECLARE_GENERIC(Particles);
-DEG_COMPONENT_NODE_DECLARE_GENERIC(Proxy);
+DEG_COMPONENT_NODE_DECLARE_GENERIC(ParticleSettings);
 DEG_COMPONENT_NODE_DECLARE_GENERIC(Pose);
+DEG_COMPONENT_NODE_DECLARE_GENERIC(PointCache);
+DEG_COMPONENT_NODE_DECLARE_GENERIC(Proxy);
 DEG_COMPONENT_NODE_DECLARE_GENERIC(Sequencer);
 DEG_COMPONENT_NODE_DECLARE_NO_COW_TAG_ON_UPDATE(Shading);
 DEG_COMPONENT_NODE_DECLARE_GENERIC(ShadingParameters);
 DEG_COMPONENT_NODE_DECLARE_GENERIC(Transform);
 DEG_COMPONENT_NODE_DECLARE_NO_COW_TAG_ON_UPDATE(ObjectFromLayer);
+DEG_COMPONENT_NODE_DECLARE_GENERIC(Dupli);
+DEG_COMPONENT_NODE_DECLARE_GENERIC(Synchronize);
+DEG_COMPONENT_NODE_DECLARE_GENERIC(GenericDatablock);
 
 /* Bone Component */
 struct BoneComponentDepsNode : public ComponentDepsNode {

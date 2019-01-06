@@ -33,6 +33,7 @@
 
 #include "BLF_api.h"
 
+#include "BKE_colortools.h"
 #include "BKE_global.h"
 #include "BKE_mesh.h"
 #include "BKE_object.h"
@@ -148,12 +149,9 @@ struct DRWTextStore *DRW_text_cache_ensure(void)
 /** \name Settings
  * \{ */
 
-bool DRW_object_is_renderable(Object *ob)
+bool DRW_object_is_renderable(const Object *ob)
 {
-	BLI_assert(BKE_object_is_visible(ob, OB_VISIBILITY_CHECK_UNKNOWN_RENDER_MODE));
-
-	if (ob->dt < OB_SOLID)
-		return false;
+	BLI_assert((ob->base_flag & BASE_VISIBLE) != 0);
 
 	if (ob->type == OB_MESH) {
 		if ((ob == DST.draw_ctx.object_edit) || BKE_object_is_in_editmode(ob)) {
@@ -173,12 +171,12 @@ bool DRW_object_is_renderable(Object *ob)
  * Return whether this object is visible depending if
  * we are rendering or drawing in the viewport.
  */
-bool DRW_check_object_visible_within_active_context(Object *ob)
+int DRW_object_visibility_in_active_context(const Object *ob)
 {
-	const eObjectVisibilityCheck mode = DRW_state_is_scene_render() ?
-	                                     OB_VISIBILITY_CHECK_FOR_RENDER :
-	                                     OB_VISIBILITY_CHECK_FOR_VIEWPORT;
-	return BKE_object_is_visible(ob, mode);
+	const eEvaluationMode mode = DRW_state_is_scene_render() ?
+	                                     DAG_EVAL_RENDER :
+	                                     DAG_EVAL_VIEWPORT;
+	return BKE_object_visibility(ob, mode);
 }
 
 bool DRW_object_is_flat_normal(const Object *ob)
@@ -192,9 +190,27 @@ bool DRW_object_is_flat_normal(const Object *ob)
 	return true;
 }
 
-bool DRW_check_psys_visible_within_active_context(
-        Object *object,
-        struct ParticleSystem *psys)
+bool DRW_object_use_hide_faces(const struct Object *ob)
+{
+	if (ob->type == OB_MESH) {
+		const Mesh *me = DEG_get_original_object((Object *)ob)->data;
+
+		switch (ob->mode) {
+			case OB_MODE_TEXTURE_PAINT:
+			case OB_MODE_VERTEX_PAINT:
+				return (me->editflag & ME_EDIT_PAINT_FACE_SEL) != 0;
+
+			case OB_MODE_WEIGHT_PAINT:
+				return (me->editflag & (ME_EDIT_PAINT_FACE_SEL | ME_EDIT_PAINT_VERT_SEL)) != 0;
+		}
+	}
+
+	return false;
+}
+
+bool DRW_object_is_visible_psys_in_active_context(
+        const Object *object,
+        const ParticleSystem *psys)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	const Scene *scene = draw_ctx->scene;
@@ -217,6 +233,16 @@ bool DRW_check_psys_visible_within_active_context(
 		}
 	}
 	return true;
+}
+
+struct Object *DRW_object_get_dupli_parent(const Object *UNUSED(ob))
+{
+	return DST.dupli_parent;
+}
+
+struct DupliObject *DRW_object_get_dupli(const Object *UNUSED(ob))
+{
+	return DST.dupli_source;
 }
 
 /** \} */
@@ -244,10 +270,19 @@ void DRW_transform_to_display(GPUTexture *tex, bool use_view_settings)
 	if (!(DST.options.is_image_render && !DST.options.is_scene_render)) {
 		Scene *scene = DST.draw_ctx.scene;
 		ColorManagedDisplaySettings *display_settings = &scene->display_settings;
-		ColorManagedViewSettings *view_settings = (use_view_settings) ? &scene->view_settings : NULL;
-
+		ColorManagedViewSettings *active_view_settings;
+		ColorManagedViewSettings default_view_settings;
+		if (use_view_settings) {
+			active_view_settings = &scene->view_settings;
+		}
+		else {
+			BKE_color_managed_view_settings_init_render(
+			        &default_view_settings,
+			        display_settings);
+			active_view_settings = &default_view_settings;
+		}
 		use_ocio = IMB_colormanagement_setup_glsl_draw_from_space(
-		        view_settings, display_settings, NULL, dither, false);
+		        active_view_settings, display_settings, NULL, dither, false);
 	}
 
 	if (!use_ocio) {
@@ -270,13 +305,13 @@ void DRW_transform_to_display(GPUTexture *tex, bool use_view_settings)
 
 	/* Full screen triangle */
 	immBegin(GPU_PRIM_TRIS, 3);
-	immAttrib2f(texco, 0.0f, 0.0f);
+	immAttr2f(texco, 0.0f, 0.0f);
 	immVertex2f(pos, -1.0f, -1.0f);
 
-	immAttrib2f(texco, 2.0f, 0.0f);
+	immAttr2f(texco, 2.0f, 0.0f);
 	immVertex2f(pos, 3.0f, -1.0f);
 
-	immAttrib2f(texco, 0.0f, 2.0f);
+	immAttr2f(texco, 0.0f, 2.0f);
 	immVertex2f(pos, -1.0f, 3.0f);
 	immEnd();
 
@@ -421,6 +456,13 @@ void DRW_engine_viewport_data_size_get(
 	if (r_stl_len) {
 		*r_stl_len = engine_type->vedata_size->stl_len;
 	}
+}
+
+/* WARNING: only use for custom pipeline. 99% of the time, you don't want to use this. */
+void DRW_render_viewport_size_set(int size[2])
+{
+	DST.size[0] = size[0];
+	DST.size[1] = size[1];
 }
 
 const float *DRW_viewport_size_get(void)
@@ -958,7 +1000,7 @@ static void drw_engines_cache_populate(Object *ob)
 	DST.ob_state = NULL;
 
 	/* HACK: DrawData is copied by COW from the duplicated object.
-	 * This is valid for IDs that cannot be instanciated but this
+	 * This is valid for IDs that cannot be instantiated but this
 	 * is not what we want in this case so we clear the pointer
 	 * ourselves here. */
 	drw_drawdata_unlink_dupli((ID *)ob);
@@ -975,6 +1017,10 @@ static void drw_engines_cache_populate(Object *ob)
 			engine->cache_populate(data, ob);
 		}
 	}
+
+	/* TODO: in the future it would be nice to generate once for all viewports.
+	 * But we need threaded DRW manager first. */
+	drw_batch_cache_generate_requested(ob);
 
 	/* ... and clearing it here too because theses draw data are
 	 * from a mempool and must not be free individually by depsgraph. */
@@ -1053,49 +1099,9 @@ static void drw_engines_draw_text(void)
 	}
 }
 
-#define MAX_INFO_LINES 10
-
-/**
- * Returns the offset required for the drawing of engines info.
- */
-int DRW_draw_region_engine_info_offset(void)
+/* Draw render engine info. */
+void DRW_draw_region_engine_info(int xoffset, int yoffset)
 {
-	int lines = 0;
-	for (LinkData *link = DST.enabled_engines.first; link; link = link->next) {
-		DrawEngineType *engine = link->data;
-		ViewportEngineData *data = drw_viewport_engine_data_ensure(engine);
-
-		/* Count the number of lines. */
-		if (data->info[0] != '\0') {
-			lines++;
-			char *c = data->info;
-			while (*c++ != '\0') {
-				if (*c == '\n') {
-					lines++;
-				}
-			}
-		}
-	}
-	return MIN2(MAX_INFO_LINES, lines) * UI_UNIT_Y;
-}
-
-/**
- * Actual drawing;
- */
-void DRW_draw_region_engine_info(void)
-{
-	const char *info_array_final[MAX_INFO_LINES + 1];
-	/* This should be maxium number of engines running at the same time. */
-	char info_array[MAX_INFO_LINES][GPU_INFO_SIZE];
-	int i = 0;
-
-	const DRWContextState *draw_ctx = DRW_context_state_get();
-	ARegion *ar = draw_ctx->ar;
-	float fill_color[4] = {0.0f, 0.0f, 0.0f, 0.25f};
-
-	UI_GetThemeColor3fv(TH_HIGH_GRAD, fill_color);
-	mul_v3_fl(fill_color, fill_color[3]);
-
 	for (LinkData *link = DST.enabled_engines.first; link; link = link->next) {
 		DrawEngineType *engine = link->data;
 		ViewportEngineData *data = drw_viewport_engine_data_ensure(engine);
@@ -1105,35 +1111,36 @@ void DRW_draw_region_engine_info(void)
 			char *chr_start = chr_current;
 			int line_len = 0;
 
+			const int font_id = BLF_default();
+			UI_FontThemeColor(font_id, TH_TEXT_HI);
+
+			BLF_enable(font_id, BLF_SHADOW);
+			BLF_shadow(font_id, 5, (const float[4]){0.0f, 0.0f, 0.0f, 1.0f});
+			BLF_shadow_offset(font_id, 1, -1);
+
 			while (*chr_current++ != '\0') {
 				line_len++;
 				if (*chr_current == '\n') {
-					BLI_strncpy(info_array[i++], chr_start, line_len + 1);
+					char info[GPU_INFO_SIZE];
+					BLI_strncpy(info, chr_start, line_len + 1);
+					yoffset -= U.widget_unit;
+					BLF_draw_default(xoffset, yoffset, 0.0f, info, sizeof(info));
+
 					/* Re-start counting. */
 					chr_start = chr_current + 1;
 					line_len = -1;
 				}
 			}
 
-			BLI_strncpy(info_array[i++], chr_start, line_len + 1);
+			char info[GPU_INFO_SIZE];
+			BLI_strncpy(info, chr_start, line_len + 1);
+			yoffset -= U.widget_unit;
+			BLF_draw_default(xoffset, yoffset, 0.0f, info, sizeof(info));
 
-			if (i >= MAX_INFO_LINES) {
-				break;
-			}
+			BLF_disable(font_id, BLF_SHADOW);
 		}
 	}
-
-	for (int j = 0; j < i; j++) {
-		info_array_final[j] = info_array[j];
-	}
-	info_array_final[i] = NULL;
-
-	if (info_array[0] != NULL) {
-		ED_region_info_draw_multiline(ar, info_array_final, fill_color, true);
-	}
 }
-
-#undef MAX_INFO_LINES
 
 static void use_drw_engine(DrawEngineType *engine)
 {
@@ -1153,14 +1160,15 @@ static void drw_engines_enable_external(void)
 /* TODO revisit this when proper layering is implemented */
 /* Gather all draw engines needed and store them in DST.enabled_engines
  * That also define the rendering order of engines */
-static void drw_engines_enable_from_engine(RenderEngineType *engine_type, int drawtype, int shading_flags)
+static void drw_engines_enable_from_engine(RenderEngineType *engine_type, int drawtype, bool use_xray)
 {
 	switch (drawtype) {
 		case OB_WIRE:
+			use_drw_engine(&draw_engine_workbench_transparent);
 			break;
 
 		case OB_SOLID:
-			if (shading_flags & V3D_SHADING_XRAY) {
+			if (use_xray) {
 				use_drw_engine(&draw_engine_workbench_transparent);
 			}
 			else {
@@ -1197,7 +1205,6 @@ static void drw_engines_enable_from_paint_mode(int mode)
 			use_drw_engine(&draw_engine_sculpt_type);
 			break;
 		case CTX_MODE_PAINT_WEIGHT:
-			use_drw_engine(&draw_engine_pose_type);
 			use_drw_engine(&draw_engine_paint_weight_type);
 			break;
 		case CTX_MODE_PAINT_VERTEX:
@@ -1217,11 +1224,9 @@ static void drw_engines_enable_from_mode(int mode)
 		case CTX_MODE_EDIT_MESH:
 			use_drw_engine(&draw_engine_edit_mesh_type);
 			break;
+		case CTX_MODE_EDIT_SURFACE:
 		case CTX_MODE_EDIT_CURVE:
 			use_drw_engine(&draw_engine_edit_curve_type);
-			break;
-		case CTX_MODE_EDIT_SURFACE:
-			use_drw_engine(&draw_engine_edit_surface_type);
 			break;
 		case CTX_MODE_EDIT_TEXT:
 			use_drw_engine(&draw_engine_edit_text_type);
@@ -1235,24 +1240,25 @@ static void drw_engines_enable_from_mode(int mode)
 		case CTX_MODE_EDIT_LATTICE:
 			use_drw_engine(&draw_engine_edit_lattice_type);
 			break;
-		case CTX_MODE_POSE:
-			use_drw_engine(&draw_engine_pose_type);
-			break;
 		case CTX_MODE_PARTICLE:
 			use_drw_engine(&draw_engine_particle_type);
 			break;
-		case CTX_MODE_SCULPT:
+		case CTX_MODE_POSE:
 		case CTX_MODE_PAINT_WEIGHT:
+			/* The pose engine clears the depth of the default framebuffer
+			 * to draw an object with `OB_DRAWXRAY`.
+			 * (different of workbench that has its own framebuffer).
+			 * So make sure you call its `draw_scene` after all the other engines. */
+			use_drw_engine(&draw_engine_pose_type);
+			break;
+		case CTX_MODE_SCULPT:
 		case CTX_MODE_PAINT_VERTEX:
 		case CTX_MODE_PAINT_TEXTURE:
-			/* Should have already been enabled */
-			break;
 		case CTX_MODE_OBJECT:
-			break;
-		case CTX_MODE_GPENCIL_PAINT:
-		case CTX_MODE_GPENCIL_EDIT:
-		case CTX_MODE_GPENCIL_SCULPT:
-		case CTX_MODE_GPENCIL_WEIGHT:
+		case CTX_MODE_PAINT_GPENCIL:
+		case CTX_MODE_EDIT_GPENCIL:
+		case CTX_MODE_SCULPT_GPENCIL:
+		case CTX_MODE_WEIGHT_GPENCIL:
 			break;
 		default:
 			BLI_assert(!"Draw mode invalid");
@@ -1278,10 +1284,11 @@ static void drw_engines_enable(ViewLayer *view_layer, RenderEngineType *engine_t
 {
 	Object *obact = OBACT(view_layer);
 	const int mode = CTX_data_mode_enum_ex(DST.draw_ctx.object_edit, obact, DST.draw_ctx.object_mode);
-	View3D * v3d = DST.draw_ctx.v3d;
+	View3D *v3d = DST.draw_ctx.v3d;
 	const int drawtype = v3d->shading.type;
+	const bool use_xray = XRAY_ENABLED(v3d);
 
-	drw_engines_enable_from_engine(engine_type, drawtype, v3d->shading.flag);
+	drw_engines_enable_from_engine(engine_type, drawtype, use_xray);
 
 	if (DRW_state_draw_support()) {
 		/* Draw paint modes first so that they are drawn below the wireframes. */
@@ -1291,6 +1298,10 @@ static void drw_engines_enable(ViewLayer *view_layer, RenderEngineType *engine_t
 		drw_engines_enable_from_mode(mode);
 	}
 	else {
+		/* Force enable overlays engine for wireframe mode */
+		if (v3d->shading.type == OB_WIRE) {
+			drw_engines_enable_from_overlays(v3d->overlay.flag);
+		}
 		/* if gpencil must draw the strokes, but not the object */
 		drw_engines_enable_from_mode(mode);
 	}
@@ -1455,13 +1466,23 @@ void DRW_draw_render_loop_ex(
 		drw_engines_world_update(scene);
 
 		const int object_type_exclude_viewport = v3d->object_type_exclude_viewport;
-		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
+		DEG_OBJECT_ITER_BEGIN(depsgraph, ob,
+		        DEG_ITER_OBJECT_FLAG_LINKED_DIRECTLY |
+		        DEG_ITER_OBJECT_FLAG_LINKED_VIA_SET |
+		        DEG_ITER_OBJECT_FLAG_VISIBLE |
+		        DEG_ITER_OBJECT_FLAG_DUPLI)
 		{
-			if ((object_type_exclude_viewport & (1 << ob->type)) == 0) {
-				drw_engines_cache_populate(ob);
+			if ((object_type_exclude_viewport & (1 << ob->type)) != 0) {
+				continue;
 			}
+			if (v3d->localvd && ((v3d->local_view_uuid & ob->base_local_view_bits) == 0)) {
+				continue;
+			}
+			DST.dupli_parent = data_.dupli_parent;
+			DST.dupli_source = data_.dupli_object_current;
+			drw_engines_cache_populate(ob);
 		}
-		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END;
+		DEG_OBJECT_ITER_END;
 
 		drw_engines_cache_finish();
 
@@ -1509,11 +1530,14 @@ void DRW_draw_render_loop_ex(
 
 	drw_engines_draw_scene();
 
+#ifdef __APPLE__
+	/* Fix 3D view being "laggy" on macos. (See T56996) */
+	GPU_flush();
+#endif
+
 	/* annotations - temporary drawing buffer (3d space) */
 	/* XXX: Or should we use a proper draw/overlay engine for this case? */
-	if (((v3d->flag2 & V3D_RENDER_OVERRIDE) == 0) &&
-	    (do_annotations))
-	{
+	if (do_annotations) {
 		glDisable(GL_DEPTH_TEST);
 		/* XXX: as scene->gpd is not copied for COW yet */
 		ED_gpencil_draw_view3d_annotations(DEG_get_input_scene(depsgraph), depsgraph, v3d, ar, true);
@@ -1570,9 +1594,9 @@ void DRW_draw_render_loop_ex(
 		ED_view3d_draw_bgpic_test(scene, depsgraph, ar, v3d, true, true);
 	}
 
-	if (G.debug_value > 20) {
+	if (G.debug_value > 20 && G.debug_value < 30) {
 		glDisable(GL_DEPTH_TEST);
-		rcti rect; /* local coordinate visible rect inside region, to accomodate overlapping ui */
+		rcti rect; /* local coordinate visible rect inside region, to accommodate overlapping ui */
 		ED_region_visible_rect(DST.draw_ctx.ar, &rect);
 		DRW_stats_draw(&rect);
 		glEnable(GL_DEPTH_TEST);
@@ -1644,13 +1668,15 @@ void DRW_draw_render_loop_offscreen(
 	GPU_offscreen_bind(ofs, false);
 }
 
-/* helper to check if exit object type to render */
-static bool DRW_render_check_grease_pencil(Depsgraph *depsgraph)
+/* Helper to check if exit object type to render. */
+bool DRW_render_check_grease_pencil(Depsgraph *depsgraph)
 {
 	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
 	{
-		if ((ob->type == OB_GPENCIL) && (DRW_check_object_visible_within_active_context(ob))) {
-			return true;
+		if (ob->type == OB_GPENCIL) {
+			if (DRW_object_visibility_in_active_context(ob) & OB_VISIBLE_SELF) {
+				return true;
+			}
 		}
 	}
 	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END
@@ -1882,17 +1908,25 @@ void DRW_render_object_iter(
 	DRW_hair_init();
 
 	const int object_type_exclude_viewport = draw_ctx->v3d ? draw_ctx->v3d->object_type_exclude_viewport : 0;
-	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
+	DEG_OBJECT_ITER_BEGIN(depsgraph, ob,
+	        DEG_ITER_OBJECT_FLAG_LINKED_DIRECTLY |
+	        DEG_ITER_OBJECT_FLAG_LINKED_VIA_SET |
+	        DEG_ITER_OBJECT_FLAG_VISIBLE |
+	        DEG_ITER_OBJECT_FLAG_DUPLI)
 	{
 		if ((object_type_exclude_viewport & (1 << ob->type)) == 0) {
+			DST.dupli_parent = data_.dupli_parent;
+			DST.dupli_source = data_.dupli_object_current;
 			DST.ob_state = NULL;
 			callback(vedata, ob, engine, depsgraph);
+
+			drw_batch_cache_generate_requested(ob);
 		}
 	}
-	DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END
+	DEG_OBJECT_ITER_END
 }
 
-/* Assume a valid gl context is bound (and that the gl_context_mutex has been aquired).
+/* Assume a valid gl context is bound (and that the gl_context_mutex has been acquired).
  * This function only setup DST and execute the given function.
  * Warning: similar to DRW_render_to_image you cannot use default lists (dfbl & dtxl). */
 void DRW_custom_pipeline(
@@ -2019,6 +2053,7 @@ void DRW_draw_select_loop(
 	}
 	if (v3d->overlay.flag & V3D_OVERLAY_BONE_SELECT) {
 		if (!(v3d->flag2 & V3D_RENDER_OVERRIDE)) {
+			/* Note: don't use "BKE_object_pose_armature_get" here, it breaks selection. */
 			Object *obpose = OBPOSE_FROM_OBACT(obact);
 			if (obpose) {
 				use_obedit = true;
@@ -2044,6 +2079,7 @@ void DRW_draw_select_loop(
 	}
 	else {
 		drw_engines_enable_basic();
+		drw_engines_enable_from_overlays(v3d->overlay.flag);
 		drw_engines_enable_from_object_mode();
 	}
 
@@ -2074,7 +2110,7 @@ void DRW_draw_select_loop(
 #if 0
 			drw_engines_cache_populate(obact);
 #else
-			FOREACH_OBJECT_IN_MODE_BEGIN (view_layer, obact->mode, ob_iter) {
+			FOREACH_OBJECT_IN_MODE_BEGIN (view_layer, v3d, obact->type, obact->mode, ob_iter) {
 				drw_engines_cache_populate(ob_iter);
 			}
 			FOREACH_OBJECT_IN_MODE_END;
@@ -2085,12 +2121,16 @@ void DRW_draw_select_loop(
 			        v3d->object_type_exclude_viewport | v3d->object_type_exclude_select
 			);
 			bool filter_exclude = false;
-			DEG_OBJECT_ITER_BEGIN(
-			        depsgraph, ob,
+			DEG_OBJECT_ITER_BEGIN(depsgraph, ob,
 			        DEG_ITER_OBJECT_FLAG_LINKED_DIRECTLY |
+			        DEG_ITER_OBJECT_FLAG_LINKED_VIA_SET |
 			        DEG_ITER_OBJECT_FLAG_VISIBLE |
 			        DEG_ITER_OBJECT_FLAG_DUPLI)
 			{
+				if (v3d->localvd && ((v3d->local_view_uuid & ob->base_local_view_bits) == 0)) {
+					continue;
+				}
+
 				if ((ob->base_flag & BASE_SELECTABLE) &&
 				    (object_type_exclude_select & (1 << ob->type)) == 0)
 				{
@@ -2111,6 +2151,8 @@ void DRW_draw_select_loop(
 						Object *ob_orig = DEG_get_original_object(ob);
 						DRW_select_load_id(ob_orig->select_color);
 					}
+					DST.dupli_parent = data_.dupli_parent;
+					DST.dupli_source = data_.dupli_object_current;
 					drw_engines_cache_populate(ob);
 				}
 			}
@@ -2189,16 +2231,16 @@ static void draw_depth_texture_to_screen(GPUTexture *texture)
 
 	immBegin(GPU_PRIM_TRI_STRIP, 4);
 
-	immAttrib2f(texcoord, 0.0f, 0.0f);
+	immAttr2f(texcoord, 0.0f, 0.0f);
 	immVertex2f(pos, 0.0f, 0.0f);
 
-	immAttrib2f(texcoord, 1.0f, 0.0f);
+	immAttr2f(texcoord, 1.0f, 0.0f);
 	immVertex2f(pos, w, 0.0f);
 
-	immAttrib2f(texcoord, 0.0f, 1.0f);
+	immAttr2f(texcoord, 0.0f, 1.0f);
 	immVertex2f(pos, 0.0f, h);
 
-	immAttrib2f(texcoord, 1.0f, 1.0f);
+	immAttr2f(texcoord, 1.0f, 1.0f);
 	immVertex2f(pos, w, h);
 
 	immEnd();
@@ -2239,7 +2281,9 @@ void DRW_draw_depth_loop(
 	/* Get list of enabled engines */
 	{
 		drw_engines_enable_basic();
-		drw_engines_enable_from_object_mode();
+		if (DRW_state_draw_support()) {
+			drw_engines_enable_from_object_mode();
+		}
 	}
 
 	/* Setup viewport */
@@ -2266,13 +2310,25 @@ void DRW_draw_depth_loop(
 		drw_engines_world_update(scene);
 
 		const int object_type_exclude_viewport = v3d->object_type_exclude_viewport;
-		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_BEGIN(depsgraph, ob)
+		DEG_OBJECT_ITER_BEGIN(depsgraph, ob,
+		        DEG_ITER_OBJECT_FLAG_LINKED_DIRECTLY |
+		        DEG_ITER_OBJECT_FLAG_LINKED_VIA_SET |
+		        DEG_ITER_OBJECT_FLAG_VISIBLE |
+		        DEG_ITER_OBJECT_FLAG_DUPLI)
 		{
-			if ((object_type_exclude_viewport & (1 << ob->type)) == 0) {
-				drw_engines_cache_populate(ob);
+			if ((object_type_exclude_viewport & (1 << ob->type)) != 0) {
+				continue;
 			}
+
+			if (v3d->localvd && ((v3d->local_view_uuid & ob->base_local_view_bits) == 0)) {
+				continue;
+			}
+
+			DST.dupli_parent = data_.dupli_parent;
+			DST.dupli_source = data_.dupli_object_current;
+			drw_engines_cache_populate(ob);
 		}
-		DEG_OBJECT_ITER_FOR_RENDER_ENGINE_END;
+		DEG_OBJECT_ITER_END;
 
 		drw_engines_cache_finish();
 
@@ -2383,6 +2439,16 @@ bool DRW_state_is_opengl_render(void)
 	return DST.options.is_image_render && !DST.options.is_scene_render;
 }
 
+bool DRW_state_is_playback(void)
+{
+	if (DST.draw_ctx.evil_C != NULL) {
+		struct wmWindowManager *wm = CTX_wm_manager(DST.draw_ctx.evil_C);
+		return ED_screen_animation_playing(wm) != NULL;
+	}
+	return false;
+}
+
+
 /**
  * Should text draw in this mode?
  */
@@ -2451,7 +2517,7 @@ void DRW_engine_register(DrawEngineType *draw_engine_type)
 void DRW_engines_register(void)
 {
 	RE_engines_register(&DRW_engine_viewport_eevee_type);
-	RE_engines_register(&DRW_engine_viewport_opengl_type);
+	RE_engines_register(&DRW_engine_viewport_workbench_type);
 
 	DRW_engine_register(&draw_engine_workbench_solid);
 	DRW_engine_register(&draw_engine_workbench_transparent);
@@ -2462,7 +2528,6 @@ void DRW_engines_register(void)
 	DRW_engine_register(&draw_engine_edit_lattice_type);
 	DRW_engine_register(&draw_engine_edit_mesh_type);
 	DRW_engine_register(&draw_engine_edit_metaball_type);
-	DRW_engine_register(&draw_engine_edit_surface_type);
 	DRW_engine_register(&draw_engine_edit_text_type);
 	DRW_engine_register(&draw_engine_motion_path_type);
 	DRW_engine_register(&draw_engine_overlay_type);
@@ -2518,6 +2583,7 @@ void DRW_engines_register(void)
 extern struct GPUVertFormat *g_pos_format; /* draw_shgroup.c */
 extern struct GPUUniformBuffer *globals_ubo; /* draw_common.c */
 extern struct GPUTexture *globals_ramp; /* draw_common.c */
+extern struct GPUTexture *globals_weight_ramp; /* draw_common.c */
 void DRW_engines_free(void)
 {
 	DRW_opengl_context_enable();
@@ -2543,6 +2609,7 @@ void DRW_engines_free(void)
 	DRW_UBO_FREE_SAFE(globals_ubo);
 	DRW_UBO_FREE_SAFE(view_ubo);
 	DRW_TEXTURE_FREE_SAFE(globals_ramp);
+	DRW_TEXTURE_FREE_SAFE(globals_weight_ramp);
 	MEM_SAFE_FREE(g_pos_format);
 
 	MEM_SAFE_FREE(DST.RST.bound_texs);
@@ -2621,7 +2688,7 @@ void DRW_opengl_context_disable_ex(bool restore)
 #ifdef __APPLE__
 		/* Need to flush before disabling draw context, otherwise it does not
 		 * always finish drawing and viewport can be empty or partially drawn */
-		glFlush();
+		GPU_flush();
 #endif
 
 		if (BLI_thread_is_main() && restore) {
@@ -2658,7 +2725,7 @@ void DRW_opengl_render_context_enable(void *re_gl_context)
 
 void DRW_opengl_render_context_disable(void *re_gl_context)
 {
-	glFlush();
+	GPU_flush();
 	WM_opengl_context_release(re_gl_context);
 	/* TODO get rid of the blocking. */
 	BLI_ticket_mutex_unlock(DST.gl_context_mutex);

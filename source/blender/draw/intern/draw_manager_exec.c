@@ -193,14 +193,14 @@ void drw_state_set(DRWState state)
 	{
 		if (CHANGED_ANY(DRW_STATE_WIRE | DRW_STATE_WIRE_SMOOTH)) {
 			if ((state & DRW_STATE_WIRE_SMOOTH) != 0) {
-				glLineWidth(2.0f);
-				glEnable(GL_LINE_SMOOTH);
+				GPU_line_width(2.0f);
+				GPU_line_smooth(true);
 			}
 			else if ((state & DRW_STATE_WIRE) != 0) {
-				glLineWidth(1.0f);
+				GPU_line_width(1.0f);
 			}
 			else {
-				glDisable(GL_LINE_SMOOTH);
+				GPU_line_smooth(false);
 			}
 		}
 	}
@@ -224,7 +224,7 @@ void drw_state_set(DRWState state)
 		int test;
 		if (CHANGED_ANY_STORE_VAR(
 		        DRW_STATE_BLEND | DRW_STATE_BLEND_PREMUL | DRW_STATE_ADDITIVE |
-		        DRW_STATE_MULTIPLY | DRW_STATE_TRANSMISSION | DRW_STATE_ADDITIVE_FULL |
+		        DRW_STATE_MULTIPLY | DRW_STATE_ADDITIVE_FULL |
 		        DRW_STATE_BLEND_OIT,
 		        test))
 		{
@@ -240,9 +240,6 @@ void drw_state_set(DRWState state)
 				}
 				else if ((state & DRW_STATE_MULTIPLY) != 0) {
 					glBlendFunc(GL_DST_COLOR, GL_ZERO);
-				}
-				else if ((state & DRW_STATE_TRANSMISSION) != 0) {
-					glBlendFunc(GL_ONE, GL_SRC_ALPHA);
 				}
 				else if ((state & DRW_STATE_BLEND_OIT) != 0) {
 					glBlendFuncSeparate(GL_ONE, GL_ONE, /* RGB */
@@ -281,33 +278,6 @@ void drw_state_set(DRWState state)
 				for (int i = 0; i < MAX_CLIP_PLANES; ++i) {
 					glDisable(GL_CLIP_DISTANCE0 + i);
 				}
-			}
-		}
-	}
-
-	/* Line Stipple */
-	{
-		int test;
-		if (CHANGED_ANY_STORE_VAR(
-		        DRW_STATE_STIPPLE_2 | DRW_STATE_STIPPLE_3 | DRW_STATE_STIPPLE_4,
-		        test))
-		{
-			if (test) {
-				if ((state & DRW_STATE_STIPPLE_2) != 0) {
-					setlinestyle(2);
-				}
-				else if ((state & DRW_STATE_STIPPLE_3) != 0) {
-					setlinestyle(3);
-				}
-				else if ((state & DRW_STATE_STIPPLE_4) != 0) {
-					setlinestyle(4);
-				}
-				else {
-					BLI_assert(0);
-				}
-			}
-			else {
-				setlinestyle(0);
 			}
 		}
 	}
@@ -355,6 +325,50 @@ void drw_state_set(DRWState state)
 				glStencilMask(0x00);
 				glStencilFunc(GL_ALWAYS, 0, 0xFF);
 				glDisable(GL_STENCIL_TEST);
+			}
+		}
+	}
+
+	/* Provoking Vertex */
+	{
+		int test;
+		if ((test = CHANGED_TO(DRW_STATE_FIRST_VERTEX_CONVENTION))) {
+			if (test == 1) {
+				glProvokingVertex(GL_FIRST_VERTEX_CONVENTION);
+			}
+			else {
+				glProvokingVertex(GL_LAST_VERTEX_CONVENTION);
+			}
+		}
+	}
+
+	/* Polygon Offset */
+	{
+		int test;
+		if (CHANGED_ANY_STORE_VAR(
+		        DRW_STATE_OFFSET_POSITIVE |
+		        DRW_STATE_OFFSET_NEGATIVE,
+		        test))
+		{
+			if (test) {
+				glEnable(GL_POLYGON_OFFSET_FILL);
+				glEnable(GL_POLYGON_OFFSET_LINE);
+				glEnable(GL_POLYGON_OFFSET_POINT);
+				/* Stencil Write */
+				if ((state & DRW_STATE_OFFSET_POSITIVE) != 0) {
+					glPolygonOffset(1.0f, 1.0f);
+				}
+				else if ((state & DRW_STATE_OFFSET_NEGATIVE) != 0) {
+					glPolygonOffset(-1.0f, -1.0f);
+				}
+				else {
+					BLI_assert(0);
+				}
+			}
+			else {
+				glDisable(GL_POLYGON_OFFSET_FILL);
+				glDisable(GL_POLYGON_OFFSET_LINE);
+				glDisable(GL_POLYGON_OFFSET_POINT);
 			}
 		}
 	}
@@ -788,7 +802,7 @@ static void draw_matrices_model_prepare(DRWCallState *st)
 		/* set eye vector, transformed to object coords */
 		mul_m3_v3(tmp, st->eyevec);
 	}
-	/* Non view dependant */
+	/* Non view dependent */
 	if (st->matflag & DRW_CALL_MODELINVERSE) {
 		invert_m4_m4(st->modelinverse, st->model);
 		st->matflag &= ~DRW_CALL_MODELINVERSE;
@@ -801,10 +815,16 @@ static void draw_matrices_model_prepare(DRWCallState *st)
 	}
 }
 
-static void draw_geometry_prepare(DRWShadingGroup *shgroup, DRWCallState *state)
+static void draw_geometry_prepare(DRWShadingGroup *shgroup, DRWCall *call)
 {
 	/* step 1 : bind object dependent matrices */
-	if (state != NULL) {
+	if (call != NULL) {
+		DRWCallState *state = call->state;
+		float objectinfo[3];
+		objectinfo[0] = state->objectinfo[0];
+		objectinfo[1] = call->single.ma_index; /* WATCH this is only valid for single drawcalls. */
+		objectinfo[2] = state->objectinfo[1];
+
 		GPU_shader_uniform_vector(shgroup->shader, shgroup->model, 16, 1, (float *)state->model);
 		GPU_shader_uniform_vector(shgroup->shader, shgroup->modelinverse, 16, 1, (float *)state->modelinverse);
 		GPU_shader_uniform_vector(shgroup->shader, shgroup->modelview, 16, 1, (float *)state->modelview);
@@ -812,6 +832,7 @@ static void draw_geometry_prepare(DRWShadingGroup *shgroup, DRWCallState *state)
 		GPU_shader_uniform_vector(shgroup->shader, shgroup->modelviewprojection, 16, 1, (float *)state->modelviewprojection);
 		GPU_shader_uniform_vector(shgroup->shader, shgroup->normalview, 9, 1, (float *)state->normalview);
 		GPU_shader_uniform_vector(shgroup->shader, shgroup->normalworld, 9, 1, (float *)state->normalworld);
+		GPU_shader_uniform_vector(shgroup->shader, shgroup->objectinfo, 3, 1, (float *)objectinfo);
 		GPU_shader_uniform_vector(shgroup->shader, shgroup->orcotexfac, 3, 2, (float *)state->orcotexfac);
 		GPU_shader_uniform_vector(shgroup->shader, shgroup->eye, 3, 1, (float *)state->eyevec);
 	}
@@ -825,6 +846,7 @@ static void draw_geometry_prepare(DRWShadingGroup *shgroup, DRWCallState *state)
 		GPU_shader_uniform_vector(shgroup->shader, shgroup->modelview, 16, 1, (float *)DST.view_data.matstate.mat[DRW_MAT_VIEW]);
 		GPU_shader_uniform_vector(shgroup->shader, shgroup->modelviewinverse, 16, 1, (float *)DST.view_data.matstate.mat[DRW_MAT_VIEWINV]);
 		GPU_shader_uniform_vector(shgroup->shader, shgroup->modelviewprojection, 16, 1, (float *)DST.view_data.matstate.mat[DRW_MAT_PERS]);
+		GPU_shader_uniform_vector(shgroup->shader, shgroup->objectinfo, 3, 1, (float *)unitmat);
 		GPU_shader_uniform_vector(shgroup->shader, shgroup->orcotexfac, 3, 2, (float *)shgroup->instance_orcofac);
 	}
 }
@@ -905,10 +927,10 @@ static void bind_ubo(GPUUniformBuffer *ubo, char bind_type)
 				return;
 			}
 		}
-		/* printf so user can report bad behaviour */
+		/* printf so user can report bad behavior */
 		printf("Not enough ubo slots! This should not happen!\n");
 		/* This is not depending on user input.
-		 * It is our responsability to make sure there is enough slots. */
+		 * It is our responsibility to make sure there is enough slots. */
 		BLI_assert(0);
 	}
 	slot_flags[bind_num] = bind_type;
@@ -1124,7 +1146,7 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 			GPU_select_load_id(select_id[_start]);                   \
 		}
 
-# define GPU_SELECT_LOAD_IF_PICKSEL_LIST_END(_start, _count) \
+#  define GPU_SELECT_LOAD_IF_PICKSEL_LIST_END(_start, _count) \
 		_start += _count;                                    \
 	}
 
@@ -1205,7 +1227,7 @@ static void draw_shgroup(DRWShadingGroup *shgroup, DRWState pass_state)
 			}
 
 			GPU_SELECT_LOAD_IF_PICKSEL_CALL(call);
-			draw_geometry_prepare(shgroup, call->state);
+			draw_geometry_prepare(shgroup, call);
 
 			switch (call->type) {
 				case DRW_CALL_SINGLE:

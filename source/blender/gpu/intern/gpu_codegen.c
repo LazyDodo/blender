@@ -82,15 +82,15 @@ static uint32_t gpu_pass_hash(const char *frag_gen, const char *defs, GPUVertexA
 {
 	BLI_HashMurmur2A hm2a;
 	BLI_hash_mm2a_init(&hm2a, 0);
-	BLI_hash_mm2a_add(&hm2a, (unsigned char *)frag_gen, strlen(frag_gen));
+	BLI_hash_mm2a_add(&hm2a, (uchar *)frag_gen, strlen(frag_gen));
 	if (attribs) {
 		for (int att_idx = 0; att_idx < attribs->totlayer; att_idx++) {
 			char *name = attribs->layer[att_idx].name;
-			BLI_hash_mm2a_add(&hm2a, (unsigned char *)name, strlen(name));
+			BLI_hash_mm2a_add(&hm2a, (uchar *)name, strlen(name));
 		}
 	}
 	if (defs)
-		BLI_hash_mm2a_add(&hm2a, (unsigned char *)defs, strlen(defs));
+		BLI_hash_mm2a_add(&hm2a, (uchar *)defs, strlen(defs));
 
 	return BLI_hash_mm2a_end(&hm2a);
 }
@@ -185,7 +185,7 @@ static char *gpu_str_skip_token(char *str, char *token, int max)
 
 	/* skip a variable/function name */
 	while (*str) {
-		if (ELEM(*str, ' ', '(', ')', ',', '\t', '\n', '\r'))
+		if (ELEM(*str, ' ', '(', ')', ',', ';', '\t', '\n', '\r'))
 			break;
 		else {
 			if (token && len < max - 1) {
@@ -203,7 +203,7 @@ static char *gpu_str_skip_token(char *str, char *token, int max)
 	/* skip the next special characters:
 	 * note the missing ')' */
 	while (*str) {
-		if (ELEM(*str, ' ', '(', ',', '\t', '\n', '\r'))
+		if (ELEM(*str, ' ', '(', ',', ';', '\t', '\n', '\r'))
 			str++;
 		else
 			break;
@@ -507,6 +507,8 @@ const char *GPU_builtin_name(GPUBuiltin builtin)
 		return "unftemperature";
 	else if (builtin == GPU_BARYCENTRIC_TEXCO)
 		return "unfbarycentrictex";
+	else if (builtin == GPU_BARYCENTRIC_DIST)
+		return "unfbarycentricdist";
 	else
 		return "";
 }
@@ -516,14 +518,14 @@ static void codegen_set_texid(GHash *bindhash, GPUInput *input, int *texid, void
 {
 	if (BLI_ghash_haskey(bindhash, key)) {
 		/* Reuse existing texid */
-		input->texid = GET_INT_FROM_POINTER(BLI_ghash_lookup(bindhash, key));
+		input->texid = POINTER_AS_INT(BLI_ghash_lookup(bindhash, key));
 	}
 	else {
 		/* Allocate new texid */
 		input->texid = *texid;
 		(*texid)++;
 		input->bindtex = true;
-		BLI_ghash_insert(bindhash, key, SET_INT_IN_POINTER(input->texid));
+		BLI_ghash_insert(bindhash, key, POINTER_FROM_INT(input->texid));
 	}
 }
 
@@ -612,8 +614,7 @@ static int codegen_process_uniforms_functions(GPUMaterial *material, DynStr *ds,
 					}
 					else {
 						BLI_dynstr_appendf(
-						        ds, "%s %s %s;\n",
-						        GLEW_VERSION_3_0 ? "in" : "varying",
+						        ds, "in %s %s;\n",
 						        GPU_DATATYPE_STR[input->type], name);
 					}
 				}
@@ -636,21 +637,9 @@ static int codegen_process_uniforms_functions(GPUMaterial *material, DynStr *ds,
 				BLI_dynstr_append(ds, ";\n");
 			}
 			else if (input->source == GPU_SOURCE_ATTRIB && input->attribfirst) {
-#ifdef WITH_OPENSUBDIV
-				bool skip_opensubdiv = input->attribtype == CD_TANGENT;
-				if (skip_opensubdiv) {
-					BLI_dynstr_appendf(ds, "#ifndef USE_OPENSUBDIV\n");
-				}
-#endif
 				BLI_dynstr_appendf(
-				        ds, "%s %s var%d;\n",
-				        GLEW_VERSION_3_0 ? "in" : "varying",
+				        ds, "in %s var%d;\n",
 				        GPU_DATATYPE_STR[input->type], input->attribid);
-#ifdef WITH_OPENSUBDIV
-				if (skip_opensubdiv) {
-					BLI_dynstr_appendf(ds, "#endif\n");
-				}
-#endif
 			}
 		}
 	}
@@ -726,6 +715,12 @@ static void codegen_call_functions(DynStr *ds, ListBase *nodes, GPUOutput *final
 					BLI_dynstr_append(ds, "viewmat");
 				else if (input->builtin == GPU_CAMERA_TEXCO_FACTORS)
 					BLI_dynstr_append(ds, "camtexfac");
+				else if (input->builtin == GPU_LOC_TO_VIEW_MATRIX)
+					BLI_dynstr_append(ds, "localtoviewmat");
+				else if (input->builtin == GPU_INVERSE_LOC_TO_VIEW_MATRIX)
+					BLI_dynstr_append(ds, "invlocaltoviewmat");
+				else if (input->builtin == GPU_BARYCENTRIC_DIST)
+					BLI_dynstr_append(ds, "barycentricDist");
 				else if (input->builtin == GPU_BARYCENTRIC_TEXCO)
 					BLI_dynstr_append(ds, "barytexco");
 				else if (input->builtin == GPU_OBJECT_MATRIX)
@@ -768,28 +763,24 @@ static void codegen_call_functions(DynStr *ds, ListBase *nodes, GPUOutput *final
 	BLI_dynstr_append(ds, ";\n");
 }
 
-static char *code_generate_fragment(GPUMaterial *material, ListBase *nodes, GPUOutput *output)
+static char *code_generate_fragment(GPUMaterial *material, ListBase *nodes, GPUOutput *output, int *rbuiltins)
 {
 	DynStr *ds = BLI_dynstr_new();
 	char *code;
 	int builtins;
-
-#ifdef WITH_OPENSUBDIV
-	GPUNode *node;
-	GPUInput *input;
-#endif
-
 
 #if 0
 	BLI_dynstr_append(ds, FUNCTION_PROTOTYPES);
 #endif
 
 	codegen_set_unique_ids(nodes);
-	builtins = codegen_process_uniforms_functions(material, ds, nodes);
-
+	*rbuiltins = builtins = codegen_process_uniforms_functions(material, ds, nodes);
 
 	if (builtins & GPU_BARYCENTRIC_TEXCO)
-		BLI_dynstr_append(ds, "\tin vec2 barycentricTexCo;\n");
+		BLI_dynstr_append(ds, "in vec2 barycentricTexCo;\n");
+
+	if (builtins & GPU_BARYCENTRIC_DIST)
+		BLI_dynstr_append(ds, "flat in vec3 barycentricDist;\n");
 
 	BLI_dynstr_append(ds, "Closure nodetree_exec(void)\n{\n");
 
@@ -805,49 +796,23 @@ static char *code_generate_fragment(GPUMaterial *material, ListBase *nodes, GPUO
 	}
 	/* TODO(fclem) get rid of that. */
 	if (builtins & GPU_VIEW_MATRIX)
-		BLI_dynstr_append(ds, "\tmat4 viewmat = ViewMatrix;\n");
+		BLI_dynstr_append(ds, "\t#define viewmat ViewMatrix\n");
 	if (builtins & GPU_CAMERA_TEXCO_FACTORS)
-		BLI_dynstr_append(ds, "\tvec4 camtexfac = CameraTexCoFactors;\n");
+		BLI_dynstr_append(ds, "\t#define camtexfac CameraTexCoFactors\n");
 	if (builtins & GPU_OBJECT_MATRIX)
-		BLI_dynstr_append(ds, "\tmat4 objmat = ModelMatrix;\n");
+		BLI_dynstr_append(ds, "\t#define objmat ModelMatrix\n");
 	if (builtins & GPU_INVERSE_OBJECT_MATRIX)
-		BLI_dynstr_append(ds, "\tmat4 objinv = ModelMatrixInverse;\n");
+		BLI_dynstr_append(ds, "\t#define objinv ModelMatrixInverse\n");
 	if (builtins & GPU_INVERSE_VIEW_MATRIX)
-		BLI_dynstr_append(ds, "\tmat4 viewinv = ViewMatrixInverse;\n");
+		BLI_dynstr_append(ds, "\t#define viewinv ViewMatrixInverse\n");
+	if (builtins & GPU_LOC_TO_VIEW_MATRIX)
+		BLI_dynstr_append(ds, "\t#define localtoviewmat ModelViewMatrix\n");
+	if (builtins & GPU_INVERSE_LOC_TO_VIEW_MATRIX)
+		BLI_dynstr_append(ds, "\t#define invlocaltoviewmat ModelViewMatrixInverse\n");
 	if (builtins & GPU_VIEW_NORMAL)
 		BLI_dynstr_append(ds, "\tvec3 facingnormal = gl_FrontFacing? viewNormal: -viewNormal;\n");
 	if (builtins & GPU_VIEW_POSITION)
-		BLI_dynstr_append(ds, "\tvec3 viewposition = viewPosition;\n");
-
-	/* Calculate tangent space. */
-#ifdef WITH_OPENSUBDIV
-	{
-		bool has_tangent = false;
-		for (node = nodes->first; node; node = node->next) {
-			for (input = node->inputs.first; input; input = input->next) {
-				if (input->source == GPU_SOURCE_ATTRIB && input->attribfirst) {
-					if (input->attribtype == CD_TANGENT) {
-						BLI_dynstr_appendf(
-						        ds, "#ifdef USE_OPENSUBDIV\n");
-						BLI_dynstr_appendf(
-						        ds, "\t%s var%d;\n",
-						        GPU_DATATYPE_STR[input->type],
-						        input->attribid);
-						if (has_tangent == false) {
-							BLI_dynstr_appendf(ds, "\tvec3 Q1 = dFdx(inpt.v.position.xyz);\n");
-							BLI_dynstr_appendf(ds, "\tvec3 Q2 = dFdy(inpt.v.position.xyz);\n");
-							BLI_dynstr_appendf(ds, "\tvec2 st1 = dFdx(inpt.v.uv);\n");
-							BLI_dynstr_appendf(ds, "\tvec2 st2 = dFdy(inpt.v.uv);\n");
-							BLI_dynstr_appendf(ds, "\tvec3 T = normalize(Q1 * st2.t - Q2 * st1.t);\n");
-						}
-						BLI_dynstr_appendf(ds, "\tvar%d = vec4(T, 1.0);\n", input->attribid);
-						BLI_dynstr_appendf(ds, "#endif\n");
-					}
-				}
-			}
-		}
-	}
-#endif
+		BLI_dynstr_append(ds, "\t#define viewposition viewPosition\n");
 
 	codegen_declare_tmps(ds, nodes);
 	codegen_call_functions(ds, nodes, output);
@@ -915,7 +880,7 @@ static char *code_generate_vertex(ListBase *nodes, const char *vert_code, bool u
 				/* XXX FIXME : see notes in mesh_render_data_create() */
 				/* NOTE : Replicate changes to mesh_render_data_create() in draw_cache_impl_mesh.c */
 				if (input->attribtype == CD_ORCO) {
-					/* orco is computed from local positions, see bellow */
+					/* orco is computed from local positions, see below */
 					BLI_dynstr_appendf(ds, "uniform vec3 OrcoTexCoFactors[2];\n");
 				}
 				else if (input->attribname[0] == '\0') {
@@ -923,7 +888,7 @@ static char *code_generate_vertex(ListBase *nodes, const char *vert_code, bool u
 					BLI_dynstr_appendf(ds, "#define att%d %s\n", input->attribid, attrib_prefix_get(input->attribtype));
 				}
 				else {
-					unsigned int hash = BLI_ghashutil_strhash_p(input->attribname);
+					uint hash = BLI_ghashutil_strhash_p(input->attribname);
 					BLI_dynstr_appendf(
 					        ds, "DEFINE_ATTRIB(%s, %s%u);\n",
 					        GPU_DATATYPE_STR[input->type], attrib_prefix_get(input->attribtype), hash);
@@ -950,6 +915,11 @@ static char *code_generate_vertex(ListBase *nodes, const char *vert_code, bool u
 		        use_geom ? "g" : "");
 	}
 
+	if (builtins & GPU_BARYCENTRIC_DIST) {
+		BLI_dynstr_appendf(ds, "out vec3 barycentricPosg;\n");
+	}
+
+
 	BLI_dynstr_append(ds, "\n");
 
 	BLI_dynstr_append(
@@ -957,6 +927,7 @@ static char *code_generate_vertex(ListBase *nodes, const char *vert_code, bool u
 	        "#define ATTRIB\n"
 	        "uniform mat3 NormalMatrix;\n"
 	        "uniform mat4 ModelMatrixInverse;\n"
+	        "uniform mat4 ModelMatrix;\n"
 	        "vec3 srgb_to_linear_attrib(vec3 c) {\n"
 	        "\tc = max(c, vec3(0.0));\n"
 	        "\tvec3 c1 = c * (1.0 / 12.92);\n"
@@ -994,6 +965,10 @@ static char *code_generate_vertex(ListBase *nodes, const char *vert_code, bool u
 		        use_geom ? "g" : "");
 	}
 
+	if (builtins & GPU_BARYCENTRIC_DIST) {
+		BLI_dynstr_appendf(ds, "\tbarycentricPosg = position;\n");
+	}
+
 	for (node = nodes->first; node; node = node->next) {
 		for (input = node->inputs.first; input; input = input->next) {
 			if (input->source == GPU_SOURCE_ATTRIB && input->attribfirst) {
@@ -1026,6 +1001,10 @@ static char *code_generate_vertex(ListBase *nodes, const char *vert_code, bool u
 		BLI_dynstr_appendf(
 		        ds, "\tbarycentricTexCo%s.y = float((gl_VertexID %% 3) == 1);\n",
 		        use_geom ? "g" : "");
+	}
+
+	if (builtins & GPU_BARYCENTRIC_DIST) {
+		BLI_dynstr_appendf(ds, "\tbarycentricPosg = (ModelMatrix * vec4(position, 1.0)).xyz;\n");
 	}
 
 	for (node = nodes->first; node; node = node->next) {
@@ -1067,7 +1046,27 @@ static char *code_generate_vertex(ListBase *nodes, const char *vert_code, bool u
 
 	BLI_dynstr_append(ds, "}\n");
 
-	BLI_dynstr_append(ds, vert_code);
+	if (use_geom) {
+		/* XXX HACK: Eevee specific. */
+		char *vert_new, *vert_new2;
+		vert_new = BLI_str_replaceN(vert_code, "worldPosition", "worldPositiong");
+		vert_new2 = vert_new;
+		vert_new = BLI_str_replaceN(vert_new2, "viewPosition", "viewPositiong");
+		MEM_freeN(vert_new2);
+		vert_new2 = vert_new;
+		vert_new = BLI_str_replaceN(vert_new2, "worldNormal", "worldNormalg");
+		MEM_freeN(vert_new2);
+		vert_new2 = vert_new;
+		vert_new = BLI_str_replaceN(vert_new2, "viewNormal", "viewNormalg");
+		MEM_freeN(vert_new2);
+
+		BLI_dynstr_append(ds, vert_new);
+
+		MEM_freeN(vert_new);
+	}
+	else {
+		BLI_dynstr_append(ds, vert_code);
+	}
 
 	code = BLI_dynstr_get_cstring(ds);
 
@@ -1090,9 +1089,8 @@ static char *code_generate_geometry(ListBase *nodes, const char *geom_code)
 
 	/* Create prototype because attributes cannot be declared before layout. */
 	BLI_dynstr_appendf(ds, "void pass_attrib(in int vert);\n");
+	BLI_dynstr_appendf(ds, "void calc_barycentric_distances(vec3 pos0, vec3 pos1, vec3 pos2);\n");
 	BLI_dynstr_append(ds, "#define ATTRIB\n");
-
-	BLI_dynstr_append(ds, geom_code);
 
 	/* Generate varying declarations. */
 	for (node = nodes->first; node; node = node->next) {
@@ -1115,14 +1113,91 @@ static char *code_generate_geometry(ListBase *nodes, const char *geom_code)
 
 	if (builtins & GPU_BARYCENTRIC_TEXCO) {
 		BLI_dynstr_appendf(ds, "in vec2 barycentricTexCog[];\n");
-		BLI_dynstr_appendf(ds, "out vec2 barycentricTexCo[];\n");
+		BLI_dynstr_appendf(ds, "out vec2 barycentricTexCo;\n");
+	}
+
+	if (builtins & GPU_BARYCENTRIC_DIST) {
+		BLI_dynstr_appendf(ds, "in vec3 barycentricPosg[];\n");
+		BLI_dynstr_appendf(ds, "flat out vec3 barycentricDist;\n");
+	}
+
+	if (geom_code == NULL) {
+		if ((builtins & GPU_BARYCENTRIC_DIST) == 0) {
+			/* Early out */
+			BLI_dynstr_free(ds);
+			return NULL;
+		}
+		else {
+			/* Force geom shader usage */
+			/* TODO put in external file. */
+			BLI_dynstr_appendf(ds, "layout(triangles) in;\n");
+			BLI_dynstr_appendf(ds, "layout(triangle_strip, max_vertices=3) out;\n");
+
+			BLI_dynstr_appendf(ds, "in vec3 worldPositiong[];\n");
+			BLI_dynstr_appendf(ds, "in vec3 viewPositiong[];\n");
+			BLI_dynstr_appendf(ds, "in vec3 worldNormalg[];\n");
+			BLI_dynstr_appendf(ds, "in vec3 viewNormalg[];\n");
+
+			BLI_dynstr_appendf(ds, "out vec3 worldPosition;\n");
+			BLI_dynstr_appendf(ds, "out vec3 viewPosition;\n");
+			BLI_dynstr_appendf(ds, "out vec3 worldNormal;\n");
+			BLI_dynstr_appendf(ds, "out vec3 viewNormal;\n");
+
+			BLI_dynstr_appendf(ds, "void main(){\n");
+
+			if (builtins & GPU_BARYCENTRIC_DIST) {
+				BLI_dynstr_appendf(ds, "\tcalc_barycentric_distances(barycentricPosg[0], barycentricPosg[1], barycentricPosg[2]);\n");
+			}
+
+			BLI_dynstr_appendf(ds, "\tgl_Position = gl_in[0].gl_Position;\n");
+			BLI_dynstr_appendf(ds, "\tpass_attrib(0);\n");
+			BLI_dynstr_appendf(ds, "\tEmitVertex();\n");
+
+			BLI_dynstr_appendf(ds, "\tgl_Position = gl_in[1].gl_Position;\n");
+			BLI_dynstr_appendf(ds, "\tpass_attrib(1);\n");
+			BLI_dynstr_appendf(ds, "\tEmitVertex();\n");
+
+			BLI_dynstr_appendf(ds, "\tgl_Position = gl_in[2].gl_Position;\n");
+			BLI_dynstr_appendf(ds, "\tpass_attrib(2);\n");
+			BLI_dynstr_appendf(ds, "\tEmitVertex();\n");
+			BLI_dynstr_appendf(ds, "};\n");
+		}
+	}
+	else {
+		BLI_dynstr_append(ds, geom_code);
+	}
+
+	if (builtins & GPU_BARYCENTRIC_DIST) {
+		BLI_dynstr_appendf(ds, "void calc_barycentric_distances(vec3 pos0, vec3 pos1, vec3 pos2) {\n");
+		BLI_dynstr_appendf(ds, "\tvec3 edge21 = pos2 - pos1;\n");
+		BLI_dynstr_appendf(ds, "\tvec3 edge10 = pos1 - pos0;\n");
+		BLI_dynstr_appendf(ds, "\tvec3 edge02 = pos0 - pos2;\n");
+		BLI_dynstr_appendf(ds, "\tvec3 d21 = normalize(edge21);\n");
+		BLI_dynstr_appendf(ds, "\tvec3 d10 = normalize(edge10);\n");
+		BLI_dynstr_appendf(ds, "\tvec3 d02 = normalize(edge02);\n");
+
+		BLI_dynstr_appendf(ds, "\tfloat d = dot(d21, edge02);\n");
+		BLI_dynstr_appendf(ds, "\tbarycentricDist.x = sqrt(dot(edge02, edge02) - d * d);\n");
+		BLI_dynstr_appendf(ds, "\td = dot(d02, edge10);\n");
+		BLI_dynstr_appendf(ds, "\tbarycentricDist.y = sqrt(dot(edge10, edge10) - d * d);\n");
+		BLI_dynstr_appendf(ds, "\td = dot(d10, edge21);\n");
+		BLI_dynstr_appendf(ds, "\tbarycentricDist.z = sqrt(dot(edge21, edge21) - d * d);\n");
+		BLI_dynstr_append(ds, "}\n");
 	}
 
 	/* Generate varying assignments. */
 	BLI_dynstr_appendf(ds, "void pass_attrib(in int vert) {\n");
 
+	/* XXX HACK: Eevee specific. */
+	if (geom_code == NULL) {
+		BLI_dynstr_appendf(ds, "\tworldPosition = worldPositiong[vert];\n");
+		BLI_dynstr_appendf(ds, "\tviewPosition = viewPositiong[vert];\n");
+		BLI_dynstr_appendf(ds, "\tworldNormal = worldNormalg[vert];\n");
+		BLI_dynstr_appendf(ds, "\tviewNormal = viewNormalg[vert];\n");
+	}
+
 	if (builtins & GPU_BARYCENTRIC_TEXCO) {
-		BLI_dynstr_appendf(ds, "\tbarycentricTexCo = barycentricTexCog;\n");
+		BLI_dynstr_appendf(ds, "\tbarycentricTexCo = barycentricTexCog[vert];\n");
 	}
 
 	for (node = nodes->first; node; node = node->next) {
@@ -1342,19 +1417,11 @@ static GPUNodeLink *gpu_uniformbuffer_link(
 {
 	bNodeSocket *socket;
 
-	/* Some nodes can have been create on the fly and does
-	 * not have an original to point to. (i.e. the bump from
-	 * ntree_shader_relink_displacement). In this case just
-	 * revert to static constant folding. */
-	if (node->original == NULL) {
-		return NULL;
-	}
-
 	if (in_out == SOCK_IN) {
-		socket = BLI_findlink(&node->original->inputs, index);
+		socket = BLI_findlink(&node->inputs, index);
 	}
 	else {
-		socket = BLI_findlink(&node->original->outputs, index);
+		socket = BLI_findlink(&node->outputs, index);
 	}
 
 	BLI_assert(socket != NULL);
@@ -1371,7 +1438,7 @@ static GPUNodeLink *gpu_uniformbuffer_link(
 			}
 			case SOCK_VECTOR:
 			{
-				bNodeSocketValueRGBA *socket_data = socket->default_value;
+				bNodeSocketValueVector *socket_data = socket->default_value;
 				link = GPU_uniform(socket_data->value);
 				break;
 			}
@@ -1717,11 +1784,12 @@ static bool gpu_pass_is_valid(GPUPass *pass)
 	return (pass->compiled == false || pass->shader != NULL);
 }
 
-GPUPass *GPU_generate_pass_new(
+GPUPass *GPU_generate_pass(
         GPUMaterial *material,
         GPUNodeLink *frag_outlink,
         struct GPUVertexAttribs *attribs,
         ListBase *nodes,
+        int *builtins,
         const char *vert_code,
         const char *geom_code,
         const char *frag_lib,
@@ -1736,7 +1804,7 @@ GPUPass *GPU_generate_pass_new(
 	GPU_nodes_get_vertex_attributes(nodes, attribs);
 
 	/* generate code */
-	char *fragmentgen = code_generate_fragment(material, nodes, frag_outlink->output);
+	char *fragmentgen = code_generate_fragment(material, nodes, frag_outlink->output, builtins);
 
 	/* Cache lookup: Reuse shaders already compiled */
 	uint32_t hash = gpu_pass_hash(fragmentgen, defines, attribs);
@@ -1757,8 +1825,8 @@ GPUPass *GPU_generate_pass_new(
 	 * continue generating the shader strings. */
 	char *tmp = BLI_strdupcat(frag_lib, glsl_material_library);
 
-	vertexcode = code_generate_vertex(nodes, vert_code, (geom_code != NULL));
-	geometrycode = (geom_code) ? code_generate_geometry(nodes, geom_code) : NULL;
+	geometrycode = code_generate_geometry(nodes, geom_code);
+	vertexcode = code_generate_vertex(nodes, vert_code, (geometrycode != NULL));
 	fragmentcode = BLI_strdupcat(tmp, fragmentgen);
 
 	MEM_freeN(fragmentgen);
@@ -1811,6 +1879,87 @@ GPUPass *GPU_generate_pass_new(
 	return pass;
 }
 
+static int count_active_texture_sampler(GPUShader *shader, char *source)
+{
+	char *code = source;
+	int samplers_id[64]; /* Remember this is per stage. */
+	int sampler_len = 0;
+
+	while ((code = strstr(code, "uniform "))) {
+		/* Move past "uniform". */
+		code += 7;
+		/* Skip following spaces. */
+		while (*code == ' ') { code++; }
+		/* Skip "i" from potential isamplers. */
+		if (*code == 'i') { code++; }
+		/* Skip following spaces. */
+		if (gpu_str_prefix(code, "sampler")) {
+			/* Move past "uniform". */
+			code += 7;
+			/* Skip sampler type suffix. */
+			while (*code != ' ' && *code != '\0') { code++; }
+			/* Skip following spaces. */
+			while (*code == ' ') { code++; }
+
+			if (*code != '\0') {
+				char sampler_name[64];
+				code = gpu_str_skip_token(code, sampler_name, sizeof(sampler_name));
+				int id = GPU_shader_get_uniform(shader, sampler_name);
+
+				if (id == -1) {
+					continue;
+				}
+				/* Catch duplicates. */
+				bool is_duplicate = false;
+				for (int i = 0; i < sampler_len; ++i) {
+					if (samplers_id[i] == id) {
+						is_duplicate = true;
+					}
+				}
+
+				if (!is_duplicate) {
+					samplers_id[sampler_len] = id;
+					sampler_len++;
+				}
+			}
+		}
+	}
+
+	return sampler_len;
+}
+
+static bool gpu_pass_shader_validate(GPUPass *pass)
+{
+	if (pass->shader == NULL) {
+		return false;
+	}
+
+	/* NOTE: The only drawback of this method is that it will count a sampler
+	 * used in the fragment shader and only declared (but not used) in the vertex
+	 * shader as used by both. But this corner case is not happening for now. */
+	int vert_samplers_len = count_active_texture_sampler(pass->shader, pass->vertexcode);
+	int frag_samplers_len = count_active_texture_sampler(pass->shader, pass->fragmentcode);
+
+	int total_samplers_len = vert_samplers_len + frag_samplers_len;
+
+	/* Validate against opengl limit. */
+	if ((frag_samplers_len > GPU_max_textures_frag()) ||
+	    (frag_samplers_len > GPU_max_textures_vert()))
+	{
+		return false;
+	}
+
+	if (pass->geometrycode) {
+		int geom_samplers_len = count_active_texture_sampler(pass->shader, pass->geometrycode);
+		total_samplers_len += geom_samplers_len;
+		if (geom_samplers_len > GPU_max_textures_geom()) {
+			return false;
+		}
+	}
+
+	return (total_samplers_len <= GPU_max_textures());
+}
+
 void GPU_pass_compile(GPUPass *pass, const char *shname)
 {
 	if (!pass->compiled) {
@@ -1821,6 +1970,16 @@ void GPU_pass_compile(GPUPass *pass, const char *shname)
 		        NULL,
 		        pass->defines,
 		        shname);
+
+		/* NOTE: Some drivers / gpu allows more active samplers than the opengl limit.
+		 * We need to make sure to count active samplers to avoid undefined behavior. */
+		if (!gpu_pass_shader_validate(pass)) {
+			if (pass->shader != NULL) {
+				fprintf(stderr, "GPUShader: error: too many samplers in shader.\n");
+				GPU_shader_free(pass->shader);
+			}
+			pass->shader = NULL;
+		}
 		pass->compiled = true;
 	}
 }

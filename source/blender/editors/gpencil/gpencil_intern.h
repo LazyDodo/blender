@@ -138,6 +138,7 @@ typedef struct tGPDinterpolate {
 
 /* Temporary primitive operation data */
 typedef struct tGPDprimitive {
+	struct Main *bmain;               /* main database pointer */
 	struct Depsgraph *depsgraph;
 	struct wmWindow *win;             /* window where painting originated */
 	struct Scene *scene;              /* current scene from context */
@@ -154,22 +155,37 @@ typedef struct tGPDprimitive {
 	struct bGPDlayer *gpl;            /* layer */
 	struct bGPDframe *gpf;            /* frame */
 	int type;                         /* type of primitive */
+	int orign_type;                   /* original type of primitive */
+	bool curve;                       /* type of primitive is a curve */
+	int brush_size;                   /* brush size */
+	float brush_strength;             /* brush strength */
+	short flip;                       /* flip option */
+	tGPspoint *points;                /* array of data-points for stroke */
+	int point_count;                  /* number of edges allocated */
+	int tot_stored_edges;             /* stored number of polygon edges */
 	int tot_edges;                    /* number of polygon edges */
-	int top[2];                       /* first box corner */
-	int bottom[2];                    /* last box corner */
+	float move[2];                    /* move distance */
+	float origin[2];                  /* initial box corner */
+	float start[2];                   /* first box corner */
+	float end[2];                     /* last box corner */
+	float midpoint[2];                /* midpoint box corner */
+	float cp1[2];                     /* first control point */
+	float cp2[2];                     /* second control point */
+	int sel_cp;                       /* flag to determine control point is selected */
 	int flag;                         /* flag to determine operations in progress */
+	float mval[2];                    /* recorded mouse-position */
+	float mvalo[2];                   /* previous recorded mouse-position */
 
 	int lock_axis;                    /* lock to viewport axis */
+	struct RNG *rng;
 
 	NumInput num;                     /* numeric input */
-	void *draw_handle_3d;             /* handle for drawing strokes while operator is running 3d stuff */
 } tGPDprimitive;
 
 
 /* Modal Operator Drawing Callbacks ------------------------ */
 
 void ED_gp_draw_interpolation(const struct bContext *C, struct tGPDinterpolate *tgpi, const int type);
-void ED_gp_draw_primitives(const struct bContext *C, struct tGPDprimitive *tgpi, const int type);
 void ED_gp_draw_fill(struct tGPDdraw *tgpw);
 
 /* ***************************************************** */
@@ -179,6 +195,8 @@ void ED_gp_draw_fill(struct tGPDdraw *tgpw);
 /* gpencil_utils.c */
 
 typedef struct GP_SpaceConversion {
+	struct Scene *scene;
+	struct Object *ob;
 	struct bGPdata *gpd;
 	struct bGPDlayer *gpl;
 
@@ -192,18 +210,21 @@ typedef struct GP_SpaceConversion {
 	float mat[4][4];     /* transform matrix on the strokes (introduced in [b770964]) */
 } GP_SpaceConversion;
 
-bool gp_stroke_inside_circle(const int mval[2], const int UNUSED(mvalo[2]),
-                             int rad, int x0, int y0, int x1, int y1);
+bool gp_stroke_inside_circle(
+        const float mval[2], const float UNUSED(mvalo[2]),
+        int rad, int x0, int y0, int x1, int y1);
 
 void gp_point_conversion_init(struct bContext *C, GP_SpaceConversion *r_gsc);
 
-void gp_point_to_xy(GP_SpaceConversion *settings, struct bGPDstroke *gps, struct bGPDspoint *pt,
-                    int *r_x, int *r_y);
+void gp_point_to_xy(
+        const GP_SpaceConversion *gsc, const struct bGPDstroke *gps, const struct bGPDspoint *pt,
+        int *r_x, int *r_y);
 
-void gp_point_to_xy_fl(GP_SpaceConversion *gsc, bGPDstroke *gps, bGPDspoint *pt,
-                       float *r_x, float *r_y);
+void gp_point_to_xy_fl(
+        const GP_SpaceConversion *gsc, const bGPDstroke *gps, const bGPDspoint *pt,
+        float *r_x, float *r_y);
 
-void gp_point_to_parent_space(bGPDspoint *pt, float diff_mat[4][4], bGPDspoint *r_pt);
+void gp_point_to_parent_space(const bGPDspoint *pt, const float diff_mat[4][4], bGPDspoint *r_pt);
 /**
  * Change points position relative to parent object
  */
@@ -218,7 +239,7 @@ bool gp_point_xy_to_3d(GP_SpaceConversion *gsc, struct Scene *scene, const float
 /* helper to convert 2d to 3d */
 void gp_stroke_convertcoords_tpoint(
         struct Scene *scene, struct ARegion *ar,
-        struct View3D *v3d, struct Object *ob,
+        struct Object *ob,
         bGPDlayer *gpl, const struct tGPspoint *point2D,
         float *depth, float out[3]);
 
@@ -245,9 +266,6 @@ void gp_stroke_delete_tagged_points(
         int tag_flags, bool select);
 int gp_delete_selected_point_wrap(bContext *C);
 
-bool gp_smooth_stroke(bGPDstroke *gps, int i, float inf, bool affect_pressure);
-bool gp_smooth_stroke_strength(bGPDstroke *gps, int i, float inf);
-bool gp_smooth_stroke_thickness(bGPDstroke *gps, int i, float inf);
 void gp_subdivide_stroke(bGPDstroke *gps, const int subdivide);
 void gp_randomize_stroke(bGPDstroke *gps, Brush *brush, struct RNG *rng);
 
@@ -287,6 +305,7 @@ typedef enum eGPencil_PaintModes {
 /* stroke editing ----- */
 
 void GPENCIL_OT_editmode_toggle(struct wmOperatorType *ot);
+void GPENCIL_OT_selectmode_toggle(struct wmOperatorType *ot);
 void GPENCIL_OT_paintmode_toggle(struct wmOperatorType *ot);
 void GPENCIL_OT_sculptmode_toggle(struct wmOperatorType *ot);
 void GPENCIL_OT_weightmode_toggle(struct wmOperatorType *ot);
@@ -295,7 +314,7 @@ void GPENCIL_OT_selection_opacity_toggle(struct wmOperatorType *ot);
 void GPENCIL_OT_select(struct wmOperatorType *ot);
 void GPENCIL_OT_select_all(struct wmOperatorType *ot);
 void GPENCIL_OT_select_circle(struct wmOperatorType *ot);
-void GPENCIL_OT_select_border(struct wmOperatorType *ot);
+void GPENCIL_OT_select_box(struct wmOperatorType *ot);
 void GPENCIL_OT_select_lasso(struct wmOperatorType *ot);
 
 void GPENCIL_OT_select_linked(struct wmOperatorType *ot);
@@ -318,13 +337,12 @@ void GPENCIL_OT_layer_change(struct wmOperatorType *ot);
 void GPENCIL_OT_snap_to_grid(struct wmOperatorType *ot);
 void GPENCIL_OT_snap_to_cursor(struct wmOperatorType *ot);
 void GPENCIL_OT_snap_cursor_to_selected(struct wmOperatorType *ot);
-void GPENCIL_OT_snap_cursor_to_center(struct wmOperatorType *ot);
 
 void GPENCIL_OT_reproject(struct wmOperatorType *ot);
 
 /* stroke sculpting -- */
 
-void GPENCIL_OT_brush_paint(struct wmOperatorType *ot);
+void GPENCIL_OT_sculpt_paint(struct wmOperatorType *ot);
 
 /* buttons editing --- */
 
@@ -364,9 +382,15 @@ enum {
 enum {
 	GP_STROKE_BOX = -1,
 	GP_STROKE_LINE = 1,
-	GP_STROKE_CIRCLE = 2
+	GP_STROKE_CIRCLE = 2,
+	GP_STROKE_ARC = 3,
+	GP_STROKE_CURVE = 4
 };
 
+enum {
+	GP_MERGE_STROKE = -1,
+	GP_MERGE_POINT = 1
+};
 
 void GPENCIL_OT_stroke_arrange(struct wmOperatorType *ot);
 void GPENCIL_OT_stroke_change_color(struct wmOperatorType *ot);
@@ -380,11 +404,10 @@ void GPENCIL_OT_stroke_simplify(struct wmOperatorType *ot);
 void GPENCIL_OT_stroke_simplify_fixed(struct wmOperatorType *ot);
 void GPENCIL_OT_stroke_separate(struct wmOperatorType *ot);
 void GPENCIL_OT_stroke_split(struct wmOperatorType *ot);
+void GPENCIL_OT_stroke_smooth(struct wmOperatorType *ot);
+void GPENCIL_OT_stroke_merge(struct wmOperatorType *ot);
 
 void GPENCIL_OT_brush_presets_create(struct wmOperatorType *ot);
-void GPENCIL_OT_brush_select(struct wmOperatorType *ot);
-
-void GPENCIL_OT_sculpt_select(struct wmOperatorType *ot);
 
 /* undo stack ---------- */
 
@@ -473,47 +496,50 @@ typedef enum ACTCONT_TYPES {
 /* ****************************************************** */
 /* Stroke Iteration Utilities */
 
+struct GP_EditableStrokes_Iter {
+	float diff_mat[4][4];
+};
+
 /**
  * Iterate over all editable strokes in the current context,
  * stopping on each usable layer + stroke pair (i.e. gpl and gps)
  * to perform some operations on the stroke.
  *
- * \param gpl  The identifier to use for the layer of the stroke being processed.
+ * \param gpl: The identifier to use for the layer of the stroke being processed.
  *                    Choose a suitable value to avoid name clashes.
- * \param gps The identifier to use for current stroke being processed.
+ * \param gps: The identifier to use for current stroke being processed.
  *                    Choose a suitable value to avoid name clashes.
  */
-#define GP_EDITABLE_STROKES_BEGIN(C, gpl, gps)                                          \
+#define GP_EDITABLE_STROKES_BEGIN(gpstroke_iter, C, gpl, gps)                           \
 {                                                                                       \
+	struct GP_EditableStrokes_Iter gpstroke_iter = {{{0}}};                             \
 	Depsgraph *depsgraph_ = CTX_data_depsgraph(C);                                      \
-	Object *obact_ = CTX_data_active_object(C);                                          \
-	bGPdata *gpd_ = CTX_data_gpencil_data(C);                                            \
-	bool is_multiedit = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd_);                       \
-	CTX_DATA_BEGIN(C, bGPDlayer*, gpl, editable_gpencil_layers)                         \
+	Object *obact_ = CTX_data_active_object(C);                                         \
+	bGPdata *gpd_ = CTX_data_gpencil_data(C);                                           \
+	const bool is_multiedit_ = (bool)GPENCIL_MULTIEDIT_SESSIONS_ON(gpd_);               \
+	CTX_DATA_BEGIN(C, bGPDlayer *, gpl, editable_gpencil_layers)                        \
 	{                                                                                   \
-		bGPDframe *init_gpf = gpl->actframe;                                                \
-		if (is_multiedit) {                                                                 \
-			init_gpf = gpl->frames.first;                                                   \
-		}                                                                                   \
-		for (bGPDframe *gpf = init_gpf; gpf; gpf = gpf->next) {                        \
-			if ((gpf == gpl->actframe) || ((gpf->flag & GP_FRAME_SELECT) && (is_multiedit))) {  \
-				/* calculate difference matrix */                                               \
-				float diff_mat[4][4];                                                           \
-				ED_gpencil_parent_location(depsgraph_, obact_, gpd_, gpl, diff_mat);            \
+		bGPDframe *init_gpf_ = gpl->actframe;                                           \
+		if (is_multiedit_) {                                                            \
+			init_gpf_ = gpl->frames.first;                                              \
+		}                                                                               \
+		for (bGPDframe *gpf_ = init_gpf_; gpf_; gpf_ = gpf_->next) {                    \
+			if ((gpf_ == gpl->actframe) || ((gpf_->flag & GP_FRAME_SELECT) && is_multiedit_)) { \
+				ED_gpencil_parent_location(depsgraph_, obact_, gpd_, gpl, gpstroke_iter.diff_mat); \
 				/* loop over strokes */                                                         \
-				for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {    \
+				for (bGPDstroke *gps = gpf_->strokes.first; gps; gps = gps->next) {             \
 					/* skip strokes that are invalid for current view */                        \
 					if (ED_gpencil_stroke_can_use(C, gps) == false)                             \
 						continue;                                                               \
 					/* check if the color is editable */                                        \
-					if (ED_gpencil_stroke_color_use(obact_, gpl, gps) == false)                         \
+					if (ED_gpencil_stroke_color_use(obact_, gpl, gps) == false)                 \
 						continue;                                                               \
 					/* ... Do Stuff With Strokes ...  */
 
-#define GP_EDITABLE_STROKES_END    \
+#define GP_EDITABLE_STROKES_END(gpstroke_iter)  \
 				}                  \
 			}                      \
-			if (!is_multiedit) {   \
+			if (!is_multiedit_) {  \
 				break;             \
 			}                      \
 		}                          \

@@ -120,9 +120,11 @@ MINLINE void mul_v2_v2fl(float r[2], const float a[2], float f);
 MINLINE void mul_v3_fl(float r[3], float f);
 MINLINE void mul_v3_v3fl(float r[3], const float a[3], float f);
 MINLINE void mul_v2_v2(float r[2], const float a[2]);
+MINLINE void mul_v2_v2v2(float r[2], const float a[2], const float b[2]);
 MINLINE void mul_v3_v3(float r[3], const float a[3]);
 MINLINE void mul_v3_v3v3(float r[3], const float a[3], const float b[3]);
 MINLINE void mul_v4_fl(float r[4], float f);
+MINLINE void mul_v4_v4(float r[4], const float a[4]);
 MINLINE void mul_v4_v4fl(float r[3], const float a[3], float f);
 MINLINE void mul_v2_v2_cw(float r[2], const float mat[2], const float vec[2]);
 MINLINE void mul_v2_v2_ccw(float r[2], const float mat[2], const float vec[2]);
@@ -275,6 +277,7 @@ MINLINE bool compare_v4v4_relative(const float a[4], const float b[4], const flo
 
 MINLINE bool compare_len_v3v3(const float a[3], const float b[3], const float limit)  ATTR_WARN_UNUSED_RESULT;
 MINLINE bool compare_len_squared_v3v3(const float a[3], const float b[3], const float limit)  ATTR_WARN_UNUSED_RESULT;
+MINLINE bool compare_len_squared_v4v4(const float a[4], const float b[4], const float limit)  ATTR_WARN_UNUSED_RESULT;
 
 MINLINE float line_point_side_v2(const float l1[2], const float l2[2], const float pt[2]) ATTR_WARN_UNUSED_RESULT;
 
@@ -335,6 +338,7 @@ void print_vn(const char *str, const float v[], const int n);
 MINLINE void normal_float_to_short_v2(short r[2], const float n[2]);
 MINLINE void normal_short_to_float_v3(float r[3], const short n[3]);
 MINLINE void normal_float_to_short_v3(short r[3], const float n[3]);
+MINLINE void normal_float_to_short_v4(short r[4], const float n[4]);
 
 void minmax_v3v3_v3(float min[3], float max[3], const float vec[3]);
 void minmax_v2v2_v2(float min[2], float max[2], const float vec[2]);

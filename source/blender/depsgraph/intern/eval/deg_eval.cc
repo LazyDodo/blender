@@ -73,6 +73,7 @@ static void schedule_children(TaskPool *pool,
 struct DepsgraphEvalState {
 	Depsgraph *graph;
 	bool do_stats;
+	bool is_cow_stage;
 };
 
 static void deg_task_run_func(TaskPool *pool,
@@ -99,9 +100,9 @@ static void deg_task_run_func(TaskPool *pool,
 	BLI_task_pool_delayed_push_end(pool, thread_id);
 }
 
-typedef struct CalculatePengindData {
+typedef struct CalculatePendingData {
 	Depsgraph *graph;
-} CalculatePengindData;
+} CalculatePendingData;
 
 static bool check_operation_node_visible(OperationDepsNode *op_node)
 {
@@ -112,8 +113,7 @@ static bool check_operation_node_visible(OperationDepsNode *op_node)
 	if (comp_node->type == DEG_NODE_TYPE_COPY_ON_WRITE) {
 		return true;
 	}
-	const IDDepsNode *id_node = comp_node->owner;
-	return id_node->is_visible;
+	return comp_node->affects_directly_visible;
 }
 
 static void calculate_pending_func(
@@ -121,7 +121,7 @@ static void calculate_pending_func(
         const int i,
         const ParallelRangeTLS *__restrict /*tls*/)
 {
-	CalculatePengindData *data = (CalculatePengindData *)data_v;
+	CalculatePendingData *data = (CalculatePendingData *)data_v;
 	Depsgraph *graph = data->graph;
 	OperationDepsNode *node = graph->operations[i];
 	/* Update counters, applies for both visible and invisible IDs. */
@@ -160,7 +160,7 @@ static void calculate_pending_func(
 static void calculate_pending_parents(Depsgraph *graph)
 {
 	const int num_operations = graph->operations.size();
-	CalculatePengindData data;
+	CalculatePendingData data;
 	data.graph = graph;
 	ParallelRangeSettings settings;
 	BLI_parallel_range_settings_defaults(&settings);
@@ -204,7 +204,7 @@ static void schedule_node(TaskPool *pool, Depsgraph *graph,
 	}
 	/* TODO(sergey): This is not strictly speaking safe to read
 	 * num_links_pending.
-  */
+	 */
 	if (dec_parents) {
 		BLI_assert(node->num_links_pending > 0);
 		atomic_sub_and_fetch_uint32(&node->num_links_pending, 1);
@@ -215,6 +215,17 @@ static void schedule_node(TaskPool *pool, Depsgraph *graph,
 	if (node->num_links_pending != 0) {
 		return;
 	}
+	/* During the COW stage only schedule COW nodes. */
+	DepsgraphEvalState *state = (DepsgraphEvalState *)BLI_task_pool_userdata(pool);
+	if (state->is_cow_stage) {
+		if (node->owner->type != DEG_NODE_TYPE_COPY_ON_WRITE) {
+			return;
+		}
+	}
+	else {
+		BLI_assert(node->scheduled || node->owner->type != DEG_NODE_TYPE_COPY_ON_WRITE);
+	}
+	/* Actually schedule the node. */
 	bool is_scheduled = atomic_fetch_and_or_uint8(
 	        (uint8_t *)&node->scheduled, (uint8_t)true);
 	if (!is_scheduled) {
@@ -292,6 +303,7 @@ void deg_evaluate_on_refresh(Depsgraph *graph)
 	}
 	const bool do_time_debug = ((G.debug & G_DEBUG_DEPSGRAPH_TIME) != 0);
 	const double start_time = do_time_debug ? PIL_check_seconds_timer() : 0;
+	graph->debug_is_evaluating = true;
 	depsgraph_ensure_view_layer(graph);
 	/* Set up evaluation state. */
 	DepsgraphEvalState state;
@@ -312,6 +324,12 @@ void deg_evaluate_on_refresh(Depsgraph *graph)
 	/* Prepare all nodes for evaluation. */
 	initialize_execution(&state, graph);
 	/* Do actual evaluation now. */
+	/* First, process all Copy-On-Write nodes. */
+	state.is_cow_stage = true;
+	schedule_graph(task_pool, graph);
+	BLI_task_pool_work_wait_and_reset(task_pool);
+	/* After that, process all other nodes. */
+	state.is_cow_stage = false;
 	schedule_graph(task_pool, graph);
 	BLI_task_pool_work_and_wait(task_pool);
 	BLI_task_pool_free(task_pool);
@@ -327,6 +345,7 @@ void deg_evaluate_on_refresh(Depsgraph *graph)
 	if (need_free_scheduler) {
 		BLI_task_scheduler_free(task_scheduler);
 	}
+	graph->debug_is_evaluating = false;
 	if (do_time_debug) {
 		printf("Depsgraph updated in %f seconds.\n",
 		       PIL_check_seconds_timer() - start_time);

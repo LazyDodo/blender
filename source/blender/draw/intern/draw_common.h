@@ -36,8 +36,12 @@ struct ModifierData;
 struct ParticleSystem;
 struct PTCacheEdit;
 
+#define UBO_FIRST_COLOR colorWire
+#define UBO_LAST_COLOR colorGridAxisZ
+
 /* Used as ubo but colors can be directly referenced as well */
 /* Keep in sync with: common_globals_lib.glsl (globalsBlock) */
+/* NOTE! Also keep all color as vec4 and between UBO_FIRST_COLOR and UBO_LAST_COLOR */
 typedef struct GlobalsUboStorage {
 	/* UBOs data needs to be 16 byte aligned (size of vec4) */
 	float colorWire[4];
@@ -53,6 +57,8 @@ typedef struct GlobalsUboStorage {
 	float colorEmpty[4];
 	float colorVertex[4];
 	float colorVertexSelect[4];
+	float colorVertexUnreferenced[4];
+	float colorVertexMissingData[4];
 	float colorEditMeshActive[4];
 	float colorEdgeSelect[4];
 	float colorEdgeSeam[4];
@@ -74,6 +80,7 @@ typedef struct GlobalsUboStorage {
 	float colorLampNoAlpha[4];
 
 	float colorBackground[4];
+	float colorEditMeshMiddle[4];
 
 	float colorHandleFree[4];
 	float colorHandleAuto[4];
@@ -86,7 +93,9 @@ typedef struct GlobalsUboStorage {
 	float colorHandleSelAlign[4];
 	float colorHandleSelAutoclamp[4];
 	float colorNurbUline[4];
+	float colorNurbVline[4];
 	float colorNurbSelUline[4];
+	float colorNurbSelVline[4];
 	float colorActiveSpline[4];
 
 	float colorBonePose[4];
@@ -99,12 +108,17 @@ typedef struct GlobalsUboStorage {
 	float colorGridAxisY[4];
 	float colorGridAxisZ[4];
 
-	/* Pack individual float at the end of the buffer to avoid alignement errors */
+	/* NOTE! Put all color before UBO_LAST_COLOR */
+
+	/* Pack individual float at the end of the buffer to avoid alignment errors */
 	float sizeLampCenter, sizeLampCircle, sizeLampCircleShadow;
 	float sizeVertex, sizeEdge, sizeEdgeFix, sizeFaceDot;
 	float gridDistance, gridResolution, gridSubdivisions, gridScale;
+
+	float pad_globalsBlock;
 } GlobalsUboStorage;
 /* Keep in sync with globalsBlock in shaders */
+BLI_STATIC_ASSERT_ALIGN(GlobalsUboStorage, 16)
 
 void DRW_globals_update(void);
 void DRW_globals_free(void);
@@ -119,7 +133,6 @@ struct DRWShadingGroup *shgroup_instance_solid(struct DRWPass *pass, struct GPUB
 struct DRWShadingGroup *shgroup_instance_wire(struct DRWPass *pass, struct GPUBatch *geom);
 struct DRWShadingGroup *shgroup_instance_screen_aligned(struct DRWPass *pass, struct GPUBatch *geom);
 struct DRWShadingGroup *shgroup_instance_empty_axes(struct DRWPass *pass, struct GPUBatch *geom);
-struct DRWShadingGroup *shgroup_instance_image_plane(struct DRWPass *pass, struct GPUBatch *geom);
 struct DRWShadingGroup *shgroup_instance_scaled(struct DRWPass *pass, struct GPUBatch *geom);
 struct DRWShadingGroup *shgroup_instance(struct DRWPass *pass, struct GPUBatch *geom);
 struct DRWShadingGroup *shgroup_instance_alpha(struct DRWPass *pass, struct GPUBatch *geom, float alpha);
@@ -137,6 +150,7 @@ struct DRWShadingGroup *shgroup_instance_bone_shape_solid(struct DRWPass *pass, 
 struct DRWShadingGroup *shgroup_instance_bone_sphere_outline(struct DRWPass *pass);
 struct DRWShadingGroup *shgroup_instance_bone_sphere_solid(struct DRWPass *pass, bool transp);
 struct DRWShadingGroup *shgroup_instance_bone_stick(struct DRWPass *pass);
+struct DRWShadingGroup *shgroup_instance_bone_dof(struct DRWPass *pass, struct GPUBatch *geom);
 
 struct GPUShader *mpath_line_shader_get(void);
 struct GPUShader *mpath_points_shader_get(void);
@@ -146,6 +160,9 @@ struct GPUShader *volume_velocity_shader_get(bool use_needle);
 int DRW_object_wire_theme_get(
         struct Object *ob, struct ViewLayer *view_layer, float **r_color);
 float *DRW_color_background_blend_get(int theme_id);
+
+bool DRW_object_is_flat(Object *ob, int *axis);
+bool DRW_object_axis_orthogonal_to_view(Object *ob, int axis);
 
 /* draw_armature.c */
 typedef struct DRWArmaturePasses {

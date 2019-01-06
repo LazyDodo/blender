@@ -42,10 +42,11 @@
 #include "WM_types.h"
 
 static const EnumPropertyItem effector_shape_items[] = {
-	{PFIELD_SHAPE_POINT, "POINT", 0, "Point", ""},
-	{PFIELD_SHAPE_PLANE, "PLANE", 0, "Plane", ""},
-	{PFIELD_SHAPE_SURFACE, "SURFACE", 0, "Surface", ""},
-	{PFIELD_SHAPE_POINTS, "POINTS", 0, "Every Point", ""},
+	{PFIELD_SHAPE_POINT, "POINT", 0, "Point", "Field originates from the object center"},
+	{PFIELD_SHAPE_LINE, "LINE", 0, "Line", "Field originates from the local Z axis of the object"},
+	{PFIELD_SHAPE_PLANE, "PLANE", 0, "Plane", "Field originates from the local XY plane of the object"},
+	{PFIELD_SHAPE_SURFACE, "SURFACE", 0, "Surface", "Field originates from the surface of the object"},
+	{PFIELD_SHAPE_POINTS, "POINTS", 0, "Every Point", "Field originates from all of the vertices of the object"},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -56,15 +57,17 @@ static const EnumPropertyItem effector_shape_items[] = {
 
 /* type specific return values only used from functions */
 static const EnumPropertyItem curve_shape_items[] = {
-	{PFIELD_SHAPE_POINT, "POINT", 0, "Point", ""},
-	{PFIELD_SHAPE_PLANE, "PLANE", 0, "Plane", ""},
-	{PFIELD_SHAPE_SURFACE, "SURFACE", 0, "Curve", ""},
+	{PFIELD_SHAPE_POINT, "POINT", 0, "Point", "Field originates from the object center"},
+	{PFIELD_SHAPE_LINE, "LINE", 0, "Line", "Field originates from the local Z axis of the object"},
+	{PFIELD_SHAPE_PLANE, "PLANE", 0, "Plane", "Field originates from the local XY plane of the object"},
+	{PFIELD_SHAPE_SURFACE, "SURFACE", 0, "Curve", "Field originates from the curve itself"},
 	{0, NULL, 0, NULL, NULL}
 };
 
 static const EnumPropertyItem empty_shape_items[] = {
-	{PFIELD_SHAPE_POINT, "POINT", 0, "Point", ""},
-	{PFIELD_SHAPE_PLANE, "PLANE", 0, "Plane", ""},
+	{PFIELD_SHAPE_POINT, "POINT", 0, "Point", "Field originates from the object center"},
+	{PFIELD_SHAPE_LINE, "LINE", 0, "Line", "Field originates from the local Z axis of the object"},
+	{PFIELD_SHAPE_PLANE, "PLANE", 0, "Plane", "Field originates from the local XY plane of the object"},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -116,7 +119,7 @@ static void rna_Cache_change(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerR
 
 	PTCacheID pid = BKE_ptcache_id_find(ob, NULL, cache);
 
-	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+	DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 
 	if (pid.cache) {
 		/* Just make sure this wasn't changed. */
@@ -161,7 +164,7 @@ static void rna_Cache_idname_change(Main *UNUSED(bmain), Scene *UNUSED(scene), P
 			BKE_ptcache_load_external(&pid);
 		}
 
-		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 		WM_main_add_notifier(NC_OBJECT | ND_POINTCACHE, ob);
 	}
 	else {
@@ -449,7 +452,7 @@ static void rna_FieldSettings_update(Main *UNUSED(bmain), Scene *UNUSED(scene), 
 			part->pd2->tex = NULL;
 		}
 
-		DEG_id_tag_update(&part->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME | PSYS_RECALC_RESET);
+		DEG_id_tag_update(&part->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION | ID_RECALC_PSYS_RESET);
 		WM_main_add_notifier(NC_OBJECT | ND_DRAW, NULL);
 
 	}
@@ -461,7 +464,7 @@ static void rna_FieldSettings_update(Main *UNUSED(bmain), Scene *UNUSED(scene), 
 			ob->pd->tex = NULL;
 		}
 
-		DEG_id_tag_update(&ob->id, OB_RECALC_OB);
+		DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM);
 		WM_main_add_notifier(NC_OBJECT | ND_DRAW, ob);
 	}
 }
@@ -497,7 +500,7 @@ static void rna_FieldSettings_type_set(PointerRNA *ptr, int value)
 static void rna_FieldSettings_dependency_update(Main *bmain, Scene *scene, PointerRNA *ptr)
 {
 	if (particle_id_check(ptr)) {
-		DEG_id_tag_update((ID *)ptr->id.data, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME | PSYS_RECALC_RESET);
+		DEG_id_tag_update((ID *)ptr->id.data, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION | ID_RECALC_PSYS_RESET);
 	}
 	else {
 		Object *ob = (Object *)ptr->id.data;
@@ -516,9 +519,9 @@ static void rna_FieldSettings_dependency_update(Main *bmain, Scene *scene, Point
 		DEG_relations_tag_update(bmain);
 
 		if (ob->type == OB_CURVE && ob->pd->forcefield == PFIELD_GUIDE)
-			DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+			DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION);
 		else
-			DEG_id_tag_update(&ob->id, OB_RECALC_OB);
+			DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM);
 
 		WM_main_add_notifier(NC_OBJECT | ND_DRAW, ob);
 	}
@@ -562,7 +565,7 @@ static void rna_EffectorWeight_update(Main *UNUSED(bmain), Scene *UNUSED(scene),
 		FOREACH_SCENE_OBJECT_END;
 	}
 	else {
-		DEG_id_tag_update(id, OB_RECALC_DATA | PSYS_RECALC_RESET);
+		DEG_id_tag_update(id, ID_RECALC_GEOMETRY | ID_RECALC_PSYS_RESET);
 		WM_main_add_notifier(NC_OBJECT | ND_DRAW, NULL);
 	}
 }
@@ -571,7 +574,7 @@ static void rna_EffectorWeight_dependency_update(Main *bmain, Scene *UNUSED(scen
 {
 	DEG_relations_tag_update(bmain);
 
-	DEG_id_tag_update((ID *)ptr->id.data, OB_RECALC_DATA | PSYS_RECALC_RESET);
+	DEG_id_tag_update((ID *)ptr->id.data, ID_RECALC_GEOMETRY | ID_RECALC_PSYS_RESET);
 
 	WM_main_add_notifier(NC_OBJECT | ND_DRAW, NULL);
 }
@@ -668,7 +671,7 @@ static void rna_CollisionSettings_update(Main *UNUSED(bmain), Scene *UNUSED(scen
 {
 	Object *ob = (Object *)ptr->id.data;
 
-	DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+	DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION);
 	WM_main_add_notifier(NC_OBJECT | ND_DRAW, ob);
 }
 
@@ -676,7 +679,7 @@ static void rna_softbody_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Point
 {
 	Object *ob = (Object *)ptr->id.data;
 
-	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+	DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 	WM_main_add_notifier(NC_OBJECT | ND_MODIFIER, ob);
 }
 
@@ -686,8 +689,9 @@ static void rna_softbody_dependency_update(Main *bmain, Scene *scene, PointerRNA
 	rna_softbody_update(bmain, scene, ptr);
 }
 
-static const EnumPropertyItem *rna_Effector_shape_itemf(bContext *UNUSED(C), PointerRNA *ptr,
-                                                  PropertyRNA *UNUSED(prop), bool *UNUSED(r_free))
+static const EnumPropertyItem *rna_Effector_shape_itemf(
+        bContext *UNUSED(C), PointerRNA *ptr,
+        PropertyRNA *UNUSED(prop), bool *UNUSED(r_free))
 {
 	Object *ob = NULL;
 
@@ -840,7 +844,7 @@ static void rna_def_ptcache_point_caches(BlenderRNA *brna, PropertyRNA *cprop)
 	/* And define another RNA type for those collection items. */
 	srna = RNA_def_struct(brna, "PointCacheItem", NULL);
 	RNA_def_struct_sdna(srna, "PointCache");
-	RNA_def_struct_ui_text(srna, "Point Cache", "point cache for physics simulations");
+	RNA_def_struct_ui_text(srna, "Point Cache", "Point cache for physics simulations");
 	RNA_def_struct_ui_icon(srna, ICON_PHYSICS);
 
 	rna_def_pointcache_common(srna);
@@ -860,7 +864,7 @@ static void rna_def_pointcache_active(BlenderRNA *brna)
 	/* This first-level RNA pointer also has list of all caches from owning ID.
 	 * Those caches items have exact same content as 'active' one, except for that collection,
 	 * to prevent ugly recursive layout pattern.
-	 * Note: This shall probably be redone from scratch in a proper way at some poitn, but for now that will do,
+	 * Note: This shall probably be redone from scratch in a proper way at some point, but for now that will do,
 	 *       and shall not break anything in the API. */
 	prop = RNA_def_property(srna, "point_caches", PROP_COLLECTION, PROP_NONE);
 	RNA_def_property_collection_funcs(prop, "rna_Cache_list_begin", "rna_iterator_listbase_next",
@@ -955,6 +959,22 @@ static void rna_def_collision(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Absorption",
 	                         "How much of effector force gets lost during collision with this object (in percent)");
 	RNA_def_property_update(prop, 0, "rna_CollisionSettings_update");
+
+	prop = RNA_def_property(srna, "cloth_friction", PROP_FLOAT, PROP_NONE);
+	RNA_def_property_float_sdna(prop, NULL, "pdef_cfrict");
+	RNA_def_property_range(prop, 0.0f, 80.0f);
+	RNA_def_property_ui_text(prop, "Friction", "Friction for cloth collisions");
+	RNA_def_property_update(prop, 0, "rna_CollisionSettings_update");
+
+	prop = RNA_def_property(srna, "use_culling", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", PFIELD_CLOTH_USE_CULLING);
+	RNA_def_property_ui_text(prop, "Single Sided", "Cloth collision acts with respect to the collider normals (improves penetration recovery)");
+	RNA_def_property_update(prop, 0, "rna_CollisionSettings_update");
+
+	prop = RNA_def_property(srna, "use_normal", PROP_BOOLEAN, PROP_NONE);
+	RNA_def_property_boolean_sdna(prop, NULL, "flag", PFIELD_CLOTH_USE_NORMAL);
+	RNA_def_property_ui_text(prop, "Override Normals", "Cloth collision impulses act in the direction of the collider normals (more reliable in some cases)");
+	RNA_def_property_update(prop, 0, "rna_CollisionSettings_update");
 }
 
 static void rna_def_effector_weight(BlenderRNA *brna)
@@ -975,8 +995,9 @@ static void rna_def_effector_weight(BlenderRNA *brna)
 	RNA_def_property_update(prop, 0, "rna_EffectorWeight_update");
 
 	/* General */
-	prop = RNA_def_property(srna, "group", PROP_POINTER, PROP_NONE);
+	prop = RNA_def_property(srna, "collection", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "Collection");
+	RNA_def_property_pointer_sdna(prop, NULL, "group");
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Effector Collection", "Limit effectors to this collection");
 	RNA_def_property_update(prop, 0, "rna_EffectorWeight_dependency_update");
@@ -1246,7 +1267,7 @@ static void rna_def_field(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "falloff_power", PROP_FLOAT, PROP_NONE);
 	RNA_def_property_float_sdna(prop, NULL, "f_power");
 	RNA_def_property_range(prop, 0.0f, 10.0f);
-	RNA_def_property_ui_text(prop, "Falloff Power", "");
+	RNA_def_property_ui_text(prop, "Falloff Power", "How quickly strength falls off with distance from the force field");
 	RNA_def_property_update(prop, 0, "rna_FieldSettings_update");
 
 	prop = RNA_def_property(srna, "distance_min", PROP_FLOAT, PROP_NONE);
@@ -1583,7 +1604,7 @@ static void rna_def_softbody(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "spring_length", PROP_INT, PROP_NONE);
 	RNA_def_property_int_sdna(prop, NULL, "springpreload");
 	RNA_def_property_range(prop, 0.0f, 200.0f);
-	RNA_def_property_ui_text(prop, "view_layer", "Alter spring length to shrink/blow up (unit %) 0 to disable");
+	RNA_def_property_ui_text(prop, "View Layer", "Alter spring length to shrink/blow up (unit %) 0 to disable");
 	RNA_def_property_update(prop, 0, "rna_softbody_update");
 
 	prop = RNA_def_property(srna, "aero", PROP_INT, PROP_NONE);
@@ -1762,8 +1783,9 @@ static void rna_def_softbody(BlenderRNA *brna)
 	RNA_def_property_ui_text(prop, "Self Collision", "Enable naive vertex ball self collision");
 	RNA_def_property_update(prop, 0, "rna_softbody_update");
 
-	prop = RNA_def_property(srna, "collision_group", PROP_POINTER, PROP_NONE);
+	prop = RNA_def_property(srna, "collision_collection", PROP_POINTER, PROP_NONE);
 	RNA_def_property_struct_type(prop, "Collection");
+	RNA_def_property_pointer_sdna(prop, NULL, "collision_group");
 	RNA_def_property_flag(prop, PROP_EDITABLE);
 	RNA_def_property_ui_text(prop, "Collision Collection", "Limit colliders to this collection");
 	RNA_def_property_update(prop, 0, "rna_softbody_dependency_update");

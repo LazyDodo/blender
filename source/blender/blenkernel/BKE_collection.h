@@ -75,6 +75,7 @@ struct Collection *BKE_collection_master_add(void);
 bool               BKE_collection_has_object(struct Collection *collection, struct Object *ob);
 bool               BKE_collection_has_object_recursive(struct Collection *collection, struct Object *ob);
 struct Collection *BKE_collection_object_find(struct Main *bmain, struct Collection *collection, struct Object *ob);
+bool               BKE_collection_is_empty(struct Collection *collection);
 
 bool BKE_collection_object_add(struct Main *bmain, struct Collection *collection, struct Object *ob);
 void BKE_collection_object_add_from(struct Main *bmain, struct Scene *scene, struct Object *ob_src, struct Object *ob_dst);
@@ -102,6 +103,7 @@ struct Base *BKE_collection_or_layer_objects(const struct ViewLayer *view_layer,
 
 struct Collection *BKE_collection_from_index(struct Scene *scene, const int index);
 void BKE_collection_new_name_get(struct Collection *collection_parent, char *rname);
+const char *BKE_collection_ui_name_get(struct Collection *collection);
 bool BKE_collection_objects_select(struct ViewLayer *view_layer, struct Collection *collection, bool deselect);
 
 /* Collection children */
@@ -129,9 +131,6 @@ bool BKE_collection_find_cycle(struct Collection *new_ancestor,
 
 typedef void (*BKE_scene_objects_Cb)(struct Object *ob, void *data);
 typedef void (*BKE_scene_collections_Cb)(struct Collection *ob, void *data);
-
-void BKE_scene_collections_callback(struct Scene *scene, BKE_scene_collections_Cb callback, void *data);
-void BKE_scene_objects_callback(struct Scene *scene, BKE_scene_objects_Cb callback, void *data);
 
 /* Iteratorion over objects in collection. */
 

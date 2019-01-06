@@ -40,28 +40,36 @@
 
 #define WORKBENCH_ENGINE "BLENDER_WORKBENCH"
 #define M_GOLDEN_RATION_CONJUGATE 0.618033988749895
-#define MAX_SHADERS (1 << 10)
+#define MAX_COMPOSITE_SHADERS (1 << 6)
+#define MAX_PREPASS_SHADERS (1 << 6)
+#define MAX_ACCUM_SHADERS (1 << 4)
+#define MAX_CAVITY_SHADERS (1 << 3)
 
-#define TEXTURE_DRAWING_ENABLED(wpd) (wpd->shading.color_type & V3D_SHADING_TEXTURE_COLOR)
+#define TEXTURE_DRAWING_ENABLED(wpd) (wpd->shading.color_type == V3D_SHADING_TEXTURE_COLOR)
 #define FLAT_ENABLED(wpd) (wpd->shading.light == V3D_LIGHTING_FLAT)
 #define STUDIOLIGHT_ENABLED(wpd) (wpd->shading.light == V3D_LIGHTING_STUDIO)
 #define MATCAP_ENABLED(wpd) (wpd->shading.light == V3D_LIGHTING_MATCAP)
-#define STUDIOLIGHT_ORIENTATION_WORLD_ENABLED(wpd) (STUDIOLIGHT_ENABLED(wpd) && (wpd->studio_light->flag & STUDIOLIGHT_ORIENTATION_WORLD))
-#define STUDIOLIGHT_ORIENTATION_CAMERA_ENABLED(wpd) (STUDIOLIGHT_ENABLED(wpd) && (wpd->studio_light->flag & STUDIOLIGHT_ORIENTATION_CAMERA))
-#define STUDIOLIGHT_ORIENTATION_VIEWNORMAL_ENABLED(wpd) (MATCAP_ENABLED(wpd) && (wpd->studio_light->flag & STUDIOLIGHT_ORIENTATION_VIEWNORMAL))
-#define CAVITY_ENABLED(wpd) (wpd->shading.flag & V3D_SHADING_CAVITY)
+#define USE_WORLD_ORIENTATION(wpd) ((wpd->shading.flag & V3D_SHADING_WORLD_ORIENTATION) != 0)
+#define STUDIOLIGHT_TYPE_WORLD_ENABLED(wpd) (STUDIOLIGHT_ENABLED(wpd) && (wpd->studio_light->flag & STUDIOLIGHT_TYPE_WORLD))
+#define STUDIOLIGHT_TYPE_STUDIO_ENABLED(wpd) (STUDIOLIGHT_ENABLED(wpd) && (wpd->studio_light->flag & STUDIOLIGHT_TYPE_STUDIO))
+#define STUDIOLIGHT_TYPE_MATCAP_ENABLED(wpd) (MATCAP_ENABLED(wpd) && (wpd->studio_light->flag & STUDIOLIGHT_TYPE_MATCAP))
+#define SSAO_ENABLED(wpd) ((wpd->shading.flag & V3D_SHADING_CAVITY) && ((wpd->shading.cavity_type == V3D_SHADING_CAVITY_SSAO) || (wpd->shading.cavity_type == V3D_SHADING_CAVITY_BOTH)))
+#define CURVATURE_ENABLED(wpd) ((wpd->shading.flag & V3D_SHADING_CAVITY) && ((wpd->shading.cavity_type == V3D_SHADING_CAVITY_CURVATURE) || (wpd->shading.cavity_type == V3D_SHADING_CAVITY_BOTH)))
+#define CAVITY_ENABLED(wpd) (CURVATURE_ENABLED(wpd) || SSAO_ENABLED(wpd))
 #define SHADOW_ENABLED(wpd) (wpd->shading.flag & V3D_SHADING_SHADOW)
 #define GHOST_ENABLED(psl) (!DRW_pass_is_empty(psl->ghost_prepass_pass) || !DRW_pass_is_empty(psl->ghost_prepass_hair_pass))
 
 #define IS_NAVIGATING(wpd) ((DRW_context_state_get()->rv3d) && (DRW_context_state_get()->rv3d->rflag & RV3D_NAVIGATING))
 #define FXAA_ENABLED(wpd) ((!DRW_state_is_opengl_render()) && \
-                            (IN_RANGE(wpd->user_preferences->gpu_viewport_quality, GPU_VIEWPORT_QUALITY_FXAA, GPU_VIEWPORT_QUALITY_TAA8) || \
-                             ((IS_NAVIGATING(wpd) || wpd->is_playback) && (wpd->user_preferences->gpu_viewport_quality >= GPU_VIEWPORT_QUALITY_TAA8))))
-#define TAA_ENABLED(wpd) (wpd->user_preferences->gpu_viewport_quality >= GPU_VIEWPORT_QUALITY_TAA8 && !IS_NAVIGATING(wpd) && !wpd->is_playback)
-#define SPECULAR_HIGHLIGHT_ENABLED(wpd) ((wpd->shading.flag & V3D_SHADING_SPECULAR_HIGHLIGHT) && (!STUDIOLIGHT_ORIENTATION_VIEWNORMAL_ENABLED(wpd)))
-#define OBJECT_ID_PASS_ENABLED(wpd) (wpd->shading.flag & V3D_SHADING_OBJECT_OUTLINE)
-#define NORMAL_VIEWPORT_COMP_PASS_ENABLED(wpd) (MATCAP_ENABLED(wpd) || STUDIOLIGHT_ENABLED(wpd) || SHADOW_ENABLED(wpd) || SPECULAR_HIGHLIGHT_ENABLED(wpd))
-#define NORMAL_VIEWPORT_PASS_ENABLED(wpd) (NORMAL_VIEWPORT_COMP_PASS_ENABLED(wpd) || CAVITY_ENABLED(wpd))
+                            (IN_RANGE(wpd->preferences->gpu_viewport_quality, GPU_VIEWPORT_QUALITY_FXAA, GPU_VIEWPORT_QUALITY_TAA8) || \
+                             ((IS_NAVIGATING(wpd) || wpd->is_playback) && (wpd->preferences->gpu_viewport_quality >= GPU_VIEWPORT_QUALITY_TAA8))))
+#define TAA_ENABLED(wpd) (DRW_state_is_image_render() || (wpd->preferences->gpu_viewport_quality >= GPU_VIEWPORT_QUALITY_TAA8 && !IS_NAVIGATING(wpd) && !wpd->is_playback))
+#define SPECULAR_HIGHLIGHT_ENABLED(wpd) (STUDIOLIGHT_ENABLED(wpd) && (wpd->shading.flag & V3D_SHADING_SPECULAR_HIGHLIGHT) && (!STUDIOLIGHT_TYPE_MATCAP_ENABLED(wpd)))
+#define OBJECT_OUTLINE_ENABLED(wpd) (wpd->shading.flag & V3D_SHADING_OBJECT_OUTLINE)
+#define OBJECT_ID_PASS_ENABLED(wpd) (OBJECT_OUTLINE_ENABLED(wpd) || CURVATURE_ENABLED(wpd))
+#define MATDATA_PASS_ENABLED(wpd) (wpd->shading.color_type != V3D_SHADING_SINGLE_COLOR || MATCAP_ENABLED(wpd))
+#define NORMAL_VIEWPORT_COMP_PASS_ENABLED(wpd) (MATCAP_ENABLED(wpd) || STUDIOLIGHT_ENABLED(wpd) || SHADOW_ENABLED(wpd))
+#define NORMAL_VIEWPORT_PASS_ENABLED(wpd) (NORMAL_VIEWPORT_COMP_PASS_ENABLED(wpd) || SSAO_ENABLED(wpd) || CURVATURE_ENABLED(wpd))
 #define NORMAL_ENCODING_ENABLED() (true)
 
 
@@ -76,6 +84,7 @@ typedef struct WORKBENCH_FramebufferList {
 	struct GPUFrameBuffer *ghost_prepass_fb;
 	struct GPUFrameBuffer *cavity_fb;
 	struct GPUFrameBuffer *composite_fb;
+	struct GPUFrameBuffer *id_clear_fb;
 
 	struct GPUFrameBuffer *effect_fb;
 	struct GPUFrameBuffer *effect_taa_fb;
@@ -113,6 +122,7 @@ typedef struct WORKBENCH_PassList {
 	struct DRWPass *shadow_depth_fail_caps_mani_pass;
 	struct DRWPass *composite_pass;
 	struct DRWPass *composite_shadow_pass;
+	struct DRWPass *background_pass;
 	struct DRWPass *ghost_resolve_pass;
 	struct DRWPass *effect_aa_pass;
 	struct DRWPass *volume_pass;
@@ -133,22 +143,24 @@ typedef struct WORKBENCH_Data {
 } WORKBENCH_Data;
 
 typedef struct WORKBENCH_UBO_Light {
-	float light_direction_vs[4];
-	float specular_color[3];
-	float energy;
+	float light_direction[4];
+	float specular_color[3], pad;
+	float diffuse_color[3], wrapped;
 } WORKBENCH_UBO_Light;
 
 typedef struct WORKBENCH_UBO_World {
-	float spherical_harmonics_coefs[STUDIOLIGHT_SPHERICAL_HARMONICS_MAX_COMPONENTS][4];
 	float background_color_low[4];
 	float background_color_high[4];
 	float object_outline_color[4];
 	float shadow_direction_vs[4];
-	WORKBENCH_UBO_Light lights[3];
+	WORKBENCH_UBO_Light lights[4];
+	float ambient_color[4];
 	int num_lights;
 	int matcap_orientation;
 	float background_alpha;
-	int pad[1];
+	float curvature_ridge;
+	float curvature_valley;
+	int pad[3];
 } WORKBENCH_UBO_World;
 BLI_STATIC_ASSERT_ALIGN(WORKBENCH_UBO_World, 16)
 
@@ -160,13 +172,14 @@ typedef struct WORKBENCH_PrivateData {
 	struct GPUShader *prepass_texture_sh;
 	struct GPUShader *prepass_texture_hair_sh;
 	struct GPUShader *composite_sh;
+	struct GPUShader *background_sh;
 	struct GPUShader *transparent_accum_sh;
 	struct GPUShader *transparent_accum_hair_sh;
 	struct GPUShader *transparent_accum_texture_sh;
 	struct GPUShader *transparent_accum_texture_hair_sh;
 	View3DShading shading;
 	StudioLight *studio_light;
-	UserDef *user_preferences;
+	const UserDef *preferences;
 	struct GPUUniformBuffer *world_ubo;
 	struct DRWShadingGroup *shadow_shgrp;
 	struct DRWShadingGroup *depth_shgrp;
@@ -210,8 +223,10 @@ typedef struct WORKBENCH_EffectInfo {
 } WORKBENCH_EffectInfo;
 
 typedef struct WORKBENCH_MaterialData {
-	float diffuse_color[4];
-	float specular_color[4];
+	float base_color[3];
+	float diffuse_color[3];
+	float specular_color[3];
+	float metallic;
 	float roughness;
 	int object_id;
 	int color_type;
@@ -234,14 +249,6 @@ typedef struct WORKBENCH_ObjectData {
 
 	int object_id;
 } WORKBENCH_ObjectData;
-
-/* workbench_engine.c */
-void workbench_solid_materials_init(WORKBENCH_Data *vedata);
-void workbench_solid_materials_cache_init(WORKBENCH_Data *vedata);
-void workbench_solid_materials_cache_populate(WORKBENCH_Data *vedata, Object *ob);
-void workbench_solid_materials_cache_finish(WORKBENCH_Data *vedata);
-void workbench_solid_materials_draw_scene(WORKBENCH_Data *vedata);
-void workbench_solid_materials_free(void);
 
 /* workbench_deferred.c */
 void workbench_deferred_engine_init(WORKBENCH_Data *vedata);
@@ -286,15 +293,16 @@ int workbench_material_determine_color_type(WORKBENCH_PrivateData *wpd, Image *i
 char *workbench_material_build_defines(WORKBENCH_PrivateData *wpd, bool use_textures, bool is_hair);
 void workbench_material_update_data(WORKBENCH_PrivateData *wpd, Object *ob, Material *mat, WORKBENCH_MaterialData *data);
 uint workbench_material_get_hash(WORKBENCH_MaterialData *material_template, bool is_ghost);
-int workbench_material_get_shader_index(WORKBENCH_PrivateData *wpd, bool use_textures, bool is_hair);
-void workbench_material_set_normal_world_matrix(
-        DRWShadingGroup *grp, WORKBENCH_PrivateData *wpd, float persistent_matrix[3][3]);
+int workbench_material_get_composite_shader_index(WORKBENCH_PrivateData *wpd);
+int workbench_material_get_prepass_shader_index(WORKBENCH_PrivateData *wpd, bool use_textures, bool is_hair);
+int workbench_material_get_accum_shader_index(WORKBENCH_PrivateData *wpd, bool use_textures, bool is_hair);
 void workbench_material_shgroup_uniform(
-        WORKBENCH_PrivateData *wpd, DRWShadingGroup *grp, WORKBENCH_MaterialData *material, Object *ob);
+        WORKBENCH_PrivateData *wpd, DRWShadingGroup *grp, WORKBENCH_MaterialData *material, Object *ob,
+        const bool use_metallic, const bool deferred);
 void workbench_material_copy(WORKBENCH_MaterialData *dest_material, const WORKBENCH_MaterialData *source_material);
 
 /* workbench_studiolight.c */
-void studiolight_update_world(StudioLight *sl, WORKBENCH_UBO_World *wd);
+void studiolight_update_world(WORKBENCH_PrivateData *wpd, StudioLight *sl, WORKBENCH_UBO_World *wd);
 void studiolight_update_light(WORKBENCH_PrivateData *wpd, const float light_direction[3]);
 bool studiolight_object_cast_visible_shadow(WORKBENCH_PrivateData *wpd, Object *ob, WORKBENCH_ObjectData *oed);
 float studiolight_object_shadow_distance(WORKBENCH_PrivateData *wpd, Object *ob, WORKBENCH_ObjectData *oed);

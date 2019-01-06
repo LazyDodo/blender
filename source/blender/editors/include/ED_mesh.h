@@ -86,7 +86,6 @@ void EDBM_selectmode_to_scene(struct bContext *C);
 void EDBM_mesh_make(struct Object *ob, const int select_mode, const bool add_key_index);
 void EDBM_mesh_free(struct BMEditMesh *em);
 void EDBM_mesh_load(struct Main *bmain, struct Object *ob);
-struct DerivedMesh *EDBM_mesh_deform_dm_get(struct BMEditMesh *em);
 
 /* flushes based on the current select mode.  if in vertex select mode,
  * verts select/deselect edges and faces, if in edge select mode,
@@ -173,7 +172,8 @@ struct BMFace *EDBM_face_find_nearest(
 
 bool EDBM_unified_findnearest(
         struct ViewContext *vc,
-        struct Base **bases, uint bases_len,
+        struct Base **bases,
+        const uint bases_len,
         int *r_base_index,
         struct BMVert **r_eve,
         struct BMEdge **r_eed,
@@ -181,7 +181,8 @@ bool EDBM_unified_findnearest(
 
 bool EDBM_unified_findnearest_from_raycast(
         struct ViewContext *vc,
-        struct Base **bases, uint bases_len,
+        struct Base **bases,
+        const uint bases_len,
         bool use_boundary,
         int *r_base_index,
         struct BMVert **r_eve,
@@ -201,7 +202,7 @@ bool EDBM_selectmode_disable(struct Scene *scene, struct BMEditMesh *em,
                              const short selectmode_disable,
                              const short selectmode_fallback);
 
-void EDBM_deselect_by_material(struct BMEditMesh *em, const short index, const bool select);
+bool EDBM_deselect_by_material(struct BMEditMesh *em, const short index, const bool select);
 
 void EDBM_select_toggle_all(struct BMEditMesh *em);
 
@@ -241,19 +242,20 @@ void EDBM_project_snap_verts(struct bContext *C, struct ARegion *ar, struct BMEd
 
 
 /* editface.c */
-void paintface_flush_flags(struct Object *ob, short flag);
+void paintface_flush_flags(struct bContext *C, struct Object *ob, short flag);
 bool paintface_mouse_select(struct bContext *C, struct Object *ob, const int mval[2], bool extend, bool deselect, bool toggle);
 int  do_paintface_box_select(struct ViewContext *vc, struct rcti *rect, int sel_op);
-void paintface_deselect_all_visible(struct Object *ob, int action, bool flush_flags);
+void paintface_deselect_all_visible(struct bContext *C, struct Object *ob, int action, bool flush_flags);
 void paintface_select_linked(struct bContext *C, struct Object *ob, const int mval[2], const bool select);
 bool paintface_minmax(struct Object *ob, float r_min[3], float r_max[3]);
 
-void paintface_hide(struct Object *ob, const bool unselected);
-void paintface_reveal(struct Object *ob, const bool select);
+void paintface_hide(struct bContext *C, struct Object *ob, const bool unselected);
+void paintface_reveal(struct bContext *C, struct Object *ob, const bool select);
 
 void paintvert_deselect_all_visible(struct Object *ob, int action, bool flush_flags);
 void paintvert_select_ungrouped(struct Object *ob, bool extend, bool flush_flags);
 void paintvert_flush_flags(struct Object *ob);
+void paintvert_tag_select_update(struct bContext *C, struct Object *ob);
 
 /* mirrtopo */
 typedef struct MirrTopoStore_t {
@@ -318,7 +320,7 @@ void ED_mesh_edges_remove(struct Mesh *mesh, struct ReportList *reports, int cou
 void ED_mesh_vertices_remove(struct Mesh *mesh, struct ReportList *reports, int count);
 
 void ED_mesh_calc_tessface(struct Mesh *mesh, bool free_mpoly);
-void ED_mesh_update(struct Mesh *mesh, struct bContext *C, bool calc_edges, bool calc_tessface);
+void ED_mesh_update(struct Mesh *mesh, struct bContext *C, bool calc_edges, bool calc_edges_loose, bool calc_tessface);
 
 void ED_mesh_uv_texture_ensure(struct Mesh *me, const char *name);
 int  ED_mesh_uv_texture_add(struct Mesh *me, const char *name, const bool active_set);

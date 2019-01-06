@@ -223,13 +223,13 @@ void file_draw_buttons(const bContext *C, ARegion *ar)
 	/* Filename number increment / decrement buttons. */
 	if (fnumbuttons && (params->flag & FILE_DIRSEL_ONLY) == 0) {
 		UI_block_align_begin(block);
-		but = uiDefIconButO(block, UI_BTYPE_BUT, "FILE_OT_filenum", 0, ICON_ZOOMOUT,
+		but = uiDefIconButO(block, UI_BTYPE_BUT, "FILE_OT_filenum", 0, ICON_REMOVE,
 		                    min_x + line2_w + separator - chan_offs, line2_y,
 		                    btn_fn_w, btn_h,
 		                    TIP_("Decrement the filename number"));
 		RNA_int_set(UI_but_operator_ptr_get(but), "increment", -1);
 
-		but = uiDefIconButO(block, UI_BTYPE_BUT, "FILE_OT_filenum", 0, ICON_ZOOMIN,
+		but = uiDefIconButO(block, UI_BTYPE_BUT, "FILE_OT_filenum", 0, ICON_ADD,
 		                    min_x + line2_w + separator + btn_fn_w - chan_offs, line2_y,
 		                    btn_fn_w, btn_h,
 		                    TIP_("Increment the filename number"));
@@ -294,8 +294,9 @@ static void file_draw_icon(
 }
 
 
-static void file_draw_string(int sx, int sy, const char *string, float width, int height, short align,
-                             const unsigned char col[4])
+static void file_draw_string(
+        int sx, int sy, const char *string, float width, int height, eFontStyle_Align align,
+        const uchar col[4])
 {
 	uiStyle *style;
 	uiFontStyle fs;
@@ -309,8 +310,6 @@ static void file_draw_string(int sx, int sy, const char *string, float width, in
 	style = UI_style_get();
 	fs = style->widgetlabel;
 
-	fs.align = align;
-
 	BLI_strncpy(fname, string, FILE_MAXFILE);
 	UI_text_clip_middle_ex(&fs, fname, width, UI_DPI_ICON_SIZE, sizeof(fname), '\0');
 
@@ -320,7 +319,9 @@ static void file_draw_string(int sx, int sy, const char *string, float width, in
 	rect.ymin = sy - height;
 	rect.ymax = sy;
 
-	UI_fontstyle_draw(&fs, &rect, fname, col);
+	UI_fontstyle_draw(
+	        &fs, &rect, fname, col,
+	        &(struct uiFontStyleDraw_Params) { .align = align, });
 }
 
 void file_calc_previews(const bContext *C, ARegion *ar)
@@ -382,8 +383,6 @@ static void file_draw_preview(
 	xco = sx + (int)dx;
 	yco = sy - layout->prv_h + (int)dy;
 
-	GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
-
 	/* shadow */
 	if (use_dropshadow) {
 		UI_draw_box_shadow(220, (float)xco, (float)yco, (float)(xco + ex), (float)(yco + ey));
@@ -396,12 +395,17 @@ static void file_draw_preview(
 		UI_GetThemeColor4fv(TH_TEXT, col);
 	}
 
+	/* Preview images use premultiplied alpha. */
+	GPU_blend_set_func_separate(GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
+
 	IMMDrawPixelsTexState state = immDrawPixelsTexSetup(GPU_SHADER_2D_IMAGE_COLOR);
 	immDrawPixelsTexScaled(&state, (float)xco, (float)yco, imb->x, imb->y, GL_RGBA, GL_UNSIGNED_BYTE, GL_NEAREST, imb->rect,
 	                       scale, scale, 1.0f, 1.0f, col);
 
+	GPU_blend_set_func_separate(GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_ONE, GPU_ONE_MINUS_SRC_ALPHA);
+
 	if (icon) {
-		UI_icon_draw_aspect((float)xco, (float)yco, icon, icon_aspect, 1.0f);
+		UI_icon_draw_aspect((float)xco, (float)yco, icon, icon_aspect, 1.0f, NULL);
 	}
 
 	/* border */
@@ -518,15 +522,15 @@ static void draw_dividers(FileLayout *layout, View2D *v2d)
 			sx += step;
 
 			v1[0] = v2[0] = sx;
-			immSkipAttrib(color);
+			immAttrSkip(color);
 			immVertex2iv(pos, v1);
-			immAttrib3ubv(color, col_lo);
+			immAttr3ubv(color, col_lo);
 			immVertex2iv(pos, v2);
 
 			v1[0] = v2[0] = sx + 1;
-			immSkipAttrib(color);
+			immAttrSkip(color);
 			immVertex2iv(pos, v1);
-			immAttrib3ubv(color, col_hi);
+			immAttr3ubv(color, col_hi);
 			immVertex2iv(pos, v2);
 		}
 
@@ -553,7 +557,7 @@ void file_draw_list(const bContext *C, ARegion *ar)
 	int textwidth, textheight;
 	int i;
 	bool is_icon;
-	short align;
+	eFontStyle_Align align;
 	bool do_drag;
 	int column_space = 0.6f * UI_UNIT_X;
 	unsigned char text_col[4];
@@ -598,7 +602,7 @@ void file_draw_list(const bContext *C, ARegion *ar)
 		filelist_cache_previews_update(files);
 
 		/* Handle preview timer here, since it's filelist_file_cache_block() and filelist_cache_previews_update()
-		 * which controlls previews task. */
+		 * which controls previews task. */
 		{
 			const bool previews_running = filelist_cache_previews_running(files);
 //			printf("%s: preview task: %d\n", __func__, previews_running);

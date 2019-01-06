@@ -449,18 +449,18 @@ static void freepolygonize(PROCESS *process)
 
 /**** Cubical Polygonization (optional) ****/
 
-#define LB  0  /* left bottom edge	*/
-#define LT  1  /* left top edge	*/
-#define LN  2  /* left near edge	*/
-#define LF  3  /* left far edge	*/
+#define LB  0  /* left bottom edge */
+#define LT  1  /* left top edge */
+#define LN  2  /* left near edge */
+#define LF  3  /* left far edge */
 #define RB  4  /* right bottom edge */
-#define RT  5  /* right top edge	*/
-#define RN  6  /* right near edge	*/
-#define RF  7  /* right far edge	*/
-#define BN  8  /* bottom near edge	*/
-#define BF  9  /* bottom far edge	*/
-#define TN  10 /* top near edge	*/
-#define TF  11 /* top far edge	*/
+#define RT  5  /* right top edge */
+#define RN  6  /* right near edge */
+#define RF  7  /* right far edge */
+#define BN  8  /* bottom near edge */
+#define BF  9  /* bottom far edge */
+#define TN  10 /* top near edge */
+#define TF  11 /* top far edge */
 
 static INTLISTS *cubetable[256];
 static char faces[256];
@@ -839,27 +839,6 @@ static void vnormal(PROCESS *process, const float point[3], float r_no[3])
 	r_no[0] = metaball(process, point[0] + delta, point[1], point[2]) - f;
 	r_no[1] = metaball(process, point[0], point[1] + delta, point[2]) - f;
 	r_no[2] = metaball(process, point[0], point[1], point[2] + delta) - f;
-
-#if 0
-	f = normalize_v3(r_no);
-
-	if (0) {
-		float tvec[3];
-
-		delta *= 2.0f;
-
-		f = process->function(process, point[0], point[1], point[2]);
-
-		tvec[0] = process->function(process, point[0] + delta, point[1], point[2]) - f;
-		tvec[1] = process->function(process, point[0], point[1] + delta, point[2]) - f;
-		tvec[2] = process->function(process, point[0], point[1], point[2] + delta) - f;
-
-		if (normalize_v3(tvec) != 0.0f) {
-			add_v3_v3(r_no, tvec);
-			normalize_v3(r_no);
-		}
-	}
-#endif
 }
 #endif  /* USE_ACCUM_NORMAL */
 

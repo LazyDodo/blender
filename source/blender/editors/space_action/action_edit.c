@@ -54,14 +54,13 @@
 #include "RNA_enum_types.h"
 
 #include "BKE_action.h"
+#include "BKE_animsys.h"
+#include "BKE_context.h"
 #include "BKE_fcurve.h"
 #include "BKE_gpencil.h"
 #include "BKE_global.h"
 #include "BKE_key.h"
-#include "BKE_library.h"
-#include "BKE_main.h"
 #include "BKE_nla.h"
-#include "BKE_context.h"
 #include "BKE_report.h"
 
 #include "UI_view2d.h"
@@ -88,10 +87,10 @@
 /* *************************** Localise Markers ***************************** */
 
 /* ensure that there is:
- *  1) an active action editor
- *  2) that the mode will have an active action available
- *  3) that the set of markers being shown are the scene markers, not the list we're merging
- *	4) that there are some selected markers
+ * 1) an active action editor
+ * 2) that the mode will have an active action available
+ * 3) that the set of markers being shown are the scene markers, not the list we're merging
+ * 4) that there are some selected markers
  */
 static bool act_markers_make_local_poll(bContext *C)
 {
@@ -681,6 +680,7 @@ static const EnumPropertyItem prop_actkeys_insertkey_types[] = {
 static void insert_action_keys(bAnimContext *ac, short mode)
 {
 	ListBase anim_data = {NULL, NULL};
+	ListBase nla_cache = {NULL, NULL};
 	bAnimListElem *ale;
 	int filter;
 
@@ -702,15 +702,8 @@ static void insert_action_keys(bAnimContext *ac, short mode)
 
 	/* insert keyframes */
 	for (ale = anim_data.first; ale; ale = ale->next) {
-		AnimData *adt = ANIM_nla_mapping_get(ac, ale);
 		FCurve *fcu = (FCurve *)ale->key_data;
-		float cfra;
-
-		/* adjust current frame for NLA-scaling */
-		if (adt)
-			cfra = BKE_nla_tweakedit_remap(adt, (float)CFRA, NLATIME_CONVERT_UNMAP);
-		else
-			cfra = (float)CFRA;
+		float cfra = (float)CFRA;
 
 		/* read value from property the F-Curve represents, or from the curve only?
 		 * - ale->id != NULL:    Typically, this means that we have enough info to try resolving the path
@@ -720,15 +713,23 @@ static void insert_action_keys(bAnimContext *ac, short mode)
 		 */
 		if (ale->id && !ale->owner) {
 			insert_keyframe(ac->bmain, depsgraph, reports, ale->id, NULL, ((fcu->grp) ? (fcu->grp->name) : (NULL)),
-			                fcu->rna_path, fcu->array_index, cfra, ts->keyframe_type, flag);
+			                fcu->rna_path, fcu->array_index, cfra, ts->keyframe_type, &nla_cache, flag);
 		}
 		else {
+			AnimData *adt = ANIM_nla_mapping_get(ac, ale);
+
+			/* adjust current frame for NLA-scaling */
+			if (adt)
+				cfra = BKE_nla_tweakedit_remap(adt, (float)CFRA, NLATIME_CONVERT_UNMAP);
+
 			const float curval = evaluate_fcurve(fcu, cfra);
 			insert_vert_fcurve(fcu, cfra, curval, ts->keyframe_type, 0);
 		}
 
 		ale->update |= ANIM_UPDATE_DEFAULT;
 	}
+
+	BKE_animsys_free_nla_keyframing_context_cache(&nla_cache);
 
 	ANIM_animdata_update(ac, &anim_data);
 	ANIM_animdata_freelist(&anim_data);

@@ -49,6 +49,7 @@
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
+#include "DEG_depsgraph_query.h"
 
 #include "MOD_modifiertypes.h"
 #include "MOD_util.h"
@@ -97,9 +98,9 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 		/* TODO(sergey): Currently path is evaluated as a part of modifier stack,
 		 * might be changed in the future.
 		 */
-		struct Depsgraph *depsgraph = DEG_get_graph_from_handle(ctx->node);
+		DEG_add_object_relation(ctx->node, cmd->object, DEG_OB_COMP_TRANSFORM, "Curve Modifier");
 		DEG_add_object_relation(ctx->node, cmd->object, DEG_OB_COMP_GEOMETRY, "Curve Modifier");
-		DEG_add_special_eval_flag(depsgraph, &cmd->object->id, DAG_EVAL_NEED_CURVE_PATH);
+		DEG_add_special_eval_flag(ctx->node, &cmd->object->id, DAG_EVAL_NEED_CURVE_PATH);
 	}
 
 	DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "Curve Modifier");
@@ -113,15 +114,23 @@ static void deformVerts(
         int numVerts)
 {
 	CurveModifierData *cmd = (CurveModifierData *) md;
-	Mesh *mesh_src = MOD_get_mesh_eval(ctx->object, NULL, mesh, NULL, false, false);
+	Mesh *mesh_src = NULL;
 
-	BLI_assert(mesh_src->totvert == numVerts);
+	if (ctx->object->type == OB_MESH && cmd->name[0] != '\0') {
+		/* mesh_src is only needed for vgroups. */
+		mesh_src = MOD_deform_mesh_eval_get(ctx->object, NULL, mesh, NULL, numVerts, false, false);
+	}
+
+	struct MDeformVert *dvert = NULL;
+	int defgrp_index = -1;
+	MOD_get_vgroup(ctx->object, mesh_src, cmd->name, &dvert, &defgrp_index);
 
 	/* silly that defaxis and curve_deform_verts are off by 1
 	 * but leave for now to save having to call do_versions */
-	curve_deform_verts(cmd->object, ctx->object, mesh_src, vertexCos, numVerts, cmd->name, cmd->defaxis - 1);
+	curve_deform_verts(DEG_get_evaluated_object(ctx->depsgraph, cmd->object), ctx->object,
+	                   vertexCos, numVerts, dvert, defgrp_index, cmd->defaxis - 1);
 
-	if (mesh_src != mesh) {
+	if (!ELEM(mesh_src, NULL, mesh)) {
 		BKE_id_free(NULL, mesh_src);
 	}
 }
@@ -134,13 +143,11 @@ static void deformVertsEM(
         float (*vertexCos)[3],
         int numVerts)
 {
-	Mesh *mesh_src = MOD_get_mesh_eval(ctx->object, em, mesh, NULL, false, false);
-
-	BLI_assert(mesh_src->totvert == numVerts);
+	Mesh *mesh_src = MOD_deform_mesh_eval_get(ctx->object, em, mesh, NULL, numVerts, false, false);
 
 	deformVerts(md, ctx, mesh_src, vertexCos, numVerts);
 
-	if (mesh_src != mesh) {
+	if (!ELEM(mesh_src, NULL, mesh)) {
 		BKE_id_free(NULL, mesh_src);
 	}
 }
@@ -162,14 +169,12 @@ ModifierTypeInfo modifierType_Curve = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       deformVerts,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     deformVertsEM,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,

@@ -68,7 +68,7 @@ void BKE_world_free(World *wrld)
 
 	/* is no lib link block, but world extension */
 	if (wrld->nodetree) {
-		ntreeFreeTree(wrld->nodetree);
+		ntreeFreeNestedTree(wrld->nodetree);
 		MEM_freeN(wrld->nodetree);
 		wrld->nodetree = NULL;
 	}
@@ -112,7 +112,7 @@ World *BKE_world_add(Main *bmain, const char *name)
  *
  * WARNING! This function will not handle ID user count!
  *
- * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
+ * \param flag: Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
  */
 void BKE_world_copy_data(Main *bmain, World *wrld_dst, const World *wrld_src, const int flag)
 {
@@ -142,16 +142,19 @@ World *BKE_world_copy(Main *bmain, const World *wrld)
 
 World *BKE_world_localize(World *wrld)
 {
-	/* TODO replace with something like
-	 * 	World *wrld_copy;
-	 * 	BKE_id_copy_ex(bmain, &wrld->id, (ID **)&wrld_copy, LIB_ID_COPY_NO_MAIN | LIB_ID_COPY_NO_PREVIEW | LIB_ID_COPY_NO_USER_REFCOUNT, false);
-	 * 	return wrld_copy;
+	/* TODO(bastien): Replace with something like:
 	 *
-	 * ... Once f*** nodes are fully converted to that too :( */
+	 *   World *wrld_copy;
+	 *   BKE_id_copy_ex(bmain, &wrld->id, (ID **)&wrld_copy,
+	 *                  LIB_ID_COPY_NO_MAIN | LIB_ID_COPY_NO_PREVIEW | LIB_ID_COPY_NO_USER_REFCOUNT,
+	 *                  false);
+	 *   return wrld_copy;
+	 *
+	 * NOTE: Only possible once nested node trees are fully converted to that too. */
 
 	World *wrldn;
 
-	wrldn = BKE_libblock_copy_nolib(&wrld->id, false);
+	wrldn = BKE_libblock_copy_for_localize(&wrld->id);
 
 	if (wrld->nodetree)
 		wrldn->nodetree = ntreeLocalize(wrld->nodetree);
@@ -161,10 +164,18 @@ World *BKE_world_localize(World *wrld)
 	BLI_listbase_clear(&wrldn->gpumaterial);
 	BLI_listbase_clear((ListBase *)&wrldn->drawdata);
 
+	wrldn->id.tag |= LIB_TAG_LOCALIZED;
+
 	return wrldn;
 }
 
 void BKE_world_make_local(Main *bmain, World *wrld, const bool lib_local)
 {
 	BKE_id_make_local_generic(bmain, &wrld->id, true, lib_local);
+}
+
+void BKE_world_eval(struct Depsgraph *depsgraph, World *world)
+{
+	DEG_debug_print_eval(depsgraph, __func__, world->id.name, world);
+	GPU_material_free(&world->gpumaterial);
 }

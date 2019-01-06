@@ -55,17 +55,18 @@
 
 #include "BKE_context.h"
 #include "BKE_customdata.h"
+#include "BKE_editmesh.h"
 #include "BKE_fcurve.h"
 #include "BKE_global.h"
 #include "BKE_icons.h"
+#include "BKE_library.h"
 #include "BKE_main.h"
+#include "BKE_mask.h"
 #include "BKE_object.h"
 #include "BKE_report.h"
 #include "BKE_scene.h"
 #include "BKE_screen.h"
-#include "BKE_editmesh.h"
 #include "BKE_sound.h"
-#include "BKE_mask.h"
 #include "BKE_workspace.h"
 
 #include "WM_api.h"
@@ -88,6 +89,7 @@
 
 #include "RNA_access.h"
 #include "RNA_define.h"
+#include "RNA_enum_types.h"
 
 #include "UI_interface.h"
 #include "UI_resources.h"
@@ -686,11 +688,7 @@ static AZone *area_actionzone_refresh_xy(ScrArea *sa, const int xy[2], const boo
 	for (az = sa->actionzones.first; az; az = az->next) {
 		if (BLI_rcti_isect_pt_v(&az->rect, xy)) {
 			if (az->type == AZONE_AREA) {
-				/* no triangle intersect but a hotspot circle based on corner */
-				int radius_sq = SQUARE(xy[0] - az->x1) + SQUARE(xy[1] - az->y1);
-				if (radius_sq <= SQUARE(AZONESPOT)) {
-					break;
-				}
+				break;
 			}
 			else if (az->type == AZONE_REGION) {
 				break;
@@ -740,8 +738,16 @@ static AZone *area_actionzone_refresh_xy(ScrArea *sa, const int xy[2], const boo
 			else if (az->type == AZONE_REGION_SCROLL) {
 				ARegion *ar = az->ar;
 				View2D *v2d = &ar->v2d;
-				const short isect_value = UI_view2d_mouse_in_scrollers(ar, v2d, xy[0], xy[1]);
-				if (test_only) {
+				int scroll_flag = 0;
+				const int isect_value = UI_view2d_mouse_in_scrollers_ex(ar, v2d, xy[0], xy[1], &scroll_flag);
+
+				/* Check if we even have scroll bars. */
+				if (((az->direction == AZ_SCROLL_HOR)  && !(scroll_flag & V2D_SCROLL_HORIZONTAL)) ||
+				    ((az->direction == AZ_SCROLL_VERT) && !(scroll_flag & V2D_SCROLL_VERTICAL)))
+				{
+					/* no scrollbars, do nothing. */
+				}
+				else if (test_only) {
 					if (isect_value != 0) {
 						break;
 					}
@@ -792,6 +798,32 @@ static AZone *area_actionzone_refresh_xy(ScrArea *sa, const int xy[2], const boo
 				}
 			}
 		}
+		else if (!test_only && !IS_EQF(az->alpha, 0.0f)) {
+			bool changed = false;
+
+			if (az->type == AZONE_FULLSCREEN) {
+				az->alpha = 0.0f;
+				changed = true;
+			}
+			else if (az->type == AZONE_REGION_SCROLL) {
+				if (az->direction == AZ_SCROLL_VERT) {
+					az->alpha = az->ar->v2d.alpha_vert = 0;
+					changed = true;
+				}
+				else if (az->direction == AZ_SCROLL_HOR) {
+					az->alpha = az->ar->v2d.alpha_hor = 0;
+					changed = true;
+				}
+				else {
+					BLI_assert(0);
+				}
+			}
+
+			if (changed) {
+				sa->flag &= ~AREA_FLAG_ACTIONZONES_UPDATE;
+				ED_area_tag_redraw_no_rebuild(sa);
+			}
+		}
 	}
 
 	return az;
@@ -802,7 +834,7 @@ AZone *ED_area_actionzone_find_xy(ScrArea *sa, const int xy[2])
 	return area_actionzone_refresh_xy(sa, xy, true);
 }
 
-AZone *ED_area_actionzone_refresh_xy(ScrArea *sa, const int xy[2])
+AZone *ED_area_azones_update(ScrArea *sa, const int xy[2])
 {
 	return area_actionzone_refresh_xy(sa, xy, false);
 }
@@ -1532,6 +1564,8 @@ static void area_move_exit(bContext *C, wmOperator *op)
 	/* this makes sure aligned edges will result in aligned grabbing */
 	BKE_screen_remove_double_scrverts(CTX_wm_screen(C));
 	BKE_screen_remove_double_scredges(CTX_wm_screen(C));
+
+	G.moving &= ~G_TRANSFORM_WM;
 }
 
 static int area_move_exec(bContext *C, wmOperator *op)
@@ -1553,6 +1587,8 @@ static int area_move_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 
 	if (!area_move_init(C, op))
 		return OPERATOR_PASS_THROUGH;
+
+	G.moving |= G_TRANSFORM_WM;
 
 	/* add temp handler */
 	WM_event_add_modal_handler(C, op);
@@ -1886,19 +1922,33 @@ static int area_split_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 		if (CTX_wm_area(C) != sad->sa1 || sad->sa1 != sad->sa2)
 			return OPERATOR_PASS_THROUGH;
 
-		/* prepare operator state vars */
-		if (sad->gesture_dir == 'n' || sad->gesture_dir == 's') {
+		/* The factor will be close to 1.0f when near the top-left and the bottom-right corners. */
+		const float factor_v = ((float)(event->y - sad->sa1->v1->vec.y)) / (float)sad->sa1->winy;
+		const float factor_h = ((float)(event->x - sad->sa1->v1->vec.x)) / (float)sad->sa1->winx;
+		const bool is_left = factor_v < 0.5f;
+		const bool is_bottom = factor_h < 0.5f;
+		const bool is_right = !is_left;
+		const bool is_top = !is_bottom;
+		float factor;
+
+		/* Prepare operator state vars. */
+		if (ELEM(sad->gesture_dir, 'n', 's')) {
 			dir = 'h';
-			RNA_property_float_set(
-			        op->ptr, prop_factor,
-			        ((float)(event->x - sad->sa1->v1->vec.x)) / (float)sad->sa1->winx);
+			factor = factor_h;
 		}
 		else {
 			dir = 'v';
-			RNA_property_float_set(
-			        op->ptr, prop_factor,
-			        ((float)(event->y - sad->sa1->v1->vec.y)) / (float)sad->sa1->winy);
+			factor = factor_v;
 		}
+
+		if ((is_top && is_left) ||
+		    (is_bottom && is_right))
+		{
+			factor = 1.0f - factor;
+		}
+
+		RNA_property_float_set(op->ptr, prop_factor, factor);
+
 		RNA_property_enum_set(op->ptr, prop_dir, dir);
 
 		/* general init, also non-UI case, adds customdata, sets area and defaults */
@@ -2358,8 +2408,12 @@ static int region_scale_modal(bContext *C, wmOperator *op, const wmEvent *event)
 					if (!(rmd->ar->flag & RGN_FLAG_HIDDEN))
 						region_scale_toggle_hidden(C, rmd);
 				}
-				else if (rmd->ar->flag & RGN_FLAG_HIDDEN)
+				else if (rmd->ar->flag & RGN_FLAG_HIDDEN) {
 					region_scale_toggle_hidden(C, rmd);
+				}
+				else if (rmd->ar->flag & RGN_FLAG_DYNAMIC_SIZE) {
+					rmd->ar->sizex = rmd->origval;
+				}
 			}
 			else {
 				int maxsize = region_scale_get_maxsize(rmd);
@@ -2387,10 +2441,15 @@ static int region_scale_modal(bContext *C, wmOperator *op, const wmEvent *event)
 					if (!(rmd->ar->flag & RGN_FLAG_HIDDEN))
 						region_scale_toggle_hidden(C, rmd);
 				}
-				else if (maxsize > 0 && (rmd->ar->sizey > maxsize))
+				else if (maxsize > 0 && (rmd->ar->sizey > maxsize)) {
 					rmd->ar->sizey = maxsize;
-				else if (rmd->ar->flag & RGN_FLAG_HIDDEN)
+				}
+				else if (rmd->ar->flag & RGN_FLAG_HIDDEN) {
 					region_scale_toggle_hidden(C, rmd);
+				}
+				else if (rmd->ar->flag & RGN_FLAG_DYNAMIC_SIZE) {
+					rmd->ar->sizey = rmd->origval;
+				}
 			}
 			ED_area_tag_redraw(rmd->sa);
 			WM_event_add_notifier(C, NC_SCREEN | NA_EDITED, NULL);
@@ -2627,10 +2686,10 @@ static int keyframe_jump_exec(bContext *C, wmOperator *op)
 	}
 
 	/* populate tree with keyframe nodes */
-	scene_to_keylist(&ads, scene, &keys, NULL);
+	scene_to_keylist(&ads, scene, &keys, 0);
 
 	if (ob) {
-		ob_to_keylist(&ads, ob, &keys, NULL);
+		ob_to_keylist(&ads, ob, &keys, 0);
 
 		if (ob->type == OB_GPENCIL) {
 			const bool active = !(scene->flag & SCE_KEYS_NO_SELONLY);
@@ -2645,9 +2704,6 @@ static int keyframe_jump_exec(bContext *C, wmOperator *op)
 			mask_to_keylist(&ads, masklay, &keys);
 		}
 	}
-
-	/* build linked-list for searching */
-	BLI_dlrbTree_linkedlist_sync(&keys);
 
 	/* find matching keyframe in the right direction */
 	if (next)
@@ -3588,6 +3644,7 @@ static int region_flip_exec(bContext *C, wmOperator *UNUSED(op))
 		ar->alignment = RGN_ALIGN_LEFT;
 
 	ED_area_tag_redraw(CTX_wm_area(C));
+	WM_event_add_mousemove(C);
 	WM_event_add_notifier(C, NC_SCREEN | NA_EDITED, NULL);
 
 	return OPERATOR_FINISHED;
@@ -3598,7 +3655,7 @@ static bool region_flip_poll(bContext *C)
 	ScrArea *area = CTX_wm_area(C);
 
 	/* don't flip anything around in topbar */
-	if (area->spacetype == SPACE_TOPBAR) {
+	if (area && area->spacetype == SPACE_TOPBAR) {
 		CTX_wm_operator_poll_msg_set(C, "Flipping regions in the Top-bar is not allowed");
 		return 0;
 	}
@@ -3754,6 +3811,23 @@ static void SCREEN_OT_header_context_menu(wmOperatorType *ot)
 	/* api callbacks */
 	ot->poll = header_context_menu_poll;
 	ot->invoke = header_context_menu_invoke;
+}
+
+/** \} */
+
+/* -------------------------------------------------------------------- */
+/** \name Navigation Bar Tools Menu
+ * \{ */
+
+void ED_screens_navigation_bar_tools_menu_create(bContext *C, uiLayout *layout, void *UNUSED(arg))
+{
+	const ARegion *ar = CTX_wm_region(C);
+	const char *but_flip_str = (ar->alignment == RGN_ALIGN_LEFT) ? IFACE_("Flip to Right") : IFACE_("Flip to Left");
+
+	/* default is WM_OP_INVOKE_REGION_WIN, which we don't want here. */
+	uiLayoutSetOperatorContext(layout, WM_OP_INVOKE_DEFAULT);
+
+	uiItemO(layout, but_flip_str, ICON_NONE, "SCREEN_OT_region_flip");
 }
 
 /** \} */
@@ -4206,7 +4280,7 @@ static void SCREEN_OT_animation_cancel(wmOperatorType *ot)
 /** \} */
 
 /* -------------------------------------------------------------------- */
-/** \name Border Select Operator (Template)
+/** \name Box Select Operator (Template)
  * \{ */
 
 /* operator state vars used: (added by default WM callbacks)
@@ -4228,31 +4302,31 @@ static void SCREEN_OT_animation_cancel(wmOperatorType *ot)
  * poll()	has to be filled in by user for context
  */
 #if 0
-static int border_select_exec(bContext *C, wmOperator *op)
+static int box_select_exec(bContext *C, wmOperator *op)
 {
 	int event_type = RNA_int_get(op->ptr, "event_type");
 
 	if (event_type == LEFTMOUSE)
-		printf("border select do select\n");
+		printf("box select do select\n");
 	else if (event_type == RIGHTMOUSE)
-		printf("border select deselect\n");
+		printf("box select deselect\n");
 	else
-		printf("border select do something\n");
+		printf("box select do something\n");
 
 	return 1;
 }
 
-static void SCREEN_OT_border_select(wmOperatorType *ot)
+static void SCREEN_OT_box_select(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name = "Border Select";
-	ot->idname = "SCREEN_OT_border_select";
+	ot->name = "Box Select";
+	ot->idname = "SCREEN_OT_box_select";
 
 	/* api callbacks */
-	ot->exec = border_select_exec;
-	ot->invoke = WM_gesture_border_invoke;
-	ot->modal = WM_gesture_border_modal;
-	ot->cancel = WM_gesture_border_cancel;
+	ot->exec = box_select_exec;
+	ot->invoke = WM_gesture_box_invoke;
+	ot->modal = WM_gesture_box_modal;
+	ot->cancel = WM_gesture_box_cancel;
 
 	ot->poll = ED_operator_areaactive;
 
@@ -4310,11 +4384,15 @@ static void SCREEN_OT_back_to_previous(struct wmOperatorType *ot)
 
 static int userpref_show_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 {
-	int sizex = 800 * UI_DPI_FAC;
-	int sizey = 500 * UI_DPI_FAC;
+	int sizex = (500 + UI_NAVIGATION_REGION_WIDTH) * UI_DPI_FAC;
+	int sizey = 520 * UI_DPI_FAC;
 
 	/* changes context! */
 	if (WM_window_open_temp(C, event->x, event->y, sizex, sizey, WM_WINDOW_USERPREFS) != NULL) {
+		/* The header only contains the editor switcher and looks empty. So hiding in the temp window makes sense. */
+		ScrArea *area = CTX_wm_area(C);
+		ARegion *region = BKE_area_find_region_type(area, RGN_TYPE_HEADER);
+		region->flag |= RGN_FLAG_HIDDEN;
 		return OPERATOR_FINISHED;
 	}
 	else {
@@ -4327,8 +4405,8 @@ static int userpref_show_invoke(bContext *C, wmOperator *op, const wmEvent *even
 static void SCREEN_OT_userpref_show(struct wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name = "Show User Preferences";
-	ot->description = "Show user preferences";
+	ot->name = "Show Preferences";
+	ot->description = "Edit user preferences and system settings";
 	ot->idname = "SCREEN_OT_userpref_show";
 
 	/* api callbacks */
@@ -4472,7 +4550,7 @@ static void SCREEN_OT_delete(wmOperatorType *ot)
 
 /* implementation note: a disappearing region needs at least 1 last draw with 100% backbuffer
  * texture over it- then triple buffer will clear it entirely.
- * This because flag RGN_HIDDEN is set in end - region doesnt draw at all then */
+ * This because flag RGN_HIDDEN is set in end - region doesn't draw at all then */
 
 typedef struct RegionAlphaInfo {
 	ScrArea *sa;
@@ -4480,8 +4558,8 @@ typedef struct RegionAlphaInfo {
 	int hidden;
 } RegionAlphaInfo;
 
-#define TIMEOUT		0.2f
-#define TIMESTEP	0.04f
+#define TIMEOUT		0.1f
+#define TIMESTEP	(1.0f / 60.0f)
 
 float ED_region_blend_alpha(ARegion *ar)
 {
@@ -4612,15 +4690,72 @@ static void SCREEN_OT_region_blend(wmOperatorType *ot)
 
 /** \} */
 
+
+/* -------------------------------------------------------------------- */
+/** \name Space Type Set or Cycle Operator
+ * \{ */
+
+static int space_type_set_or_cycle_exec(bContext *C, wmOperator *op)
+{
+	const int space_type = RNA_enum_get(op->ptr, "space_type");
+
+	PointerRNA ptr;
+	ScrArea *sa = CTX_wm_area(C);
+	RNA_pointer_create((ID *)CTX_wm_screen(C), &RNA_Area, sa, &ptr);
+	PropertyRNA *prop_type = RNA_struct_find_property(&ptr, "type");
+	PropertyRNA *prop_ui_type = RNA_struct_find_property(&ptr, "ui_type");
+
+	if (sa->spacetype != space_type) {
+		/* Set the type. */
+		RNA_property_enum_set(&ptr, prop_type, space_type);
+		RNA_property_update(C, &ptr, prop_type);
+	}
+	else {
+		/* Types match, cycle the subtype. */
+		const int space_type_ui = RNA_property_enum_get(&ptr, prop_ui_type);
+		const EnumPropertyItem *item;
+		int item_len;
+		bool free;
+		RNA_property_enum_items(C, &ptr, prop_ui_type, &item, &item_len, &free);
+		int index = RNA_enum_from_value(item, space_type_ui);
+		for (int i = 1; i < item_len; i++) {
+			const EnumPropertyItem *item_test = &item[(index + i) % item_len];
+			if ((item_test->value >> 16) == space_type) {
+				RNA_property_enum_set(&ptr, prop_ui_type, item_test->value);
+				RNA_property_update(C, &ptr, prop_ui_type);
+				break;
+			}
+		}
+		if (free) {
+			MEM_freeN((void *)item);
+		}
+	}
+
+	return OPERATOR_FINISHED;
+}
+
+static void SCREEN_OT_space_type_set_or_cycle(wmOperatorType *ot)
+{
+	/* identifiers */
+	ot->name = "Cycle Space Type Set";
+	ot->description = "Set the space type or cycle sub-type";
+	ot->idname = "SCREEN_OT_space_type_set_or_cycle";
+
+	/* api callbacks */
+	ot->exec = space_type_set_or_cycle_exec;
+	ot->poll = ED_operator_areaactive;
+
+	ot->flag = 0;
+
+	RNA_def_enum(ot->srna, "space_type", rna_enum_space_type_items, SPACE_EMPTY, "Type", "");
+}
+
+/** \} */
+
+
 /* -------------------------------------------------------------------- */
 /** \name Space Context Cycle Operator
  * \{ */
-
-/* SCREEN_OT_space_context_cycle direction */
-enum {
-	SPACE_CONTEXT_CYCLE_PREV,
-	SPACE_CONTEXT_CYCLE_NEXT,
-};
 
 static const EnumPropertyItem space_context_cycle_direction[] = {
 	{SPACE_CONTEXT_CYCLE_PREV, "PREV", 0, "Previous", ""},
@@ -4651,7 +4786,7 @@ static void context_cycle_prop_get(
 			propname = "context";
 			break;
 		case SPACE_USERPREF:
-			RNA_pointer_create(NULL, &RNA_UserPreferences, &U, r_ptr);
+			RNA_pointer_create(NULL, &RNA_Preferences, &U, r_ptr);
 			propname = "active_section";
 			break;
 		default:
@@ -4712,15 +4847,37 @@ static int space_workspace_cycle_invoke(bContext *C, wmOperator *op, const wmEve
 	Main *bmain = CTX_data_main(C);
 	const int direction = RNA_enum_get(op->ptr, "direction");
 	WorkSpace *workspace_src = WM_window_get_active_workspace(win);
-	WorkSpace *workspace_dst = (direction == SPACE_CONTEXT_CYCLE_PREV) ? workspace_src->id.prev : workspace_src->id.next;
+	WorkSpace *workspace_dst = NULL;
+
+	ListBase ordered;
+	BKE_id_ordered_list(&ordered, &bmain->workspaces);
+
+	for (LinkData *link = ordered.first; link; link = link->next) {
+		if (link->data == workspace_src) {
+			if (direction == SPACE_CONTEXT_CYCLE_PREV) {
+				workspace_dst = (link->prev) ? link->prev->data : NULL;
+			}
+			else {
+				workspace_dst = (link->next) ? link->next->data : NULL;
+			}
+		}
+	}
+
 	if (workspace_dst == NULL) {
-		workspace_dst = (direction == SPACE_CONTEXT_CYCLE_PREV) ? bmain->workspaces.last : bmain->workspaces.first;
+		LinkData *link = (direction == SPACE_CONTEXT_CYCLE_PREV) ? ordered.last : ordered.first;
+		workspace_dst =  link->data;
 	}
-	if (workspace_src != workspace_dst) {
-		win->workspace_hook->temp_workspace_store = workspace_dst;
-		WM_event_add_notifier(C, NC_SCREEN | ND_WORKSPACE_SET, workspace_dst);
-		win->workspace_hook->temp_workspace_store = NULL;
+
+	BLI_freelistN(&ordered);
+
+	if (workspace_src == workspace_dst) {
+		return OPERATOR_CANCELLED;
 	}
+
+	win->workspace_hook->temp_workspace_store = workspace_dst;
+	WM_event_add_notifier(C, NC_SCREEN | ND_WORKSPACE_SET, workspace_dst);
+	win->workspace_hook->temp_workspace_store = NULL;
+
 	return OPERATOR_FINISHED;
 }
 
@@ -4733,7 +4890,7 @@ static void SCREEN_OT_workspace_cycle(wmOperatorType *ot)
 
 	/* api callbacks */
 	ot->invoke = space_workspace_cycle_invoke;
-	ot->poll = ED_operator_screenactive;;
+	ot->poll = ED_operator_screenactive;
 
 	ot->flag = 0;
 
@@ -4777,6 +4934,7 @@ void ED_operatortypes_screen(void)
 	WM_operatortype_append(SCREEN_OT_userpref_show);
 	WM_operatortype_append(SCREEN_OT_drivers_editor_show);
 	WM_operatortype_append(SCREEN_OT_region_blend);
+	WM_operatortype_append(SCREEN_OT_space_type_set_or_cycle);
 	WM_operatortype_append(SCREEN_OT_space_context_cycle);
 	WM_operatortype_append(SCREEN_OT_workspace_cycle);
 
@@ -4824,19 +4982,11 @@ static void keymap_modal_set(wmKeyConfig *keyconf)
 	/* Standard Modal keymap ------------------------------------------------ */
 	keymap = WM_modalkeymap_add(keyconf, "Standard Modal Map", modal_items);
 
-	WM_modalkeymap_add_item(keymap, ESCKEY,    KM_PRESS, KM_ANY, 0, KM_MODAL_CANCEL);
-	WM_modalkeymap_add_item(keymap, LEFTMOUSE, KM_ANY, KM_ANY, 0, KM_MODAL_APPLY);
-	WM_modalkeymap_add_item(keymap, RETKEY, KM_PRESS, KM_ANY, 0, KM_MODAL_APPLY);
-	WM_modalkeymap_add_item(keymap, PADENTER, KM_PRESS, KM_ANY, 0, KM_MODAL_APPLY);
-
-	WM_modalkeymap_add_item(keymap, LEFTCTRLKEY, KM_PRESS, KM_ANY, 0, KM_MODAL_SNAP_ON);
-	WM_modalkeymap_add_item(keymap, LEFTCTRLKEY, KM_RELEASE, KM_ANY, 0, KM_MODAL_SNAP_OFF);
-
 	WM_modalkeymap_assign(keymap, "SCREEN_OT_area_move");
 
 }
 
-static bool open_file_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event), const char **UNUSED(tooltip))
+static bool blend_file_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent *UNUSED(event), const char **UNUSED(tooltip))
 {
 	if (drag->type == WM_DRAG_PATH) {
 		if (drag->icon == ICON_FILE_BLEND)
@@ -4845,11 +4995,10 @@ static bool open_file_drop_poll(bContext *UNUSED(C), wmDrag *drag, const wmEvent
 	return 0;
 }
 
-static void open_file_drop_copy(wmDrag *drag, wmDropBox *drop)
+static void blend_file_drop_copy(wmDrag *drag, wmDropBox *drop)
 {
 	/* copy drag path to properties */
 	RNA_string_set(drop->ptr, "filepath", drag->path);
-	drop->opcontext = WM_OP_EXEC_DEFAULT;
 }
 
 
@@ -4857,186 +5006,23 @@ static void open_file_drop_copy(wmDrag *drag, wmDropBox *drop)
 void ED_keymap_screen(wmKeyConfig *keyconf)
 {
 	ListBase *lb;
-	wmKeyMap *keymap;
-	wmKeyMapItem *kmi;
 
 	/* Screen Editing ------------------------------------------------ */
-	keymap = WM_keymap_ensure(keyconf, "Screen Editing", 0, 0);
-
-	RNA_int_set(WM_keymap_add_item(keymap, "SCREEN_OT_actionzone", LEFTMOUSE, KM_PRESS, 0, 0)->ptr, "modifier", 0);
-	RNA_int_set(WM_keymap_add_item(keymap, "SCREEN_OT_actionzone", LEFTMOUSE, KM_PRESS, KM_SHIFT, 0)->ptr, "modifier", 1);
-	RNA_int_set(WM_keymap_add_item(keymap, "SCREEN_OT_actionzone", LEFTMOUSE, KM_PRESS, KM_CTRL, 0)->ptr, "modifier", 2);
-
-	/* screen tools */
-	WM_keymap_verify_item(keymap, "SCREEN_OT_area_split", EVT_ACTIONZONE_AREA, 0, 0, 0);
-	WM_keymap_verify_item(keymap, "SCREEN_OT_area_join", EVT_ACTIONZONE_AREA, 0, 0, 0);
-	WM_keymap_verify_item(keymap, "SCREEN_OT_area_dupli", EVT_ACTIONZONE_AREA, 0, KM_SHIFT, 0);
-	WM_keymap_verify_item(keymap, "SCREEN_OT_area_swap", EVT_ACTIONZONE_AREA, 0, KM_CTRL, 0);
-	WM_keymap_verify_item(keymap, "SCREEN_OT_region_scale", EVT_ACTIONZONE_REGION, 0, 0, 0);
-	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_screen_full_area", EVT_ACTIONZONE_FULLSCREEN, 0, 0, 0);
-	RNA_boolean_set(kmi->ptr, "use_hide_panels", true);
-	/* area move after action zones */
-	WM_keymap_verify_item(keymap, "SCREEN_OT_area_move", LEFTMOUSE, KM_PRESS, 0, 0);
-
-	WM_keymap_verify_item(keymap, "SCREEN_OT_area_options", RIGHTMOUSE, KM_PRESS, 0, 0);
-
-#ifdef USE_WM_KEYMAP_27X
-	WM_keymap_add_item(keymap, "SCREEN_OT_header", F9KEY, KM_PRESS, KM_ALT, 0);
-#endif
+	WM_keymap_ensure(keyconf, "Screen Editing", 0, 0);
 
 	/* Header Editing ------------------------------------------------ */
 	/* note: this is only used when the cursor is inside the header */
-	keymap = WM_keymap_ensure(keyconf, "Header", 0, 0);
-
-	WM_keymap_add_item(keymap, "SCREEN_OT_header_context_menu", RIGHTMOUSE, KM_PRESS, 0, 0);
+	WM_keymap_ensure(keyconf, "Header", 0, 0);
 
 	/* Screen General ------------------------------------------------ */
-	keymap = WM_keymap_ensure(keyconf, "Screen", 0, 0);
-
-	/* standard timers */
-	WM_keymap_add_item(keymap, "SCREEN_OT_animation_step", TIMER0, KM_ANY, KM_ANY, 0);
-	WM_keymap_add_item(keymap, "SCREEN_OT_region_blend", TIMERREGION, KM_ANY, KM_ANY, 0);
-
-#ifdef USE_WM_KEYMAP_27X
-	RNA_int_set(WM_keymap_add_item(keymap, "SCREEN_OT_screen_set", RIGHTARROWKEY, KM_PRESS, KM_CTRL, 0)->ptr, "delta", 1);
-	RNA_int_set(WM_keymap_add_item(keymap, "SCREEN_OT_screen_set", LEFTARROWKEY, KM_PRESS, KM_CTRL, 0)->ptr, "delta", -1);
-#endif
-	WM_keymap_add_item(keymap, "SCREEN_OT_screen_full_area", SPACEKEY, KM_PRESS, KM_CTRL, 0);
-	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_screen_full_area", SPACEKEY, KM_PRESS, KM_CTRL | KM_ALT, 0);
-	RNA_boolean_set(kmi->ptr, "use_hide_panels", true);
-
-#ifdef USE_WM_KEYMAP_27X
-	WM_keymap_add_item(keymap, "SCREEN_OT_screenshot", F3KEY, KM_PRESS, KM_CTRL, 0);
-#endif
-
-	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_space_context_cycle", TABKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_enum_set(kmi->ptr, "direction", SPACE_CONTEXT_CYCLE_NEXT);
-	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_space_context_cycle", TABKEY, KM_PRESS, KM_CTRL | KM_SHIFT, 0);
-	RNA_enum_set(kmi->ptr, "direction", SPACE_CONTEXT_CYCLE_PREV);
-
-	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_workspace_cycle", PAGEDOWNKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_enum_set(kmi->ptr, "direction", SPACE_CONTEXT_CYCLE_NEXT);
-	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_workspace_cycle", PAGEUPKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_enum_set(kmi->ptr, "direction", SPACE_CONTEXT_CYCLE_PREV);
-
-	/* tests */
-	WM_keymap_add_item(keymap, "SCREEN_OT_region_quadview", QKEY, KM_PRESS, KM_CTRL | KM_ALT, 0);
-
-	WM_keymap_add_item(keymap, "SCREEN_OT_repeat_last", RKEY, KM_PRESS, KM_SHIFT, 0);
-
-#ifdef USE_WM_KEYMAP_27X
-	WM_keymap_verify_item(keymap, "SCREEN_OT_repeat_history", RKEY, KM_PRESS, KM_CTRL | KM_ALT, 0);
-	WM_keymap_verify_item(keymap, "SCREEN_OT_region_flip", F5KEY, KM_PRESS, 0, 0);
-	WM_keymap_verify_item(keymap, "SCREEN_OT_redo_last", F6KEY, KM_PRESS, 0, 0);
-	WM_keymap_verify_item(keymap, "SCRIPT_OT_reload", F8KEY, KM_PRESS, 0, 0);
-#endif
-
-	/* files */
-	WM_keymap_add_item(keymap, "FILE_OT_execute", RETKEY, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "FILE_OT_execute", PADENTER, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "FILE_OT_cancel", ESCKEY, KM_PRESS, 0, 0);
-
-	/* undo */
-#ifdef __APPLE__
-	WM_keymap_add_item(keymap, "ED_OT_undo", ZKEY, KM_PRESS, KM_OSKEY, 0);
-	WM_keymap_add_item(keymap, "ED_OT_redo", ZKEY, KM_PRESS, KM_SHIFT | KM_OSKEY, 0);
-#ifdef USE_WM_KEYMAP_27X
-	WM_keymap_add_item(keymap, "ED_OT_undo_history", ZKEY, KM_PRESS, KM_ALT | KM_OSKEY, 0);
-#endif
-#endif
-	WM_keymap_add_item(keymap, "ED_OT_undo", ZKEY, KM_PRESS, KM_CTRL, 0);
-	WM_keymap_add_item(keymap, "ED_OT_redo", ZKEY, KM_PRESS, KM_SHIFT | KM_CTRL, 0);
-#ifdef USE_WM_KEYMAP_27X
-	WM_keymap_add_item(keymap, "ED_OT_undo_history", ZKEY, KM_PRESS, KM_ALT | KM_CTRL, 0);
-#endif
-
-	/* render */
-	kmi = WM_keymap_add_item(keymap, "RENDER_OT_render", F12KEY, KM_PRESS, 0, 0);
-	RNA_boolean_set(kmi->ptr, "use_viewport", true);
-	kmi = WM_keymap_add_item(keymap, "RENDER_OT_render", F12KEY, KM_PRESS, KM_CTRL, 0);
-	RNA_boolean_set(kmi->ptr, "animation", true);
-	RNA_boolean_set(kmi->ptr, "use_viewport", true);
-	WM_keymap_add_item(keymap, "RENDER_OT_view_cancel", ESCKEY, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "RENDER_OT_view_show", F11KEY, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "RENDER_OT_play_rendered_anim", F11KEY, KM_PRESS, KM_CTRL, 0);
-
-	/* user prefs */
-#ifdef __APPLE__
-	WM_keymap_add_item(keymap, "SCREEN_OT_userpref_show", COMMAKEY, KM_PRESS, KM_OSKEY, 0);
-#endif
-#ifdef USE_WM_KEYMAP_27X
-	WM_keymap_add_item(keymap, "SCREEN_OT_userpref_show", UKEY, KM_PRESS, KM_CTRL | KM_ALT, 0);
-#endif
-
+	WM_keymap_ensure(keyconf, "Screen", 0, 0);
 
 	/* Anim Playback ------------------------------------------------ */
-	keymap = WM_keymap_ensure(keyconf, "Frames", 0, 0);
-
-	/* frame offsets */
-#ifdef USE_WM_KEYMAP_27X
-	RNA_int_set(WM_keymap_add_item(keymap, "SCREEN_OT_frame_offset", UPARROWKEY, KM_PRESS, KM_SHIFT, 0)->ptr, "delta", 10);
-	RNA_int_set(WM_keymap_add_item(keymap, "SCREEN_OT_frame_offset", DOWNARROWKEY, KM_PRESS, KM_SHIFT, 0)->ptr, "delta", -10);
-#endif
-	RNA_int_set(WM_keymap_add_item(keymap, "SCREEN_OT_frame_offset", LEFTARROWKEY, KM_PRESS, 0, 0)->ptr, "delta", -1);
-	RNA_int_set(WM_keymap_add_item(keymap, "SCREEN_OT_frame_offset", RIGHTARROWKEY, KM_PRESS, 0, 0)->ptr, "delta", 1);
-
-#ifdef USE_WM_KEYMAP_27X
-	RNA_int_set(WM_keymap_add_item(keymap, "SCREEN_OT_frame_offset", WHEELDOWNMOUSE, KM_PRESS, KM_ALT, 0)->ptr, "delta", 1);
-	RNA_int_set(WM_keymap_add_item(keymap, "SCREEN_OT_frame_offset", WHEELUPMOUSE, KM_PRESS, KM_ALT, 0)->ptr, "delta", -1);
-
-	RNA_boolean_set(WM_keymap_add_item(keymap, "SCREEN_OT_frame_jump", UPARROWKEY, KM_PRESS, KM_CTRL | KM_SHIFT, 0)->ptr, "end", true);
-	RNA_boolean_set(WM_keymap_add_item(keymap, "SCREEN_OT_frame_jump", DOWNARROWKEY, KM_PRESS, KM_CTRL | KM_SHIFT, 0)->ptr, "end", false);
-#endif
-	RNA_boolean_set(WM_keymap_add_item(keymap, "SCREEN_OT_frame_jump", RIGHTARROWKEY, KM_PRESS, KM_SHIFT, 0)->ptr, "end", true);
-	RNA_boolean_set(WM_keymap_add_item(keymap, "SCREEN_OT_frame_jump", LEFTARROWKEY, KM_PRESS, KM_SHIFT, 0)->ptr, "end", false);
-
-	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_keyframe_jump", UPARROWKEY, KM_PRESS, 0, 0);
-	RNA_boolean_set(kmi->ptr, "next", true);
-
-	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_keyframe_jump", DOWNARROWKEY, KM_PRESS, 0, 0);
-	RNA_boolean_set(kmi->ptr, "next", false);
-
-	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_keyframe_jump", MEDIALAST, KM_PRESS, 0, 0);
-	RNA_boolean_set(kmi->ptr, "next", true);
-
-	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_keyframe_jump", MEDIAFIRST, KM_PRESS, 0, 0);
-	RNA_boolean_set(kmi->ptr, "next", false);
-
-
-#ifdef USE_WM_KEYMAP_27X
-	/* play (forward and backwards) */
-	WM_keymap_add_item(keymap, "SCREEN_OT_animation_play", AKEY, KM_PRESS, KM_ALT, 0);
-	RNA_boolean_set(
-	        WM_keymap_add_item(keymap, "SCREEN_OT_animation_play", AKEY, KM_PRESS, KM_ALT | KM_SHIFT, 0)->ptr,
-	        "reverse", true);
-#else
-	/* play (forward and backwards) */
-	WM_keymap_add_item(keymap, "SCREEN_OT_animation_play", SPACEKEY, KM_PRESS, KM_SHIFT, 0);
-	RNA_boolean_set(
-	        WM_keymap_add_item(keymap, "SCREEN_OT_animation_play", SPACEKEY, KM_PRESS, KM_CTRL | KM_SHIFT, 0)->ptr,
-	        "reverse", true);
-#endif
-	WM_keymap_add_item(keymap, "SCREEN_OT_animation_cancel", ESCKEY, KM_PRESS, 0, 0);
-
-	WM_keymap_add_item(keymap, "SCREEN_OT_animation_play", MEDIAPLAY, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "SCREEN_OT_animation_cancel", MEDIASTOP, KM_PRESS, 0, 0);
-
-	/* Alternative keys for animation and sequencer playing */
-#if 0 /* XXX: disabled for restoring later... bad implementation */
-	keymap = WM_keymap_ensure(keyconf, "Frames", 0, 0);
-	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_animation_play", RIGHTARROWKEY, KM_PRESS, KM_ALT, 0);
-	RNA_boolean_set(kmi->ptr, "cycle_speed", true);
-
-	kmi = WM_keymap_add_item(keymap, "SCREEN_OT_animation_play", LEFTARROWKEY, KM_PRESS, KM_ALT, 0);
-	RNA_boolean_set(kmi->ptr, "reverse", true);
-	RNA_boolean_set(kmi->ptr, "cycle_speed", true);
-
-	WM_keymap_add_item(keymap, "SCREEN_OT_animation_play", DOWNARROWKEY, KM_PRESS, KM_ALT, 0);
-#endif
+	WM_keymap_ensure(keyconf, "Frames", 0, 0);
 
 	/* dropbox for entire window */
 	lb = WM_dropboxmap_find("Window", 0, 0);
-	WM_dropbox_add(lb, "WM_OT_open_mainfile", open_file_drop_poll, open_file_drop_copy);
+	WM_dropbox_add(lb, "WM_OT_drop_blend_file", blend_file_drop_poll, blend_file_drop_copy);
 	WM_dropbox_add(lb, "UI_OT_drop_color", UI_drop_color_poll, UI_drop_color_copy);
 
 	keymap_modal_set(keyconf);

@@ -241,6 +241,7 @@ static uiBlock *ui_block_func_POPUP(bContext *C, uiPopupBlockHandle *handle, voi
 
 		uiBut *but_activate = NULL;
 		UI_block_flag_enable(block, UI_BLOCK_LOOP | UI_BLOCK_NUMSELECT);
+		UI_block_theme_style_set(block, UI_BLOCK_THEME_STYLE_POPUP);
 		UI_block_direction_set(block, direction);
 
 		/* offset the mouse position, possibly based on earlier selection */
@@ -645,6 +646,22 @@ void UI_popup_block_close(bContext *C, wmWindow *win, uiBlock *block)
 			}
 		}
 	}
+}
+
+bool UI_popup_block_name_exists(bContext *C, const char *name)
+{
+	bScreen *sc = CTX_wm_screen(C);
+	uiBlock *block;
+	ARegion *ar;
+
+	for (ar = sc->regionbase.first; ar; ar = ar->next) {
+		for (block = ar->uiblocks.first; block; block = block->next) {
+			if (STREQ(block->name, name)) {
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 /** \} */

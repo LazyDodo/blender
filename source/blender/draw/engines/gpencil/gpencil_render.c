@@ -28,6 +28,7 @@
 #include "DRW_render.h"
 
 #include "BKE_camera.h"
+#include "BKE_object.h"
 
 #include "DNA_gpencil_types.h"
 
@@ -85,7 +86,7 @@ void GPENCIL_render_init(GPENCIL_Data *ved, RenderEngine *engine, struct Depsgra
 	}
 
 	vedata->render_depth_tx = DRW_texture_pool_query_2D(
-	        size[0], size[1], GPU_DEPTH24_STENCIL8,
+	        size[0], size[1], GPU_DEPTH_COMPONENT24,
 	        &draw_engine_gpencil_type);
 	vedata->render_color_tx = DRW_texture_pool_query_2D(
 	        size[0], size[1], GPU_RGBA32F,
@@ -130,12 +131,10 @@ static void GPENCIL_render_cache(
 	void *vedata, struct Object *ob,
 	struct RenderEngine *UNUSED(engine), struct Depsgraph *UNUSED(depsgraph))
 {
-	if ((ob == NULL) || (DRW_check_object_visible_within_active_context(ob) == false)) {
-		return;
-	}
-
-	if (ob->type == OB_GPENCIL) {
-		GPENCIL_cache_populate(vedata, ob);
+	if (ob && ob->type == OB_GPENCIL) {
+		if (DRW_object_visibility_in_active_context(ob) & OB_VISIBLE_SELF) {
+			GPENCIL_cache_populate(vedata, ob);
+		}
 	}
 }
 

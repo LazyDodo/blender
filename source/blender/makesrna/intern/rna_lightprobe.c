@@ -49,7 +49,7 @@
 
 static void rna_LightProbe_recalc(Main *UNUSED(bmain), Scene *UNUSED(scene), PointerRNA *ptr)
 {
-	DEG_id_tag_update(ptr->id.data, OB_RECALC_DATA);
+	DEG_id_tag_update(ptr->id.data, ID_RECALC_GEOMETRY);
 }
 
 #else
@@ -107,7 +107,7 @@ static void rna_def_lightprobe(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "influence_type", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "attenuation_type");
 	RNA_def_property_enum_items(prop, parallax_type_items);
-	RNA_def_property_ui_text(prop, "Type", "Type of parallax volume");
+	RNA_def_property_ui_text(prop, "Type", "Type of influence volume");
 	RNA_def_property_update(prop, NC_MATERIAL | ND_SHADING, NULL);
 
 	prop = RNA_def_property(srna, "show_influence", PROP_BOOLEAN, PROP_NONE);
@@ -188,7 +188,7 @@ static void rna_def_lightprobe(BlenderRNA *brna)
 	RNA_def_property_float_sdna(prop, NULL, "vis_blur");
 	RNA_def_property_float_default(prop, 0.2f);
 	RNA_def_property_range(prop, 0.0f, 1.0f);
-	RNA_def_property_ui_text(prop, "Visibility Blur", "Filter size of the visibilty blur");
+	RNA_def_property_ui_text(prop, "Visibility Blur", "Filter size of the visibility blur");
 	RNA_def_property_update(prop, NC_MATERIAL | ND_SHADING, "rna_LightProbe_recalc");
 
 	prop = RNA_def_property(srna, "intensity", PROP_FLOAT, PROP_NONE);
@@ -215,7 +215,7 @@ static void rna_def_lightprobe(BlenderRNA *brna)
 	/* Data preview */
 	prop = RNA_def_property(srna, "show_data", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "flag", LIGHTPROBE_FLAG_SHOW_DATA);
-	RNA_def_property_ui_text(prop, "Show Data", "Show captured lighting data into the 3D view for debuging purpose");
+	RNA_def_property_ui_text(prop, "Show Data", "Show captured lighting data into the 3D view for debugging purpose");
 	RNA_def_property_update(prop, NC_MATERIAL | ND_SHADING, NULL);
 
 	/* common */

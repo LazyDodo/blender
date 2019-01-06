@@ -44,7 +44,6 @@ void script_operatortypes(void)
 {
 	WM_operatortype_append(SCRIPT_OT_python_file_run);
 	WM_operatortype_append(SCRIPT_OT_reload);
-	WM_operatortype_append(SCRIPT_OT_autoexec_warn_clear);
 	WM_operatortype_append(SCRIPT_OT_assets_warn_clear);
 }
 

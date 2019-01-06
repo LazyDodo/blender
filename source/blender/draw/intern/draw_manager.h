@@ -101,6 +101,7 @@ enum {
 	DRW_CALL_NORMALWORLD            = (1 << 5),
 	DRW_CALL_ORCOTEXFAC             = (1 << 6),
 	DRW_CALL_EYEVEC                 = (1 << 7),
+	DRW_CALL_OBJECTINFO             = (1 << 8),
 };
 
 typedef struct DRWCallState {
@@ -120,8 +121,9 @@ typedef struct DRWCallState {
 	float modelviewinverse[4][4];
 	float modelviewprojection[4][4];
 	float normalview[3][3];
-	float normalworld[3][3]; /* Not view dependant */
-	float orcotexfac[2][3]; /* Not view dependant */
+	float normalworld[3][3]; /* Not view dependent */
+	float orcotexfac[2][3]; /* Not view dependent */
+	float objectinfo[2];
 	float eyevec[3];
 } DRWCallState;
 
@@ -140,6 +142,7 @@ typedef struct DRWCall {
 	union {
 		struct { /* type == DRW_CALL_SINGLE */
 			GPUBatch *geometry;
+			short ma_index;
 		} single;
 		struct { /* type == DRW_CALL_RANGE */
 			GPUBatch *geometry;
@@ -257,13 +260,12 @@ struct DRWShadingGroup {
 	int orcotexfac;
 	int eye;
 	int callid;
+	int objectinfo;
 	uint16_t matflag; /* Matrices needed, same as DRWCall.flag */
 
+	DRWPass *pass_parent; /* backlink to pass we're in */
 #ifndef NDEBUG
 	char attribs_count;
-#endif
-#if !defined(NDEBUG) || defined(USE_GPU_SELECT)
-	DRWPass *pass_parent; /* backlink to pass we're in */
 #endif
 #ifdef USE_GPU_SELECT
 	GPUVertBuf *inst_selectid;
@@ -317,6 +319,8 @@ typedef struct DRWManager {
 	/* State of the object being evaluated if already allocated. */
 	DRWCallState *ob_state;
 	uchar state_cache_id; /* Could be larger but 254 view changes is already a lot! */
+	struct DupliObject *dupli_source;
+	struct Object *dupli_parent;
 
 	/* Rendering state */
 	GPUShader *shader;
@@ -355,9 +359,9 @@ typedef struct DRWManager {
 
 	bool buffer_finish_called; /* Avoid bad usage of DRW_render_instance_buffer_finish */
 
-	/* View dependant uniforms. */
+	/* View dependent uniforms. */
 	DRWMatrixState original_mat; /* Original rv3d matrices. */
-	int override_mat;            /* Bitflag of which matrices are overriden. */
+	int override_mat;            /* Bitflag of which matrices are overridden. */
 	int num_clip_planes;         /* Number of active clipplanes. */
 	bool dirty_mat;
 
@@ -381,7 +385,7 @@ typedef struct DRWManager {
 	 * the top portion of the struct so DO NOT MOVE IT! */
 	void *gl_context;                /* Unique ghost context used by the draw manager. */
 	GPUContext *gpu_context;
-	TicketMutex *gl_context_mutex;    /* Mutex to lock the drw manager and avoid concurent context usage. */
+	TicketMutex *gl_context_mutex;    /* Mutex to lock the drw manager and avoid concurrent context usage. */
 
 	/** GPU Resource State: Memory storage between drawing. */
 	struct {
@@ -405,9 +409,6 @@ extern DRWManager DST; /* TODO : get rid of this and allow multithreaded renderi
 /* --------------- FUNCTIONS ------------- */
 
 void drw_texture_set_parameters(GPUTexture *tex, DRWTextureFlag flags);
-void drw_texture_get_format(
-        GPUTextureFormat format, bool is_framebuffer,
-        GPUTextureFormat *r_data_type, int *r_channels, bool *r_is_depth);
 
 void *drw_viewport_engine_data_ensure(void *engine_type);
 
@@ -415,5 +416,7 @@ void drw_state_set(DRWState state);
 
 void drw_debug_draw(void);
 void drw_debug_init(void);
+
+void drw_batch_cache_generate_requested(struct Object *ob);
 
 #endif /* __DRAW_MANAGER_H__ */

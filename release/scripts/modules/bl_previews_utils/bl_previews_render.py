@@ -229,13 +229,13 @@ def do_previews(do_objects, do_collections, do_scenes, do_data_intern):
 
     def object_bbox_merge(bbox, ob, ob_space, offset_matrix):
         # Take collections instances into account (including linked one in this case).
-        if ob.type == 'EMPTY' and ob.dupli_type == 'COLLECTION':
-            grp_objects = tuple((ob.name, ob.library.filepath if ob.library else None) for ob in ob.dupli_group.all_objects)
+        if ob.type == 'EMPTY' and ob.instance_type == 'COLLECTION':
+            grp_objects = tuple((ob.name, ob.library.filepath if ob.library else None) for ob in ob.instance_collection.all_objects)
             if (len(grp_objects) == 0):
                 ob_bbox = ob.bound_box
             else:
                 coords = objects_bbox_calc(ob_space, grp_objects,
-                                           Matrix.Translation(ob.dupli_group.dupli_offset).inverted())
+                                           Matrix.Translation(ob.instance_collection.instance_offset).inverted())
                 ob_bbox = ((coords[0], coords[1], coords[2]), (coords[21], coords[22], coords[23]))
         elif ob.bound_box:
             ob_bbox = ob.bound_box
@@ -390,11 +390,11 @@ def do_previews(do_objects, do_collections, do_scenes, do_data_intern):
             bpy.context.screen.scene = scene
 
             bpy.ops.object.collection_instance_add(collection=grp.name)
-            grp_ob = next((ob for ob in scene.objects if ob.dupli_group and ob.dupli_group.name == grp.name))
+            grp_ob = next((ob for ob in scene.objects if ob.instance_collection and ob.instance_collection.name == grp.name))
             grp_obname = grp_ob.name
             scene.update()
 
-            offset_matrix = Matrix.Translation(grp.dupli_offset).inverted()
+            offset_matrix = Matrix.Translation(grp.instance_offset).inverted()
 
             preview_render_do(render_context, 'collections', grp.name, objects, offset_matrix)
 
@@ -485,11 +485,11 @@ def main():
                         help="Do not generate/clear previews for mat/tex/image/etc. IDs (those handled by core Blender code).")
     args = parser.parse_args(argv)
 
-    orig_save_version = bpy.context.user_preferences.filepaths.save_version
+    orig_save_version = bpy.context.preferences.filepaths.save_version
     if args.no_backups:
-        bpy.context.user_preferences.filepaths.save_version = 0
+        bpy.context.preferences.filepaths.save_version = 0
     elif orig_save_version < 1:
-        bpy.context.user_preferences.filepaths.save_version = 1
+        bpy.context.preferences.filepaths.save_version = 1
 
     if args.clear:
         print("clear!")
@@ -501,7 +501,7 @@ def main():
                     do_data_intern=args.no_data_intern)
 
     # Not really necessary, but better be consistent.
-    bpy.context.user_preferences.filepaths.save_version = orig_save_version
+    bpy.context.preferences.filepaths.save_version = orig_save_version
 
 
 if __name__ == "__main__":

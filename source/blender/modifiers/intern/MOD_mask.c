@@ -54,6 +54,7 @@
 #include "BKE_deform.h"
 
 #include "DEG_depsgraph_build.h"
+#include "DEG_depsgraph_query.h"
 
 #include "MOD_modifiertypes.h"
 
@@ -81,6 +82,7 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 		/* TODO(sergey): Is it a proper relation here? */
 		DEG_add_object_relation(ctx->node, mmd->ob_arm, DEG_OB_COMP_TRANSFORM, "Mask Modifier");
 		arm->flag |= ARM_HAS_VIZ_DEPS;
+		DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "Mask Modifier");
 	}
 }
 
@@ -115,9 +117,9 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 	}
 
 	/* Overview of Method:
-	 *	1. Get the vertices that are in the vertexgroup of interest
-	 *	2. Filter out unwanted geometry (i.e. not in vertexgroup), by populating mappings with new vs old indices
-	 *	3. Make a new mesh containing only the mapping data
+	 * 1. Get the vertices that are in the vertexgroup of interest
+	 * 2. Filter out unwanted geometry (i.e. not in vertexgroup), by populating mappings with new vs old indices
+	 * 3. Make a new mesh containing only the mapping data
 	 */
 
 	/* get original number of verts, edges, and faces */
@@ -126,7 +128,7 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 	maxPolys = mesh->totpoly;
 
 	/* check if we can just return the original mesh
-	 *	- must have verts and therefore verts assigned to vgroups to do anything useful
+	 * - must have verts and therefore verts assigned to vgroups to do anything useful
 	 */
 	if (!(ELEM(mmd->mode, MOD_MASK_MODE_ARM, MOD_MASK_MODE_VGROUP)) ||
 	    (maxVerts == 0) || BLI_listbase_is_empty(&ob->defbase))
@@ -136,7 +138,7 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 
 	/* if mode is to use selected armature bones, aggregate the bone groups */
 	if (mmd->mode == MOD_MASK_MODE_ARM) { /* --- using selected bones --- */
-		Object *oba = mmd->ob_arm;
+		Object *oba = DEG_get_evaluated_object(ctx->depsgraph, mmd->ob_arm);
 		bPoseChannel *pchan;
 		bDeformGroup *def;
 		bool *bone_select_array;
@@ -183,7 +185,7 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 			for (j = 0; j < dv->totweight; j++, dw++) {
 				if (dw->def_nr < defbase_tot) {
 					if (bone_select_array[dw->def_nr]) {
-						if (dw->weight != 0.0f) {
+						if (dw->weight > mmd->threshold) {
 							found = true;
 							break;
 						}
@@ -196,7 +198,7 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 			}
 
 			/* add to ghash for verts (numVerts acts as counter for mapping) */
-			BLI_ghash_insert(vertHash, SET_INT_IN_POINTER(i), SET_INT_IN_POINTER(numVerts));
+			BLI_ghash_insert(vertHash, POINTER_FROM_INT(i), POINTER_FROM_INT(numVerts));
 			numVerts++;
 		}
 
@@ -216,13 +218,13 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 
 		/* add vertices which exist in vertexgroup into ghash for filtering */
 		for (i = 0, dv = dvert; i < maxVerts; i++, dv++) {
-			const bool found = defvert_find_weight(dv, defgrp_index) != 0.0f;
+			const bool found = defvert_find_weight(dv, defgrp_index) > mmd->threshold;
 			if (found_test != found) {
 				continue;
 			}
 
 			/* add to ghash for verts (numVerts acts as counter for mapping) */
-			BLI_ghash_insert(vertHash, SET_INT_IN_POINTER(i), SET_INT_IN_POINTER(numVerts));
+			BLI_ghash_insert(vertHash, POINTER_FROM_INT(i), POINTER_FROM_INT(numVerts));
 			numVerts++;
 		}
 	}
@@ -246,10 +248,10 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 		const MEdge *me = &medge_src[i];
 
 		/* only add if both verts will be in new mesh */
-		if (BLI_ghash_haskey(vertHash, SET_INT_IN_POINTER(me->v1)) &&
-		    BLI_ghash_haskey(vertHash, SET_INT_IN_POINTER(me->v2)))
+		if (BLI_ghash_haskey(vertHash, POINTER_FROM_INT(me->v1)) &&
+		    BLI_ghash_haskey(vertHash, POINTER_FROM_INT(me->v2)))
 		{
-			BLI_ghash_insert(edgeHash, SET_INT_IN_POINTER(i), SET_INT_IN_POINTER(numEdges));
+			BLI_ghash_insert(edgeHash, POINTER_FROM_INT(i), POINTER_FROM_INT(numEdges));
 			numEdges++;
 		}
 	}
@@ -260,7 +262,7 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 		int j;
 
 		for (j = 0; j < mp_src->totloop; j++, ml_src++) {
-			if (!BLI_ghash_haskey(vertHash, SET_INT_IN_POINTER(ml_src->v))) {
+			if (!BLI_ghash_haskey(vertHash, POINTER_FROM_INT(ml_src->v))) {
 				ok = false;
 				break;
 			}
@@ -268,7 +270,7 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 
 		/* all verts must be available */
 		if (ok) {
-			BLI_ghash_insert(polyHash, SET_INT_IN_POINTER(i), SET_INT_IN_POINTER(numPolys));
+			BLI_ghash_insert(polyHash, POINTER_FROM_INT(i), POINTER_FROM_INT(numPolys));
 			loop_mapping[numPolys] = numLoops;
 			numPolys++;
 			numLoops += mp_src->totloop;
@@ -291,8 +293,8 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 	GHASH_ITER (gh_iter, vertHash) {
 		const MVert *v_src;
 		MVert *v_dst;
-		const int i_src = GET_INT_FROM_POINTER(BLI_ghashIterator_getKey(&gh_iter));
-		const int i_dst = GET_INT_FROM_POINTER(BLI_ghashIterator_getValue(&gh_iter));
+		const int i_src = POINTER_AS_INT(BLI_ghashIterator_getKey(&gh_iter));
+		const int i_dst = POINTER_AS_INT(BLI_ghashIterator_getValue(&gh_iter));
 
 		v_src = &mvert_src[i_src];
 		v_dst = &mvert_dst[i_dst];
@@ -305,22 +307,22 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 	GHASH_ITER (gh_iter, edgeHash) {
 		const MEdge *e_src;
 		MEdge *e_dst;
-		const int i_src = GET_INT_FROM_POINTER(BLI_ghashIterator_getKey(&gh_iter));
-		const int i_dst = GET_INT_FROM_POINTER(BLI_ghashIterator_getValue(&gh_iter));
+		const int i_src = POINTER_AS_INT(BLI_ghashIterator_getKey(&gh_iter));
+		const int i_dst = POINTER_AS_INT(BLI_ghashIterator_getValue(&gh_iter));
 
 		e_src = &medge_src[i_src];
 		e_dst = &medge_dst[i_dst];
 
 		CustomData_copy_data(&mesh->edata, &result->edata, i_src, i_dst, 1);
 		*e_dst = *e_src;
-		e_dst->v1 = GET_UINT_FROM_POINTER(BLI_ghash_lookup(vertHash, SET_UINT_IN_POINTER(e_src->v1)));
-		e_dst->v2 = GET_UINT_FROM_POINTER(BLI_ghash_lookup(vertHash, SET_UINT_IN_POINTER(e_src->v2)));
+		e_dst->v1 = POINTER_AS_UINT(BLI_ghash_lookup(vertHash, POINTER_FROM_UINT(e_src->v1)));
+		e_dst->v2 = POINTER_AS_UINT(BLI_ghash_lookup(vertHash, POINTER_FROM_UINT(e_src->v2)));
 	}
 
 	/* faces */
 	GHASH_ITER (gh_iter, polyHash) {
-		const int i_src = GET_INT_FROM_POINTER(BLI_ghashIterator_getKey(&gh_iter));
-		const int i_dst = GET_INT_FROM_POINTER(BLI_ghashIterator_getValue(&gh_iter));
+		const int i_src = POINTER_AS_INT(BLI_ghashIterator_getKey(&gh_iter));
+		const int i_dst = POINTER_AS_INT(BLI_ghashIterator_getValue(&gh_iter));
 		const MPoly *mp_src = &mpoly_src[i_src];
 		MPoly *mp_dst = &mpoly_dst[i_dst];
 		const int i_ml_src = mp_src->loopstart;
@@ -334,8 +336,8 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 		*mp_dst = *mp_src;
 		mp_dst->loopstart = i_ml_dst;
 		for (i = 0; i < mp_src->totloop; i++) {
-			ml_dst[i].v = GET_UINT_FROM_POINTER(BLI_ghash_lookup(vertHash, SET_UINT_IN_POINTER(ml_src[i].v)));
-			ml_dst[i].e = GET_UINT_FROM_POINTER(BLI_ghash_lookup(edgeHash, SET_UINT_IN_POINTER(ml_src[i].e)));
+			ml_dst[i].v = POINTER_AS_UINT(BLI_ghash_lookup(vertHash, POINTER_FROM_UINT(ml_src[i].v)));
+			ml_dst[i].e = POINTER_AS_UINT(BLI_ghash_lookup(edgeHash, POINTER_FROM_UINT(ml_src[i].e)));
 		}
 	}
 
@@ -371,14 +373,12 @@ ModifierTypeInfo modifierType_Mask = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          NULL,
 	/* requiredDataMask */  requiredDataMask,

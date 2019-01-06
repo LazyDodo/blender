@@ -43,6 +43,7 @@
 
 #ifdef RNA_RUNTIME
 
+#include "BKE_action.h"
 #include "BKE_context.h"
 #include "BKE_global.h"
 #include "BKE_idprop.h"
@@ -151,7 +152,7 @@ static void rna_Armature_update_layers(Main *bmain, Scene *UNUSED(scene), Pointe
 			ob->pose->proxy_layer = arm->layer;
 	}
 
-	DEG_id_tag_update(&arm->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&arm->id, ID_RECALC_COPY_ON_WRITE);
 	WM_main_add_notifier(NC_GEOM | ND_DATA, arm);
 }
 
@@ -159,7 +160,7 @@ static void rna_Armature_redraw_data(Main *UNUSED(bmain), Scene *UNUSED(scene), 
 {
 	ID *id = ptr->id.data;
 
-	DEG_id_tag_update(id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(id, ID_RECALC_COPY_ON_WRITE);
 	WM_main_add_notifier(NC_GEOM | ND_DATA, id);
 }
 
@@ -189,20 +190,20 @@ static void rna_Bone_select_update(Main *UNUSED(bmain), Scene *UNUSED(scene), Po
 			bArmature *arm = (bArmature *)id;
 
 			if (arm->flag & ARM_HAS_VIZ_DEPS) {
-				DEG_id_tag_update(id, OB_RECALC_DATA);
+				DEG_id_tag_update(id, ID_RECALC_GEOMETRY);
 			}
 
-			DEG_id_tag_update(id, DEG_TAG_COPY_ON_WRITE);
+			DEG_id_tag_update(id, ID_RECALC_COPY_ON_WRITE);
 		}
 		else if (GS(id->name) == ID_OB) {
 			Object *ob = (Object *)id;
 			bArmature *arm = (bArmature *)ob->data;
 
 			if (arm->flag & ARM_HAS_VIZ_DEPS) {
-				DEG_id_tag_update(id, OB_RECALC_DATA);
+				DEG_id_tag_update(id, ID_RECALC_GEOMETRY);
 			}
 
-			DEG_id_tag_update(&arm->id, DEG_TAG_COPY_ON_WRITE);
+			DEG_id_tag_update(&arm->id, ID_RECALC_COPY_ON_WRITE);
 		}
 	}
 
@@ -351,7 +352,7 @@ static void rna_EditBone_name_set(PointerRNA *ptr, const char *value)
 	BLI_strncpy_utf8(newname, value, sizeof(ebone->name));
 	BLI_strncpy(oldname, ebone->name, sizeof(ebone->name));
 
-	BLI_assert(BKE_id_is_in_gobal_main(&arm->id));
+	BLI_assert(BKE_id_is_in_global_main(&arm->id));
 	ED_armature_bone_rename(G_MAIN, arm, oldname, newname);
 }
 
@@ -365,7 +366,7 @@ static void rna_Bone_name_set(PointerRNA *ptr, const char *value)
 	BLI_strncpy_utf8(newname, value, sizeof(bone->name));
 	BLI_strncpy(oldname, bone->name, sizeof(bone->name));
 
-	BLI_assert(BKE_id_is_in_gobal_main(&arm->id));
+	BLI_assert(BKE_id_is_in_global_main(&arm->id));
 	ED_armature_bone_rename(G_MAIN, arm, oldname, newname);
 }
 
@@ -447,6 +448,82 @@ static void rna_EditBone_matrix_set(PointerRNA *ptr, const float *values)
 {
 	EditBone *ebone = (EditBone *)(ptr->data);
 	ED_armature_ebone_from_mat4(ebone, (float(*)[4])values);
+}
+
+static void rna_Bone_bbone_handle_update(Main *bmain, Scene *scene, PointerRNA *ptr)
+{
+	bArmature *arm = (bArmature *)ptr->id.data;
+	Bone *bone = (Bone *)ptr->data;
+
+	/* Update all users of this armature after changing B-Bone handles. */
+	for (Object *obt = bmain->object.first; obt; obt = obt->id.next) {
+		if (obt->data == arm && obt->pose) {
+			bPoseChannel *pchan = BKE_pose_channel_find_name(obt->pose, bone->name);
+
+			if (pchan && pchan->bone == bone) {
+				BKE_pchan_rebuild_bbone_handles(obt->pose, pchan);
+				DEG_id_tag_update(&obt->id, ID_RECALC_COPY_ON_WRITE);
+			}
+		}
+	}
+
+	rna_Armature_dependency_update(bmain, scene, ptr);
+}
+
+static PointerRNA rna_EditBone_bbone_prev_get(PointerRNA *ptr)
+{
+	EditBone *data = (EditBone *)(ptr->data);
+	return rna_pointer_inherit_refine(ptr, &RNA_EditBone, data->bbone_prev);
+}
+
+static void rna_EditBone_bbone_prev_set(PointerRNA *ptr, PointerRNA value)
+{
+	EditBone *ebone = (EditBone *)(ptr->data);
+	EditBone *hbone = (EditBone *)value.data;
+
+	/* Within the same armature? */
+	if (hbone == NULL || value.id.data == ptr->id.data) {
+		ebone->bbone_prev = hbone;
+	}
+}
+
+static void rna_Bone_bbone_prev_set(PointerRNA *ptr, PointerRNA value)
+{
+	Bone *bone = (Bone *)ptr->data;
+	Bone *hbone = (Bone *)value.data;
+
+	/* Within the same armature? */
+	if (hbone == NULL || value.id.data == ptr->id.data) {
+		bone->bbone_prev = hbone;
+	}
+}
+
+static PointerRNA rna_EditBone_bbone_next_get(PointerRNA *ptr)
+{
+	EditBone *data = (EditBone *)(ptr->data);
+	return rna_pointer_inherit_refine(ptr, &RNA_EditBone, data->bbone_next);
+}
+
+static void rna_EditBone_bbone_next_set(PointerRNA *ptr, PointerRNA value)
+{
+	EditBone *ebone = (EditBone *)(ptr->data);
+	EditBone *hbone = (EditBone *)value.data;
+
+	/* Within the same armature? */
+	if (hbone == NULL || value.id.data == ptr->id.data) {
+		ebone->bbone_next = hbone;
+	}
+}
+
+static void rna_Bone_bbone_next_set(PointerRNA *ptr, PointerRNA value)
+{
+	Bone *bone = (Bone *)ptr->data;
+	Bone *hbone = (Bone *)value.data;
+
+	/* Within the same armature? */
+	if (hbone == NULL || value.id.data == ptr->id.data) {
+		bone->bbone_next = hbone;
+	}
 }
 
 static void rna_Armature_editbone_transform_update(Main *bmain, Scene *scene, PointerRNA *ptr)
@@ -617,6 +694,14 @@ void rna_def_bone_curved_common(StructRNA *srna, bool is_posebone)
 
 static void rna_def_bone_common(StructRNA *srna, int editbone)
 {
+	static const EnumPropertyItem prop_bbone_handle_type[] = {
+		{BBONE_HANDLE_AUTO, "AUTO", 0, "Automatic", "Use connected parent and children to compute the handle"},
+		{BBONE_HANDLE_ABSOLUTE, "ABSOLUTE", 0, "Absolute", "Use the position of the specified bone to compute the handle"},
+		{BBONE_HANDLE_RELATIVE, "RELATIVE", 0, "Relative", "Use the offset of the specified bone from rest pose to compute the handle"},
+		{BBONE_HANDLE_TANGENT, "TANGENT", 0, "Tangent", "Use the orientation of the specified bone to compute the handle, ignoring the location"},
+		{0, NULL, 0, NULL, NULL}
+	};
+
 	PropertyRNA *prop;
 
 	/* strings */
@@ -745,6 +830,50 @@ static void rna_def_bone_common(StructRNA *srna, int editbone)
 	RNA_def_property_range(prop, 0.0f, 1000.0f);
 	RNA_def_property_ui_text(prop, "B-Bone Display Z Width", "B-Bone Z size");
 	RNA_def_property_update(prop, 0, "rna_Armature_update_data");
+
+	prop = RNA_def_property(srna, "bbone_handle_type_start", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "bbone_prev_type");
+	RNA_def_property_enum_items(prop, prop_bbone_handle_type);
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_ui_text(prop, "B-Bone Start Handle Type", "Selects how the start handle of the B-Bone is computed");
+	RNA_def_property_update(prop, 0, "rna_Armature_dependency_update");
+
+	prop = RNA_def_property(srna, "bbone_custom_handle_start", PROP_POINTER, PROP_NONE);
+	RNA_def_property_pointer_sdna(prop, NULL, "bbone_prev");
+	RNA_def_property_struct_type(prop, editbone ? "EditBone" : "Bone");
+	if (editbone) {
+		RNA_def_property_pointer_funcs(prop, "rna_EditBone_bbone_prev_get", "rna_EditBone_bbone_prev_set", NULL, NULL);
+		RNA_def_property_update(prop, 0, "rna_Armature_dependency_update");
+	}
+	else {
+		RNA_def_property_pointer_funcs(prop, NULL, "rna_Bone_bbone_prev_set", NULL, NULL);
+		RNA_def_property_update(prop, 0, "rna_Bone_bbone_handle_update");
+	}
+	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_PTR_NO_OWNERSHIP);
+	RNA_def_property_ui_text(prop, "B-Bone Start Handle",
+	                         "Bone that serves as the start handle for the B-Bone curve");
+
+	prop = RNA_def_property(srna, "bbone_handle_type_end", PROP_ENUM, PROP_NONE);
+	RNA_def_property_enum_sdna(prop, NULL, "bbone_next_type");
+	RNA_def_property_enum_items(prop, prop_bbone_handle_type);
+	RNA_def_property_clear_flag(prop, PROP_ANIMATABLE);
+	RNA_def_property_ui_text(prop, "B-Bone End Handle Type", "Selects how the end handle of the B-Bone is computed");
+	RNA_def_property_update(prop, 0, "rna_Armature_dependency_update");
+
+	prop = RNA_def_property(srna, "bbone_custom_handle_end", PROP_POINTER, PROP_NONE);
+	RNA_def_property_pointer_sdna(prop, NULL, "bbone_next");
+	RNA_def_property_struct_type(prop, editbone ? "EditBone" : "Bone");
+	if (editbone) {
+		RNA_def_property_pointer_funcs(prop, "rna_EditBone_bbone_next_get", "rna_EditBone_bbone_next_set", NULL, NULL);
+		RNA_def_property_update(prop, 0, "rna_Armature_dependency_update");
+	}
+	else {
+		RNA_def_property_pointer_funcs(prop, NULL, "rna_Bone_bbone_next_set", NULL, NULL);
+		RNA_def_property_update(prop, 0, "rna_Bone_bbone_handle_update");
+	}
+	RNA_def_property_flag(prop, PROP_EDITABLE | PROP_PTR_NO_OWNERSHIP);
+	RNA_def_property_ui_text(prop, "B-Bone End Handle",
+	                         "Bone that serves as the end handle for the B-Bone curve");
 }
 
 /* err... bones should not be directly edited (only editbones should be...) */
@@ -924,7 +1053,7 @@ static void rna_def_edit_bone(BlenderRNA *brna)
 
 	/* calculated and read only, not actual data access */
 	prop = RNA_def_property(srna, "matrix", PROP_FLOAT, PROP_MATRIX);
-	/*RNA_def_property_float_sdna(prop, NULL, "");  *//* doesnt access any real data */
+	/*RNA_def_property_float_sdna(prop, NULL, "");  *//* doesn't access any real data */
 	RNA_def_property_multi_array(prop, 2, rna_matrix_dimsize_4x4);
 	//RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 	RNA_def_property_flag(prop, PROP_THICK_WRAP); /* no reference to original data */

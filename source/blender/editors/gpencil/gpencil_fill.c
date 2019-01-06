@@ -70,6 +70,7 @@
 #include "GPU_draw.h"
 #include "GPU_matrix.h"
 #include "GPU_framebuffer.h"
+#include "GPU_state.h"
 
 #include "UI_interface.h"
 
@@ -87,6 +88,7 @@
 
   /* Temporary fill operation data (op->customdata) */
 typedef struct tGPDfill {
+	bContext *C;
 	struct Main *bmain;
 	struct Depsgraph *depsgraph;
 	struct wmWindow *win;               /* window where painting originated */
@@ -127,8 +129,8 @@ typedef struct tGPDfill {
 
 /* draw a given stroke using same thickness and color for all points */
 static void gp_draw_basic_stroke(
-	tGPDfill *tgpf, bGPDstroke *gps, const float diff_mat[4][4],
-	bool cyclic, float ink[4], int flag, float thershold)
+        tGPDfill *tgpf, bGPDstroke *gps, const float diff_mat[4][4],
+        const bool cyclic, const float ink[4], const int flag, const float thershold)
 {
 	bGPDspoint *points = gps->points;
 
@@ -151,7 +153,7 @@ static void gp_draw_basic_stroke(
 	immBindBuiltinProgram(GPU_SHADER_3D_FLAT_COLOR);
 
 	/* draw stroke curve */
-	glLineWidth(1.0f);
+	GPU_line_width(1.0f);
 	immBeginAtMost(GPU_PRIM_LINE_STRIP, totpoints + cyclic_add);
 	const bGPDspoint *pt = points;
 
@@ -166,14 +168,14 @@ static void gp_draw_basic_stroke(
 			col[3] = 1.0f;
 		}
 		/* set point */
-		immAttrib4fv(color, col);
+		immAttr4fv(color, col);
 		mul_v3_m4v3(fpt, diff_mat, &pt->x);
 		immVertex3fv(pos, fpt);
 	}
 
 	if (cyclic && totpoints > 2) {
 		/* draw line to first point to complete the cycle */
-		immAttrib4fv(color, col);
+		immAttr4fv(color, col);
 		mul_v3_m4v3(fpt, diff_mat, &points->x);
 		immVertex3fv(pos, fpt);
 	}
@@ -183,7 +185,7 @@ static void gp_draw_basic_stroke(
 }
 
 /* loop all layers */
-static void gp_draw_datablock(tGPDfill *tgpf, float ink[4])
+static void gp_draw_datablock(tGPDfill *tgpf, const float ink[4])
 {
 	/* duplicated: etempFlags */
 	enum {
@@ -217,6 +219,13 @@ static void gp_draw_datablock(tGPDfill *tgpf, float ink[4])
 		/* do not draw layer if hidden */
 		if (gpl->flag & GP_LAYER_HIDE)
 			continue;
+
+		/* if active layer and no keyframe, create a new one */
+		if (gpl == tgpf->gpl) {
+			if (gpl->actframe->framenum != cfra_eval) {
+				BKE_gpencil_layer_getframe(gpl, cfra_eval, GP_GETFRAME_ADD_NEW);
+			}
+		}
 
 		/* get frame to draw */
 		bGPDframe *gpf = BKE_gpencil_layer_getframe(gpl, cfra_eval, GP_GETFRAME_USE_PREV);
@@ -258,8 +267,9 @@ static void gp_draw_datablock(tGPDfill *tgpf, float ink[4])
 			if ((tgpf->fill_draw_mode == GP_FILL_DMODE_CONTROL) ||
 			    (tgpf->fill_draw_mode == GP_FILL_DMODE_BOTH))
 			{
-				gp_draw_basic_stroke(tgpf, gps, tgpw.diff_mat, gps->flag & GP_STROKE_CYCLIC, ink,
-					tgpf->flag, tgpf->fill_threshold);
+				gp_draw_basic_stroke(
+				        tgpf, gps, tgpw.diff_mat, gps->flag & GP_STROKE_CYCLIC, ink,
+				        tgpf->flag, tgpf->fill_threshold);
 			}
 		}
 	}
@@ -322,7 +332,7 @@ static void gp_render_offscreen(tGPDfill *tgpf)
 	GPU_matrix_set(tgpf->rv3d->viewmat);
 
 	/* draw strokes */
-	float ink[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
+	float ink[4] = {1.0f, 0.0f, 0.0f, 1.0f};
 	gp_draw_datablock(tgpf, ink);
 
 	/* restore size */
@@ -355,10 +365,10 @@ static void gp_render_offscreen(tGPDfill *tgpf)
 }
 
 /* return pixel data (rgba) at index */
-static void get_pixel(ImBuf *ibuf, int idx, float r_col[4])
+static void get_pixel(const ImBuf *ibuf, const int idx, float r_col[4])
 {
 	if (ibuf->rect_float) {
-		float *frgba = &ibuf->rect_float[idx * 4];
+		const float *frgba = &ibuf->rect_float[idx * 4];
 		copy_v4_v4(r_col, frgba);
 	}
 	else {
@@ -392,11 +402,11 @@ static void set_pixel(ImBuf *ibuf, int idx, const float col[4])
  * this is used for strokes with small gaps between them to get a full fill
  * and do not get a full screen fill.
  *
- * \param ibuf      Image pixel data
- * \param maxpixel  Maximum index
- * \param limit     Limit of pixels to analize
- * \param index     Index of current pixel
- * \param type      0-Horizontal 1-Vertical
+ * \param ibuf: Image pixel data
+ * \param maxpixel: Maximum index
+ * \param limit: Limit of pixels to analyze
+ * \param index: Index of current pixel
+ * \param type: 0-Horizontal 1-Vertical
  */
 static bool is_leak_narrow(ImBuf *ibuf, const int maxpixel, int limit, int index, int type)
 {
@@ -407,11 +417,11 @@ static bool is_leak_narrow(ImBuf *ibuf, const int maxpixel, int limit, int index
 	bool t_b = false;
 
 	/* Horizontal leak (check vertical pixels)
-	 *     X
-	 *	   X
-	 *	   xB7
-	 *	   X
-	 *	   X
+	 * X
+	 * X
+	 * xB7
+	 * X
+	 * X
 	 */
 	if (type == LEAK_HORZ) {
 		/* pixels on top */
@@ -494,7 +504,7 @@ static bool is_leak_narrow(ImBuf *ibuf, const int maxpixel, int limit, int index
  * Fills the space created by a set of strokes using the stroke color as the boundary
  * of the shape to fill.
  *
- * \param tgpf       Temporary fill data
+ * \param tgpf: Temporary fill data
  */
 static void gpencil_boundaryfill_area(tGPDfill *tgpf)
 {
@@ -636,15 +646,15 @@ static  void gpencil_get_outline_points(tGPDfill *tgpf)
 	bool start_found = false;
 	const int NEIGHBOR_COUNT = 8;
 
-	int offset[8][2] = {
-		{ -1, -1 },
-		{ 0, -1 },
-		{ 1, -1 },
-		{ 1, 0 },
-		{ 1, 1 },
-		{ 0, 1 },
-		{ -1, 1 },
-		{ -1, 0 }
+	const int offset[8][2] = {
+		{-1, -1},
+		{0, -1},
+		{1, -1},
+		{1, 0},
+		{1, 1},
+		{0, 1},
+		{-1, 1},
+		{-1, 0}
 	};
 
 	tgpf->stack = BLI_stack_new(sizeof(int[2]), __func__);
@@ -653,7 +663,7 @@ static  void gpencil_get_outline_points(tGPDfill *tgpf)
 	int imagesize = ibuf->x * ibuf->y;
 
 	/* find the initial point to start outline analysis */
-	for (int idx = imagesize; idx >= 0; idx--) {
+	for (int idx = imagesize - 1; idx != 0; idx--) {
 		get_pixel(ibuf, idx, rgba);
 		if (rgba[1] == 1.0f) {
 			boundary_co[0] = idx % ibuf->x;
@@ -747,19 +757,21 @@ static void gpencil_get_depth_array(tGPDfill *tgpf)
 		int depth_margin = 0;
 
 		/* get an array of depths, far depths are blended */
-		int mval[2], mval_prev[2] = { 0 };
+		int mval_prev[2] = { 0 };
 		int interp_depth = 0;
 		int found_depth = 0;
 
 		tgpf->depth_arr = MEM_mallocN(sizeof(float) * totpoints, "depth_points");
 
 		for (i = 0, ptc = tgpf->sbuffer; i < totpoints; i++, ptc++) {
-			copy_v2_v2_int(mval, &ptc->x);
+
+			int mval_i[2];
+			round_v2i_v2fl(mval_i, &ptc->x);
 
 			if ((ED_view3d_autodist_depth(
-			             tgpf->ar, mval, depth_margin, tgpf->depth_arr + i) == 0) &&
+			             tgpf->ar, mval_i, depth_margin, tgpf->depth_arr + i) == 0) &&
 			    (i && (ED_view3d_autodist_depth_seg(
-			                   tgpf->ar, mval, mval_prev, depth_margin + 1, tgpf->depth_arr + i) == 0)))
+			                   tgpf->ar, mval_i, mval_prev, depth_margin + 1, tgpf->depth_arr + i) == 0)))
 			{
 				interp_depth = true;
 			}
@@ -767,7 +779,7 @@ static void gpencil_get_depth_array(tGPDfill *tgpf)
 				found_depth = true;
 			}
 
-			copy_v2_v2_int(mval_prev, mval);
+			copy_v2_v2_int(mval_prev, mval_i);
 		}
 
 		if (found_depth == false) {
@@ -812,11 +824,14 @@ static void gpencil_points_from_stack(tGPDfill *tgpf)
 /* create a grease pencil stroke using points in buffer */
 static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 {
-	ToolSettings *ts = tgpf->scene->toolsettings;
-	int cfra_eval = (int)DEG_get_ctime(tgpf->depsgraph);
+	const int cfra_eval = (int)DEG_get_ctime(tgpf->depsgraph);
 
-	Brush *brush;
-	brush = BKE_brush_getactive_gpencil(ts);
+	ToolSettings *ts = tgpf->scene->toolsettings;
+	const char *align_flag = &ts->gpencil_v3d_align;
+	const bool is_depth = (bool)(*align_flag & (GP_PROJECT_DEPTH_VIEW | GP_PROJECT_DEPTH_STROKE));
+	const bool is_camera = (bool)(ts->gp_sculpt.lock_axis == 0) &&
+		(tgpf->rv3d->persp == RV3D_CAMOB) && (!is_depth);
+	Brush *brush = BKE_paint_brush(&ts->gp_paint->paint);
 	if (brush == NULL) {
 		return;
 	}
@@ -855,7 +870,7 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 	/* initialize triangle memory to dummy data */
 	gps->tot_triangles = 0;
 	gps->triangles = NULL;
-	gps->flag |= GP_STROKE_RECALC_CACHES;
+	gps->flag |= GP_STROKE_RECALC_GEOMETRY;
 
 	/* add stroke to frame */
 	if ((ts->gpencil_flags & GP_TOOL_FLAG_PAINT_ONBACK) || (tgpf->on_back == true)) {
@@ -880,10 +895,10 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 	for (int i = 0; i < tgpf->sbuffer_size && point2D; i++, point2D++, pt++) {
 		/* convert screen-coordinates to 3D coordinates */
 		gp_stroke_convertcoords_tpoint(
-			tgpf->scene, tgpf->ar, tgpf->v3d, tgpf->ob,
-			tgpf->gpl, point2D,
-			tgpf->depth_arr ? tgpf->depth_arr + i : NULL,
-			&pt->x);
+		        tgpf->scene, tgpf->ar, tgpf->ob,
+		        tgpf->gpl, point2D,
+		        tgpf->depth_arr ? tgpf->depth_arr + i : NULL,
+		        &pt->x);
 
 		pt->pressure = 1.0f;
 		pt->strength = 1.0f;
@@ -917,18 +932,25 @@ static void gpencil_stroke_from_buffer(tGPDfill *tgpf)
 	}
 
 	/* if axis locked, reproject to plane locked */
-	if ((tgpf->lock_axis > GP_LOCKAXIS_NONE) && ((ts->gpencil_v3d_align & GP_PROJECT_DEPTH_VIEW) == 0)) {
+	if ((tgpf->lock_axis > GP_LOCKAXIS_VIEW) && ((ts->gpencil_v3d_align & GP_PROJECT_DEPTH_VIEW) == 0)) {
 		float origin[3];
-		ED_gp_get_drawing_reference(tgpf->v3d, tgpf->scene, tgpf->ob, tgpf->gpl,
-			ts->gpencil_v3d_align, origin);
-		ED_gp_project_stroke_to_plane(tgpf->ob, tgpf->rv3d, gps, origin,
-			tgpf->lock_axis - 1);
+		ED_gp_get_drawing_reference(
+		        tgpf->scene, tgpf->ob, tgpf->gpl,
+		        ts->gpencil_v3d_align, origin);
+		ED_gp_project_stroke_to_plane(
+		        tgpf->ob, tgpf->rv3d, gps, origin,
+		        tgpf->lock_axis - 1);
 	}
 
 	/* if parented change position relative to parent object */
 	for (int a = 0; a < tgpf->sbuffer_size; a++) {
 		pt = &gps->points[a];
 		gp_apply_parent_point(tgpf->depsgraph, tgpf->ob, tgpf->gpd, tgpf->gpl, pt);
+	}
+
+	/* if camera view, reproject flat to view to avoid perspective effect */
+	if (is_camera) {
+		ED_gpencil_project_stroke_to_view(tgpf->C, tgpf->gpl, gps);
 	}
 
 	/* simplify stroke */
@@ -952,7 +974,7 @@ static void gpencil_draw_boundary_lines(const bContext *UNUSED(C), tGPDfill *tgp
 	if (!tgpf->gpd) {
 		return;
 	}
-	float ink[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
+	const float ink[4] = {1.0f, 0.0f, 0.0f, 1.0f};
 	gp_draw_datablock(tgpf, ink);
 }
 
@@ -999,6 +1021,7 @@ static tGPDfill *gp_session_init_fill(bContext *C, wmOperator *UNUSED(op))
 	Main *bmain = CTX_data_main(C);
 
 	/* set current scene and window info */
+	tgpf->C = C;
 	tgpf->bmain = CTX_data_main(C);
 	tgpf->scene = CTX_data_scene(C);
 	tgpf->ob = CTX_data_active_object(C);
@@ -1023,7 +1046,7 @@ static tGPDfill *gp_session_init_fill(bContext *C, wmOperator *UNUSED(op))
 	tgpf->depth_arr = NULL;
 
 	/* save filling parameters */
-	Brush *brush = BKE_brush_getactive_gpencil(ts);
+	Brush *brush = BKE_paint_brush(&ts->gp_paint->paint);
 	tgpf->flag = brush->gpencil_settings->flag;
 	tgpf->fill_leak = brush->gpencil_settings->fill_leak;
 	tgpf->fill_threshold = brush->gpencil_settings->fill_threshold;
@@ -1097,7 +1120,7 @@ static void gpencil_fill_exit(bContext *C, wmOperator *op)
 	/* drawing batch cache is dirty now */
 	if ((ob) && (ob->type == OB_GPENCIL) && (ob->data)) {
 		bGPdata *gpd2 = ob->data;
-		DEG_id_tag_update(&gpd2->id, OB_RECALC_OB | OB_RECALC_DATA);
+		DEG_id_tag_update(&gpd2->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 		gpd2->flag |= GP_DATA_CACHE_IS_DIRTY;
 	}
 
@@ -1158,7 +1181,7 @@ static int gpencil_fill_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSE
 
 	gpencil_fill_status_indicators(C, tgpf);
 
-	DEG_id_tag_update(&tgpf->gpd->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&tgpf->gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_GPENCIL | NA_EDITED, NULL);
 
 	/* add a modal handler for this operator*/

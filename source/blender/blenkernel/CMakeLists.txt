@@ -83,7 +83,6 @@ set(SRC
 	intern/blender_undo.c
 	intern/blender_user_menu.c
 	intern/blendfile.c
-	intern/bmfont.c
 	intern/boids.c
 	intern/bpath.c
 	intern/brush.c
@@ -111,6 +110,7 @@ set(SRC
 	intern/editlattice.c
 	intern/editmesh.c
 	intern/editmesh_bvh.c
+	intern/editmesh_cache.c
 	intern/editmesh_tangent.c
 	intern/effect.c
 	intern/fcurve.c
@@ -129,6 +129,7 @@ set(SRC
 	intern/image_gen.c
 	intern/ipo.c
 	intern/key.c
+	intern/keyconfig.c
 	intern/lamp.c
 	intern/lattice.c
 	intern/library.c
@@ -138,6 +139,7 @@ set(SRC
 	intern/library_query.c
 	intern/library_remap.c
 	intern/linestyle.c
+	intern/main.c
 	intern/mask.c
 	intern/mask_evaluate.c
 	intern/mask_rasterize.c
@@ -170,6 +172,7 @@ set(SRC
 	intern/outliner_treehash.c
 	intern/packedFile.c
 	intern/paint.c
+	intern/paint_toolslots.c
 	intern/particle.c
 	intern/particle_child.c
 	intern/particle_distribute.c
@@ -197,6 +200,7 @@ set(SRC
 	intern/studiolight.c
 	intern/subdiv.c
 	intern/subdiv_ccg.c
+	intern/subdiv_ccg_mask.c
 	intern/subdiv_converter.c
 	intern/subdiv_converter_mesh.c
 	intern/subdiv_displacement.c
@@ -238,8 +242,6 @@ set(SRC
 	BKE_blender_user_menu.h
 	BKE_blender_version.h
 	BKE_blendfile.h
-	BKE_bmfont.h
-	BKE_bmfont_types.h
 	BKE_boids.h
 	BKE_bpath.h
 	BKE_brush.h
@@ -266,6 +268,7 @@ set(SRC
 	BKE_editlattice.h
 	BKE_editmesh.h
 	BKE_editmesh_bvh.h
+	BKE_editmesh_cache.h
 	BKE_editmesh_tangent.h
 	BKE_effect.h
 	BKE_fcurve.h
@@ -281,6 +284,7 @@ set(SRC
 	BKE_image.h
 	BKE_ipo.h
 	BKE_key.h
+	BKE_keyconfig.h
 	BKE_lamp.h
 	BKE_lattice.h
 	BKE_library.h
@@ -346,14 +350,16 @@ set(SRC
 	BKE_writeavi.h
 
 	nla_private.h
-	tracking_private.h
 	particle_private.h
+	tracking_private.h
 	intern/CCGSubSurf.h
 	intern/CCGSubSurf_inline.h
 	intern/CCGSubSurf_intern.h
 	intern/data_transfer_intern.h
+	intern/multires_inline.h
 	intern/pbvh_intern.h
 	intern/subdiv_converter.h
+	intern/subdiv_inline.h
 )
 
 if(WITH_BINRELOC)

@@ -72,7 +72,6 @@
 #include "ED_markers.h"
 #include "ED_screen.h"
 #include "ED_select_utils.h"
-#include "ED_keymap_templates.h"
 #include "ED_util.h"
 #include "ED_numinput.h"
 #include "ED_object.h"
@@ -128,12 +127,12 @@ ListBase *ED_animcontext_get_markers(const bAnimContext *ac)
 /**
  * Apply some transformation to markers after the fact
  *
- * \param markers List of markers to affect - this may or may not be the scene markers list, so don't assume anything
- * \param scene Current scene (for getting current frame)
- * \param mode (TfmMode) transform mode that this transform is for
- * \param value From the transform code, this is ``t->vec[0]``
+ * \param markers: List of markers to affect - this may or may not be the scene markers list, so don't assume anything
+ * \param scene: Current scene (for getting current frame)
+ * \param mode: (TfmMode) transform mode that this transform is for
+ * \param value: From the transform code, this is ``t->vec[0]``
  * (which is delta transform for grab/extend, and scale factor for scale)
- * \param side (B/L/R) for 'extend' functionality, which side of current frame to use
+ * \param side: (B/L/R) for 'extend' functionality, which side of current frame to use
  */
 int ED_markers_post_apply_transform(ListBase *markers, Scene *scene, int mode, float value, char side)
 {
@@ -417,6 +416,7 @@ static void draw_marker(
 		else {
 			immUniformColor4f(0.0f, 0.0f, 0.0f, 0.38f);
 		}
+		immUniform1i("colors_len", 0);  /* "simple" mode */
 		immUniform1f("dash_width", 6.0f);
 		immUniform1f("dash_factor", 0.5f);
 
@@ -437,7 +437,7 @@ static void draw_marker(
 #ifdef DURIAN_CAMERA_SWITCH
 	else if (marker->camera) {
 		icon_id = (marker->flag & SELECT) ? ICON_OUTLINER_OB_CAMERA :
-		          ICON_OUTLINER_DATA_CAMERA;
+		          ICON_CAMERA_DATA;
 	}
 #endif
 	else {
@@ -596,7 +596,7 @@ static bool ed_markers_poll_markers_exist(bContext *C)
  * "custom"/third-tier invoke() callback supplied as the last arg (which would normally
  * be the operator's invoke() callback elsewhere)
  *
- * \param invoke_func "standard" invoke function that operator would otherwise have used.
+ * \param invoke_func: "standard" invoke function that operator would otherwise have used.
  * If NULL, the operator's standard exec()
  * callback will be called instead in the appropriate places.
  */
@@ -636,7 +636,7 @@ static int ed_markers_opwrap_invoke(bContext *C, wmOperator *op, const wmEvent *
 
 /* ************************** add markers *************************** */
 
-/* add TimeMarker at curent frame */
+/* add TimeMarker at current frame */
 static int ed_marker_add_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	ListBase *markers = ED_context_get_markers(C);
@@ -863,7 +863,7 @@ static int ed_marker_move_invoke_wrapper(bContext *C, wmOperator *op, const wmEv
 	return ed_markers_opwrap_invoke_custom(C, op, event, ed_marker_move_invoke);
 }
 
-/* note, init has to be called succesfully */
+/* note, init has to be called successfully */
 static void ed_marker_move_apply(bContext *C, wmOperator *op)
 {
 #ifdef DURIAN_CAMERA_SWITCH
@@ -1201,7 +1201,7 @@ static int ed_marker_select(bContext *C, const wmEvent *event, bool extend, bool
 			}
 		}
 
-		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 	}
 #else
@@ -1254,7 +1254,7 @@ static void MARKER_OT_select(wmOperatorType *ot)
 #endif
 }
 
-/* *************************** border select markers **************** */
+/* *************************** box select markers **************** */
 
 /* operator state vars used: (added by default WM callbacks)
  * xmin, ymin
@@ -1275,7 +1275,7 @@ static void MARKER_OT_select(wmOperatorType *ot)
  *  poll()	has to be filled in by user for context
  */
 
-static int ed_marker_border_select_exec(bContext *C, wmOperator *op)
+static int ed_marker_box_select_exec(bContext *C, wmOperator *op)
 {
 	View2D *v2d = UI_view2d_fromcontext(C);
 	ListBase *markers = ED_context_get_markers(C);
@@ -1311,23 +1311,23 @@ static int ed_marker_border_select_exec(bContext *C, wmOperator *op)
 	return 1;
 }
 
-static int ed_marker_select_border_invoke_wrapper(bContext *C, wmOperator *op, const wmEvent *event)
+static int ed_marker_select_box_invoke_wrapper(bContext *C, wmOperator *op, const wmEvent *event)
 {
-	return ed_markers_opwrap_invoke_custom(C, op, event, WM_gesture_border_invoke);
+	return ed_markers_opwrap_invoke_custom(C, op, event, WM_gesture_box_invoke);
 }
 
-static void MARKER_OT_select_border(wmOperatorType *ot)
+static void MARKER_OT_select_box(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name = "Marker Border Select";
-	ot->description = "Select all time markers using border selection";
-	ot->idname = "MARKER_OT_select_border";
+	ot->name = "Marker Box Select";
+	ot->description = "Select all time markers using box selection";
+	ot->idname = "MARKER_OT_select_box";
 
 	/* api callbacks */
-	ot->exec = ed_marker_border_select_exec;
-	ot->invoke = ed_marker_select_border_invoke_wrapper;
-	ot->modal = WM_gesture_border_modal;
-	ot->cancel = WM_gesture_border_cancel;
+	ot->exec = ed_marker_box_select_exec;
+	ot->invoke = ed_marker_select_box_invoke_wrapper;
+	ot->modal = WM_gesture_box_modal;
+	ot->cancel = WM_gesture_box_cancel;
 
 	ot->poll = ed_markers_poll_markers_exist;
 
@@ -1335,7 +1335,7 @@ static void MARKER_OT_select_border(wmOperatorType *ot)
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	/* rna */
-	WM_operator_properties_gesture_border_select(ot);
+	WM_operator_properties_gesture_box_select(ot);
 }
 
 /* *********************** (de)select all ***************** */
@@ -1636,7 +1636,7 @@ void ED_operatortypes_marker(void)
 	WM_operatortype_append(MARKER_OT_move);
 	WM_operatortype_append(MARKER_OT_duplicate);
 	WM_operatortype_append(MARKER_OT_select);
-	WM_operatortype_append(MARKER_OT_select_border);
+	WM_operatortype_append(MARKER_OT_select_box);
 	WM_operatortype_append(MARKER_OT_select_all);
 	WM_operatortype_append(MARKER_OT_delete);
 	WM_operatortype_append(MARKER_OT_rename);
@@ -1649,50 +1649,5 @@ void ED_operatortypes_marker(void)
 /* called in screen_ops.c:ED_keymap_screen() */
 void ED_keymap_marker(wmKeyConfig *keyconf)
 {
-	wmKeyMap *keymap = WM_keymap_ensure(keyconf, "Markers", 0, 0);
-	wmKeyMapItem *kmi;
-
-	WM_keymap_verify_item(keymap, "MARKER_OT_add", MKEY, KM_PRESS, 0, 0);
-	WM_keymap_verify_item(keymap, "MARKER_OT_move", EVT_TWEAK_S, KM_ANY, 0, 0);
-	WM_keymap_verify_item(keymap, "MARKER_OT_duplicate", DKEY, KM_PRESS, KM_SHIFT, 0);
-	WM_keymap_verify_item(keymap, "MARKER_OT_select", SELECTMOUSE, KM_PRESS, 0, 0);
-	kmi = WM_keymap_add_item(keymap, "MARKER_OT_select", SELECTMOUSE, KM_PRESS, KM_SHIFT, 0);
-	RNA_boolean_set(kmi->ptr, "extend", true);
-
-#ifdef DURIAN_CAMERA_SWITCH
-	kmi = WM_keymap_add_item(keymap, "MARKER_OT_select", SELECTMOUSE, KM_PRESS, KM_CTRL, 0);
-	RNA_boolean_set(kmi->ptr, "extend", false);
-	RNA_boolean_set(kmi->ptr, "camera", true);
-
-	kmi = WM_keymap_add_item(keymap, "MARKER_OT_select", SELECTMOUSE, KM_PRESS, KM_SHIFT | KM_CTRL, 0);
-	RNA_boolean_set(kmi->ptr, "extend", true);
-	RNA_boolean_set(kmi->ptr, "camera", true);
-#else
-	(void)kmi;
-#endif
-
-	WM_keymap_verify_item(keymap, "MARKER_OT_select_border", BKEY, KM_PRESS, 0, 0);
-
-	ED_keymap_template_select_all(keymap, "MARKER_OT_select_all");
-
-	WM_keymap_add_item(keymap, "MARKER_OT_delete", XKEY, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "MARKER_OT_delete", DELKEY, KM_PRESS, 0, 0);
-
-	WM_keymap_verify_item(keymap, "MARKER_OT_rename", MKEY, KM_PRESS, KM_CTRL, 0);
-
-	WM_keymap_add_item(keymap, "MARKER_OT_move", GKEY, KM_PRESS, 0, 0);
-#ifdef DURIAN_CAMERA_SWITCH
-	WM_keymap_add_item(keymap, "MARKER_OT_camera_bind", BKEY, KM_PRESS, KM_CTRL, 0);
-#endif
-}
-
-/* to be called from animation editor keymaps, see note below */
-void ED_marker_keymap_animedit_conflictfree(wmKeyMap *keymap)
-{
-	/* duplicate of some marker-hotkeys but without the bounds checking
-	 * since these are handy to be able to do unrestricted and won't conflict
-	 * with primary function hotkeys (Usability tweak [#27469])
-	 */
-	WM_keymap_add_item(keymap, "MARKER_OT_add", MKEY, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "MARKER_OT_rename", MKEY, KM_PRESS, KM_CTRL, 0);
+	WM_keymap_ensure(keyconf, "Markers", 0, 0);
 }

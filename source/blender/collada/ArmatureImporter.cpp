@@ -172,7 +172,7 @@ int ArmatureImporter::create_bone(SkinInfo *skin, COLLADAFW::Node *node, EditBon
 	}
 	copy_v3_v3(bone->head, mat[3]);
 
-	if (bone_is_skinned)
+	if (bone_is_skinned && this->import_settings->keep_bind_info)
 	{
 		float rest_mat[4][4];
 		get_node_mat(rest_mat, node, NULL, NULL, NULL);
@@ -463,11 +463,11 @@ void ArmatureImporter::create_armature_bones(Main *bmain, std::vector<Object *> 
 		if (!ob_arm)
 			continue;
 
-		bArmature * armature = (bArmature *)ob_arm->data;
+		bArmature *armature = (bArmature *)ob_arm->data;
 		if (!armature)
 			continue;
 
-		char * bone_name = (char *)bc_get_joint_name(*ri);
+		char *bone_name = (char *)bc_get_joint_name(*ri);
 		Bone *bone = BKE_armature_find_bone_name(armature, bone_name);
 		if (bone) {
 			fprintf(stderr, "Reuse of child bone [%s] as root bone in same Armature is not supported.\n", bone_name);
@@ -499,7 +499,7 @@ void ArmatureImporter::create_armature_bones(Main *bmain, std::vector<Object *> 
 			ob_arms.push_back(ob_arm);
 		}
 
-		DEG_id_tag_update(&ob_arm->id, OB_RECALC_OB | OB_RECALC_DATA);
+		DEG_id_tag_update(&ob_arm->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 	}
 }
 
@@ -592,7 +592,7 @@ Object *ArmatureImporter::create_armature_bones(Main *bmain, SkinInfo& skin)
 	}
 
 	// enter armature edit mode
-	bArmature * armature = (bArmature *)ob_arm->data;
+	bArmature *armature = (bArmature *)ob_arm->data;
 	ED_armature_to_edit(armature);
 
 	totbone = 0;
@@ -632,7 +632,7 @@ Object *ArmatureImporter::create_armature_bones(Main *bmain, SkinInfo& skin)
 	ED_armature_from_edit(bmain, armature);
 	ED_armature_edit_free(armature);
 
-	DEG_id_tag_update(&ob_arm->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&ob_arm->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 
 	return ob_arm;
 }

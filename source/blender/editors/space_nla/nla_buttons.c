@@ -95,7 +95,7 @@ bool nla_panel_context(const bContext *C, PointerRNA *adt_ptr, PointerRNA *nlt_p
 		return false;
 
 	/* extract list of active channel(s), of which we should only take the first one
-	 *	- we need the channels flag to get the active AnimData block when there are no NLA Tracks
+	 * - we need the channels flag to get the active AnimData block when there are no NLA Tracks
 	 */
 	// XXX: double-check active!
 	filter = (ANIMFILTER_DATA_VISIBLE | ANIMFILTER_LIST_VISIBLE | ANIMFILTER_ACTIVE | ANIMFILTER_LIST_CHANNELS);
@@ -277,7 +277,7 @@ static void nla_panel_animdata(const bContext *C, Panel *pa)
 		uiLayoutSetAlignment(row, UI_LAYOUT_ALIGN_LEFT);
 
 		uiItemL(row, id->name + 2, RNA_struct_ui_icon(id_ptr.type));  /* id-block (src) */
-		uiItemL(row, "", VICO_SMALL_TRI_RIGHT_VEC);                   /* expander */
+		uiItemL(row, "", ICON_SMALL_TRI_RIGHT_VEC);                   /* expander */
 		uiItemL(row, IFACE_("Animation Data"), ICON_ANIM_DATA);       /* animdata */
 
 		uiItemS(layout);
@@ -367,7 +367,7 @@ static void nla_panel_properties(const bContext *C, Panel *pa)
 		uiItemR(row, &strip_ptr, "blend_type", 0, NULL, ICON_NONE);
 
 		/* blend in/out + autoblending
-		 *	- blend in/out can only be set when autoblending is off
+		 * - blend in/out can only be set when autoblending is off
 		 */
 		column = uiLayoutColumn(layout, true);
 		uiLayoutSetActive(column, RNA_boolean_get(&strip_ptr, "use_animated_influence") == false);

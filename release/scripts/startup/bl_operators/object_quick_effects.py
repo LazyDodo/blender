@@ -84,8 +84,6 @@ class QuickFur(Operator):
             return {'CANCELLED'}
 
         mat = bpy.data.materials.new("Fur Material")
-        mat.strand.tip_size = 0.25
-        mat.strand.blend_distance = 0.5
 
         for obj in mesh_objects:
             fake_context["object"] = obj
@@ -106,6 +104,7 @@ class QuickFur(Operator):
             psys.settings.use_strand_primitive = True
             psys.settings.use_hair_bspline = True
             psys.settings.child_type = 'INTERPOLATED'
+            psys.settings.tip_radius = 0.25
 
             obj.data.materials.append(mat)
             psys.settings.material = len(obj.data.materials)
@@ -287,7 +286,7 @@ class QuickExplode(Operator):
 
 def obj_bb_minmax(obj, min_co, max_co):
     for i in range(0, 8):
-        bb_vec = obj.matrix_world * Vector(obj.bound_box[i])
+        bb_vec = obj.matrix_world @ Vector(obj.bound_box[i])
 
         min_co[0] = min(bb_vec[0], min_co[0])
         min_co[1] = min(bb_vec[1], min_co[1])

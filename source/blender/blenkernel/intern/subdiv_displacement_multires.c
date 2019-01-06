@@ -38,6 +38,7 @@
 #include "BLI_math_vector.h"
 
 #include "BKE_customdata.h"
+#include "BKE_multires.h"
 
 #include "MEM_guardedalloc.h"
 
@@ -48,71 +49,29 @@ typedef struct PolyCornerIndex {
 
 typedef struct MultiresDisplacementData {
 	int grid_size;
+	/* Mesh is used to read external displacement. */
+	Mesh *mesh;
 	const MPoly *mpoly;
 	const MDisps *mdisps;
 	/* Indexed by ptex face index, contains polygon/corner which corresponds
 	 * to it.
 	 *
 	 * NOTE: For quad polygon this is an index of first corner only, since
-	 * there we only have one ptex.
-	 */
+	 * there we only have one ptex. */
 	PolyCornerIndex *ptex_poly_corner;
+	/* Sanity check, is used in debug builds.
+	 * Controls that initialize() was called prior to eval_displacement(). */
+	bool is_initialized;
 } MultiresDisplacementData;
 
 /* Denotes which grid to use to average value of the displacement read from the
- * grid which corresponds to the ptex face.
- */
+ * grid which corresponds to the ptex face. */
 typedef enum eAverageWith {
 	AVERAGE_WITH_NONE,
 	AVERAGE_WITH_ALL,
 	AVERAGE_WITH_PREV,
 	AVERAGE_WITH_NEXT,
 } eAverageWith;
-
-/* Coordinates within grid has different convention from PTex coordinates.
- * This function converts the latter ones to former.
- */
-BLI_INLINE void ptex_uv_to_grid_uv(const float ptex_u, const float ptex_v,
-                                   float *r_grid_u, float *r_grid_v)
-{
-	*r_grid_u = 1.0f - ptex_v;
-	*r_grid_v = 1.0f - ptex_u;
-}
-
-/* Simplified version of mdisp_rot_face_to_crn, only handles quad and
- * works in normalized coordinates.
- *
- * NOTE: Output coordinates are in ptex coordinates.
- */
-BLI_INLINE int rotate_quad_to_corner(const float u, const float v,
-                                     float *r_u, float *r_v)
-{
-	int corner;
-	if (u <= 0.5f && v <= 0.5f) {
-		corner = 0;
-		*r_u = 2.0f * u;
-		*r_v = 2.0f * v;
-	}
-	else if (u > 0.5f  && v <= 0.5f) {
-		corner = 1;
-		*r_u = 2.0f * v;
-		*r_v = 2.0f * (1.0f - u);
-	}
-	else if (u > 0.5f  && v > 0.5f) {
-		corner = 2;
-		*r_u = 2.0f * (1.0f - u);
-		*r_v = 2.0f * (1.0f - v);
-	}
-	else if (u <= 0.5f && v >= 0.5f) {
-		corner = 3;
-		*r_u = 2.0f * (1.0f - v);
-		*r_v = 2.0f * u;
-	}
-	else {
-		BLI_assert(!"Unexpected corner configuration");
-	}
-	return corner;
-}
 
 static int displacement_get_grid_and_coord(
         SubdivDisplacement *displacement,
@@ -128,13 +87,13 @@ static int displacement_get_grid_and_coord(
 	int corner = 0;
 	if (poly->totloop == 4) {
 		float corner_u, corner_v;
-		corner = rotate_quad_to_corner(u, v, &corner_u, &corner_v);
+		corner = BKE_subdiv_rotate_quad_to_corner(u, v, &corner_u, &corner_v);
 		*r_displacement_grid = &data->mdisps[start_grid_index + corner];
-		ptex_uv_to_grid_uv(corner_u, corner_v, grid_u, grid_v);
+		BKE_subdiv_ptex_face_uv_to_grid_uv(corner_u, corner_v, grid_u, grid_v);
 	}
 	else {
 		*r_displacement_grid = &data->mdisps[start_grid_index];
-		ptex_uv_to_grid_uv(u, v, grid_u, grid_v);
+		BKE_subdiv_ptex_face_uv_to_grid_uv(u, v, grid_u, grid_v);
 	}
 	return corner;
 }
@@ -166,38 +125,6 @@ static const MDisps *displacement_get_prev_grid(
 	const int prev_corner =
 	        (effective_corner - 1 + poly->totloop) % poly->totloop;
 	return &data->mdisps[poly->loopstart + prev_corner];
-}
-
-/* NOTE: Derivatives are in ptex face space. */
-BLI_INLINE void construct_tangent_matrix(float tangent_matrix[3][3],
-                                         const float dPdu[3],
-                                         const float dPdv[3],
-                                         const int corner)
-{
-	if (corner == 0) {
-		copy_v3_v3(tangent_matrix[0], dPdv);
-		copy_v3_v3(tangent_matrix[1], dPdu);
-		mul_v3_fl(tangent_matrix[0], -1.0f);
-		mul_v3_fl(tangent_matrix[1], -1.0f);
-	}
-	else if (corner == 1) {
-		copy_v3_v3(tangent_matrix[0], dPdu);
-		copy_v3_v3(tangent_matrix[1], dPdv);
-		mul_v3_fl(tangent_matrix[1], -1.0f);
-	}
-	else if (corner == 2) {
-		copy_v3_v3(tangent_matrix[0], dPdv);
-		copy_v3_v3(tangent_matrix[1], dPdu);
-	}
-	else if (corner == 3) {
-		copy_v3_v3(tangent_matrix[0], dPdu);
-		copy_v3_v3(tangent_matrix[1], dPdv);
-		mul_v3_fl(tangent_matrix[0], -1.0f);
-	}
-	cross_v3_v3v3(tangent_matrix[2], dPdu, dPdv);
-	normalize_v3(tangent_matrix[0]);
-	normalize_v3(tangent_matrix[1]);
-	normalize_v3(tangent_matrix[2]);
 }
 
 BLI_INLINE eAverageWith read_displacement_grid(
@@ -314,6 +241,16 @@ static void average_displacement(SubdivDisplacement *displacement,
 	}
 }
 
+static void initialize(SubdivDisplacement *displacement)
+{
+	MultiresDisplacementData *data = displacement->user_data;
+	Mesh *mesh = data->mesh;
+	/* Make sure external displacement is read. */
+	CustomData_external_read(
+	    &mesh->ldata, &mesh->id, CD_MASK_MDISPS, mesh->totloop);
+	data->is_initialized = true;
+}
+
 static void eval_displacement(SubdivDisplacement *displacement,
                               const int ptex_face_index,
                               const float u, const float v,
@@ -321,6 +258,7 @@ static void eval_displacement(SubdivDisplacement *displacement,
                               float r_D[3])
 {
 	MultiresDisplacementData *data = displacement->user_data;
+	BLI_assert(data->is_initialized);
 	const int grid_size = data->grid_size;
 	/* Get displacement in tangent space. */
 	const MDisps *displacement_grid;
@@ -330,8 +268,7 @@ static void eval_displacement(SubdivDisplacement *displacement,
 	                                             &displacement_grid,
 	                                             &grid_u, &grid_v);
 	/* Read displacement from the current displacement grid and see if any
-	 * averaging is needed.
-	 */
+	 * averaging is needed. */
 	float tangent_D[3];
 	eAverageWith average_with =
 	        read_displacement_grid(displacement_grid, grid_size,
@@ -343,7 +280,7 @@ static void eval_displacement(SubdivDisplacement *displacement,
 	                     tangent_D);
 	/* Convert it to the object space. */
 	float tangent_matrix[3][3];
-	construct_tangent_matrix(tangent_matrix, dPdu, dPdv, corner);
+	BKE_multires_construct_tangent_matrix(tangent_matrix, dPdu, dPdv, corner);
 	mul_v3_m3v3(r_D, tangent_matrix, tangent_D);
 }
 
@@ -355,8 +292,7 @@ static void free_displacement(SubdivDisplacement *displacement)
 }
 
 /* TODO(sergey): This seems to be generally used information, which almost
- * worth adding to a subdiv itself, with possible cache of the value.
- */
+ * worth adding to a subdiv itself, with possible cache of the value. */
 static int count_num_ptex_faces(const Mesh *mesh)
 {
 	int num_ptex_faces = 0;
@@ -399,28 +335,31 @@ static void displacement_data_init_mapping(SubdivDisplacement *displacement,
 }
 
 static void displacement_init_data(SubdivDisplacement *displacement,
-                                   const Mesh *mesh,
+                                   Mesh *mesh,
                                    const MultiresModifierData *mmd)
 {
 	MultiresDisplacementData *data = displacement->user_data;
-	data->grid_size = (1 << (mmd->totlvl - 1)) + 1;
+	data->grid_size = BKE_subdiv_grid_size_from_level(mmd->totlvl);
+	data->mesh = mesh;
 	data->mpoly = mesh->mpoly;
 	data->mdisps = CustomData_get_layer(&mesh->ldata, CD_MDISPS);
+	data->is_initialized = false;
 	displacement_data_init_mapping(displacement, mesh);
 }
 
 static void displacement_init_functions(SubdivDisplacement *displacement)
 {
+	displacement->initialize = initialize;
 	displacement->eval_displacement = eval_displacement;
 	displacement->free = free_displacement;
 }
 
 void BKE_subdiv_displacement_attach_from_multires(
         Subdiv *subdiv,
-        const Mesh *mesh,
+        Mesh *mesh,
         const MultiresModifierData *mmd)
 {
-	/* Make sure we dont' have previously assigned displacement. */
+	/* Make sure we don't have previously assigned displacement. */
 	BKE_subdiv_displacement_detach(subdiv);
 	/* Allocate all required memory. */
 	SubdivDisplacement *displacement = MEM_callocN(sizeof(SubdivDisplacement),

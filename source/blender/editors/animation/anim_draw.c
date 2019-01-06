@@ -91,7 +91,7 @@ void ANIM_draw_cfra_number(const bContext *C, View2D *v2d, short flag)
 	GPU_matrix_scale_2f(1.0f / xscale, 1.0f);
 
 	/* get timecode string
-	 *	- padding on str-buf passed so that it doesn't sit on the frame indicator
+	 * - padding on str-buf passed so that it doesn't sit on the frame indicator
 	 */
 	if (show_time) {
 		BLI_timecode_string_from_time(&numstr[2], sizeof(numstr) - 2, 0, FRA2TIME(cfra), FPS, U.timecode_style);
@@ -174,7 +174,7 @@ void ANIM_draw_previewrange(const bContext *C, View2D *v2d, int end_frame_width)
 		uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
-		immUniformThemeColorShadeAlpha(TH_ANIM_ACTIVE, -25, -30);
+		immUniformThemeColorShadeAlpha(TH_ANIM_PREVIEW_RANGE, -25, -30);
 		//immUniformColor4f(0.8f, 0.44f, 0.1f, 0.2f); /* XXX: Fix this hardcoded color (anim_active) */
 
 		/* only draw two separate 'curtains' if there's no overlap between them */
@@ -305,8 +305,8 @@ static short bezt_nlamapping_apply(KeyframeEditData *ked, BezTriple *bezt)
 
 
 /* Apply/Unapply NLA mapping to all keyframes in the nominated F-Curve
- *	- restore = whether to map points back to non-mapped time
- *  - only_keys = whether to only adjust the location of the center point of beztriples
+ * - restore = whether to map points back to non-mapped time
+ * - only_keys = whether to only adjust the location of the center point of beztriples
  */
 void ANIM_nla_mapping_apply_fcurve(AnimData *adt, FCurve *fcu, bool restore, bool only_keys)
 {
@@ -314,8 +314,8 @@ void ANIM_nla_mapping_apply_fcurve(AnimData *adt, FCurve *fcu, bool restore, boo
 	KeyframeEditFunc map_cb;
 
 	/* init edit data
-	 *	- AnimData is stored in 'data'
-	 *	- only_keys is stored in 'i1'
+	 * - AnimData is stored in 'data'
+	 * - only_keys is stored in 'i1'
 	 */
 	ked.data = (void *)adt;
 	ked.i1 = (int)only_keys;
@@ -551,11 +551,11 @@ static bool find_prev_next_keyframes(struct bContext *C, int *nextfra, int *prev
 	}
 
 	/* populate tree with keyframe nodes */
-	scene_to_keylist(&ads, scene, &keys, NULL);
+	scene_to_keylist(&ads, scene, &keys, 0);
 	gpencil_to_keylist(&ads, scene->gpd, &keys, false);
 
 	if (ob) {
-		ob_to_keylist(&ads, ob, &keys, NULL);
+		ob_to_keylist(&ads, ob, &keys, 0);
 		gpencil_to_keylist(&ads, ob->data, &keys, false);
 	}
 
@@ -563,9 +563,6 @@ static bool find_prev_next_keyframes(struct bContext *C, int *nextfra, int *prev
 		MaskLayer *masklay = BKE_mask_layer_active(mask);
 		mask_to_keylist(&ads, masklay, &keys);
 	}
-
-	/* build linked-list for searching */
-	BLI_dlrbTree_linkedlist_sync(&keys);
 
 	/* find matching keyframe in the right direction */
 	do {

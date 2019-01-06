@@ -47,13 +47,14 @@ struct Object;
 struct Scene;
 
 /* Undefine to hide DerivedMesh-based function declarations */
-#define USE_DERIVEDMESH
+#undef USE_DERIVEDMESH
 
 #ifdef USE_DERIVEDMESH
 struct DerivedMesh;
 #endif
 
 void BKE_mesh_runtime_reset(struct Mesh *mesh);
+void BKE_mesh_runtime_reset_on_copy(struct Mesh *mesh);
 int BKE_mesh_runtime_looptri_len(const struct Mesh *mesh);
 void BKE_mesh_runtime_looptri_recalc(struct Mesh *mesh);
 const struct MLoopTri *BKE_mesh_runtime_looptri_ensure(struct Mesh *mesh);
@@ -87,6 +88,10 @@ struct Mesh *mesh_get_eval_deform(
         struct Depsgraph *depsgraph, struct Scene *scene,
         struct Object *ob, CustomDataMask dataMask);
 
+struct Mesh *mesh_create_eval_final_render(
+        struct Depsgraph *depsgraph, struct Scene *scene,
+        struct Object *ob, CustomDataMask dataMask);
+
 #ifdef USE_DERIVEDMESH
 struct DerivedMesh *mesh_create_derived_index_render(
         struct Depsgraph *depsgraph, struct Scene *scene,
@@ -105,10 +110,17 @@ struct Mesh *mesh_create_eval_final_view(
         struct Depsgraph *depsgraph, struct Scene *scene,
         struct Object *ob, CustomDataMask dataMask);
 
-void BKE_mesh_runtime_eval_to_meshkey(struct Mesh *me_deformed, struct Mesh *me, struct KeyBlock *kb);
+struct Mesh *mesh_create_eval_no_deform(
+        struct Depsgraph *depsgraph, struct Scene *scene,
+        struct Object *ob, float (*vertCos)[3],
+        CustomDataMask dataMask);
+struct Mesh *mesh_create_eval_no_deform_render(
+        struct Depsgraph *depsgraph, struct Scene *scene,
+        struct Object *ob, float (*vertCos)[3],
+        CustomDataMask dataMask);
 
-/* Temporary? A function to give a colorband to derivedmesh for vertexcolor ranges */
-void BKE_mesh_runtime_color_band_store(const struct ColorBand *coba, const char alert_color[4]);
+
+void BKE_mesh_runtime_eval_to_meshkey(struct Mesh *me_deformed, struct Mesh *me, struct KeyBlock *kb);
 
 
 #ifndef NDEBUG

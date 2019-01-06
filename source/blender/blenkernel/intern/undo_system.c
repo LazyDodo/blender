@@ -39,6 +39,7 @@
 
 #include "BKE_context.h"
 #include "BKE_global.h"
+#include "BKE_library.h"
 #include "BKE_library_override.h"
 #include "BKE_main.h"
 #include "BKE_undo_system.h"
@@ -425,7 +426,9 @@ bool BKE_undosys_step_push_with_type(UndoStack *ustack, bContext *C, const char 
 
 	/* Might not be final place for this to be called - probably only want to call it from some
 	 * undo handlers, not all of them? */
-	BKE_main_override_static_operations_create(G.main, false);
+	if (BKE_override_static_is_enabled()) {
+		BKE_main_override_static_operations_create(G.main, false);
+	}
 
 	/* Remove all undos after (also when 'ustack->step_active == NULL'). */
 	while (ustack->steps.last != ustack->step_active) {

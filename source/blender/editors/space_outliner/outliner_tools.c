@@ -230,14 +230,14 @@ static void unlink_collection_cb(
 		if (GS(tsep->id->name) == ID_OB) {
 			Object *ob = (Object *)tsep->id;
 			ob->dup_group = NULL;
-			DEG_id_tag_update(&ob->id, OB_RECALC_OB);
+			DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM);
 			DEG_relations_tag_update(bmain);
 		}
 		else if (GS(tsep->id->name) == ID_GR) {
 			Collection *parent = (Collection *)tsep->id;
 			id_fake_user_set(&collection->id);
 			BKE_collection_child_remove(bmain, parent, collection);
-			DEG_id_tag_update(&parent->id, DEG_TAG_COPY_ON_WRITE);
+			DEG_id_tag_update(&parent->id, ID_RECALC_COPY_ON_WRITE);
 			DEG_relations_tag_update(bmain);
 		}
 		else if (GS(tsep->id->name) == ID_SCE) {
@@ -245,7 +245,7 @@ static void unlink_collection_cb(
 			Collection *parent = BKE_collection_master(scene);
 			id_fake_user_set(&collection->id);
 			BKE_collection_child_remove(bmain, parent, collection);
-			DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+			DEG_id_tag_update(&scene->id, ID_RECALC_COPY_ON_WRITE);
 			DEG_relations_tag_update(bmain);
 		}
 	}
@@ -262,14 +262,14 @@ static void unlink_object_cb(
 		if (GS(tsep->id->name) == ID_GR) {
 			Collection *parent = (Collection *)tsep->id;
 			BKE_collection_object_remove(bmain, parent, ob, true);
-			DEG_id_tag_update(&parent->id, DEG_TAG_COPY_ON_WRITE);
+			DEG_id_tag_update(&parent->id, ID_RECALC_COPY_ON_WRITE);
 			DEG_relations_tag_update(bmain);
 		}
 		else if (GS(tsep->id->name) == ID_SCE) {
 			Scene *scene = (Scene *)tsep->id;
 			Collection *parent = BKE_collection_master(scene);
 			BKE_collection_object_remove(bmain, parent, ob, true);
-			DEG_id_tag_update(&scene->id, DEG_TAG_COPY_ON_WRITE);
+			DEG_id_tag_update(&scene->id, ID_RECALC_COPY_ON_WRITE);
 			DEG_relations_tag_update(bmain);
 		}
 	}
@@ -430,8 +430,8 @@ static void object_deselect_cb(
 }
 
 static void object_delete_cb(
-        bContext *C, ReportList *reports, Scene *scene, TreeElement *te,
-        TreeStoreElem *tsep, TreeStoreElem *tselem, void *user_data)
+        bContext *C, ReportList *reports, Scene *scene, TreeElement *UNUSED(te),
+        TreeStoreElem *UNUSED(tsep), TreeStoreElem *tselem, void *UNUSED(user_data))
 {
 	Object *ob = (Object *)tselem->id;
 	if (ob) {
@@ -459,13 +459,6 @@ static void object_delete_cb(
 		te->directdata = NULL;
 		tselem->id = NULL;
 #endif
-	}
-	else {
-		/* No base, means object is no more instantiated in any scene.
-		 * Should not happen ideally, but does happens, see T51625.
-		 * Rather than twisting in all kind of ways to address all possible cases leading to that situation, simpler
-		 * to allow deleting such object as a mere generic data-block. */
-		id_delete_cb(C, reports, scene, te, tsep, tselem, user_data);
 	}
 }
 
@@ -804,12 +797,12 @@ static void modifier_cb(int event, TreeElement *te, TreeStoreElem *UNUSED(tselem
 
 	if (event == OL_MODIFIER_OP_TOGVIS) {
 		md->mode ^= eModifierMode_Realtime;
-		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 		WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, ob);
 	}
 	else if (event == OL_MODIFIER_OP_TOGREN) {
 		md->mode ^= eModifierMode_Render;
-		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 		WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, ob);
 	}
 	else if (event == OL_MODIFIER_OP_DELETE) {
@@ -902,7 +895,7 @@ static void object_delete_hierarchy_cb(
 #endif
 	}
 
-	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+	DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 }
 
@@ -961,7 +954,7 @@ static int outliner_object_operation_exec(bContext *C, wmOperator *op)
 		}
 
 		str = "Select Objects";
-		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 	}
 	else if (event == OL_OP_SELECT_HIERARCHY) {
@@ -971,13 +964,13 @@ static int outliner_object_operation_exec(bContext *C, wmOperator *op)
 			WM_window_set_active_scene(bmain, C, win, sce);
 		}
 		str = "Select Object Hierarchy";
-		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 	}
 	else if (event == OL_OP_DESELECT) {
 		outliner_do_object_operation(C, op->reports, scene, soops, &soops->tree, object_deselect_cb);
 		str = "Deselect Objects";
-		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_SELECT, scene);
 	}
 	else if (event == OL_OP_DELETE) {
@@ -992,7 +985,7 @@ static int outliner_object_operation_exec(bContext *C, wmOperator *op)
 
 		DEG_relations_tag_update(bmain);
 		str = "Delete Objects";
-		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 	}
 	else if (event == OL_OP_DELETE_HIERARCHY) {
@@ -1003,7 +996,7 @@ static int outliner_object_operation_exec(bContext *C, wmOperator *op)
 
 		DEG_relations_tag_update(bmain);
 		str = "Delete Object Hierarchy";
-		DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 		WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 	}
 	else if (event == OL_OP_REMAP) {
@@ -1042,7 +1035,6 @@ void OUTLINER_OT_object_operation(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Outliner Object Operation";
 	ot->idname = "OUTLINER_OT_object_operation";
-	ot->description = "";
 
 	/* callbacks */
 	ot->invoke = WM_menu_invoke;
@@ -1077,8 +1069,8 @@ typedef enum eOutlinerIdOpTypes {
 static const EnumPropertyItem prop_id_op_types[] = {
 	{OUTLINER_IDOP_UNLINK, "UNLINK", 0, "Unlink", ""},
 	{OUTLINER_IDOP_LOCAL, "LOCAL", 0, "Make Local", ""},
-	{OUTLINER_IDOP_STATIC_OVERRIDE, "STATIC_OVERRIDE",
-	 0, "Add Static Override", "Add a local static override of this data-block"},
+	{OUTLINER_IDOP_STATIC_OVERRIDE, "STATIC_OVERRIDE", 0, "Add Static Override",
+	 "Add a local static override of this data-block"},
 	{OUTLINER_IDOP_SINGLE, "SINGLE", 0, "Make Single User", ""},
 	{OUTLINER_IDOP_DELETE, "DELETE", 0, "Delete", "WARNING: no undo"},
 	{OUTLINER_IDOP_REMAP, "REMAP", 0, "Remap Users",
@@ -1090,6 +1082,29 @@ static const EnumPropertyItem prop_id_op_types[] = {
 	{OUTLINER_IDOP_SELECT_LINKED, "SELECT_LINKED", 0, "Select Linked", ""},
 	{0, NULL, 0, NULL, NULL}
 };
+
+static const EnumPropertyItem *outliner_id_operation_itemf(
+        bContext *UNUSED(C), PointerRNA *UNUSED(ptr), PropertyRNA *UNUSED(prop), bool *r_free)
+{
+	if (BKE_override_static_is_enabled()) {
+		*r_free = false;
+		return prop_id_op_types;
+	}
+
+	EnumPropertyItem *items = NULL;
+	int totitem = 0;
+
+	for (const EnumPropertyItem *it = prop_id_op_types; it->identifier != NULL; it++) {
+		if (it->value == OUTLINER_IDOP_STATIC_OVERRIDE) {
+			continue;
+		}
+		RNA_enum_item_add(&items, &totitem, it);
+	}
+	RNA_enum_item_end(&items, &totitem);
+	*r_free = true;
+
+	return items;
+}
 
 static int outliner_id_operation_exec(bContext *C, wmOperator *op)
 {
@@ -1164,9 +1179,11 @@ static int outliner_id_operation_exec(bContext *C, wmOperator *op)
 		}
 		case OUTLINER_IDOP_STATIC_OVERRIDE:
 		{
-			/* make local */
-			outliner_do_libdata_operation(C, op->reports, scene, soops, &soops->tree, id_static_override_cb, NULL);
-			ED_undo_push(C, "Overrided Data");
+			if (BKE_override_static_is_enabled()) {
+				/* make local */
+				outliner_do_libdata_operation(C, op->reports, scene, soops, &soops->tree, id_static_override_cb, NULL);
+				ED_undo_push(C, "Overridden Data");
+			}
 			break;
 		}
 		case OUTLINER_IDOP_SINGLE:
@@ -1261,7 +1278,6 @@ void OUTLINER_OT_id_operation(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Outliner ID data Operation";
 	ot->idname = "OUTLINER_OT_id_operation";
-	ot->description = "";
 
 	/* callbacks */
 	ot->invoke = WM_menu_invoke;
@@ -1271,6 +1287,7 @@ void OUTLINER_OT_id_operation(wmOperatorType *ot)
 	ot->flag = 0;
 
 	ot->prop = RNA_def_enum(ot->srna, "type", prop_id_op_types, 0, "ID data Operation", "");
+	RNA_def_enum_funcs(ot->prop, outliner_id_operation_itemf);
 }
 
 /* **************************************** */
@@ -1356,7 +1373,6 @@ void OUTLINER_OT_lib_operation(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Outliner Library Operation";
 	ot->idname = "OUTLINER_OT_lib_operation";
-	ot->description = "";
 
 	/* callbacks */
 	ot->invoke = WM_menu_invoke;
@@ -1580,7 +1596,6 @@ void OUTLINER_OT_animdata_operation(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Outliner Animation Data Operation";
 	ot->idname = "OUTLINER_OT_animdata_operation";
-	ot->description = "";
 
 	/* callbacks */
 	ot->invoke = WM_menu_invoke;
@@ -1626,7 +1641,6 @@ void OUTLINER_OT_constraint_operation(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Outliner Constraint Operation";
 	ot->idname = "OUTLINER_OT_constraint_operation";
-	ot->description = "";
 
 	/* callbacks */
 	ot->invoke = WM_menu_invoke;
@@ -1672,7 +1686,6 @@ void OUTLINER_OT_modifier_operation(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Outliner Modifier Operation";
 	ot->idname = "OUTLINER_OT_modifier_operation";
-	ot->description = "";
 
 	/* callbacks */
 	ot->invoke = WM_menu_invoke;
@@ -1770,7 +1783,6 @@ void OUTLINER_OT_data_operation(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Outliner Data Operation";
 	ot->idname = "OUTLINER_OT_data_operation";
-	ot->description = "";
 
 	/* callbacks */
 	ot->invoke = WM_menu_invoke;

@@ -69,25 +69,24 @@
 
 #include "BIK_api.h"
 
-#include "BKE_animsys.h"
 #include "BKE_action.h"
+#include "BKE_animsys.h"
 #include "BKE_armature.h"
+#include "BKE_context.h"
 #include "BKE_curve.h"
+#include "BKE_editmesh.h"
 #include "BKE_fcurve.h"
 #include "BKE_gpencil.h"
 #include "BKE_lattice.h"
-#include "BKE_library.h"
-#include "BKE_main.h"
-#include "BKE_nla.h"
-#include "BKE_context.h"
-#include "BKE_paint.h"
-#include "BKE_sequencer.h"
-#include "BKE_editmesh.h"
-#include "BKE_tracking.h"
-#include "BKE_mask.h"
-#include "BKE_workspace.h"
 #include "BKE_layer.h"
+#include "BKE_library.h"
+#include "BKE_mask.h"
+#include "BKE_nla.h"
+#include "BKE_paint.h"
 #include "BKE_scene.h"
+#include "BKE_sequencer.h"
+#include "BKE_tracking.h"
+#include "BKE_workspace.h"
 
 #include "DEG_depsgraph.h"
 
@@ -274,9 +273,9 @@ static void animrecord_check_state(Scene *scene, ID *id, wmTimer *animtimer)
 		return;
 
 	/* check if we need a new strip if:
-	 *  - if animtimer is running
-	 *	- we're not only keying for available channels
-	 *	- the option to add new actions for each round is not enabled
+	 * - if animtimer is running
+	 * - we're not only keying for available channels
+	 * - the option to add new actions for each round is not enabled
 	 */
 	if (IS_AUTOKEY_FLAG(scene, INSERTAVAIL) == 0 && (scene->toolsettings->autokey_flag & ANIMRECORD_FLAG_WITHNLA)) {
 		/* if playback has just looped around, we need to add a new NLA track+strip to allow a clean pass to occur */
@@ -318,7 +317,7 @@ static void animrecord_check_state(Scene *scene, ID *id, wmTimer *animtimer)
 							 * NOTE: An alternative way would have been to instead hack the influence
 							 * to not get always get reset to full strength if NLASTRIP_FLAG_USR_INFLUENCE
 							 * is disabled but auto-blending isn't being used. However, that approach
-							 * is a bit hacky/hard to discover, and may cause backwards compatability issues,
+							 * is a bit hacky/hard to discover, and may cause backwards compatibility issues,
 							 * so it's better to just do it this way.
 							 */
 							strip->flag |= NLASTRIP_FLAG_USR_INFLUENCE;
@@ -492,7 +491,7 @@ static void recalcData_nla(TransInfo *t)
 		 * BUT only if realtime updates are enabled
 		 */
 		if ((snla->flag & SNLA_NOREALTIMEUPDATES) == 0)
-			ANIM_id_update(t->scene, tdn->id);
+			ANIM_id_update(CTX_data_main(t->context), tdn->id);
 
 		/* if canceling transform, just write the values without validating, then move on */
 		if (t->state == TRANS_CANCEL) {
@@ -536,8 +535,8 @@ static void recalcData_nla(TransInfo *t)
 
 			if ((pExceeded && nExceeded) || (iter == 4)) {
 				/* both endpoints exceeded (or iteration ping-pong'd meaning that we need a compromise)
-				 *	- simply crop strip to fit within the bounds of the strips bounding it
-				 *	- if there were no neighbors, clear the transforms (make it default to the strip's current values)
+				 * - simply crop strip to fit within the bounds of the strips bounding it
+				 * - if there were no neighbors, clear the transforms (make it default to the strip's current values)
 				 */
 				if (strip->prev && strip->next) {
 					tdn->h1[0] = strip->prev->end;
@@ -627,7 +626,7 @@ static void recalcData_nla(TransInfo *t)
 
 
 		/* now, check if we need to try and move track
-		 *	- we need to calculate both, as only one may have been altered by transform if only 1 handle moved
+		 * - we need to calculate both, as only one may have been altered by transform if only 1 handle moved
 		 */
 		delta_y1 = ((int)tdn->h1[1] / NLACHANNEL_STEP(snla) - tdn->trackIndex);
 		delta_y2 = ((int)tdn->h2[1] / NLACHANNEL_STEP(snla) - tdn->trackIndex);
@@ -785,7 +784,7 @@ static void recalcData_objects(TransInfo *t)
 				else {
 					/* Normal updating */
 					while (nu) {
-						BKE_nurb_test2D(nu);
+						BKE_nurb_test_2d(nu);
 						BKE_nurb_handles_calc(nu);
 						nu = nu->next;
 					}
@@ -937,6 +936,8 @@ static void recalcData_objects(TransInfo *t)
 
 	}
 	else if (t->flag & T_POSE) {
+		GSet *motionpath_updates = BLI_gset_ptr_new("motionpath updates");
+
 		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
 			Object *ob = tc->poseobj;
 			bArmature *arm = ob->data;
@@ -952,12 +953,16 @@ static void recalcData_objects(TransInfo *t)
 				int targetless_ik = (t->flag & T_AUTOIK); // XXX this currently doesn't work, since flags aren't set yet!
 
 				animrecord_check_state(t->scene, &ob->id, t->animtimer);
-				autokeyframe_pose_cb_func(t->context, t->scene, ob, t->mode, targetless_ik);
+				autokeyframe_pose(t->context, t->scene, ob, t->mode, targetless_ik);
+			}
+
+			if (motionpath_need_update_pose(t->scene, ob)) {
+				BLI_gset_insert(motionpath_updates, ob);
 			}
 
 			/* old optimize trick... this enforces to bypass the depgraph */
 			if (!(arm->flag & ARM_DELAYDEFORM)) {
-				DEG_id_tag_update(&ob->id, OB_RECALC_DATA);  /* sets recalc flags */
+				DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);  /* sets recalc flags */
 				/* transformation of pose may affect IK tree, make sure it is rebuilt */
 				BIK_clear_data(ob->pose);
 			}
@@ -965,6 +970,14 @@ static void recalcData_objects(TransInfo *t)
 				BKE_pose_where_is(t->depsgraph, t->scene, ob);
 			}
 		}
+
+		/* Update motion paths once for all transformed bones in an object. */
+		GSetIterator gs_iter;
+		GSET_ITER (gs_iter, motionpath_updates) {
+			Object *ob = BLI_gsetIterator_getKey(&gs_iter);
+			ED_pose_recalculate_paths(t->context, t->scene, ob, true);
+		}
+		BLI_gset_free(motionpath_updates, NULL);
 	}
 	else if (base && (base->object->mode & OB_MODE_PARTICLE_EDIT) &&
 	         PE_get_current(t->scene, base->object))
@@ -975,7 +988,7 @@ static void recalcData_objects(TransInfo *t)
 		flushTransParticles(t);
 	}
 	else {
-		int i;
+		bool motionpath_update = false;
 
 		if (t->state != TRANS_CANCEL) {
 			applyProject(t);
@@ -984,7 +997,7 @@ static void recalcData_objects(TransInfo *t)
 		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
 			TransData *td = tc->data;
 
-			for (i = 0; i < tc->data_len; i++, td++) {
+			for (int i = 0; i < tc->data_len; i++, td++) {
 				Object *ob = td->ob;
 
 				if (td->flag & TD_NOACTION)
@@ -1000,24 +1013,31 @@ static void recalcData_objects(TransInfo *t)
 				// TODO: autokeyframe calls need some setting to specify to add samples (FPoints) instead of keyframes?
 				if ((t->animtimer) && IS_AUTOKEY_ON(t->scene)) {
 					animrecord_check_state(t->scene, &ob->id, t->animtimer);
-					autokeyframe_ob_cb_func(t->context, t->scene, t->view_layer, ob, t->mode);
+					autokeyframe_object(t->context, t->scene, t->view_layer, ob, t->mode);
 				}
+
+				motionpath_update |= motionpath_need_update_object(t->scene, ob);
 
 				/* sets recalc flags fully, instead of flushing existing ones
 				 * otherwise proxies don't function correctly
 				 */
-				DEG_id_tag_update(&ob->id, OB_RECALC_OB);
+				DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM);
 
 				if (t->flag & T_TEXTURE)
-					DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+					DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 			}
+		}
+
+		if (motionpath_update) {
+			/* Update motion paths once for all transformed objects. */
+			ED_objects_recalculate_paths(t->context, t->scene, true);
 		}
 	}
 }
 
 static void recalcData_cursor(TransInfo *t)
 {
-	DEG_id_tag_update(&t->scene->id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&t->scene->id, ID_RECALC_COPY_ON_WRITE);
 }
 
 /* helper for recalcData() - for sequencer transforms */
@@ -1060,7 +1080,7 @@ static void recalcData_gpencil_strokes(TransInfo *t)
 	for (int i = 0; i < tc->data_len; i++, td++) {
 		bGPDstroke *gps = td->extra;
 		if (gps != NULL) {
-			gps->flag |= GP_STROKE_RECALC_CACHES;
+			gps->flag |= GP_STROKE_RECALC_GEOMETRY;
 		}
 	}
 }
@@ -1178,22 +1198,30 @@ static int initTransInfo_edit_pet_to_flag(const int proportional)
 	}
 }
 
-void initTransDataContainers_FromObjectData(TransInfo *t)
+void initTransDataContainers_FromObjectData(TransInfo *t, Object *obact, Object **objects, uint objects_len)
 {
-	const eObjectMode object_mode = OBACT(t->view_layer) ? OBACT(t->view_layer)->mode : OB_MODE_OBJECT;
-	const short object_type = OBACT(t->view_layer) ? OBACT(t->view_layer)->type : -1;
+	const eObjectMode object_mode = obact ? obact->mode : OB_MODE_OBJECT;
+	const short object_type = obact ? obact->type : -1;
 
-	if ((object_mode & OB_MODE_EDIT) ||
+	if ((object_mode & OB_MODE_EDIT) || (t->options & CTX_GPENCIL_STROKES) ||
 	    ((object_mode & OB_MODE_POSE) && (object_type == OB_ARMATURE)))
 	{
 		if (t->data_container) {
 			MEM_freeN(t->data_container);
 		}
-		uint objects_len;
-		Object **objects = BKE_view_layer_array_from_objects_in_mode(
-		        t->view_layer, &objects_len, {
-		            .object_mode = object_mode,
-		            .no_dup_data = true});
+
+		bool free_objects = false;
+		if (objects == NULL) {
+			objects = BKE_view_layer_array_from_objects_in_mode(
+			        t->view_layer,
+			        (t->spacetype == SPACE_VIEW3D) ? t->view : NULL,
+			        &objects_len, {
+			            .object_mode = object_mode,
+			            .no_dup_data = true,
+			        });
+			free_objects = true;
+		}
+
 		t->data_container = MEM_callocN(sizeof(*t->data_container) * objects_len, __func__);
 		t->data_container_len = objects_len;
 
@@ -1210,6 +1238,9 @@ void initTransDataContainers_FromObjectData(TransInfo *t)
 				tc->poseobj = objects[i];
 				tc->use_local_mat = true;
 			}
+			else if (t->options & CTX_GPENCIL_STROKES) {
+				tc->use_local_mat = true;
+			}
 
 			if (tc->use_local_mat) {
 				BLI_assert((t->flag & T_2D_EDIT) == 0);
@@ -1221,7 +1252,10 @@ void initTransDataContainers_FromObjectData(TransInfo *t)
 			}
 			/* Otherwise leave as zero. */
 		}
-		MEM_freeN(objects);
+
+		if (free_objects) {
+			MEM_freeN(objects);
+		}
 	}
 }
 
@@ -1258,7 +1292,7 @@ void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 
 	t->flag = 0;
 
-	t->obedit_type = (object_mode == OB_MODE_EDIT) ? object_type : -1;
+	t->obedit_type = ((object_mode == OB_MODE_EDIT) || (object_mode == OB_MODE_EDIT_GPENCIL)) ? object_type : -1;
 
 	/* Many kinds of transform only use a single handle. */
 	if (t->data_container == NULL) {
@@ -1314,7 +1348,7 @@ void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 	}
 
 	/* GPencil editing context */
-	if (GPENCIL_ANY_MODE(gpd)) {
+	if (GPENCIL_EDIT_MODE(gpd)) {
 		t->options |= CTX_GPENCIL_STROKES;
 	}
 
@@ -1367,9 +1401,22 @@ void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 			t->around = V3D_AROUND_CURSOR;
 		}
 
-		t->current_orientation = t->scene->orientation_type;
-		t->custom_orientation = BKE_scene_transform_orientation_find(
-		        t->scene, t->scene->orientation_index_custom);
+		TransformOrientationSlot *orient_slot = &t->scene->orientation_slots[SCE_ORIENT_DEFAULT];
+		t->orientation.user = orient_slot->type;
+		t->orientation.custom = BKE_scene_transform_orientation_find(t->scene, orient_slot->index_custom);
+
+		t->orientation.index = 0;
+		ARRAY_SET_ITEMS(
+		        t->orientation.types,
+		        &t->orientation.user,
+		        NULL);
+
+		/* Make second orientation local if both are global. */
+		if (t->orientation.user == V3D_MANIP_GLOBAL) {
+			t->orientation.user_alt = V3D_MANIP_LOCAL;
+			t->orientation.types[0] = &t->orientation.user_alt;
+			SWAP(short *, t->orientation.types[0], t->orientation.types[1]);
+		}
 
 		/* exceptional case */
 		if (t->around == V3D_AROUND_LOCAL_ORIGINS) {
@@ -1457,8 +1504,15 @@ void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 		t->around = V3D_AROUND_CENTER_BOUNDS;
 	}
 
-	if (op && ((prop = RNA_struct_find_property(op->ptr, "constraint_orientation")) &&
+	if (op && ((prop = RNA_struct_find_property(op->ptr, "constraint_matrix")) &&
 	           RNA_property_is_set(op->ptr, prop)))
+	{
+		RNA_property_float_get_array(op->ptr, prop, &t->spacemtx[0][0]);
+		t->orientation.user = V3D_MANIP_CUSTOM_MATRIX;
+		t->orientation.custom = 0;
+	}
+	else if (op && ((prop = RNA_struct_find_property(op->ptr, "constraint_orientation")) &&
+	                RNA_property_is_set(op->ptr, prop)))
 	{
 		short orientation = RNA_property_enum_get(op->ptr, prop);
 		TransformOrientation *custom_orientation = NULL;
@@ -1474,8 +1528,8 @@ void initTransInfo(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
 			}
 		}
 
-		t->current_orientation = orientation;
-		t->custom_orientation = custom_orientation;
+		t->orientation.user = orientation;
+		t->orientation.custom = custom_orientation;
 	}
 
 	if (op && ((prop = RNA_struct_find_property(op->ptr, "release_confirm")) &&
@@ -1813,9 +1867,7 @@ void calculateCenterLocal(
 
 void calculateCenterCursor(TransInfo *t, float r_center[3])
 {
-	const float *cursor;
-
-	cursor = ED_view3d_cursor3d_get(t->scene, t->view)->location;
+	const float *cursor = t->scene->cursor.location;
 	copy_v3_v3(r_center, cursor);
 
 	/* If edit or pose mode, move cursor in local space */
@@ -1825,21 +1877,6 @@ void calculateCenterCursor(TransInfo *t, float r_center[3])
 			r_center[1] = t->ar->winy / 2.0f;
 		}
 		r_center[2] = 0.0f;
-	}
-	else if (t->options & CTX_GPENCIL_STROKES) {
-		 /* move cursor in local space */
-		TransData *td = NULL;
-		FOREACH_TRANS_DATA_CONTAINER (t, tc) {
-			float mat[3][3], imat[3][3];
-
-			td = tc->data;
-			Object *ob = td->ob;
-
-			sub_v3_v3v3(r_center, r_center, ob->obmat[3]);
-			copy_m3_m4(mat, ob->obmat);
-			invert_m3_m3(imat, mat);
-			mul_m3_v3(imat, r_center);
-		}
 	}
 }
 
@@ -1960,30 +1997,27 @@ void calculateCenterBound(TransInfo *t, float r_center[3])
 }
 
 /**
- * \param select_only only get active center from data being transformed.
+ * \param select_only: only get active center from data being transformed.
  */
 bool calculateCenterActive(TransInfo *t, bool select_only, float r_center[3])
 {
 	TransDataContainer *tc = TRANS_DATA_CONTAINER_FIRST_OK(t);
 
-	bool ok = false;
-
-	if (tc->obedit) {
-		if (ED_object_editmode_calc_active_center(tc->obedit, select_only, r_center)) {
+	if (t->spacetype != SPACE_VIEW3D) {
+		return false;
+	}
+	else if (tc->obedit) {
+		if (ED_object_calc_active_center_for_editmode(tc->obedit, select_only, r_center)) {
 			mul_m4_v3(tc->obedit->obmat, r_center);
-			ok = true;
+			return true;
 		}
 	}
 	else if (t->flag & T_POSE) {
 		ViewLayer *view_layer = t->view_layer;
-		Object *ob = OBACT(view_layer);
-		if (ob) {
-			bPoseChannel *pchan = BKE_pose_channel_active(ob);
-			if (pchan && (!select_only || (pchan->bone->flag & BONE_SELECTED))) {
-				copy_v3_v3(r_center, pchan->pose_head);
-				mul_m4_v3(ob->obmat, r_center);
-				ok = true;
-			}
+		Object *ob = OBACT(view_layer) ;
+		if (ED_object_calc_active_center_for_posemode(ob, select_only, r_center)) {
+			mul_m4_v3(ob->obmat, r_center);
+			return true;
 		}
 	}
 	else if (t->options & CTX_PAINT_CURVE) {
@@ -1992,7 +2026,7 @@ bool calculateCenterActive(TransInfo *t, bool select_only, float r_center[3])
 		PaintCurve *pc = br->paint_curve;
 		copy_v3_v3(r_center, pc->points[pc->add_index - 1].bez.vec[1]);
 		r_center[2] = 0.0f;
-		ok = true;
+		return true;
 	}
 	else {
 		/* object mode */
@@ -2001,11 +2035,11 @@ bool calculateCenterActive(TransInfo *t, bool select_only, float r_center[3])
 		Base *base = BASACT(view_layer);
 		if (ob && ((!select_only) || ((base->flag & BASE_SELECTED) != 0))) {
 			copy_v3_v3(r_center, ob->obmat[3]);
-			ok = true;
+			return true;
 		}
 	}
 
-	return ok;
+	return false;
 }
 
 static void calculateCenter_FromAround(TransInfo *t, int around, float r_center[3])
@@ -2014,7 +2048,7 @@ static void calculateCenter_FromAround(TransInfo *t, int around, float r_center[
 		case V3D_AROUND_CENTER_BOUNDS:
 			calculateCenterBound(t, r_center);
 			break;
-		case V3D_AROUND_CENTER_MEAN:
+		case V3D_AROUND_CENTER_MEDIAN:
 			calculateCenterMedian(t, r_center);
 			break;
 		case V3D_AROUND_CURSOR:

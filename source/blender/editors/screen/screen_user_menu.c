@@ -62,11 +62,19 @@
 /** \name Menu Type
  * \{ */
 
-bUserMenu *ED_screen_user_menu_find(bContext *C)
+bUserMenu **ED_screen_user_menus_find(const bContext *C, uint *r_len)
 {
 	SpaceLink *sl = CTX_wm_space_data(C);
 	const char *context = CTX_data_mode_string(C);
-	return BKE_blender_user_menu_find(&U.user_menus, sl->spacetype, context);
+
+	uint array_len = 3;
+	bUserMenu **um_array = MEM_calloc_arrayN(array_len, sizeof(*um_array), __func__);
+	um_array[0] = BKE_blender_user_menu_find(&U.user_menus, sl->spacetype, context);
+	um_array[1] = (sl->spacetype != SPACE_TOPBAR) ? BKE_blender_user_menu_find(&U.user_menus, SPACE_TOPBAR, context) : NULL;
+	um_array[2] = (sl->spacetype == SPACE_VIEW3D) ? BKE_blender_user_menu_find(&U.user_menus, SPACE_BUTS, context) : NULL;
+
+	*r_len = array_len;
+	return um_array;
 }
 
 bUserMenu *ED_screen_user_menu_ensure(bContext *C)
@@ -182,14 +190,10 @@ void ED_screen_user_menu_item_remove(ListBase *lb, bUserMenuItem *umi)
 
 static void screen_user_menu_draw(const bContext *C, Menu *menu)
 {
-	SpaceLink *sl = CTX_wm_space_data(C);
-	const char *context = CTX_data_mode_string(C);
-	bUserMenu *um_array[] = {
-		BKE_blender_user_menu_find(&U.user_menus, sl->spacetype, context),
-		(sl->spacetype != SPACE_TOPBAR) ? BKE_blender_user_menu_find(&U.user_menus, SPACE_TOPBAR, context) : NULL,
-		(sl->spacetype == SPACE_VIEW3D) ? BKE_blender_user_menu_find(&U.user_menus, SPACE_BUTS, context) : NULL,
-	};
-	for (int um_index = 0; um_index < ARRAY_SIZE(um_array); um_index++) {
+	uint um_array_len;
+	bUserMenu **um_array = ED_screen_user_menus_find(C, &um_array_len);
+	bool is_empty = true;
+	for (int um_index = 0; um_index < um_array_len; um_index++) {
 		bUserMenu *um = um_array[um_index];
 		if (um == NULL) {
 			continue;
@@ -202,11 +206,13 @@ static void screen_user_menu_draw(const bContext *C, Menu *menu)
 				uiItemFullO(
 				        menu->layout, umi_op->op_idname, ui_name,
 				        ICON_NONE, prop, umi_op->opcontext, 0, NULL);
+				is_empty = false;
 			}
 			else if (umi->type == USER_MENU_TYPE_MENU) {
 				bUserMenuItem_Menu *umi_mt = (bUserMenuItem_Menu *)umi;
 				uiItemM(menu->layout, umi_mt->mt_idname, ui_name,
 				        ICON_NONE);
+				is_empty = false;
 			}
 			else if (umi->type == USER_MENU_TYPE_PROP) {
 				bUserMenuItem_Prop *umi_pr = (bUserMenuItem_Prop *)umi;
@@ -240,6 +246,7 @@ static void screen_user_menu_draw(const bContext *C, Menu *menu)
 							        menu->layout,
 							        &prop_ptr, prop, umi_pr->prop_index,
 							        0, 0, ui_name, ICON_NONE);
+							is_empty = false;
 						}
 					}
 				}
@@ -253,6 +260,12 @@ static void screen_user_menu_draw(const bContext *C, Menu *menu)
 				uiItemS(menu->layout);
 			}
 		}
+	}
+	MEM_freeN(um_array);
+
+	if (is_empty) {
+		uiItemL(menu->layout, IFACE_("No menu items found"), ICON_NONE);
+		uiItemL(menu->layout, IFACE_("Right click on buttons to add them to this menu"), ICON_NONE);
 	}
 }
 

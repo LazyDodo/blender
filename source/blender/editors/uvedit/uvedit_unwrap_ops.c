@@ -262,7 +262,7 @@ static void construct_param_handle_face_add(ParamHandle *handle, Scene *scene,
 		select[i] = uvedit_uv_select_test(scene, l, cd_loop_uv_offset);
 	}
 
-	param_face_add(handle, key, i, vkeys, co, uv, pin, select, efa->no);
+	param_face_add(handle, key, i, vkeys, co, uv, pin, select);
 }
 
 /* See: construct_param_handle_multi to handle multiple objects at once. */
@@ -571,7 +571,7 @@ static ParamHandle *construct_param_handle_subsurfed(Scene *scene, Object *ob, B
 		texface_from_original_index(origFace, origVertIndices[mloop[2].v], &uv[2], &pin[2], &select[2], scene, cd_loop_uv_offset);
 		texface_from_original_index(origFace, origVertIndices[mloop[3].v], &uv[3], &pin[3], &select[3], scene, cd_loop_uv_offset);
 
-		param_face_add(handle, key, 4, vkeys, co, uv, pin, select, NULL);
+		param_face_add(handle, key, 4, vkeys, co, uv, pin, select);
 	}
 
 	/* these are calculated from original mesh too */
@@ -617,7 +617,7 @@ static bool minimize_stretch_init(bContext *C, wmOperator *op)
 	bool implicit = true;
 
 	uint objects_len = 0;
-	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data_with_uvs(view_layer, &objects_len);
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data_with_uvs(view_layer, CTX_wm_view3d(C), &objects_len);
 
 	if (!uvedit_have_selection_multi(scene, objects, objects_len, implicit)) {
 		MEM_freeN(objects);
@@ -838,23 +838,23 @@ void UV_OT_minimize_stretch(wmOperatorType *ot)
 /* ******************** Pack Islands operator **************** */
 
 
-void ED_uvedit_pack_islands(Scene *scene, Object *ob, BMesh *bm, bool selected, bool correct_aspect, bool do_rotate)
+static void uvedit_pack_islands(Scene *scene, Object *ob, BMesh *bm)
 {
 	ParamHandle *handle;
-	handle = construct_param_handle(scene, ob, bm, true, false, selected, correct_aspect);
-	param_pack(handle, scene->toolsettings->uvcalc_margin, do_rotate);
+	handle = construct_param_handle(scene, ob, bm, true, false, false, false);
+	param_pack(handle, scene->toolsettings->uvcalc_margin, true, false);
 	param_flush(handle);
 	param_delete(handle);
 }
 
-void ED_uvedit_pack_islands_multi(
+static void uvedit_pack_islands_multi(
         Scene *scene, Object **objects, const uint objects_len,
-        bool selected, bool correct_aspect, bool do_rotate)
+        bool do_rotate, bool implicit, bool ignore_pinned)
 {
 	ParamHandle *handle;
 	handle = construct_param_handle_multi(
-	        scene, objects, objects_len, true, false, selected, correct_aspect);
-	param_pack(handle, scene->toolsettings->uvcalc_margin, do_rotate);
+	        scene, objects, objects_len, implicit, false, true, true);
+	param_pack(handle, scene->toolsettings->uvcalc_margin, do_rotate, ignore_pinned);
 	param_flush(handle);
 	param_delete(handle);
 }
@@ -866,7 +866,7 @@ static int pack_islands_exec(bContext *C, wmOperator *op)
 	bool do_rotate = RNA_boolean_get(op->ptr, "rotate");
 
 	uint objects_len = 0;
-	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data_with_uvs(view_layer, &objects_len);
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data_with_uvs(view_layer, CTX_wm_view3d(C), &objects_len);
 
 	if (!uvedit_have_selection_multi(scene, objects, objects_len, true)) {
 		MEM_freeN(objects);
@@ -878,7 +878,7 @@ static int pack_islands_exec(bContext *C, wmOperator *op)
 	else
 		RNA_float_set(op->ptr, "margin", scene->toolsettings->uvcalc_margin);
 
-	ED_uvedit_pack_islands_multi(scene, objects, objects_len, true, true, do_rotate);
+	uvedit_pack_islands_multi(scene, objects, objects_len, do_rotate, true, false);
 
 	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 		Object *obedit = objects[ob_index];
@@ -921,7 +921,7 @@ static int average_islands_scale_exec(bContext *C, wmOperator *UNUSED(op))
 	ParamHandle *handle;
 
 	uint objects_len = 0;
-	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data_with_uvs(view_layer, &objects_len);
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data_with_uvs(view_layer, CTX_wm_view3d(C), &objects_len);
 
 	if (!uvedit_have_selection_multi(scene, objects, objects_len, implicit)) {
 		MEM_freeN(objects);
@@ -929,7 +929,7 @@ static int average_islands_scale_exec(bContext *C, wmOperator *UNUSED(op))
 	}
 
 	handle = construct_param_handle_multi(scene, objects, objects_len, implicit, false, true, true);
-	param_average(handle);
+	param_average(handle, false);
 	param_flush(handle);
 	param_delete(handle);
 
@@ -1071,7 +1071,7 @@ static void uv_map_transform_calc_center_median(BMEditMesh *em, float r_center[3
 	BM_ITER_MESH (efa, &iter, em->bm, BM_FACES_OF_MESH) {
 		if (BM_elem_flag_test(efa, BM_ELEM_SELECT)) {
 			float center[3];
-			BM_face_calc_center_mean(efa, center);
+			BM_face_calc_center_median(efa, center);
 			add_v3_v3(r_center, center);
 			center_accum_num += 1;
 		}
@@ -1099,7 +1099,7 @@ static void uv_map_transform_center(
 			mid_v3_v3v3(r_center, bounds[0], bounds[1]);
 			break;
 		}
-		case V3D_AROUND_CENTER_MEAN:
+		case V3D_AROUND_CENTER_MEDIAN:
 		{
 			uv_map_transform_calc_center_median(em, r_center);
 			break;
@@ -1107,7 +1107,7 @@ static void uv_map_transform_center(
 		case V3D_AROUND_CURSOR:  /* cursor center */
 		{
 			invert_m4_m4(ob->imat, ob->obmat);
-			mul_v3_m4v3(r_center, ob->imat, ED_view3d_cursor3d_get(scene, v3d)->location);
+			mul_v3_m4v3(r_center, ob->imat, scene->cursor.location);
 			break;
 		}
 		case V3D_AROUND_ACTIVE:
@@ -1406,16 +1406,21 @@ void ED_unwrap_lscm(Scene *scene, Object *obedit, const short sel, const bool pa
 	param_lscm_solve(handle);
 	param_lscm_end(handle);
 
-	param_average(handle);
+	param_average(handle, true);
 
 	if (pack) {
-		param_pack(handle, scene->toolsettings->uvcalc_margin, false);
+		param_pack(handle, scene->toolsettings->uvcalc_margin, false, true);
 	}
 
 	param_flush(handle);
 
 	param_delete(handle);
 }
+
+enum {
+	UNWRAP_ERROR_NONUNIFORM = (1 << 0),
+	UNWRAP_ERROR_NEGATIVE = (1 << 1),
+};
 
 static int unwrap_exec(bContext *C, wmOperator *op)
 {
@@ -1425,11 +1430,13 @@ static int unwrap_exec(bContext *C, wmOperator *op)
 	const bool fill_holes = RNA_boolean_get(op->ptr, "fill_holes");
 	const bool correct_aspect = RNA_boolean_get(op->ptr, "correct_aspect");
 	const bool use_subsurf = RNA_boolean_get(op->ptr, "use_subsurf_data");
-	float obsize[3];
 	bool implicit = false;
+	int reported_errors = 0;
+	/* We will report an error unless at least one object has the subsurf modifier in the right place. */
+	bool subsurf_error = use_subsurf;
 
 	uint objects_len = 0;
-	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, CTX_wm_view3d(C), &objects_len);
 
 	if (!uvedit_have_selection_multi(scene, objects, objects_len, implicit)) {
 		MEM_freeN(objects);
@@ -1439,27 +1446,45 @@ static int unwrap_exec(bContext *C, wmOperator *op)
 	/* add uvs if they don't exist yet */
 	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 		Object *obedit = objects[ob_index];
+		float obsize[3];
 		bool use_subsurf_final;
 
 		if (!ED_uvedit_ensure_uvs(C, scene, obedit)) {
 			continue;
 		}
 
-		mat4_to_size(obsize, obedit->obmat);
-		if (!(fabsf(obsize[0] - obsize[1]) < 1e-4f && fabsf(obsize[1] - obsize[2]) < 1e-4f))
-			BKE_report(op->reports, RPT_INFO,
-			           "Object has non-uniform scale, unwrap will operate on a non-scaled version of the mesh");
-		else if (is_negative_m4(obedit->obmat))
-			BKE_report(op->reports, RPT_INFO,
-			           "Object has negative scale, unwrap will operate on a non-flipped version of the mesh");
-
-
-		/* double up the check here but better keep ED_unwrap_lscm interface simple and not
-		 * pass operator for warning append */
-		modifier_unwrap_state(obedit, scene, &use_subsurf_final);
-		if (use_subsurf != use_subsurf_final) {
-			BKE_report(op->reports, RPT_INFO, "Subdivision Surface modifier needs to be first to work with unwrap");
+		if (subsurf_error) {
+			/* Double up the check here but better keep ED_unwrap_lscm interface simple and not
+			 * pass operator for warning append. */
+			modifier_unwrap_state(obedit, scene, &use_subsurf_final);
+			if (use_subsurf_final) {
+				subsurf_error = false;
+			}
 		}
+
+		if (reported_errors & (UNWRAP_ERROR_NONUNIFORM | UNWRAP_ERROR_NEGATIVE)) {
+			continue;
+		}
+
+		mat4_to_size(obsize, obedit->obmat);
+		if (!(fabsf(obsize[0] - obsize[1]) < 1e-4f && fabsf(obsize[1] - obsize[2]) < 1e-4f)) {
+			if ((reported_errors & UNWRAP_ERROR_NONUNIFORM) == 0) {
+				BKE_report(op->reports, RPT_INFO,
+				          "Object has non-uniform scale, unwrap will operate on a non-scaled version of the mesh");
+				reported_errors |= UNWRAP_ERROR_NONUNIFORM;
+			}
+		}
+		else if (is_negative_m4(obedit->obmat)) {
+			if ((reported_errors & UNWRAP_ERROR_NEGATIVE) == 0) {
+				BKE_report(op->reports, RPT_INFO,
+				           "Object has negative scale, unwrap will operate on a non-flipped version of the mesh");
+				reported_errors |= UNWRAP_ERROR_NEGATIVE;
+			}
+		}
+	}
+
+	if (subsurf_error) {
+		BKE_report(op->reports, RPT_INFO, "Subdivision Surface modifier needs to be first to work with unwrap");
 	}
 
 	/* remember last method for live unwrap */
@@ -1468,7 +1493,7 @@ static int unwrap_exec(bContext *C, wmOperator *op)
 	else
 		RNA_enum_set(op->ptr, "method", scene->toolsettings->unwrapper);
 
-	/* remember packing marging */
+	/* remember packing margin */
 	if (RNA_struct_property_is_set(op->ptr, "margin"))
 		scene->toolsettings->uvcalc_margin = RNA_float_get(op->ptr, "margin");
 	else
@@ -1491,7 +1516,7 @@ static int unwrap_exec(bContext *C, wmOperator *op)
 		WM_event_add_notifier(C, NC_GEOM | ND_DATA, obedit->data);
 	}
 
-	ED_uvedit_pack_islands_multi(scene, objects, objects_len, true, true, true);
+	uvedit_pack_islands_multi(scene, objects, objects_len, true, implicit, true);
 
 	MEM_freeN(objects);
 
@@ -1566,7 +1591,7 @@ static int uv_from_view_exec(bContext *C, wmOperator *op)
 
 	/* Note: objects that aren't touched are set to NULL (to skip clipping). */
 	uint objects_len = 0;
-	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, v3d, &objects_len);
 
 	if (use_orthographic) {
 		/* Calculate average object position. */
@@ -1706,10 +1731,11 @@ void UV_OT_project_from_view(wmOperatorType *ot)
 static int reset_exec(bContext *C, wmOperator *UNUSED(op))
 {
 	Scene *scene = CTX_data_scene(C);
-
 	ViewLayer *view_layer = CTX_data_view_layer(C);
+	View3D *v3d = CTX_wm_view3d(C);
+
 	uint objects_len = 0;
-	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, v3d, &objects_len);
 	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 		Object *obedit = objects[ob_index];
 		Mesh *me = (Mesh *)obedit->data;
@@ -1800,7 +1826,7 @@ static int sphere_project_exec(bContext *C, wmOperator *op)
 
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	uint objects_len = 0;
-	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, v3d, &objects_len);
 	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 		Object *obedit = objects[ob_index];
 		BMEditMesh *em = BKE_editmesh_from_object(obedit);
@@ -1888,7 +1914,7 @@ static int cylinder_project_exec(bContext *C, wmOperator *op)
 
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	uint objects_len = 0;
-	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, v3d, &objects_len);
 	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 		Object *obedit = objects[ob_index];
 		BMEditMesh *em = BKE_editmesh_from_object(obedit);
@@ -1955,7 +1981,7 @@ void UV_OT_cylinder_project(wmOperatorType *ot)
 
 /******************* Cube Project operator ****************/
 
-void ED_uvedit_unwrap_cube_project(BMesh *bm, float cube_size, bool use_select, const float center[3])
+static void uvedit_unwrap_cube_project(BMesh *bm, float cube_size, bool use_select, const float center[3])
 {
 	BMFace *efa;
 	BMLoop *l;
@@ -2003,7 +2029,7 @@ static int cube_project_exec(bContext *C, wmOperator *op)
 
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	uint objects_len = 0;
-	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, v3d, &objects_len);
 	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
 		Object *obedit = objects[ob_index];
 		BMEditMesh *em = BKE_editmesh_from_object(obedit);
@@ -2040,7 +2066,7 @@ static int cube_project_exec(bContext *C, wmOperator *op)
 			}
 		}
 
-		ED_uvedit_unwrap_cube_project(em->bm, cube_size, true, center);
+		uvedit_unwrap_cube_project(em->bm, cube_size, true, center);
 
 		uv_map_clip_correct(scene, obedit, op);
 
@@ -2068,4 +2094,37 @@ void UV_OT_cube_project(wmOperatorType *ot)
 	/* properties */
 	RNA_def_float(ot->srna, "cube_size", 1.0f, 0.0f, FLT_MAX, "Cube Size", "Size of the cube to project on", 0.001f, 100.0f);
 	uv_map_clip_correct_properties(ot);
+}
+
+/************************* Simple UVs for texture painting *****************/
+
+void ED_uvedit_add_simple_uvs(Main *bmain, Scene *scene, Object *ob)
+{
+	Mesh *me = ob->data;
+	bool sync_selection = (scene->toolsettings->uv_flag & UV_SYNC_SELECTION) != 0;
+
+	BMesh *bm = BM_mesh_create(
+	        &bm_mesh_allocsize_default,
+	        &((struct BMeshCreateParams){.use_toolflags = false,}));
+
+	/* turn sync selection off, since we are not in edit mode we need to ensure only the uv flags are tested */
+	scene->toolsettings->uv_flag &= ~UV_SYNC_SELECTION;
+
+	ED_mesh_uv_texture_ensure(me, NULL);
+
+	BM_mesh_bm_from_me(
+	        bm, me, (&(struct BMeshFromMeshParams){
+	            .calc_face_normal = true,
+	        }));
+	/* select all uv loops first - pack parameters needs this to make sure charts are registered */
+	ED_uvedit_select_all(bm);
+	uvedit_unwrap_cube_project(bm, 1.0, false, NULL);
+	/* set the margin really quickly before the packing operation*/
+	scene->toolsettings->uvcalc_margin = 0.001f;
+	uvedit_pack_islands(scene, ob, bm);
+	BM_mesh_bm_to_me(bmain, bm, me, (&(struct BMeshToMeshParams){0}));
+	BM_mesh_free(bm);
+
+	if (sync_selection)
+		scene->toolsettings->uv_flag |= UV_SYNC_SELECTION;
 }

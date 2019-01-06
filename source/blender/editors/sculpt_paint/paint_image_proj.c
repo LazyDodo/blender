@@ -62,12 +62,12 @@
 #include "DNA_node_types.h"
 #include "DNA_object_types.h"
 
+#include "BKE_brush.h"
 #include "BKE_camera.h"
 #include "BKE_colorband.h"
 #include "BKE_context.h"
 #include "BKE_colortools.h"
 #include "BKE_idprop.h"
-#include "BKE_brush.h"
 #include "BKE_image.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
@@ -186,7 +186,7 @@ BLI_INLINE unsigned char f_to_char(const float val)
 #define PROJ_VERT_CULL 1
 
 /* to avoid locking in tile initialization */
-#define TILE_PENDING SET_INT_IN_POINTER(-1)
+#define TILE_PENDING POINTER_FROM_INT(-1)
 
 /* This is mainly a convenience struct used so we can keep an array of images we use -
  * their imbufs, etc, in 1 array, When using threads this array is copied for each thread
@@ -355,6 +355,7 @@ typedef struct ProjPaintState {
 	SpinLock *tile_lock;
 
 	Mesh *me_eval;
+	bool  me_eval_free;
 	int  totlooptri_eval;
 	int  totpoly_eval;
 	int  totedge_eval;
@@ -571,7 +572,7 @@ static float VecZDepthPersp(
 	}
 	else /* dummy values for zero area face */
 		w_tmp[0] = w_tmp[1] = w_tmp[2] = 1.0f / 3.0f;
-	/* done mimicing barycentric_weights_v2() */
+	/* done mimicking barycentric_weights_v2() */
 
 	return (v1[2] * w_tmp[0]) + (v2[2] * w_tmp[1]) + (v3[2] * w_tmp[2]);
 }
@@ -598,7 +599,7 @@ static int project_paint_PickFace(
 	 * that the point its testing is only every originated from an existing face */
 
 	for (node = ps->bucketFaces[bucket_index]; node; node = node->next) {
-		const int tri_index = GET_INT_FROM_POINTER(node->link);
+		const int tri_index = POINTER_AS_INT(node->link);
 		const MLoopTri *lt = &ps->mlooptri_eval[tri_index];
 		const float *vtri_ss[3] = {
 		    ps->screenCoords[ps->mloop_eval[lt->tri[0]].v],
@@ -812,7 +813,7 @@ static bool project_bucket_point_occluded(
 	 * that the point its testing is only every originated from an existing face */
 
 	for (; bucketFace; bucketFace = bucketFace->next) {
-		const int tri_index = GET_INT_FROM_POINTER(bucketFace->link);
+		const int tri_index = POINTER_AS_INT(bucketFace->link);
 
 		if (orig_face != tri_index) {
 			const MLoopTri *lt = &ps->mlooptri_eval[tri_index];
@@ -1033,7 +1034,7 @@ static bool check_seam(
 	int i1_fidx = -1, i2_fidx = -1; /* index in face */
 
 	for (node = ps->vertFaces[i1]; node; node = node->next) {
-		const int tri_index = GET_INT_FROM_POINTER(node->link);
+		const int tri_index = POINTER_AS_INT(node->link);
 
 		if (tri_index != orig_face) {
 			const MLoopTri *lt = &ps->mlooptri_eval[tri_index];
@@ -1460,6 +1461,11 @@ static float project_paint_uvpixel_mask(
 			angle_cos = dot_v3v3(viewDirPersp, no);
 		}
 
+		/* If backface culling is disabled, allow painting on back faces. */
+		if (!ps->do_backfacecull) {
+			angle_cos = fabsf(angle_cos);
+		}
+
 		if (angle_cos <= ps->normal_angle__cos) {
 			return 0.0f; /* outsize the normal limit*/
 		}
@@ -1695,7 +1701,7 @@ static ProjPixel *project_paint_uvpixel_init(
 	if (ibuf->rect_float) projPixel->pixel.f_pt[0] = 0;
 	else                  projPixel->pixel.ch_pt[0] = 0;
 #endif
-	/* pointer arithmetics */
+	/* pointer arithmetic */
 	projPixel->image_index = projima - ps->projImages;
 
 	return projPixel;
@@ -2586,7 +2592,7 @@ static void project_paint_face_init(
 		v2coSS = ps->screenCoords[lt_vtri[1]];
 		v3coSS = ps->screenCoords[lt_vtri[2]];
 
-		/* This funtion gives is a concave polyline in UV space from the clipped tri*/
+		/* This function gives is a concave polyline in UV space from the clipped tri*/
 		project_bucket_clip_face(
 		        is_ortho, is_flip_object,
 		        clip_rect, bucket_bounds,
@@ -2620,7 +2626,7 @@ static void project_paint_face_init(
 					//uv[0] = (((float)x) + 0.5f) / ibuf->x;
 					uv[0] = (float)x / ibuf_xf; /* use pixel offset UV coords instead */
 
-					/* Note about IsectPoly2Df_twoside, checking the face or uv flipping doesnt work,
+					/* Note about IsectPoly2Df_twoside, checking the face or uv flipping doesn't work,
 					 * could check the poly direction but better to do this */
 					if ((do_backfacecull == true  && IsectPoly2Df(uv, uv_clip, uv_clip_tot)) ||
 					    (do_backfacecull == false && IsectPoly2Df_twoside(uv, uv_clip, uv_clip_tot)))
@@ -2713,7 +2719,7 @@ static void project_paint_face_init(
 
 			/* Now create new UV's for the seam face */
 			float (*outset_uv)[2] = ps->faceSeamUVs[tri_index];
-			float insetCos[3][3]; /* inset face coords.  NOTE!!! ScreenSace for ortho, Worldspace in prespective view */
+			float insetCos[3][3]; /* inset face coords.  NOTE!!! ScreenSace for ortho, Worldspace in perspective view */
 
 			const float *vCoSS[3]; /* vertex screenspace coords */
 
@@ -2928,7 +2934,7 @@ static void project_bucket_init(
 
 		for (node = ps->bucketFaces[bucket_index]; node; node = node->next) {
 			project_paint_face_init(
-			        ps, thread_index, bucket_index, GET_INT_FROM_POINTER(node->link), 0,
+			        ps, thread_index, bucket_index, POINTER_AS_INT(node->link), 0,
 			        clip_rect, bucket_bounds, ibuf, &tmpibuf);
 		}
 	}
@@ -2936,7 +2942,7 @@ static void project_bucket_init(
 
 		/* More complicated loop, switch between images */
 		for (node = ps->bucketFaces[bucket_index]; node; node = node->next) {
-			tri_index = GET_INT_FROM_POINTER(node->link);
+			tri_index = POINTER_AS_INT(node->link);
 
 			/* Image context switching */
 			tpage = project_paint_face_paint_image(ps, tri_index);
@@ -3045,7 +3051,7 @@ static void project_paint_delayed_face_init(ProjPaintState *ps, const MLoopTri *
 				int bucket_index = bucket_x + (bucket_y * ps->buckets_x);
 				BLI_linklist_prepend_arena(
 				        &ps->bucketFaces[bucket_index],
-				        SET_INT_IN_POINTER(tri_index), /* cast to a pointer to shut up the compiler */
+				        POINTER_FROM_INT(tri_index), /* cast to a pointer to shut up the compiler */
 				        arena
 				        );
 
@@ -3070,8 +3076,7 @@ static void project_paint_delayed_face_init(ProjPaintState *ps, const MLoopTri *
 #endif
 }
 
-static void proj_paint_state_viewport_init(
-        ProjPaintState *ps, const Depsgraph *depsgraph, const char symmetry_flag)
+static void proj_paint_state_viewport_init(ProjPaintState *ps, const char symmetry_flag)
 {
 	float mat[3][3];
 	float viewmat[4][4];
@@ -3132,7 +3137,7 @@ static void proj_paint_state_viewport_init(
 			invert_m4_m4(viewinv, viewmat);
 		}
 		else if (ps->source == PROJ_SRC_IMAGE_CAM) {
-			Object *cam_ob_eval = DEG_get_evaluated_object(depsgraph, ps->scene->camera);
+			Object *cam_ob_eval = DEG_get_evaluated_object(ps->depsgraph, ps->scene->camera);
 			CameraParams params;
 
 			/* viewmat & viewinv */
@@ -3385,7 +3390,7 @@ static void project_paint_bleed_add_face_user(
 	/* annoying but we need to add all faces even ones we never use elsewhere */
 	if (ps->seam_bleed_px > 0.0f) {
 		const int lt_vtri[3] = { PS_LOOPTRI_AS_VERT_INDEX_3(ps, lt) };
-		void *tri_index_p = SET_INT_IN_POINTER(tri_index);
+		void *tri_index_p = POINTER_FROM_INT(tri_index);
 		BLI_linklist_prepend_arena(&ps->vertFaces[lt_vtri[0]], tri_index_p, arena);
 		BLI_linklist_prepend_arena(&ps->vertFaces[lt_vtri[1]], tri_index_p, arena);
 		BLI_linklist_prepend_arena(&ps->vertFaces[lt_vtri[2]], tri_index_p, arena);
@@ -3397,29 +3402,33 @@ static void project_paint_bleed_add_face_user(
 static bool proj_paint_state_mesh_eval_init(const bContext *C, ProjPaintState *ps)
 {
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
-	Scene *sce = ps->scene;
 	Object *ob = ps->ob;
 
+	Scene *scene_eval = DEG_get_evaluated_scene(depsgraph);
+	Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
+
+	if (scene_eval == NULL || ob_eval == NULL) {
+		return false;
+	}
+
 	/* Workaround for subsurf selection, try the display mesh first */
-	/* XXX Don't think this is easily doable with new system, and not sure why that was needed in the first place :/ */
-#if 0
 	if (ps->source == PROJ_SRC_IMAGE_CAM) {
 		/* using render mesh, assume only camera was rendered from */
-		ps->dm = mesh_create_derived_render(
-		             depsgraph, ps->scene, ps->ob, ps->scene->customdata_mask | CD_MASK_MLOOPUV | CD_MASK_MTFACE);
-		ps->dm_release = true;
+		ps->me_eval = mesh_create_eval_final_render(
+		             depsgraph, scene_eval, ob_eval, scene_eval->customdata_mask | CD_MASK_MLOOPUV | CD_MASK_MTFACE);
+		ps->me_eval_free = true;
 	}
 	else {
-		ps->dm = mesh_get_derived_final(
-		        depsgraph, ps->scene, ps->ob,
-		        ps->scene->customdata_mask | CD_MASK_MLOOPUV | CD_MASK_MTFACE | (ps->do_face_sel ? CD_MASK_ORIGINDEX : 0));
-		ps->dm_release = false;
+		ps->me_eval = mesh_get_eval_final(
+		        depsgraph, scene_eval, ob_eval,
+		        scene_eval->customdata_mask | CD_MASK_MLOOPUV | CD_MASK_MTFACE | (ps->do_face_sel ? CD_MASK_ORIGINDEX : 0));
+		ps->me_eval_free = false;
 	}
-#endif
-	ps->me_eval = mesh_get_eval_final(
-	                  depsgraph, sce, ob,
-	                  sce->customdata_mask | CD_MASK_MLOOPUV | CD_MASK_MTFACE | (ps->do_face_sel ? CD_MASK_ORIGINDEX : 0));
+
 	if (!CustomData_has_layer(&ps->me_eval->ldata, CD_MLOOPUV)) {
+		if (ps->me_eval_free) {
+			BKE_id_free(NULL, ps->me_eval);
+		}
 		ps->me_eval = NULL;
 		return false;
 	}
@@ -3849,7 +3858,7 @@ static void project_paint_begin(
 		proj_paint_state_cavity_init(ps);
 	}
 
-	proj_paint_state_viewport_init(ps, CTX_data_depsgraph(C), symmetry_flag);
+	proj_paint_state_viewport_init(ps, symmetry_flag);
 
 	/* calculate vert screen coords
 	 * run this early so we can calculate the x/y resolution of our bucket rect */
@@ -3896,7 +3905,7 @@ static void paint_proj_begin_clone(ProjPaintState *ps, const float mouse[2])
 	/* setup clone offset */
 	if (ps->tool == PAINT_TOOL_CLONE) {
 		float projCo[4];
-		copy_v3_v3(projCo, ED_view3d_cursor3d_get(ps->scene, ps->v3d)->location);
+		copy_v3_v3(projCo, ps->scene->cursor.location);
 		mul_m4_v3(ps->obmat_imat, projCo);
 
 		projCo[3] = 1.0f;
@@ -3965,6 +3974,11 @@ static void project_paint_end(ProjPaintState *ps)
 		if (ps->do_mask_cavity) {
 			MEM_freeN(ps->cavities);
 		}
+
+		if (ps->me_eval_free) {
+			BKE_id_free(NULL, ps->me_eval);
+		}
+		ps->me_eval = NULL;
 	}
 
 	if (ps->blurkernel) {
@@ -4671,6 +4685,41 @@ static void *do_projectpaint_thread(void *ph_v)
 						float texrgb[3];
 						float mask;
 
+						/* Extra mask for normal, layer stencil, .. */
+						float custom_mask = ((float)projPixel->mask) * (1.0f / 65535.0f);
+
+						/* Mask texture. */
+						if (ps->is_maskbrush) {
+							float texmask = BKE_brush_sample_masktex(ps->scene, ps->brush, projPixel->projCoSS, thread_index, pool);
+							CLAMP(texmask, 0.0f, 1.0f);
+							custom_mask *= texmask;
+						}
+
+						/* Color texture (alpha used as mask). */
+						if (ps->is_texbrush) {
+							MTex *mtex = &brush->mtex;
+							float samplecos[3];
+							float texrgba[4];
+
+							/* taking 3d copy to account for 3D mapping too. It gets concatenated during sampling */
+							if (mtex->brush_map_mode == MTEX_MAP_MODE_3D) {
+								copy_v3_v3(samplecos, projPixel->worldCoSS);
+							}
+							else {
+								copy_v2_v2(samplecos, projPixel->projCoSS);
+								samplecos[2] = 0.0f;
+							}
+
+							/* note, for clone and smear, we only use the alpha, could be a special function */
+							BKE_brush_sample_tex_3d(ps->scene, brush, samplecos, texrgba, thread_index, pool);
+
+							copy_v3_v3(texrgb, texrgba);
+							custom_mask *= texrgba[3];
+						}
+						else {
+							zero_v3(texrgb);
+						}
+
 						if (ps->do_masking) {
 							/* masking to keep brush contribution to a pixel limited. note we do not do
 							 * a simple max(mask, mask_accum), as this is very sensitive to spacing and
@@ -4679,12 +4728,7 @@ static void *do_projectpaint_thread(void *ph_v)
 							 * Instead we use a formula that adds up but approaches brush_alpha slowly
 							 * and never exceeds it, which gives nice smooth results. */
 							float mask_accum = *projPixel->mask_accum;
-							float max_mask = brush_alpha * falloff * 65535.0f;
-
-							if (ps->is_maskbrush) {
-								float texmask = BKE_brush_sample_masktex(ps->scene, ps->brush, projPixel->projCoSS, thread_index, pool);
-								max_mask *= texmask;
-							}
+							float max_mask = brush_alpha * custom_mask * falloff * 65535.0f;
 
 							if (brush->flag & BRUSH_ACCUMULATE)
 								mask = mask_accum + max_mask;
@@ -4704,40 +4748,8 @@ static void *do_projectpaint_thread(void *ph_v)
 							}
 						}
 						else {
-							mask = brush_alpha * falloff;
-							if (ps->is_maskbrush) {
-								float texmask = BKE_brush_sample_masktex(ps->scene, ps->brush, projPixel->projCoSS, thread_index, pool);
-								CLAMP(texmask, 0.0f, 1.0f);
-								mask *= texmask;
-							}
+							mask = brush_alpha * custom_mask * falloff;
 						}
-
-						if (ps->is_texbrush) {
-							MTex *mtex = &brush->mtex;
-							float samplecos[3];
-							float texrgba[4];
-
-							/* taking 3d copy to account for 3D mapping too. It gets concatenated during sampling */
-							if (mtex->brush_map_mode == MTEX_MAP_MODE_3D) {
-								copy_v3_v3(samplecos, projPixel->worldCoSS);
-							}
-							else {
-								copy_v2_v2(samplecos, projPixel->projCoSS);
-								samplecos[2] = 0.0f;
-							}
-
-							/* note, for clone and smear, we only use the alpha, could be a special function */
-							BKE_brush_sample_tex_3D(ps->scene, brush, samplecos, texrgba, thread_index, pool);
-
-							copy_v3_v3(texrgb, texrgba);
-							mask *= texrgba[3];
-						}
-						else {
-							zero_v3(texrgb);
-						}
-
-						/* extra mask for normal, layer stencil, .. */
-						mask *= ((float)projPixel->mask) * (1.0f / 65535.0f);
 
 						if (mask > 0.0f) {
 
@@ -5005,7 +5017,7 @@ void paint_proj_stroke(
 		struct Depsgraph *depsgraph = CTX_data_depsgraph(C);
 		View3D *v3d = CTX_wm_view3d(C);
 		ARegion *ar = CTX_wm_region(C);
-		float *cursor = ED_view3d_cursor3d_get(scene, v3d)->location;
+		float *cursor = scene->cursor.location;
 		int mval_i[2] = {(int)pos[0], (int)pos[1]};
 
 		view3d_operator_needs_opengl(C);
@@ -5612,13 +5624,24 @@ bool BKE_paint_proj_mesh_data_check(Scene *scene, Object *ob, bool *uvs, bool *m
 }
 
 /* Add layer operator */
+enum {
+	LAYER_BASE_COLOR,
+	LAYER_SPECULAR,
+	LAYER_ROUGHNESS,
+	LAYER_METALLIC,
+	LAYER_NORMAL,
+	LAYER_BUMP,
+	LAYER_DISPLACEMENT
+};
 
 static const EnumPropertyItem layer_type_items[] = {
-	{0, "BASE_COLOR", 0, "Base Color", ""},
-	{1, "EMISSION", 0, "Emission", ""},
-	{2, "NORMAL", 0, "Normal", ""},
-	{3, "BUMP", 0, "Bump", ""},
-	{4, "DISPLACEMENT", 0, "Displacement", ""},
+	{LAYER_BASE_COLOR, "BASE_COLOR", 0, "Base Color", ""},
+	{LAYER_SPECULAR, "SPECULAR", 0, "Specular", ""},
+	{LAYER_ROUGHNESS, "ROUGHNESS", 0, "Roughness", ""},
+	{LAYER_METALLIC, "METALLIC", 0, "Metallic", ""},
+	{LAYER_NORMAL, "NORMAL", 0, "Normal", ""},
+	{LAYER_BUMP, "BUMP", 0, "Bump", ""},
+	{LAYER_DISPLACEMENT, "DISPLACEMENT", 0, "Displacement", ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -5649,6 +5672,57 @@ static Image *proj_paint_image_create(wmOperator *op, Main *bmain)
 	return ima;
 }
 
+static void proj_paint_default_color(wmOperator *op, int type, Material *ma)
+{
+	if (RNA_struct_property_is_set(op->ptr, "color")) {
+		return;
+	}
+
+	bNode *in_node = ntreeFindType(ma->nodetree, SH_NODE_BSDF_PRINCIPLED);
+	if (in_node == NULL) {
+		return;
+	}
+
+	float color[4];
+
+	if (type >= LAYER_BASE_COLOR && type < LAYER_NORMAL) {
+		/* Copy color from node, so result is unchanged after assigning textures. */
+		bNodeSocket *in_sock = nodeFindSocket(in_node, SOCK_IN, layer_type_items[type].name);
+
+		switch (in_sock->type) {
+			case SOCK_FLOAT: {
+				bNodeSocketValueFloat *socket_data = in_sock->default_value;
+				copy_v3_fl(color, socket_data->value);
+				color[3] = 1.0f;
+				break;
+			}
+			case SOCK_VECTOR:
+			case SOCK_RGBA: {
+				bNodeSocketValueRGBA *socket_data = in_sock->default_value;
+				copy_v3_v3(color, socket_data->value);
+				color[3] = 1.0f;
+				break;
+			}
+			default: {
+				return;
+			}
+		}
+	}
+	else if (type == LAYER_NORMAL) {
+		/* Neutral tangent space normal map. */
+		rgba_float_args_set(color, 0.5f, 0.5f, 1.0f, 1.0f);
+	}
+	else if (ELEM(type, LAYER_BUMP, LAYER_DISPLACEMENT)) {
+		/* Neutral displacement and bump map. */
+		rgba_float_args_set(color, 0.5f, 0.5f, 0.5f, 1.0f);
+	}
+	else {
+		return;
+	}
+
+	RNA_float_set_array(op->ptr, "color", color);
+}
+
 static bool proj_paint_add_slot(bContext *C, wmOperator *op)
 {
 	Object *ob = ED_object_active_context(C);
@@ -5662,8 +5736,8 @@ static bool proj_paint_add_slot(bContext *C, wmOperator *op)
 	ma = give_current_material(ob, ob->actcol);
 
 	if (ma) {
-		/* TODO: use type to link to proper socket. */
 		Main *bmain = CTX_data_main(C);
+		int type = RNA_enum_get(op->ptr, "type");
 
 		bNode *imanode;
 		bNodeTree *ntree = ma->nodetree;
@@ -5683,7 +5757,71 @@ static bool proj_paint_add_slot(bContext *C, wmOperator *op)
 
 		nodeSetActive(ntree, imanode);
 
+		/* Connect to first available principled bsdf node. */
+		bNode *in_node = ntreeFindType(ntree, SH_NODE_BSDF_PRINCIPLED);
+		bNode *out_node = imanode;
+
+		if (in_node != NULL) {
+			bNodeSocket *out_sock = nodeFindSocket(out_node, SOCK_OUT, "Color");
+			bNodeSocket *in_sock = NULL;
+
+			if (type >= LAYER_BASE_COLOR && type < LAYER_NORMAL) {
+				in_sock = nodeFindSocket(in_node, SOCK_IN, layer_type_items[type].name);
+			}
+			else if (type == LAYER_NORMAL) {
+				bNode *nor_node;
+				nor_node = nodeAddStaticNode(C, ntree, SH_NODE_NORMAL_MAP);
+
+				in_sock = nodeFindSocket(nor_node, SOCK_IN, "Color");
+				nodeAddLink(ntree, out_node, out_sock, nor_node, in_sock);
+
+				in_sock = nodeFindSocket(in_node, SOCK_IN, "Normal");
+				out_sock = nodeFindSocket(nor_node, SOCK_OUT, "Normal");
+
+				out_node = nor_node;
+			}
+			else if (type == LAYER_BUMP) {
+				bNode *bump_node;
+				bump_node = nodeAddStaticNode(C, ntree, SH_NODE_BUMP);
+
+				in_sock = nodeFindSocket(bump_node, SOCK_IN, "Height");
+				nodeAddLink(ntree, out_node, out_sock, bump_node, in_sock);
+
+				in_sock = nodeFindSocket(in_node, SOCK_IN, "Normal");
+				out_sock = nodeFindSocket(bump_node, SOCK_OUT, "Normal");
+
+				out_node = bump_node;
+			}
+			else if (type == LAYER_DISPLACEMENT) {
+				/* Connect to the displacement output socket */
+				in_node = ntreeFindType(ntree, SH_NODE_OUTPUT_MATERIAL);
+
+				if (in_node != NULL) {
+					in_sock = nodeFindSocket(in_node, SOCK_IN, layer_type_items[type].name);
+				}
+				else {
+					in_sock = NULL;
+				}
+			}
+
+			if (type > LAYER_BASE_COLOR) {
+				/* This is a "non color data" image */
+				NodeTexImage *tex = imanode->storage;
+				tex->color_space = SHD_COLORSPACE_NONE;
+			}
+
+			/* Check if the socket in already connected to something */
+			bNodeLink *link = in_sock ? in_sock->link : NULL;
+			if (in_sock != NULL && link == NULL) {
+				nodeAddLink(ntree, out_node, out_sock, in_node, in_sock);
+
+				nodePositionRelative(out_node, in_node, out_sock, in_sock);
+			}
+		}
+
 		ntreeUpdateTree(CTX_data_main(C), ntree);
+		/* In case we added more than one node, position them too. */
+		nodePositionPropagate(out_node);
 
 		if (ima) {
 			BKE_texpaint_slot_refresh_cache(scene, ma);
@@ -5701,8 +5839,33 @@ static bool proj_paint_add_slot(bContext *C, wmOperator *op)
 	return false;
 }
 
+static int get_texture_layer_type(wmOperator *op, const char *prop_name)
+{
+	int type_value = RNA_enum_get(op->ptr, prop_name);
+	int type = RNA_enum_from_value(layer_type_items, type_value);
+	BLI_assert(type != -1);
+	return type;
+}
+
+static Material *get_or_create_current_material(bContext *C, Object *ob)
+{
+	Material *ma = give_current_material(ob, ob->actcol);
+	if (!ma) {
+		Main *bmain = CTX_data_main(C);
+		ma = BKE_material_add(bmain, "Material");
+		assign_material(bmain, ob, ma, ob->actcol, BKE_MAT_ASSIGN_USERPREF);
+	}
+	return ma;
+}
+
 static int texture_paint_add_texture_paint_slot_exec(bContext *C, wmOperator *op)
 {
+	Object *ob = ED_object_active_context(C);
+	Material *ma = get_or_create_current_material(C, ob);
+
+	int type = get_texture_layer_type(op, "type");
+	proj_paint_default_color(op, type, ma);
+
 	if (proj_paint_add_slot(C, op)) {
 		return OPERATOR_FINISHED;
 	}
@@ -5711,31 +5874,23 @@ static int texture_paint_add_texture_paint_slot_exec(bContext *C, wmOperator *op
 	}
 }
 
+static void get_default_texture_layer_name_for_object(Object *ob, int texture_type, char *dst, int dst_length)
+{
+	Material *ma = give_current_material(ob, ob->actcol);
+	const char *base_name = ma ? &ma->id.name[2] : &ob->id.name[2];
+	BLI_snprintf(dst, dst_length, "%s %s", base_name, layer_type_items[texture_type].name);
+}
 
 static int texture_paint_add_texture_paint_slot_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
 {
-	char imagename[MAX_ID_NAME - 2];
-	Main *bmain = CTX_data_main(C);
 	Object *ob = ED_object_active_context(C);
-	Material *ma = give_current_material(ob, ob->actcol);
-	int type = RNA_enum_get(op->ptr, "type");
+	int type = get_texture_layer_type(op, "type");
 
-	if (!ma) {
-		ma = BKE_material_add(bmain, "Material");
-		/* no material found, just assign to first slot */
-		assign_material(bmain, ob, ma, ob->actcol, BKE_MAT_ASSIGN_USERPREF);
-	}
-
-	type = RNA_enum_from_value(layer_type_items, type);
-
-	/* get the name of the texture layer type */
-	BLI_assert(type != -1);
-
-	/* take the second letter to avoid the ID identifier */
-	BLI_snprintf(imagename, sizeof(imagename), "%s %s", &ma->id.name[2], layer_type_items[type].name);
-
+	char imagename[MAX_ID_NAME - 2];
+	get_default_texture_layer_name_for_object(ob, type, (char *)&imagename, sizeof(imagename));
 	RNA_string_set(op->ptr, "name", imagename);
-	return WM_operator_props_dialog_popup(C, op, 15 * UI_UNIT_X, 5 * UI_UNIT_Y);
+
+	return WM_operator_props_dialog_popup(C, op, 300, 100);
 }
 
 #define IMA_DEF_NAME N_("Untitled")
@@ -5782,33 +5937,8 @@ static int add_simple_uvs_exec(bContext *C, wmOperator *UNUSED(op))
 	Main *bmain = CTX_data_main(C);
 	Object *ob = CTX_data_active_object(C);
 	Scene *scene = CTX_data_scene(C);
-	Mesh *me = ob->data;
-	bool synch_selection = (scene->toolsettings->uv_flag & UV_SYNC_SELECTION) != 0;
 
-	BMesh *bm = BM_mesh_create(
-	        &bm_mesh_allocsize_default,
-	        &((struct BMeshCreateParams){.use_toolflags = false,}));
-
-	/* turn synch selection off, since we are not in edit mode we need to ensure only the uv flags are tested */
-	scene->toolsettings->uv_flag &= ~UV_SYNC_SELECTION;
-
-	ED_mesh_uv_texture_ensure(me, NULL);
-
-	BM_mesh_bm_from_me(
-	        bm, me, (&(struct BMeshFromMeshParams){
-	            .calc_face_normal = true,
-	        }));
-	/* select all uv loops first - pack parameters needs this to make sure charts are registered */
-	ED_uvedit_select_all(bm);
-	ED_uvedit_unwrap_cube_project(bm, 1.0, false, NULL);
-	/* set the margin really quickly before the packing operation*/
-	scene->toolsettings->uvcalc_margin = 0.001f;
-	ED_uvedit_pack_islands(scene, ob, bm, false, false, true);
-	BM_mesh_bm_to_me(bmain, bm, me, (&(struct BMeshToMeshParams){0}));
-	BM_mesh_free(bm);
-
-	if (synch_selection)
-		scene->toolsettings->uv_flag |= UV_SYNC_SELECTION;
+	ED_uvedit_add_simple_uvs(bmain, scene, ob);
 
 	BKE_paint_proj_mesh_data_check(scene, ob, NULL, NULL, NULL, NULL);
 

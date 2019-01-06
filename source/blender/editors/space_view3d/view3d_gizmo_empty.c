@@ -31,6 +31,8 @@
 #include "BKE_object.h"
 #include "BKE_image.h"
 
+#include "DEG_depsgraph.h"
+
 #include "DNA_object_types.h"
 #include "DNA_lamp_types.h"
 
@@ -94,6 +96,7 @@ static void gizmo_empty_image_prop_matrix_set(
 	Object *ob = igzgroup->state.ob;
 
 	ob->empty_drawsize = matrix[0][0];
+	DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM);
 
 	float dims[2];
 	RNA_float_get_array(gz->ptr, "dimensions", dims);
@@ -107,6 +110,7 @@ static void gizmo_empty_image_prop_matrix_set(
 static bool WIDGETGROUP_empty_image_poll(const bContext *C, wmGizmoGroupType *UNUSED(gzgt))
 {
 	View3D *v3d = CTX_wm_view3d(C);
+	RegionView3D *rv3d = CTX_wm_region_view3d(C);
 
 	if ((v3d->flag2 & V3D_RENDER_OVERRIDE) ||
 	    (v3d->gizmo_flag & (V3D_GIZMO_HIDE | V3D_GIZMO_HIDE_CONTEXT)))
@@ -114,10 +118,15 @@ static bool WIDGETGROUP_empty_image_poll(const bContext *C, wmGizmoGroupType *UN
 		return false;
 	}
 
-	Object *ob = CTX_data_active_object(C);
-
-	if (ob && ob->type == OB_EMPTY) {
-		return (ob->empty_drawtype == OB_EMPTY_IMAGE);
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	Base *base = BASACT(view_layer);
+	if (base && BASE_SELECTABLE(v3d, base)) {
+		Object *ob = base->object;
+		if (ob->type == OB_EMPTY) {
+			if (ob->empty_drawtype == OB_EMPTY_IMAGE) {
+				return BKE_object_empty_image_is_visible_in_view3d(ob, rv3d);
+			}
+		}
 	}
 	return false;
 }
@@ -141,8 +150,9 @@ static void WIDGETGROUP_empty_image_setup(const bContext *UNUSED(C), wmGizmoGrou
 static void WIDGETGROUP_empty_image_refresh(const bContext *C, wmGizmoGroup *gzgroup)
 {
 	struct EmptyImageWidgetGroup *igzgroup = gzgroup->customdata;
-	Object *ob = CTX_data_active_object(C);
 	wmGizmo *gz = igzgroup->gizmo;
+	ViewLayer *view_layer = CTX_data_view_layer(C);
+	Object *ob = OBACT(view_layer);
 
 	copy_m4_m4(gz->matrix_basis, ob->obmat);
 

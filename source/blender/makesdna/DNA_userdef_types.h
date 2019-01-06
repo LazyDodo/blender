@@ -64,7 +64,7 @@ typedef enum eUIFont_ID {
 	UIFONT_CUSTOM2	= 3
 } eUIFont_ID;
 
-/* default fonts to load/initalize */
+/* default fonts to load/initialize */
 /* first font is the default (index 0), others optional */
 typedef struct uiFont {
 	struct uiFont *next, *prev;
@@ -80,23 +80,12 @@ typedef struct uiFontStyle {
 	short uifont_id;		/* saved in file, 0 is default */
 	short points;			/* actual size depends on 'global' dpi */
 	short kerning;			/* unfitted or default kerning value. */
-	char word_wrap;			/* enable word-wrap when drawing */
-	char pad[5];
 	short italic, bold;		/* style hint */
 	short shadow;			/* value is amount of pixels blur */
 	short shadx, shady;		/* shadow offset in pixels */
-	short align;			/* text align hint */
 	float shadowalpha;		/* total alpha */
 	float shadowcolor;		/* 1 value, typically white or black anyway */
 } uiFontStyle;
-
-/* uiFontStyle.align */
-typedef enum eFontStyle_Align {
-	UI_STYLE_TEXT_LEFT		= 0,
-	UI_STYLE_TEXT_CENTER	= 1,
-	UI_STYLE_TEXT_RIGHT		= 2
-} eFontStyle_Align;
-
 
 /* this is fed to the layout engine and widget code */
 
@@ -133,11 +122,10 @@ typedef struct uiWidgetColors {
 	char item[4];
 	char text[4];
 	char text_sel[4];
-	short shaded;
+	char shaded;
+	char _pad0[7];
 	short shadetop, shadedown;
-	short alpha_check;
 	float roundness;
-	float pad;
 } uiWidgetColors;
 
 typedef struct uiWidgetStateColors {
@@ -149,6 +137,8 @@ typedef struct uiWidgetStateColors {
 	char inner_driven_sel[4];
 	char inner_overridden[4];
 	char inner_overridden_sel[4];
+	char inner_changed[4];
+	char inner_changed_sel[4];
 	float blend, pad;
 } uiWidgetStateColors;
 
@@ -176,7 +166,7 @@ typedef struct ThemeUI {
 
 	uiWidgetStateColors wcol_state;
 
-	uiPanelColors panel; /* depricated, but we keep it for do_versions (2.66.1) */
+	uiPanelColors panel; /* deprecated, but we keep it for do_versions (2.66.1) */
 
 	char widget_emboss[4];
 
@@ -201,7 +191,13 @@ typedef struct ThemeUI {
 	char gizmo_secondary[4];
 	char gizmo_a[4];
 	char gizmo_b[4];
-	char pad2[4];
+
+	/* Icon Colors. */
+	char icon_collection[4];  /* Collection items */
+	char icon_object[4];      /* Object items */
+	char icon_object_data[4]; /* Object data items */
+	char icon_modifier[4];    /* Modifier and constraint items */
+	char icon_shading[4];     /* Shading related items */
 } ThemeUI;
 
 /* try to put them all in one, if needed a special struct can be created as well
@@ -237,6 +233,10 @@ typedef struct ThemeSpace {
 	char list_title[4]; 	/* panel title */
 	char list_text[4];
 	char list_text_hi[4];
+
+	/* navigation bar regions */
+	char navigation_bar[4];			/* region background */
+	char execution_buts[4];			/* region background */
 
 	/* float panel */
 /*	char panel[4];			unused */
@@ -281,10 +281,11 @@ typedef struct ThemeSpace {
 	char handle_free[4], handle_auto[4], handle_vect[4], handle_align[4], handle_auto_clamped[4];
 	char handle_sel_free[4], handle_sel_auto[4], handle_sel_vect[4], handle_sel_align[4], handle_sel_auto_clamped[4];
 
-	char ds_channel[4], ds_subchannel[4]; /* dopesheet */
-	char keytype_keyframe[4], keytype_extreme[4], keytype_breakdown[4], keytype_jitter[4]; /* keytypes */
-	char keytype_keyframe_select[4], keytype_extreme_select[4], keytype_breakdown_select[4], keytype_jitter_select[4]; /* keytypes */
+	char ds_channel[4], ds_subchannel[4], ds_ipoline[4]; /* dopesheet */
+	char keytype_keyframe[4], keytype_extreme[4], keytype_breakdown[4], keytype_jitter[4], keytype_movehold[4]; /* keytypes */
+	char keytype_keyframe_select[4], keytype_extreme_select[4], keytype_breakdown_select[4], keytype_jitter_select[4], keytype_movehold_select[4]; /* keytypes */
 	char keyborder[4], keyborder_select[4];
+	char pad[4];
 
 	char console_output[4], console_input[4], console_info[4], console_error[4];
 	char console_cursor[4], console_select[4];
@@ -345,6 +346,8 @@ typedef struct ThemeSpace {
 	/* NLA */
 	char anim_active[4];	 /* Active Action + Summary Channel */
 	char anim_non_active[4]; /* Active Action = NULL */
+	char anim_preview_range[4]; /* Preview range overlay */
+	char anim_pad[4];
 
 	char nla_tweaking[4];   /* NLA 'Tweaking' action/strip */
 	char nla_tweakdupli[4]; /* NLA - warning color for duplicate instances of tweaking strip */
@@ -480,7 +483,9 @@ enum {
 };
 
 typedef struct SolidLight {
-	int flag, pad;
+	int flag;
+	float smooth;
+	float pad[2];
 	float col[4], spec[4], vec[4];
 } SolidLight;
 
@@ -529,7 +534,9 @@ typedef struct UserDef {
 	 * which are outside the scope of typical preferences. */
 	short app_flag;
 	short language;
-	short userpref, viewzoom;
+	short userpref;
+	char  userpref_flag;
+	char viewzoom;
 
 	int mixbufsize;
 	int audiodevice;
@@ -556,8 +563,8 @@ typedef struct UserDef {
 	struct ListBase themes;
 	struct ListBase uifonts;
 	struct ListBase uistyles;
-	struct ListBase keymaps  DNA_DEPRECATED; /* deprecated in favor of user_keymaps */
 	struct ListBase user_keymaps;
+	struct ListBase user_keyconfig_prefs; /* wmKeyConfigPref. */
 	struct ListBase addons;
 	struct ListBase autoexec_paths;
 	struct ListBase user_menus; /* bUserMenu */
@@ -571,9 +578,12 @@ typedef struct UserDef {
 	short gp_manhattendist, gp_euclideandist, gp_eraser;
 	short gp_settings;  /* eGP_UserdefSettings */
 	short tb_leftmouse, tb_rightmouse;
-	struct SolidLight light[3];
+	/* struct SolidLight light[3] DNA_DEPRECATED; */ /* Was using non-aligned struct! */
+	struct SolidLight light_param[4];
+	float light_ambient[3], pad7;
 	short gizmo_flag, gizmo_size;
-	short pad6[3];
+	short edit_studio_light;
+	short pad6[2];
 	short textimeout, texcollectrate;
 	short dragthreshold;
 	int memcachelimit;
@@ -584,7 +594,7 @@ typedef struct UserDef {
 	short rvisize;			/* rotating view icon size */
 	short rvibright;		/* rotating view icon brightness */
 	short recent_files;		/* maximum number of recently used files to remember  */
-	short smooth_viewtx;	/* miliseconds to spend spinning the view */
+	short smooth_viewtx;	/* milliseconds to spend spinning the view */
 	short glreslimit;
 	short curssize;
 	short color_picker_type;  /* eColorPicker_Types */
@@ -603,6 +613,9 @@ typedef struct UserDef {
 	short widget_unit;		/* private, defaults to 20 for 72 DPI setting */
 	short anisotropic_filter;
 	short use_16bit_textures, use_gpu_mipmap;
+
+	float pressure_threshold_max; /* raw tablet pressure that maps to 100% */
+	float pressure_softness;      /* curve non-linearity parameter */
 
 	float ndof_sensitivity;	/* overall sensitivity of 3D mouse */
 	float ndof_orbit_sensitivity;
@@ -660,17 +673,37 @@ extern UserDef U; /* from blenkernel blender.c */
 
 /* ***************** USERDEF ****************** */
 
+/* Toggles for unfinished 2.8 UserPref design. */
+//#define WITH_USERDEF_WORKSPACES
+//#define WITH_USERDEF_SYSTEM_SPLIT
+
 /* UserDef.userpref (UI active_section) */
 typedef enum eUserPref_Section {
-	USER_SECTION_INTERFACE	= 0,
-	USER_SECTION_EDIT		= 1,
-	USER_SECTION_FILE		= 2,
-	USER_SECTION_SYSTEM		= 3,
-	USER_SECTION_THEME		= 4,
-	USER_SECTION_INPUT		= 5,
-	USER_SECTION_ADDONS 	= 6,
-	USER_SECTION_LIGHT 	= 7,
+	USER_SECTION_INTERFACE         = 0,
+	USER_SECTION_EDIT              = 1,
+	USER_SECTION_SYSTEM_FILES      = 2,
+	USER_SECTION_SYSTEM_GENERAL    = 3,
+	USER_SECTION_THEME             = 4,
+	USER_SECTION_INPUT             = 5,
+	USER_SECTION_ADDONS            = 6,
+	USER_SECTION_LIGHT             = 7,
+	USER_SECTION_KEYMAP            = 8,
+#ifdef WITH_USERDEF_WORKSPACES
+	USER_SECTION_WORKSPACE_CONFIG  = 9,
+	USER_SECTION_WORKSPACE_ADDONS  = 10,
+	USER_SECTION_WORKSPACE_KEYMAPS = 11,
+#endif
+#ifdef WITH_USERDEF_SYSTEM_SPLIT
+	USER_SECTION_SYSTEM_DISPLAY    = 12,
+	USER_SECTION_SYSTEM_DEVICES    = 13,
+#endif
 } eUserPref_Section;
+
+/* UserDef.userpref_flag (State of the user preferences UI). */
+typedef enum eUserPref_SectionFlag {
+	/* Hide/expand keymap preferences. */
+	USER_SECTION_INPUT_HIDE_UI_KEYCONFIG        = (1 << 0),
+} eUserPref_SectionFlag;
 
 /* UserDef.flag */
 typedef enum eUserPref_Flag {
@@ -678,7 +711,7 @@ typedef enum eUserPref_Flag {
 	USER_FLAG_NUMINPUT_ADVANCED = (1 << 1),
 	USER_FLAG_DEPRECATED_2	= (1 << 2),  /* cleared */
 	USER_FLAG_DEPRECATED_3	= (1 << 3),  /* cleared */
-/*	USER_SCENEGLOBAL         = (1 << 4), deprecated */
+	USER_FLAG_DEPRECATED_4  = (1 << 4),  /* cleared */
 	USER_TRACKBALL			= (1 << 5),
 	USER_FLAG_DEPRECATED_6	= (1 << 6),  /* cleared */
 	USER_FLAG_DEPRECATED_7	= (1 << 7),  /* cleared */
@@ -688,7 +721,7 @@ typedef enum eUserPref_Flag {
 	USER_TOOLTIPS			= (1 << 11),
 	USER_TWOBUTTONMOUSE		= (1 << 12),
 	USER_NONUMPAD			= (1 << 13),
-	USER_LMOUSESELECT		= (1 << 14),
+	USER_FLAG_DEPRECATED_14	= (1 << 14),  /* cleared */
 	USER_FILECOMPRESS		= (1 << 15),
 	USER_SAVE_PREVIEWS		= (1 << 16),
 	USER_CUSTOM_RANGE		= (1 << 17),
@@ -736,38 +769,36 @@ typedef enum eWalkNavigation_Flag {
 /* UserDef.uiflag */
 typedef enum eUserpref_UI_Flag {
 	/* flags 0 and 1 were old flags (for autokeying) that aren't used anymore */
-	USER_WHEELZOOMDIR		= (1 << 2),
-	USER_FILTERFILEEXTS		= (1 << 3),
-	USER_DRAWVIEWINFO		= (1 << 4),
-	USER_PLAINMENUS			= (1 << 5),
-	USER_LOCK_CURSOR_ADJUST	= (1 << 6),
-	/* Avoid accidentally adjusting the layout
-	 * (exact behavior may change based on whats considered reasonable to lock down). */
-	USER_UIFLAG_DEPRECATED_7 = (1 << 7),
-	USER_ALLWINCODECS		= (1 << 8),
-	USER_MENUOPENAUTO		= (1 << 9),
-	USER_DEPTH_CURSOR		= (1 << 10),
-	USER_AUTOPERSP     		= (1 << 11),
-	/* USER_LOCKAROUND     	= (1 << 12), */  /* DEPRECATED */
-	USER_GLOBALUNDO     	= (1 << 13),
-	USER_ORBIT_SELECTION	= (1 << 14),
-	USER_DEPTH_NAVIGATE     = (1 << 15),
-	USER_HIDE_DOT			= (1 << 16),
-	USER_SHOW_GIZMO_AXIS	= (1 << 17),
-	USER_SHOW_VIEWPORTNAME	= (1 << 18),
-	USER_CAM_LOCK_NO_PARENT	= (1 << 19),
-	USER_ZOOM_TO_MOUSEPOS	= (1 << 20),
-	USER_SHOW_FPS			= (1 << 21),
-	USER_MMB_PASTE			= (1 << 22),
-	USER_MENUFIXEDORDER		= (1 << 23),
-	USER_CONTINUOUS_MOUSE	= (1 << 24),
-	USER_ZOOM_INVERT		= (1 << 25),
-	USER_ZOOM_HORIZ			= (1 << 26), /* for CONTINUE and DOLLY zoom */
-	USER_SPLASH_DISABLE		= (1 << 27),
-	USER_HIDE_RECENT		= (1 << 28),
-	USER_SHOW_THUMBNAILS	= (1 << 29),
-	USER_QUIT_PROMPT		= (1 << 30),
-	USER_HIDE_SYSTEM_BOOKMARKS = (1u << 31)
+	USER_WHEELZOOMDIR           = (1 << 2),
+	USER_FILTERFILEEXTS         = (1 << 3),
+	USER_DRAWVIEWINFO           = (1 << 4),
+	USER_PLAINMENUS             = (1 << 5),
+	USER_LOCK_CURSOR_ADJUST     = (1 << 6),
+	USER_HEADER_BOTTOM          = (1 << 7),
+	USER_UIFLAG_DEPRECATED_8    = (1 << 8),  /* cleared */
+	USER_MENUOPENAUTO           = (1 << 9),
+	USER_DEPTH_CURSOR           = (1 << 10),
+	USER_AUTOPERSP              = (1 << 11),
+	USER_UIFLAG_DEPRECATED_12   = (1 << 12),  /* cleared */
+	USER_GLOBALUNDO             = (1 << 13),
+	USER_ORBIT_SELECTION        = (1 << 14),
+	USER_DEPTH_NAVIGATE         = (1 << 15),
+	USER_HIDE_DOT               = (1 << 16),
+	USER_SHOW_GIZMO_AXIS        = (1 << 17),
+	USER_SHOW_VIEWPORTNAME      = (1 << 18),
+	USER_CAM_LOCK_NO_PARENT     = (1 << 19),
+	USER_ZOOM_TO_MOUSEPOS       = (1 << 20),
+	USER_SHOW_FPS               = (1 << 21),
+	USER_UIFLAG_DEPRECATED_22   = (1 << 22),  /* cleared */
+	USER_MENUFIXEDORDER         = (1 << 23),
+	USER_CONTINUOUS_MOUSE       = (1 << 24),
+	USER_ZOOM_INVERT            = (1 << 25),
+	USER_ZOOM_HORIZ             = (1 << 26), /* for CONTINUE and DOLLY zoom */
+	USER_SPLASH_DISABLE         = (1 << 27),
+	USER_HIDE_RECENT            = (1 << 28),
+	USER_SHOW_THUMBNAILS        = (1 << 29),
+	USER_QUIT_PROMPT            = (1 << 30),
+	USER_HIDE_SYSTEM_BOOKMARKS  = (1u << 31)
 } eUserpref_UI_Flag;
 
 /* UserDef.uiflag2 */
@@ -780,7 +811,6 @@ typedef enum eUserpref_UI_Flag2 {
 /* UserDef.app_flag */
 typedef enum eUserpref_APP_Flag {
 	USER_APP_LOCK_UI_LAYOUT = (1 << 0),
-	USER_APP_VIEW3D_HIDE_CURSOR = (1 << 1),
 } eUserpref_APP_Flag;
 
 /* Auto-Keying mode.
@@ -815,6 +845,7 @@ typedef enum eAutokey_Flag {
 	/* toolsettings->autokey_flag */
 	AUTOKEY_FLAG_ONLYKEYINGSET	= (1 << 6),
 	AUTOKEY_FLAG_NOWARNING		= (1 << 7),
+	AUTOKEY_FLAG_CYCLEAWARE		= (1 << 8),
 	ANIMRECORD_FLAG_WITHNLA		= (1 << 10),
 } eAutokey_Flag;
 
@@ -876,8 +907,8 @@ typedef enum eText_Draw_Options {
 /* Grease Pencil Settings.
  * UserDef.gp_settings */
 typedef enum eGP_UserdefSettings {
-	GP_PAINT_DOSMOOTH		= (1 << 0),
-	GP_PAINT_DOSIMPLIFY		= (1 << 1),
+	GP_PAINT_DOSMOOTH		    = (1 << 0),
+	GP_PAINT_DOSIMPLIFY		    = (1 << 1),
 } eGP_UserdefSettings;
 
 enum {

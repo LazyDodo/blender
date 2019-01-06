@@ -36,10 +36,11 @@
 #include "BLI_path_util.h"
 #include "BLI_math.h"
 
-#include "BKE_scene.h"
 #include "BKE_global.h"
-#include "BKE_mesh.h"
+#include "BKE_library.h"
 #include "BKE_main.h"
+#include "BKE_mesh.h"
+#include "BKE_scene.h"
 
 #include "DEG_depsgraph_query.h"
 
@@ -305,14 +306,12 @@ ModifierTypeInfo modifierType_MeshCache = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       deformVerts,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     deformVertsEM,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,

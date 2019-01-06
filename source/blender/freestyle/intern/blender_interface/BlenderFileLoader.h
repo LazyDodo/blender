@@ -52,6 +52,7 @@ extern "C" {
 #include "render_types.h"
 
 #include "BKE_customdata.h"
+#include "BKE_library.h"
 #include "BKE_material.h"
 #include "BKE_mesh.h"
 #include "BKE_scene.h"
@@ -92,7 +93,7 @@ public:
 	virtual ~BlenderFileLoader();
 
 	/*! Loads the 3D scene and returns a pointer to the scene root node */
-	NodeGroup * Load();
+	NodeGroup *Load();
 
 	/*! Gets the number of read faces */
 	inline unsigned int numFacesRead() {return _numFacesRead;}

@@ -981,7 +981,7 @@ static void stitch_propagate_uv_final_position(
 				int face_preview_pos = preview_position[BM_elem_index_get(element_iter->l->f)].data_position;
 				if (face_preview_pos != STITCH_NO_PREVIEW) {
 					copy_v2_v2(preview->preview_polys + face_preview_pos + 2 * element_iter->loop_of_poly_index,
-						final_position[index].uv);
+					           final_position[index].uv);
 				}
 			}
 
@@ -2241,8 +2241,9 @@ static int stitch_init_all(bContext *C, wmOperator *op)
 	ssc->states = NULL;
 
 	ViewLayer *view_layer = CTX_data_view_layer(C);
+	View3D *v3d = CTX_wm_view3d(C);
 	uint objects_len = 0;
-	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data_with_uvs(view_layer, &objects_len);
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data_with_uvs(view_layer, v3d, &objects_len);
 
 	if (objects_len == 0) {
 		MEM_freeN(objects);
@@ -2549,18 +2550,6 @@ static int stitch_modal(bContext *C, wmOperator *op, const wmEvent *event)
 			return OPERATOR_CANCELLED;
 
 		case LEFTMOUSE:
-			if (event->shift && (U.flag & USER_LMOUSESELECT)) {
-				if (event->val == KM_PRESS) {
-					StitchState *selected_state = stitch_select(C, scene, event, ssc);
-
-					if (selected_state && !stitch_process_data(ssc, selected_state, scene, false)) {
-						stitch_cancel(C, op);
-						return OPERATOR_CANCELLED;
-					}
-				}
-				break;
-			}
-			ATTR_FALLTHROUGH;
 		case PADENTER:
 		case RETKEY:
 			if (event->val == KM_PRESS) {
@@ -2625,7 +2614,7 @@ static int stitch_modal(bContext *C, wmOperator *op, const wmEvent *event)
 				if (goto_next_island(ssc)) {
 					StitchState *new_active_state = ssc->states[ssc->active_object_index];
 
-					/* active_state is the origional active state */
+					/* active_state is the original active state */
 					if (active_state != new_active_state) {
 						if (!stitch_process_data(ssc, active_state, scene, false)) {
 							stitch_cancel(C, op);
@@ -2658,7 +2647,7 @@ static int stitch_modal(bContext *C, wmOperator *op, const wmEvent *event)
 				stitch_cancel(C, op);
 				return OPERATOR_CANCELLED;
 			}
-			if (event->val == KM_PRESS && !(U.flag & USER_LMOUSESELECT)) {
+			if (event->val == KM_PRESS) {
 				StitchState *selected_state = stitch_select(C, scene, event, ssc);
 
 				if (selected_state && !stitch_process_data(ssc, selected_state, scene, false)) {
@@ -2754,8 +2743,8 @@ void UV_OT_stitch(wmOperatorType *ot)
 	RNA_def_property_flag(prop, PROP_HIDDEN);
 
 	/* test should not be editable or viewed in toolbar */
-	prop = RNA_def_int_array(ot->srna, "objects_selection_count", 1, NULL, 0, INT_MAX, "objects_selection_count",
-	                         "objects_selection_count", 0, INT_MAX);
+	prop = RNA_def_int_array(ot->srna, "objects_selection_count", 1, NULL, 0, INT_MAX, "Objects Selection Count",
+	                         "", 0, INT_MAX);
 	RNA_def_property_array(prop, 6);
 	RNA_def_property_flag(prop, PROP_HIDDEN);
 }

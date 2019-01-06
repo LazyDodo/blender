@@ -57,6 +57,7 @@
 #include "BLI_array_utils.h"
 
 #include "BKE_animsys.h"
+#include "BKE_brush.h"
 #include "BKE_displist.h"
 #include "BKE_global.h"
 #include "BKE_gpencil.h"
@@ -98,7 +99,7 @@ void BKE_material_free(Material *ma)
 
 	/* is no lib link block, but material extension */
 	if (ma->nodetree) {
-		ntreeFreeTree(ma->nodetree);
+		ntreeFreeNestedTree(ma->nodetree);
 		MEM_freeN(ma->nodetree);
 		ma->nodetree = NULL;
 	}
@@ -126,6 +127,9 @@ void BKE_material_init_gpencil_settings(Material *ma)
 		ARRAY_SET_ITEMS(gp_style->texture_scale, 1.0f, 1.0f);
 		gp_style->texture_opacity = 1.0f;
 		gp_style->texture_pixsize = 100.0f;
+
+		gp_style->flag |= GP_STYLE_STROKE_SHOW;
+		gp_style->flag |= GP_STYLE_FILL_SHOW;
 	}
 }
 
@@ -167,8 +171,10 @@ Material *BKE_material_add_gpencil(Main *bmain, const char *name)
 	ma = BKE_material_add(bmain, name);
 
 	/* grease pencil settings */
-	BKE_material_init_gpencil_settings(ma);
-
+	if (ma != NULL) {
+		BKE_material_init_gpencil_settings(ma);
+		BKE_brush_update_material(bmain, ma, NULL);
+	}
 	return ma;
 }
 
@@ -179,7 +185,7 @@ Material *BKE_material_add_gpencil(Main *bmain, const char *name)
  *
  * WARNING! This function will not handle ID user count!
  *
- * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
+ * \param flag: Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
  */
 void BKE_material_copy_data(Main *bmain, Material *ma_dst, const Material *ma_src, const int flag)
 {
@@ -219,27 +225,29 @@ Material *BKE_material_copy(Main *bmain, const Material *ma)
 /* XXX (see above) material copy without adding to main dbase */
 Material *BKE_material_localize(Material *ma)
 {
-	/* TODO replace with something like
-	 * 	Material *ma_copy;
-	 * 	BKE_id_copy_ex(bmain, &ma->id, (ID **)&ma_copy, LIB_ID_COPY_NO_MAIN | LIB_ID_COPY_NO_PREVIEW | LIB_ID_COPY_NO_USER_REFCOUNT, false);
-	 * 	return ma_copy;
+	/* TODO(bastien): Replace with something like:
 	 *
-	 * ... Once f*** nodes are fully converted to that too :( */
+	 *   Material *ma_copy;
+	 *   BKE_id_copy_ex(bmain, &ma->id, (ID **)&ma_copy,
+	 *                  LIB_ID_COPY_NO_MAIN | LIB_ID_COPY_NO_PREVIEW | LIB_ID_COPY_NO_USER_REFCOUNT,
+	 *                  false);
+	 *   return ma_copy;
+	 *
+	 * NOTE: Only possible once nested node trees are fully converted to that too. */
 
-	Material *man;
-
-	BKE_id_copy_ex(
-	        NULL, &ma->id, (ID **)&man,
-	        (LIB_ID_CREATE_NO_MAIN |
-	         LIB_ID_CREATE_NO_USER_REFCOUNT |
-	         LIB_ID_COPY_NO_PREVIEW |
-	         LIB_ID_COPY_NO_ANIMDATA),
-	        false);
+	Material *man = BKE_libblock_copy_for_localize(&ma->id);
 
 	man->texpaintslot = NULL;
 	man->preview = NULL;
 
-	/* man->gp_style = NULL; */ /* XXX: We probably don't want to clear here, or else we may get problems with COW later? */
+	if (ma->nodetree != NULL) {
+		man->nodetree = ntreeLocalize(ma->nodetree);
+	}
+
+	if (ma->gp_style != NULL) {
+		man->gp_style = MEM_dupallocN(ma->gp_style);
+	}
+
 	BLI_listbase_clear(&man->gpumaterial);
 
 	/* TODO Duplicate Engine Settings and set runtime to NULL */
@@ -417,7 +425,7 @@ void BKE_material_resize_id(Main *bmain, ID *id, short totcol, bool do_id_user)
 	}
 	*totcolp = totcol;
 
-	DEG_id_tag_update(id, DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(id, ID_RECALC_COPY_ON_WRITE);
 	DEG_relations_tag_update(bmain);
 }
 
@@ -436,7 +444,7 @@ void BKE_material_append_id(Main *bmain, ID *id, Material *ma)
 		id_us_plus((ID *)ma);
 		test_all_objects_materials(bmain, id);
 
-		DEG_id_tag_update(id, DEG_TAG_COPY_ON_WRITE);
+		DEG_id_tag_update(id, ID_RECALC_COPY_ON_WRITE);
 		DEG_relations_tag_update(bmain);
 	}
 }
@@ -471,7 +479,7 @@ Material *BKE_material_pop_id(Main *bmain, ID *id, int index_i, bool update_data
 				material_data_index_remove_id(id, index);
 			}
 
-			DEG_id_tag_update(id, DEG_TAG_COPY_ON_WRITE);
+			DEG_id_tag_update(id, ID_RECALC_COPY_ON_WRITE);
 			DEG_relations_tag_update(bmain);
 		}
 	}
@@ -499,14 +507,14 @@ void BKE_material_clear_id(Main *bmain, ID *id, bool update_data)
 			material_data_index_clear_id(id);
 		}
 
-		DEG_id_tag_update(id, DEG_TAG_COPY_ON_WRITE);
+		DEG_id_tag_update(id, ID_RECALC_COPY_ON_WRITE);
 		DEG_relations_tag_update(bmain);
 	}
 }
 
-Material *give_current_material(Object *ob, short act)
+Material **give_current_material_p(Object *ob, short act)
 {
-	Material ***matarar, *ma;
+	Material ***matarar, **ma_p;
 	const short *totcolp;
 
 	if (ob == NULL) return NULL;
@@ -526,7 +534,7 @@ Material *give_current_material(Object *ob, short act)
 	}
 
 	if (ob->matbits && ob->matbits[act - 1]) {    /* in object */
-		ma = ob->mat[act - 1];
+		ma_p = &ob->mat[act - 1];
 	}
 	else {                              /* in data */
 
@@ -537,12 +545,21 @@ Material *give_current_material(Object *ob, short act)
 
 		matarar = give_matarar(ob);
 
-		if (matarar && *matarar) ma = (*matarar)[act - 1];
-		else ma = NULL;
-
+		if (matarar && *matarar) {
+			ma_p = &(*matarar)[act - 1];
+		}
+		else {
+			ma_p = NULL;
+		}
 	}
 
-	return ma;
+	return ma_p;
+}
+
+Material *give_current_material(Object *ob, short act)
+{
+	Material **ma_p = give_current_material_p(ob, act);
+	return ma_p ? *ma_p : NULL;
 }
 
 MaterialGPencilStyle *BKE_material_gpencil_settings_get(Object *ob, short act)
@@ -610,7 +627,7 @@ void BKE_material_resize_object(Main *bmain, Object *ob, const short totcol, boo
 	if (ob->totcol && ob->actcol == 0) ob->actcol = 1;
 	if (ob->actcol > ob->totcol) ob->actcol = ob->totcol;
 
-	DEG_id_tag_update(&ob->id, DEG_TAG_COPY_ON_WRITE | DEG_TAG_GEOMETRY);
+	DEG_id_tag_update(&ob->id, ID_RECALC_COPY_ON_WRITE | ID_RECALC_GEOMETRY);
 	DEG_relations_tag_update(bmain);
 }
 
@@ -652,14 +669,6 @@ void assign_material_id(Main *bmain, ID *id, Material *ma, short act)
 
 	if (act > MAXMAT) return;
 	if (act < 1) act = 1;
-
-	/* this is needed for Python overrides,
-	 * we just have to take care that the UI can't do this */
-#if 0
-	/* prevent crashing when using accidentally */
-	BLI_assert(id->lib == NULL);
-	if (id->lib) return;
-#endif
 
 	/* test arraylens */
 
@@ -800,7 +809,7 @@ void BKE_material_remap_object(Object *ob, const unsigned int *remap)
 	else if (ELEM(ob->type, OB_CURVE, OB_SURF, OB_FONT)) {
 		BKE_curve_material_remap(ob->data, remap, ob->totcol);
 	}
-	if (ob->type == OB_GPENCIL) {
+	else if (ob->type == OB_GPENCIL) {
 		BKE_gpencil_material_remap(ob->data, remap, ob->totcol);
 	}
 	else {
@@ -827,7 +836,7 @@ void BKE_material_remap_object_calc(
 
 	for (int i = 0; i < ob_dst->totcol; i++) {
 		Material *ma_src = give_current_material(ob_dst, i + 1);
-		BLI_ghash_reinsert(gh_mat_map, ma_src, SET_INT_IN_POINTER(i), NULL, NULL);
+		BLI_ghash_reinsert(gh_mat_map, ma_src, POINTER_FROM_INT(i), NULL, NULL);
 	}
 
 	/* setup default mapping (when materials don't match) */
@@ -857,7 +866,7 @@ void BKE_material_remap_object_calc(
 		else {
 			void **index_src_p = BLI_ghash_lookup_p(gh_mat_map, ma_src);
 			if (index_src_p) {
-				remap_src_to_dst[i] = GET_INT_FROM_POINTER(*index_src_p);
+				remap_src_to_dst[i] = POINTER_AS_INT(*index_src_p);
 			}
 		}
 	}
@@ -1030,10 +1039,58 @@ static bNode *nodetree_uv_node_recursive(bNode *node)
 	return NULL;
 }
 
+static int count_texture_nodes_recursive(bNodeTree *nodetree)
+{
+	int tex_nodes = 0;
+
+	for (bNode *node = nodetree->nodes.first; node; node = node->next) {
+		if (node->typeinfo->nclass == NODE_CLASS_TEXTURE && node->typeinfo->type == SH_NODE_TEX_IMAGE && node->id) {
+			tex_nodes++;
+		}
+		else if (node->type == NODE_GROUP) {
+			/* recurse into the node group and see if it contains any textures */
+			tex_nodes += count_texture_nodes_recursive((bNodeTree *)node->id);
+		}
+	}
+
+	return tex_nodes;
+}
+
+static void fill_texpaint_slots_recursive(bNodeTree *nodetree, bNode *active_node, Material *ma, int *index)
+{
+	for (bNode *node = nodetree->nodes.first; node; node = node->next) {
+		if (node->typeinfo->nclass == NODE_CLASS_TEXTURE && node->typeinfo->type == SH_NODE_TEX_IMAGE && node->id) {
+			if (active_node == node) {
+				ma->paint_active_slot = *index;
+			}
+			ma->texpaintslot[*index].ima = (Image *)node->id;
+
+			/* for new renderer, we need to traverse the treeback in search of a UV node */
+			bNode *uvnode = nodetree_uv_node_recursive(node);
+
+			if (uvnode) {
+				NodeShaderUVMap *storage = (NodeShaderUVMap *)uvnode->storage;
+				ma->texpaintslot[*index].uvname = storage->uv_map;
+				/* set a value to index so UI knows that we have a valid pointer for the mesh */
+				ma->texpaintslot[*index].valid = true;
+			}
+			else {
+				/* just invalidate the index here so UV map does not get displayed on the UI */
+				ma->texpaintslot[*index].valid = false;
+			}
+			(*index)++;
+		}
+		else if (node->type == NODE_GROUP) {
+			/* recurse into the node group and see if it contains any textures */
+			fill_texpaint_slots_recursive((bNodeTree *)node->id, active_node, ma, index);
+		}
+	}
+}
+
 void BKE_texpaint_slot_refresh_cache(Scene *scene, Material *ma)
 {
-	short count = 0;
-	short index = 0;
+	int count = 0;
+	int index = 0;
 
 	if (!ma)
 		return;
@@ -1050,50 +1107,25 @@ void BKE_texpaint_slot_refresh_cache(Scene *scene, Material *ma)
 		return;
 	}
 
-	bNode *node, *active_node;
-
 	if (!(ma->nodetree)) {
 		ma->paint_active_slot = 0;
 		ma->paint_clone_slot = 0;
 		return;
 	}
 
-	for (node = ma->nodetree->nodes.first; node; node = node->next) {
-		if (node->typeinfo->nclass == NODE_CLASS_TEXTURE && node->typeinfo->type == SH_NODE_TEX_IMAGE && node->id)
-			count++;
-	}
+	count = count_texture_nodes_recursive(ma->nodetree);
 
 	if (count == 0) {
 		ma->paint_active_slot = 0;
 		ma->paint_clone_slot = 0;
 		return;
 	}
+
 	ma->texpaintslot = MEM_callocN(sizeof(*ma->texpaintslot) * count, "texpaint_slots");
 
-	active_node = nodeGetActiveTexture(ma->nodetree);
+	bNode *active_node = nodeGetActiveTexture(ma->nodetree);
 
-	for (node = ma->nodetree->nodes.first; node; node = node->next) {
-		if (node->typeinfo->nclass == NODE_CLASS_TEXTURE && node->typeinfo->type == SH_NODE_TEX_IMAGE && node->id) {
-			if (active_node == node)
-				ma->paint_active_slot = index;
-			ma->texpaintslot[index].ima = (Image *)node->id;
-
-			/* for new renderer, we need to traverse the treeback in search of a UV node */
-			bNode *uvnode = nodetree_uv_node_recursive(node);
-
-			if (uvnode) {
-				NodeShaderUVMap *storage = (NodeShaderUVMap *)uvnode->storage;
-				ma->texpaintslot[index].uvname = storage->uv_map;
-				/* set a value to index so UI knows that we have a valid pointer for the mesh */
-				ma->texpaintslot[index].valid = true;
-			}
-			else {
-				/* just invalidate the index here so UV map does not get displayed on the UI */
-				ma->texpaintslot[index].valid = false;
-			}
-			index++;
-		}
-	}
+	fill_texpaint_slots_recursive(ma->nodetree, active_node, ma, &index);
 
 	ma->tot_slots = count;
 
@@ -1350,7 +1382,7 @@ void clear_matcopybuf(void)
 void free_matcopybuf(void)
 {
 	if (matcopybuf.nodetree) {
-		ntreeFreeTree(matcopybuf.nodetree);
+		ntreeFreeLocalTree(matcopybuf.nodetree);
 		MEM_freeN(matcopybuf.nodetree);
 		matcopybuf.nodetree = NULL;
 	}
@@ -1383,7 +1415,7 @@ void paste_matcopybuf(Main *bmain, Material *ma)
 	GPU_material_free(&ma->gpumaterial);
 
 	if (ma->nodetree) {
-		ntreeFreeTree(ma->nodetree);
+		ntreeFreeNestedTree(ma->nodetree);
 		MEM_freeN(ma->nodetree);
 	}
 

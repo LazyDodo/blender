@@ -302,7 +302,7 @@ extern "C"
 
 /**
  * Test presence of OpenEXR file.
- * \param mem pointer to loaded OpenEXR bitstream
+ * \param mem: pointer to loaded OpenEXR bitstream
  */
 int imb_is_a_openexr(const unsigned char *mem)
 {
@@ -1919,6 +1919,14 @@ void imb_initopenexr(void)
 	int num_threads = BLI_system_thread_count();
 
 	setGlobalThreadCount(num_threads);
+}
+
+void imb_exitopenexr(void)
+{
+	/* Tells OpenEXR to free thread pool, also ensures there is no running
+	 * tasks.
+	 */
+	setGlobalThreadCount(0);
 }
 
 } // export "C"

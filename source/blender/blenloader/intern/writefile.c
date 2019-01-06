@@ -163,25 +163,24 @@
 #include "BKE_action.h"
 #include "BKE_blender_version.h"
 #include "BKE_bpath.h"
-#include "BKE_curve.h"
 #include "BKE_collection.h"
 #include "BKE_constraint.h"
+#include "BKE_curve.h"
+#include "BKE_fcurve.h"
 #include "BKE_global.h" // for G
 #include "BKE_gpencil_modifier.h"
 #include "BKE_idcode.h"
 #include "BKE_layer.h"
-#include "BKE_library.h" // for  set_listbasepointers
 #include "BKE_library_override.h"
 #include "BKE_main.h"
+#include "BKE_mesh.h"
+#include "BKE_modifier.h"
 #include "BKE_node.h"
+#include "BKE_pointcache.h"
 #include "BKE_report.h"
 #include "BKE_sequencer.h"
 #include "BKE_shader_fx.h"
 #include "BKE_subsurf.h"
-#include "BKE_modifier.h"
-#include "BKE_fcurve.h"
-#include "BKE_pointcache.h"
-#include "BKE_mesh.h"
 #include "BKE_workspace.h"
 
 #ifdef USE_NODE_COMPAT_CUSTOMNODES
@@ -413,8 +412,8 @@ static void mywrite_flush(WriteData *wd)
 
 /**
  * Low level WRITE(2) wrapper that buffers data
- * \param adr Pointer to new chunk of data
- * \param len Length of new chunk of data
+ * \param adr: Pointer to new chunk of data
+ * \param len: Length of new chunk of data
  */
 static void mywrite(WriteData *wd, const void *adr, int len)
 {
@@ -463,8 +462,8 @@ static void mywrite(WriteData *wd, const void *adr, int len)
 /**
  * BeGiN initializer for mywrite
  * \param ww: File write wrapper.
- * \param compare Previous memory file (can be NULL).
- * \param current The current memory file (can be NULL).
+ * \param compare: Previous memory file (can be NULL).
+ * \param current: The current memory file (can be NULL).
  * \warning Talks to other functions with global parameters
  */
 static WriteData *mywrite_begin(WriteWrap *ww, MemFile *compare, MemFile *current)
@@ -763,10 +762,10 @@ static void write_previews(WriteData *wd, const PreviewImage *prv_orig)
 		}
 		writestruct_at_address(wd, DATA, PreviewImage, 1, prv_orig, &prv);
 		if (prv.rect[0]) {
-			writedata(wd, DATA, prv.w[0] * prv.h[0] * sizeof(unsigned int), prv.rect[0]);
+			writedata(wd, DATA, prv.w[0] * prv.h[0] * sizeof(uint), prv.rect[0]);
 		}
 		if (prv.rect[1]) {
-			writedata(wd, DATA, prv.w[1] * prv.h[1] * sizeof(unsigned int), prv.rect[1]);
+			writedata(wd, DATA, prv.w[1] * prv.h[1] * sizeof(uint), prv.rect[1]);
 		}
 	}
 }
@@ -854,13 +853,13 @@ static void write_fcurves(WriteData *wd, ListBase *fcurves)
 			/* variables */
 			writelist(wd, DATA, DriverVar, &driver->variables);
 			for (dvar = driver->variables.first; dvar; dvar = dvar->next) {
-				DRIVER_TARGETS_USED_LOOPER(dvar)
+				DRIVER_TARGETS_USED_LOOPER_BEGIN(dvar)
 				{
 					if (dtar->rna_path) {
 						writedata(wd, DATA, strlen(dtar->rna_path) + 1, dtar->rna_path);
 					}
 				}
-				DRIVER_TARGETS_LOOPER_END
+				DRIVER_TARGETS_LOOPER_END;
 			}
 		}
 
@@ -1256,6 +1255,13 @@ static void write_userdef(WriteData *wd, const UserDef *userdef)
 		}
 	}
 
+	for (const wmKeyConfigPref *kpt = userdef->user_keyconfig_prefs.first; kpt; kpt = kpt->next) {
+		writestruct(wd, DATA, wmKeyConfigPref, 1, kpt);
+		if (kpt->prop) {
+			IDP_WriteProperty(kpt->prop, wd);
+		}
+	}
+
 	for (const bUserMenu *um = userdef->user_menus.first; um; um = um->next) {
 		writestruct(wd, DATA, bUserMenu, 1, um);
 		for (const bUserMenuItem *umi = um->items.first; umi; umi = umi->next) {
@@ -1540,6 +1546,18 @@ static void write_constraints(WriteData *wd, ListBase *conlist)
 					/* Write ID Properties -- and copy this comment EXACTLY for easy finding
 					 * of library blocks that implement this.*/
 					IDP_WriteProperty(data->prop, wd);
+
+					break;
+				}
+				case CONSTRAINT_TYPE_ARMATURE:
+				{
+					bArmatureConstraint *data = con->data;
+					bConstraintTarget *ct;
+
+					/* write targets */
+					for (ct = data->targets.first; ct; ct = ct->next) {
+						writestruct(wd, DATA, bConstraintTarget, 1, ct);
+					}
 
 					break;
 				}
@@ -2441,6 +2459,7 @@ static void write_paint(WriteData *wd, Paint *p)
 	if (p->cavity_curve) {
 		write_curvemapping(wd, p->cavity_curve);
 	}
+	writedata(wd, DATA, sizeof(PaintToolSlot) * p->tool_slots_len, p->tool_slots);
 }
 
 static void write_layer_collections(WriteData *wd, ListBase *lb)
@@ -2479,7 +2498,7 @@ static void write_lightcache_texture(WriteData *wd, LightCacheTexture *tex)
 			data_size *= sizeof(float);
 		}
 		else if (tex->data_type == LIGHTCACHETEX_UINT) {
-			data_size *= sizeof(unsigned int);
+			data_size *= sizeof(uint);
 		}
 		writedata(wd, DATA, data_size, tex->data);
 	}
@@ -2543,6 +2562,10 @@ static void write_scene(WriteData *wd, Scene *sce)
 	if (tos->gp_sculpt.cur_falloff) {
 		write_curvemapping(wd, tos->gp_sculpt.cur_falloff);
 	}
+	/* write grease-pencil primitive curve to file */
+	if (tos->gp_sculpt.cur_primitive) {
+		write_curvemapping(wd, tos->gp_sculpt.cur_primitive);
+	}
 
 	write_paint(wd, &tos->imapaint.paint);
 
@@ -2560,8 +2583,7 @@ static void write_scene(WriteData *wd, Scene *sce)
 				seq->strip->done = false;
 			}
 			writestruct(wd, DATA, Sequence, 1, seq);
-		}
-		SEQ_END
+		} SEQ_END;
 
 		SEQ_BEGIN(ed, seq)
 		{
@@ -2627,8 +2649,7 @@ static void write_scene(WriteData *wd, Scene *sce)
 			}
 
 			write_sequence_modifiers(wd, &seq->modifiers);
-		}
-		SEQ_END
+		} SEQ_END;
 
 		/* new; meta stack too, even when its nasty restore code */
 		for (MetaStack *ms = ed->metastack.first; ms; ms = ms->next) {
@@ -2868,10 +2889,10 @@ static void write_area_regions(WriteData *wd, ScrArea *area)
 		}
 		else if (sl->spacetype == SPACE_IPO) {
 			SpaceIpo *sipo = (SpaceIpo *)sl;
-			ListBase tmpGhosts = sipo->ghostCurves;
+			ListBase tmpGhosts = sipo->runtime.ghost_curves;
 
 			/* temporarily disable ghost curves when saving */
-			sipo->ghostCurves.first = sipo->ghostCurves.last = NULL;
+			BLI_listbase_clear(&sipo->runtime.ghost_curves);
 
 			writestruct(wd, DATA, SpaceIpo, 1, sl);
 			if (sipo->ads) {
@@ -2879,7 +2900,7 @@ static void write_area_regions(WriteData *wd, ScrArea *area)
 			}
 
 			/* reenable ghost curves */
-			sipo->ghostCurves = tmpGhosts;
+			sipo->runtime.ghost_curves = tmpGhosts;
 		}
 		else if (sl->spacetype == SPACE_BUTS) {
 			writestruct(wd, DATA, SpaceButs, 1, sl);
@@ -3012,15 +3033,18 @@ static void write_windowmanager(WriteData *wd, wmWindowManager *wm)
 
 static void write_screen(WriteData *wd, bScreen *sc)
 {
-	/* write LibData */
-	/* in 2.50+ files, the file identifier for screens is patched, forward compatibility */
-	writestruct(wd, ID_SCRN, bScreen, 1, sc);
-	write_iddata(wd, &sc->id);
+	/* Screens are reference counted, only saved if used by a workspace. */
+	if (sc->id.us > 0 || wd->use_memfile) {
+		/* write LibData */
+		/* in 2.50+ files, the file identifier for screens is patched, forward compatibility */
+		writestruct(wd, ID_SCRN, bScreen, 1, sc);
+		write_iddata(wd, &sc->id);
 
-	write_previews(wd, sc->preview);
+		write_previews(wd, sc->preview);
 
-	/* direct data */
-	write_area_map(wd, AREAMAP_FROM_SCREEN(sc));
+		/* direct data */
+		write_area_map(wd, AREAMAP_FROM_SCREEN(sc));
+	}
 }
 
 static void write_bone(WriteData *wd, Bone *bone)
@@ -3142,7 +3166,7 @@ static void write_nodetree(WriteData *wd, bNodeTree *ntree)
 #ifdef USE_NODE_COMPAT_CUSTOMNODES
 static void customnodes_add_deprecated_data(Main *mainvar)
 {
-	FOREACH_NODETREE(mainvar, ntree, id) {
+	FOREACH_NODETREE_BEGIN(mainvar, ntree, id) {
 		bNodeLink *link, *last_link = ntree->links.last;
 
 		/* only do this for node groups */
@@ -3189,13 +3213,12 @@ static void customnodes_add_deprecated_data(Main *mainvar)
 				break;
 			}
 		}
-	}
-	FOREACH_NODETREE_END
+	} FOREACH_NODETREE_END;
 }
 
 static void customnodes_free_deprecated_data(Main *mainvar)
 {
-	FOREACH_NODETREE(mainvar, ntree, id) {
+	FOREACH_NODETREE_BEGIN(mainvar, ntree, id) {
 		bNodeLink *link, *next_link;
 
 		for (link = ntree->links.first; link; link = next_link) {
@@ -3204,8 +3227,7 @@ static void customnodes_free_deprecated_data(Main *mainvar)
 				nodeRemLink(ntree, link);
 			}
 		}
-	}
-	FOREACH_NODETREE_END
+	} FOREACH_NODETREE_END;
 }
 #endif
 
@@ -3869,7 +3891,7 @@ static void write_global(WriteData *wd, int fileflags, Main *mainvar)
 }
 
 /* preview image, first 2 values are width and height
- * second are an RGBA image (unsigned char)
+ * second are an RGBA image (uchar)
  * note, this uses 'TEST' since new types will segfault on file load for older blender versions.
  */
 static void write_thumb(WriteData *wd, const BlendThumbnail *thumb)
@@ -4180,7 +4202,7 @@ bool BLO_write_file(
 	const int path_list_flag = (BKE_BPATH_TRAVERSE_SKIP_LIBRARY | BKE_BPATH_TRAVERSE_SKIP_MULTIFILE);
 
 	if (G.debug & G_DEBUG_IO && mainvar->lock != NULL) {
-		BKE_report(reports, RPT_INFO, "Checking sanity of current .blend file *BEFORE* save to disk.");
+		BKE_report(reports, RPT_INFO, "Checking sanity of current .blend file *BEFORE* save to disk");
 		BLO_main_validate_libraries(mainvar, reports);
 	}
 
@@ -4269,7 +4291,7 @@ bool BLO_write_file(
 	}
 
 	if (G.debug & G_DEBUG_IO && mainvar->lock != NULL) {
-		BKE_report(reports, RPT_INFO, "Checking sanity of current .blend file *AFTER* save to disk.");
+		BKE_report(reports, RPT_INFO, "Checking sanity of current .blend file *AFTER* save to disk");
 		BLO_main_validate_libraries(mainvar, reports);
 	}
 

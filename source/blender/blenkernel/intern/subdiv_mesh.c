@@ -53,6 +53,7 @@
  */
 
 typedef struct SubdivMeshContext {
+	const SubdivToMeshSettings *settings;
 	const Mesh *coarse_mesh;
 	Subdiv *subdiv;
 	Mesh *subdiv_mesh;
@@ -119,7 +120,7 @@ static void loops_of_ptex_get(
 	/* Loop which look in the (opposite) V direction of the current
 	 * ptex face.
 	 *
-	 * TOOD(sergey): Get rid of using module on every iteration.
+	 * TODO(sergey): Get rid of using module on every iteration.
 	 */
 	const int last_ptex_loop_index =
 	        coarse_poly->loopstart +
@@ -562,7 +563,7 @@ static void evaluate_vertex_and_apply_displacement_copy(
         MVert *subdiv_vert)
 {
 	/* Displacement is accumulated in subdiv vertex position.
-	 * need to back it up before copying data fro original vertex.
+	 * need to back it up before copying data from original vertex.
 	 */
 	float D[3];
 	copy_v3_v3(D, subdiv_vert->co);
@@ -584,7 +585,7 @@ static void evaluate_vertex_and_apply_displacement_interpolate(
         MVert *subdiv_vert)
 {
 	/* Displacement is accumulated in subdiv vertex position.
-	 * need to back it up before copying data fro original vertex.
+	 * need to back it up before copying data from original vertex.
 	 */
 	float D[3];
 	copy_v3_v3(D, subdiv_vert->co);
@@ -766,6 +767,9 @@ static void subdiv_copy_edge_data(
 		subdiv_edge->crease = 0;
 		subdiv_edge->bweight = 0;
 		subdiv_edge->flag = 0;
+		if (!ctx->settings->use_optimal_display) {
+			subdiv_edge->flag |= ME_EDGERENDER;
+		}
 		if (ctx->edge_origindex != NULL) {
 			ctx->edge_origindex[subdiv_edge_index] = ORIGINDEX_NONE;
 		}
@@ -777,6 +781,7 @@ static void subdiv_copy_edge_data(
 	                     coarse_edge_index,
 	                     subdiv_edge_index,
 	                     1);
+	subdiv_edge->flag |= ME_EDGERENDER;
 }
 
 static void subdiv_mesh_edge(
@@ -790,12 +795,13 @@ static void subdiv_mesh_edge(
 	Mesh *subdiv_mesh = ctx->subdiv_mesh;
 	MEdge *subdiv_medge = subdiv_mesh->medge;
 	MEdge *subdiv_edge = &subdiv_medge[subdiv_edge_index];
+	const MEdge *coarse_edge = NULL;
 	if (coarse_edge_index != ORIGINDEX_NONE) {
 		const Mesh *coarse_mesh = ctx->coarse_mesh;
 		const MEdge *coarse_medge = coarse_mesh->medge;
-		const MEdge *coarse_edge = &coarse_medge[coarse_edge_index];
-		subdiv_copy_edge_data(ctx, subdiv_edge, coarse_edge);
+		coarse_edge = &coarse_medge[coarse_edge_index];
 	}
+	subdiv_copy_edge_data(ctx, subdiv_edge, coarse_edge);
 	subdiv_edge->v1 = subdiv_v1;
 	subdiv_edge->v2 = subdiv_v2;
 }
@@ -1026,6 +1032,41 @@ static void points_for_loose_edges_interpolation_get(
 	}
 }
 
+static void subdiv_mesh_vertex_of_loose_edge_interpolate(
+        SubdivMeshContext *ctx,
+        const MEdge *coarse_edge,
+        const float u,
+        const int subdiv_vertex_index)
+{
+	const Mesh *coarse_mesh = ctx->coarse_mesh;
+	Mesh *subdiv_mesh = ctx->subdiv_mesh;
+	if (u == 0.0f) {
+		CustomData_copy_data(&coarse_mesh->vdata,
+		                     &subdiv_mesh->vdata,
+		                     coarse_edge->v1,
+		                     subdiv_vertex_index,
+		                     1);
+	}
+	else if (u == 1.0f) {
+		CustomData_copy_data(&coarse_mesh->vdata,
+		                     &subdiv_mesh->vdata,
+		                     coarse_edge->v2,
+		                     subdiv_vertex_index,
+		                     1);
+	}
+	else {
+		BLI_assert(u > 0.0f);
+		BLI_assert(u < 1.0f);
+		const float interpolation_weights[2] = {1.0f - u, u};
+		const int coarse_vertex_indices[2] = {coarse_edge->v1, coarse_edge->v2};
+		CustomData_interp(&coarse_mesh->vdata,
+		                  &subdiv_mesh->vdata,
+		                  coarse_vertex_indices,
+		                  interpolation_weights, NULL,
+		                  2, subdiv_vertex_index);
+	}
+}
+
 static void subdiv_mesh_vertex_of_loose_edge(
         const struct SubdivForeachContext *foreach_context,
         void *UNUSED(tls),
@@ -1049,6 +1090,10 @@ static void subdiv_mesh_vertex_of_loose_edge(
 	float weights[4];
 	key_curve_position_weights(u, weights, KEY_BSPLINE);
 
+	/* Interpolate custom data. */
+	subdiv_mesh_vertex_of_loose_edge_interpolate(
+	        ctx, coarse_edge, u, subdiv_vertex_index);
+	/* Initialize  */
 	MVert *subdiv_vertex = &subdiv_mvert[subdiv_vertex_index];
 	interp_v3_v3v3v3v3(subdiv_vertex->co,
 	                   points[0],
@@ -1058,11 +1103,12 @@ static void subdiv_mesh_vertex_of_loose_edge(
 	                   weights);
 	/* Reset flags and such. */
 	subdiv_vertex->flag = 0;
+	/* TODO(sergey): This matches old behavior, but we can as well interpolate
+	 * it. Maybe even using vertex varying attributes. */
 	subdiv_vertex->bweight = 0.0f;
-	/* Reset normal. */
-	subdiv_vertex->no[0] = 0.0f;
-	subdiv_vertex->no[1] = 0.0f;
-	subdiv_vertex->no[2] = 1.0f;
+	/* Reset normal, initialize it in a similar way as edit mode does for a
+	 * vertices adjacent to a loose edges. */
+	normal_float_to_short_v3(subdiv_vertex->no, subdiv_vertex->co);
 }
 
 /* =============================================================================
@@ -1073,7 +1119,7 @@ static void setup_foreach_callbacks(SubdivForeachContext *foreach_context,
                                     const Subdiv *subdiv)
 {
 	memset(foreach_context, 0, sizeof(*foreach_context));
-	/* General informaiton. */
+	/* General information. */
 	foreach_context->topology_info = subdiv_mesh_topology_info;
 	/* Every boundary geometry. Used for dispalcement averaging. */
 	if (subdiv->displacement_evaluator != NULL) {
@@ -1122,6 +1168,7 @@ Mesh *BKE_subdiv_to_mesh(
 	}
 	/* Initialize subdivion mesh creation context/ */
 	SubdivMeshContext subdiv_context = {0};
+	subdiv_context.settings = settings;
 	subdiv_context.coarse_mesh = coarse_mesh;
 	subdiv_context.subdiv = subdiv;
 	/* Multi-threaded traversal/evaluation. */

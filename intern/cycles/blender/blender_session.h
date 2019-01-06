@@ -35,12 +35,12 @@ class RenderTile;
 class BlenderSession {
 public:
 	BlenderSession(BL::RenderEngine& b_engine,
-	               BL::UserPreferences& b_userpref,
+	               BL::Preferences& b_userpref,
 	               BL::BlendData& b_data,
 	               bool preview_osl);
 
 	BlenderSession(BL::RenderEngine& b_engine,
-	               BL::UserPreferences& b_userpref,
+	               BL::Preferences& b_userpref,
 	               BL::BlendData& b_data,
 	               BL::SpaceView3D& b_v3d,
 	               BL::RegionView3D& b_rv3d,
@@ -102,10 +102,13 @@ public:
 	double last_redraw_time;
 
 	BL::RenderEngine b_engine;
-	BL::UserPreferences b_userpref;
+	BL::Preferences b_userpref;
 	BL::BlendData b_data;
 	BL::RenderSettings b_render;
 	BL::Depsgraph b_depsgraph;
+	/* NOTE: Blender's scene might become invalid after call
+	 * free_blender_memory_if_possible().
+	 */
 	BL::Scene b_scene;
 	BL::SpaceView3D b_v3d;
 	BL::RegionView3D b_rv3d;
@@ -172,8 +175,14 @@ protected:
 
 	/* Update tile manager to reflect resumable render settings. */
 	void update_resumable_tile_manager(int num_samples);
+
+	/* Is used after each render layer synchronization is done with the goal
+	 * of freeing render engine data which is held from Blender side (for
+	 * example, dependency graph).
+	 */
+	void free_blender_memory_if_possible();
 };
 
 CCL_NAMESPACE_END
 
-#endif /* __BLENDER_SESSION_H__ */
+#endif  /* __BLENDER_SESSION_H__ */

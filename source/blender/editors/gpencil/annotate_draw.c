@@ -93,8 +93,9 @@ typedef enum eDrawStrokeFlags {
 /* ----- Tool Buffer Drawing ------ */
 
 /* draw stroke defined in buffer (simple ogl lines/points for now, as dotted lines) */
-static void gp_draw_stroke_buffer(const tGPspoint *points, int totpoints, short thickness,
-                                  short dflag, short sflag, float ink[4])
+static void gp_draw_stroke_buffer(
+        const tGPspoint *points, int totpoints, short thickness,
+        short dflag, short sflag, float ink[4])
 {
 	int draw_points = 0;
 
@@ -112,7 +113,7 @@ static void gp_draw_stroke_buffer(const tGPspoint *points, int totpoints, short 
 	}
 
 	GPUVertFormat *format = immVertexFormat();
-	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_I32, 2, GPU_FETCH_INT_TO_FLOAT);
+	uint pos = GPU_vertformat_attr_add(format, "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
 	const tGPspoint *pt = points;
 
@@ -122,7 +123,7 @@ static void gp_draw_stroke_buffer(const tGPspoint *points, int totpoints, short 
 		immBindBuiltinProgram(GPU_SHADER_3D_POINT_UNIFORM_SIZE_UNIFORM_COLOR_AA);
 		immUniformColor3fvAlpha(ink, ink[3]);
 		immBegin(GPU_PRIM_POINTS, 1);
-		immVertex2iv(pos, &pt->x);
+		immVertex2fv(pos, &pt->x);
 	}
 	else {
 		float oldpressure = points[0].pressure;
@@ -133,7 +134,6 @@ static void gp_draw_stroke_buffer(const tGPspoint *points, int totpoints, short 
 		immBindBuiltinProgram(GPU_SHADER_2D_UNIFORM_COLOR);
 		immUniformColor3fvAlpha(ink, ink[3]);
 
-		/* TODO: implement this with a geometry shader to draw one continuous tapered stroke */
 		immBeginAtMost(GPU_PRIM_LINE_STRIP, totpoints);
 
 		for (int i = 0; i < totpoints; i++, pt++) {
@@ -143,7 +143,7 @@ static void gp_draw_stroke_buffer(const tGPspoint *points, int totpoints, short 
 			if (fabsf(pt->pressure - oldpressure) > 0.2f) {
 				/* need to have 2 points to avoid immEnd assert error */
 				if (draw_points < 2) {
-					immVertex2iv(pos, &(pt - 1)->x);
+					immVertex2fv(pos, &(pt - 1)->x);
 				}
 
 				immEnd();
@@ -154,7 +154,7 @@ static void gp_draw_stroke_buffer(const tGPspoint *points, int totpoints, short 
 
 				/* need to roll-back one point to ensure that there are no gaps in the stroke */
 				if (i != 0) {
-					immVertex2iv(pos, &(pt - 1)->x);
+					immVertex2fv(pos, &(pt - 1)->x);
 					draw_points++;
 				}
 
@@ -162,12 +162,12 @@ static void gp_draw_stroke_buffer(const tGPspoint *points, int totpoints, short 
 			}
 
 			/* now the point we want */
-			immVertex2iv(pos, &pt->x);
+			immVertex2fv(pos, &pt->x);
 			draw_points++;
 		}
 		/* need to have 2 points to avoid immEnd assert error */
 		if (draw_points < 2) {
-			immVertex2iv(pos, &(pt - 1)->x);
+			immVertex2fv(pos, &(pt - 1)->x);
 		}
 	}
 
@@ -241,8 +241,9 @@ static void gp_draw_stroke_point(
 }
 
 /* draw a given stroke in 3d (i.e. in 3d-space), using simple ogl lines */
-static void gp_draw_stroke_3d(const bGPDspoint *points, int totpoints, short thickness, bool UNUSED(debug),
-                              short UNUSED(sflag), const float ink[4], bool cyclic)
+static void gp_draw_stroke_3d(
+        const bGPDspoint *points, int totpoints, short thickness,
+        short UNUSED(sflag), const float ink[4], bool cyclic)
 {
 	float curpressure = points[0].pressure;
 	float cyclic_fpt[3];
@@ -260,8 +261,6 @@ static void gp_draw_stroke_3d(const bGPDspoint *points, int totpoints, short thi
 
 	immBindBuiltinProgram(GPU_SHADER_3D_UNIFORM_COLOR);
 	immUniformColor3fvAlpha(ink, ink[3]);
-
-	/* TODO: implement this with a geometry shader to draw one continuous tapered stroke */
 
 	/* draw stroke curve */
 	GPU_line_width(max_ff(curpressure * thickness, 1.0f));
@@ -322,8 +321,9 @@ static void gp_draw_stroke_3d(const bGPDspoint *points, int totpoints, short thi
 /* ----- Fancy 2D-Stroke Drawing ------ */
 
 /* draw a given stroke in 2d */
-static void gp_draw_stroke_2d(const bGPDspoint *points, int totpoints, short thickness_s, short dflag, short sflag,
-                              bool UNUSED(debug), int offsx, int offsy, int winx, int winy, const float ink[4])
+static void gp_draw_stroke_2d(
+        const bGPDspoint *points, int totpoints, short thickness_s, short dflag, short sflag,
+        int offsx, int offsy, int winx, int winy, const float ink[4])
 {
 	/* otherwise thickness is twice that of the 3D view */
 	float thickness = (float)thickness_s * 0.5f;
@@ -333,8 +333,6 @@ static void gp_draw_stroke_2d(const bGPDspoint *points, int totpoints, short thi
 	if ((dflag & GP_DRAWDATA_IEDITHACK) && (dflag & GP_DRAWDATA_ONLYV2D)) {
 		scalefac = 0.001f;
 	}
-
-	/* TODO: fancy++ with the magic of shaders */
 
 	/* tessellation code - draw stroke as series of connected quads (triangle strips in fact) with connection
 	 * edges rotated to minimize shrinking artifacts, and rounded endcaps
@@ -377,7 +375,7 @@ static void gp_draw_stroke_2d(const bGPDspoint *points, int totpoints, short thi
 			/* if the first segment, start of segment is segment's normal */
 			if (i == 0) {
 				/* draw start cap first
-				 *	- make points slightly closer to center (about halfway across)
+				 * - make points slightly closer to center (about halfway across)
 				 */
 				mt[0] = m2[0] * pthick * 0.5f;
 				mt[1] = m2[1] * pthick * 0.5f;
@@ -418,7 +416,7 @@ static void gp_draw_stroke_2d(const bGPDspoint *points, int totpoints, short thi
 
 				/* calculate gradient to apply
 				 *  - as basis, use just pthick * bisector gradient
-				 *	- if cross-section not as thick as it should be, add extra padding to fix it
+				 * - if cross-section not as thick as it should be, add extra padding to fix it
 				 */
 				mt[0] = mb[0] * pthick;
 				mt[1] = mb[1] * pthick;
@@ -460,7 +458,7 @@ static void gp_draw_stroke_2d(const bGPDspoint *points, int totpoints, short thi
 				immVertex2fv(pos, t1);
 
 				/* draw end cap as last step
-				 *	- make points slightly closer to center (about halfway across)
+				 * - make points slightly closer to center (about halfway across)
 				 */
 				mt[0] = m2[0] * pthick * 0.5f;
 				mt[1] = m2[1] * pthick * 0.5f;
@@ -523,7 +521,7 @@ static bool gp_can_draw_stroke(const bGPDstroke *gps, const int dflag)
 /* draw a set of strokes */
 static void gp_draw_strokes(
         bGPdata *UNUSED(gpd), bGPDlayer *UNUSED(gpl), const bGPDframe *gpf, int offsx, int offsy, int winx, int winy,
-        int dflag, bool debug, short lthick, const float color[4])
+        int dflag, short lthick, const float color[4])
 {
 	GPU_enable_program_point_size();
 
@@ -553,8 +551,9 @@ static void gp_draw_strokes(
 				gp_draw_stroke_point(gps->points, lthick, dflag, gps->flag, offsx, offsy, winx, winy, color);
 			}
 			else {
-				gp_draw_stroke_3d(gps->points, gps->totpoints, lthick, debug, gps->flag,
-				                  color, gps->flag & GP_STROKE_CYCLIC);
+				gp_draw_stroke_3d(
+				        gps->points, gps->totpoints, lthick, gps->flag,
+				        color, gps->flag & GP_STROKE_CYCLIC);
 			}
 
 			if (no_xray) {
@@ -570,8 +569,9 @@ static void gp_draw_strokes(
 				gp_draw_stroke_point(gps->points, lthick, dflag, gps->flag, offsx, offsy, winx, winy, color);
 			}
 			else {
-				gp_draw_stroke_2d(gps->points, gps->totpoints, lthick, dflag, gps->flag, debug,
-				                  offsx, offsy, winx, winy, color);
+				gp_draw_stroke_2d(
+				        gps->points, gps->totpoints, lthick, dflag, gps->flag,
+				        offsx, offsy, winx, winy, color);
 			}
 		}
 	}
@@ -664,21 +664,21 @@ static void gp_draw_strokes_edit(
 			/* size and color first */
 			if (show_direction_hint && i == 0) {
 				/* start point in green bigger */
-				immAttrib3f(color, 0.0f, 1.0f, 0.0f);
-				immAttrib1f(size, vsize + 4);
+				immAttr3f(color, 0.0f, 1.0f, 0.0f);
+				immAttr1f(size, vsize + 4);
 			}
 			else if (show_direction_hint && (i == gps->totpoints - 1)) {
 				/* end point in red smaller */
-				immAttrib3f(color, 1.0f, 0.0f, 0.0f);
-				immAttrib1f(size, vsize + 1);
+				immAttr3f(color, 1.0f, 0.0f, 0.0f);
+				immAttr1f(size, vsize + 1);
 			}
 			else if (pt->flag & GP_SPOINT_SELECT) {
-				immAttrib3fv(color, selectColor);
-				immAttrib1f(size, vsize);
+				immAttr3fv(color, selectColor);
+				immAttr1f(size, vsize);
 			}
 			else {
-				immAttrib3fv(color, gpl->color);
-				immAttrib1f(size, bsize);
+				immAttr3fv(color, gpl->color);
+				immAttr1f(size, bsize);
 			}
 
 			/* then position */
@@ -714,6 +714,86 @@ static void gp_draw_strokes_edit(
 }
 
 /* ----- General Drawing ------ */
+/* draw onion-skinning for a layer */
+static void gp_draw_onionskins(
+	bGPdata *gpd, bGPDlayer *gpl, bGPDframe *gpf, int offsx, int offsy, int winx, int winy,
+	int UNUSED(cfra), int dflag)
+{
+	const float alpha = 1.0f;
+	float color[4];
+
+	/* 1) Draw Previous Frames First */
+	copy_v3_v3(color, gpl->gcolor_prev);
+
+	if (gpl->gstep > 0) {
+		bGPDframe *gf;
+		float fac;
+
+		/* draw previous frames first */
+		for (gf = gpf->prev; gf; gf = gf->prev) {
+			/* check if frame is drawable */
+			if ((gpf->framenum - gf->framenum) <= gpl->gstep) {
+				/* alpha decreases with distance from curframe index */
+				fac = 1.0f - ((float)(gpf->framenum - gf->framenum) / (float)(gpl->gstep + 1));
+				color[3] = alpha * fac * 0.66f;
+				gp_draw_strokes(
+					gpd, gpl, gf, offsx, offsy, winx, winy, dflag,
+					gpl->thickness, color);
+			}
+			else
+				break;
+		}
+	}
+	else if (gpl->gstep == 0) {
+		/* draw the strokes for the ghost frames (at half of the alpha set by user) */
+		if (gpf->prev) {
+			color[3] = (alpha / 7);
+			gp_draw_strokes(
+				gpd, gpl, gpf->prev, offsx, offsy, winx, winy, dflag,
+				gpl->thickness, color);
+		}
+	}
+	else {
+		/* don't draw - disabled */
+	}
+
+
+	/* 2) Now draw next frames */
+	copy_v3_v3(color, gpl->gcolor_next);
+
+	if (gpl->gstep_next > 0) {
+		bGPDframe *gf;
+		float fac;
+
+		/* now draw next frames */
+		for (gf = gpf->next; gf; gf = gf->next) {
+			/* check if frame is drawable */
+			if ((gf->framenum - gpf->framenum) <= gpl->gstep_next) {
+				/* alpha decreases with distance from curframe index */
+				fac = 1.0f - ((float)(gf->framenum - gpf->framenum) / (float)(gpl->gstep_next + 1));
+				color[3] = alpha * fac * 0.66f;
+				gp_draw_strokes(
+					gpd, gpl, gf, offsx, offsy, winx, winy, dflag,
+					gpl->thickness, color);
+			}
+			else
+				break;
+		}
+	}
+	else if (gpl->gstep_next == 0) {
+		/* draw the strokes for the ghost frames (at half of the alpha set by user) */
+		if (gpf->next) {
+			color[3] = (alpha / 4);
+			gp_draw_strokes(
+				gpd, gpl, gpf->next, offsx, offsy, winx, winy, dflag,
+				gpl->thickness, color);
+		}
+	}
+	else {
+		/* don't draw - disabled */
+	}
+
+}
 
 /* loop over gpencil data layers, drawing them */
 static void gp_draw_data_layers(
@@ -723,7 +803,8 @@ static void gp_draw_data_layers(
 	float ink[4];
 
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-		bool debug = (gpl->flag & GP_LAYER_DRAWDEBUG);
+		/* verify never thickness is less than 1 */
+		CLAMP_MIN(gpl->thickness, 1.0f);
 		short lthick = gpl->thickness;
 
 		/* apply layer opacity */
@@ -746,23 +827,21 @@ static void gp_draw_data_layers(
 		 * NOTE: If the setting doesn't apply, it *must* be cleared,
 		 *       as dflag's carry over from the previous layer
 		 */
-#define GP_DRAWFLAG_APPLY(condition, draw_flag_value)     { \
-			if (condition) dflag |= (draw_flag_value);      \
-			else           dflag &= ~(draw_flag_value);     \
-		} (void)0
 
 		/* xray... */
-		GP_DRAWFLAG_APPLY((gpl->flag & GP_LAYER_NO_XRAY), GP_DRAWDATA_NO_XRAY);
+		SET_FLAG_FROM_TEST(dflag, gpl->flag & GP_LAYER_NO_XRAY, GP_DRAWDATA_NO_XRAY);
 
-#undef GP_DRAWFLAG_APPLY
-
+		/* Draw 'onionskins' (frame left + right) */
+		if (gpl->onion_flag & GP_LAYER_ONIONSKIN) {
+			gp_draw_onionskins(gpd, gpl, gpf, offsx, offsy, winx, winy, cfra, dflag);
+		}
 
 		/* draw the strokes already in active frame */
-		gp_draw_strokes(gpd, gpl, gpf, offsx, offsy, winx, winy, dflag, debug, lthick, ink);
+		gp_draw_strokes(gpd, gpl, gpf, offsx, offsy, winx, winy, dflag, lthick, ink);
 
 		/* Draw verts of selected strokes
 		 *  - when doing OpenGL renders, we don't want to be showing these, as that ends up flickering
-		 * 	- locked layers can't be edited, so there's no point showing these verts
+		 *  - locked layers can't be edited, so there's no point showing these verts
 		 *    as they will have no bearings on what gets edited
 		 *  - only show when in editmode, since operators shouldn't work otherwise
 		 *    (NOTE: doing it this way means that the toggling editmode shows visible change immediately)
@@ -895,8 +974,8 @@ static void gp_draw_data_all(
 
 /* ............................
  * XXX
- *	We need to review the calls below, since they may be/are not that suitable for
- *	the new ways that we intend to be drawing data...
+ * We need to review the calls below, since they may be/are not that suitable for
+ * the new ways that we intend to be drawing data...
  * ............................ */
 
 /* draw grease-pencil sketches to specified 2d-view that uses ibuf corrections */
@@ -1051,16 +1130,5 @@ void ED_gpencil_draw_view3d_annotations(
 	/* draw it! */
 	gp_draw_data_all(scene, gpd, offsx, offsy, winx, winy, CFRA, dflag, v3d->spacetype);
 }
-
-#if 0 // XXX: Reinstate, after renaming the functions
-
-void ED_gpencil_draw_ex(Scene *scene, bGPdata *gpd, int winx, int winy, const int cfra, const char spacetype)
-{
-	int dflag = GP_DRAWDATA_NOSTATUS | GP_DRAWDATA_ONLYV2D;
-
-	gp_draw_data_all(scene, gpd, 0, 0, winx, winy, cfra, dflag, spacetype);
-}
-
-#endif
 
 /* ************************************************** */

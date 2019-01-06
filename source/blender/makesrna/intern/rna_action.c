@@ -102,7 +102,7 @@ static void rna_Action_groups_remove(bAction *act, ReportList *reports, PointerR
 	RNA_POINTER_INVALIDATE(agrp_ptr);
 }
 
-static FCurve *rna_Action_fcurve_new(bAction *act, ReportList *reports, const char *data_path,
+static FCurve *rna_Action_fcurve_new(bAction *act, Main *bmain, ReportList *reports, const char *data_path,
                                      int index, const char *group)
 {
 	if (group && group[0] == '\0') group = NULL;
@@ -113,12 +113,12 @@ static FCurve *rna_Action_fcurve_new(bAction *act, ReportList *reports, const ch
 	}
 
 	/* annoying, check if this exists */
-	if (verify_fcurve(act, group, NULL, data_path, index, 0)) {
+	if (verify_fcurve(bmain, act, group, NULL, data_path, index, 0)) {
 		BKE_reportf(reports, RPT_ERROR, "F-Curve '%s[%d]' already exists in action '%s'", data_path,
 		            index, act->id.name + 2);
 		return NULL;
 	}
-	return verify_fcurve(act, group, NULL, data_path, index, 1);
+	return verify_fcurve(bmain, act, group, NULL, data_path, index, 1);
 }
 
 static FCurve *rna_Action_fcurve_find(bAction *act, ReportList *reports, const char *data_path, int index)
@@ -322,7 +322,7 @@ static void rna_def_dopesheet(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "show_only_errors", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "filterflag", ADS_FILTER_ONLY_ERRORS);
 	RNA_def_property_ui_text(prop, "Show Errors", "Only include F-Curves and drivers that are disabled or have errors");
-	RNA_def_property_ui_icon(prop, ICON_HELP, 0); /* XXX: this doesn't quite fit */
+	RNA_def_property_ui_icon(prop, ICON_ERROR, 0);
 	RNA_def_property_update(prop, NC_ANIMATION | ND_ANIMCHAN | NA_EDITED, NULL);
 
 	/* Object Collection Filtering Settings */
@@ -383,7 +383,7 @@ static void rna_def_dopesheet(BlenderRNA *brna)
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "filterflag", ADS_FILTER_NOOBJ);
 	RNA_def_property_ui_text(prop, "Display Transforms",
 	                         "Include visualization of object-level animation data (mostly transforms)");
-	RNA_def_property_ui_icon(prop, ICON_MANIPUL, 0); /* XXX? */
+	RNA_def_property_ui_icon(prop, ICON_ORIENTATION_GLOBAL, 0); /* XXX? */
 	RNA_def_property_update(prop, NC_ANIMATION | ND_ANIMCHAN | NA_EDITED, NULL);
 
 	prop = RNA_def_property(srna, "show_shapekeys", PROP_BOOLEAN, PROP_NONE);
@@ -396,25 +396,25 @@ static void rna_def_dopesheet(BlenderRNA *brna)
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "filterflag", ADS_FILTER_NOMODIFIERS);
 	RNA_def_property_ui_text(prop, "Display Modifier Data",
 	                         "Include visualization of animation data related to data-blocks linked to modifiers");
-	RNA_def_property_ui_icon(prop, ICON_MODIFIER, 0);
+	RNA_def_property_ui_icon(prop, ICON_MODIFIER_DATA, 0);
 	RNA_def_property_update(prop, NC_ANIMATION | ND_ANIMCHAN | NA_EDITED, NULL);
 
 	prop = RNA_def_property(srna, "show_meshes", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "filterflag", ADS_FILTER_NOMESH);
 	RNA_def_property_ui_text(prop, "Display Meshes", "Include visualization of mesh related animation data");
-	RNA_def_property_ui_icon(prop, ICON_MESH_DATA, 0);
+	RNA_def_property_ui_icon(prop, ICON_OUTLINER_OB_MESH, 0);
 	RNA_def_property_update(prop, NC_ANIMATION | ND_ANIMCHAN | NA_EDITED, NULL);
 
 	prop = RNA_def_property(srna, "show_lattices", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "filterflag", ADS_FILTER_NOLAT);
 	RNA_def_property_ui_text(prop, "Display Lattices", "Include visualization of lattice related animation data");
-	RNA_def_property_ui_icon(prop, ICON_LATTICE_DATA, 0);
+	RNA_def_property_ui_icon(prop, ICON_OUTLINER_OB_LATTICE, 0);
 	RNA_def_property_update(prop, NC_ANIMATION | ND_ANIMCHAN | NA_EDITED, NULL);
 
 	prop = RNA_def_property(srna, "show_cameras", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "filterflag", ADS_FILTER_NOCAM);
 	RNA_def_property_ui_text(prop, "Display Camera", "Include visualization of camera related animation data");
-	RNA_def_property_ui_icon(prop, ICON_CAMERA_DATA, 0);
+	RNA_def_property_ui_icon(prop, ICON_OUTLINER_OB_CAMERA, 0);
 	RNA_def_property_update(prop, NC_ANIMATION | ND_ANIMCHAN | NA_EDITED, NULL);
 
 	prop = RNA_def_property(srna, "show_materials", PROP_BOOLEAN, PROP_NONE);
@@ -426,7 +426,7 @@ static void rna_def_dopesheet(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "show_lights", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "filterflag", ADS_FILTER_NOLAM);
 	RNA_def_property_ui_text(prop, "Display Light", "Include visualization of light related animation data");
-	RNA_def_property_ui_icon(prop, ICON_LIGHT_DATA, 0);
+	RNA_def_property_ui_icon(prop, ICON_OUTLINER_OB_LIGHT, 0);
 	RNA_def_property_update(prop, NC_ANIMATION | ND_ANIMCHAN | NA_EDITED, NULL);
 
 	prop = RNA_def_property(srna, "show_linestyles", PROP_BOOLEAN, PROP_NONE);
@@ -468,13 +468,13 @@ static void rna_def_dopesheet(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "show_metaballs", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "filterflag", ADS_FILTER_NOMBA);
 	RNA_def_property_ui_text(prop, "Display Metaball", "Include visualization of metaball related animation data");
-	RNA_def_property_ui_icon(prop, ICON_META_DATA, 0);
+	RNA_def_property_ui_icon(prop, ICON_OUTLINER_OB_META, 0);
 	RNA_def_property_update(prop, NC_ANIMATION | ND_ANIMCHAN | NA_EDITED, NULL);
 
 	prop = RNA_def_property(srna, "show_armatures", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "filterflag", ADS_FILTER_NOARM);
 	RNA_def_property_ui_text(prop, "Display Armature", "Include visualization of armature related animation data");
-	RNA_def_property_ui_icon(prop, ICON_ARMATURE_DATA, 0);
+	RNA_def_property_ui_icon(prop, ICON_OUTLINER_OB_ARMATURE, 0);
 	RNA_def_property_update(prop, NC_ANIMATION | ND_ANIMCHAN | NA_EDITED, NULL);
 
 	prop = RNA_def_property(srna, "show_nodes", PROP_BOOLEAN, PROP_NONE);
@@ -486,13 +486,13 @@ static void rna_def_dopesheet(BlenderRNA *brna)
 	prop = RNA_def_property(srna, "show_speakers", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "filterflag", ADS_FILTER_NOSPK);
 	RNA_def_property_ui_text(prop, "Display Speaker", "Include visualization of speaker related animation data");
-	RNA_def_property_ui_icon(prop, ICON_SPEAKER, 0);
+	RNA_def_property_ui_icon(prop, ICON_OUTLINER_OB_SPEAKER, 0);
 	RNA_def_property_update(prop, NC_ANIMATION | ND_ANIMCHAN | NA_EDITED, NULL);
 
 	prop = RNA_def_property(srna, "show_gpencil", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_negative_sdna(prop, NULL, "filterflag", ADS_FILTER_NOGPENCIL);
 	RNA_def_property_ui_text(prop, "Display Grease Pencil", "Include visualization of Grease Pencil related animation data and frames");
-	RNA_def_property_ui_icon(prop, ICON_GREASEPENCIL, 0);
+	RNA_def_property_ui_icon(prop, ICON_OUTLINER_OB_GREASEPENCIL, 0);
 	RNA_def_property_update(prop, NC_ANIMATION | ND_ANIMCHAN | NA_EDITED, NULL);
 
 	/* GPencil Mode Settings */
@@ -598,7 +598,7 @@ static void rna_def_action_fcurves(BlenderRNA *brna, PropertyRNA *cprop)
 	/* Action.fcurves.new(...) */
 	func = RNA_def_function(srna, "new", "rna_Action_fcurve_new");
 	RNA_def_function_ui_description(func, "Add an F-Curve to the action");
-	RNA_def_function_flag(func, FUNC_USE_REPORTS);
+	RNA_def_function_flag(func, FUNC_USE_REPORTS | FUNC_USE_MAIN);
 	parm = RNA_def_string(func, "data_path", NULL, 0, "Data Path", "F-Curve data path to use");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
 	RNA_def_int(func, "index", 0, 0, INT_MAX, "Index", "Array index", 0, INT_MAX);

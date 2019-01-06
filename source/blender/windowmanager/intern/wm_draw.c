@@ -73,6 +73,7 @@
 
 #include "WM_api.h"
 #include "WM_types.h"
+#include "WM_toolsystem.h"
 #include "wm.h"
 #include "wm_draw.h"
 #include "wm_window.h"
@@ -85,7 +86,7 @@
 
 /* ******************* paint cursor *************** */
 
-static void wm_paintcursor_draw(bContext *C, ARegion *ar)
+static void wm_paintcursor_draw(bContext *C, ScrArea *sa, ARegion *ar)
 {
 	wmWindowManager *wm = CTX_wm_manager(C);
 	wmWindow *win = CTX_wm_window(C);
@@ -94,6 +95,15 @@ static void wm_paintcursor_draw(bContext *C, ARegion *ar)
 
 	if (ar->visible && ar == screen->active_region) {
 		for (pc = wm->paintcursors.first; pc; pc = pc->next) {
+
+			if ((pc->space_type != SPACE_TYPE_ANY) && (sa->spacetype != pc->space_type)) {
+				continue;
+			}
+
+			if ((pc->region_type != RGN_TYPE_ANY) && (ar->regiontype != pc->region_type)) {
+				continue;
+			}
+
 			if (pc->poll == NULL || pc->poll(C)) {
 				/* Prevent drawing outside region. */
 				glEnable(GL_SCISSOR_TEST);
@@ -452,9 +462,35 @@ void wm_draw_region_blend(ARegion *ar, int view, bool blend)
 	GPUShader *shader = GPU_shader_get_builtin_shader(GPU_SHADER_2D_IMAGE_RECT_COLOR);
 	GPU_shader_bind(shader);
 
+	rcti rect_geo = ar->winrct;
+	rect_geo.xmax += 1;
+	rect_geo.ymax += 1;
+
+	rctf rect_tex;
+	rect_tex.xmin = halfx;
+	rect_tex.ymin = halfy;
+	rect_tex.xmax = 1.0f + halfx;
+	rect_tex.ymax = 1.0f + halfy;
+
+	float alpha_easing = 1.0f - alpha;
+	alpha_easing = 1.0f - alpha_easing * alpha_easing;
+
+	/* Slide vertical panels */
+	float ofs_x = BLI_rcti_size_x(&ar->winrct) * (1.0f - alpha_easing);
+	if (ar->alignment == RGN_ALIGN_RIGHT) {
+		rect_geo.xmin += ofs_x;
+		rect_tex.xmax *= alpha_easing;
+		alpha = 1.0f;
+	}
+	else if (ar->alignment == RGN_ALIGN_LEFT) {
+		rect_geo.xmax -= ofs_x;
+		rect_tex.xmin += 1.0f - alpha_easing;
+		alpha = 1.0f;
+	}
+
 	glUniform1i(GPU_shader_get_uniform(shader, "image"), 0);
-	glUniform4f(GPU_shader_get_uniform(shader, "rect_icon"), halfx, halfy, 1.0f + halfx, 1.0f + halfy);
-	glUniform4f(GPU_shader_get_uniform(shader, "rect_geom"), ar->winrct.xmin, ar->winrct.ymin, ar->winrct.xmax + 1, ar->winrct.ymax + 1);
+	glUniform4f(GPU_shader_get_uniform(shader, "rect_icon"), rect_tex.xmin, rect_tex.ymin, rect_tex.xmax, rect_tex.ymax);
+	glUniform4f(GPU_shader_get_uniform(shader, "rect_geom"), rect_geo.xmin, rect_geo.ymin, rect_geo.xmax, rect_geo.ymax);
 	glUniform4f(GPU_shader_get_builtin_uniform(shader, GPU_UNIFORM_COLOR), alpha, alpha, alpha, alpha);
 
 	GPU_draw_primitive(GPU_PRIM_TRI_STRIP, 4);
@@ -507,6 +543,13 @@ static void wm_draw_window_offscreen(bContext *C, wmWindow *win, bool stereo)
 
 		ED_area_update_region_sizes(wm, win, sa);
 
+		if (sa->flag & AREA_FLAG_ACTIVE_TOOL_UPDATE) {
+			if ((1 << sa->spacetype) & WM_TOOLSYSTEM_SPACE_MASK) {
+				WM_toolsystem_update_from_context(C, CTX_wm_workspace(C), CTX_data_view_layer(C), sa);
+			}
+			sa->flag &= ~AREA_FLAG_ACTIVE_TOOL_UPDATE;
+		}
+
 		/* Then do actual drawing of regions. */
 		for (ARegion *ar = sa->regionbase.first; ar; ar = ar->next) {
 			if (ar->visible && ar->do_draw) {
@@ -553,7 +596,7 @@ static void wm_draw_window_offscreen(bContext *C, wmWindow *win, bool stereo)
 			CTX_wm_menu_set(C, ar);
 
 			if (ar->type && ar->type->layout) {
-				/* UI code reads the OpenGL state, but we have to refesh
+				/* UI code reads the OpenGL state, but we have to refresh
 				 * the UI layout beforehand in case the menu size changes. */
 				wmViewport(&ar->winrct);
 				ar->type->layout(C, ar);
@@ -579,8 +622,14 @@ static void wm_draw_window_onscreen(bContext *C, wmWindow *win, int view)
 
 	/* Draw into the window framebuffer, in full window coordinates. */
 	wmWindowViewport(win);
+
+	/* We draw on all pixels of the windows so we don't need to clear them before.
+	 * Actually this is only a problem when resizing the window.
+	 * If it becomes a problem we should clear only when window size changes. */
+#if 0
 	glClearColor(0, 0, 0, 0);
 	glClear(GL_COLOR_BUFFER_BIT);
+#endif
 
 	/* Blit non-overlapping area regions. */
 	ED_screen_areas_iter(win, screen, sa) {
@@ -612,7 +661,7 @@ static void wm_draw_window_onscreen(bContext *C, wmWindow *win, int view)
 					CTX_wm_region_set(C, ar);
 
 					/* make region ready for draw, scissor, pixelspace */
-					wm_paintcursor_draw(C, ar);
+					wm_paintcursor_draw(C, sa, ar);
 
 					CTX_wm_region_set(C, NULL);
 					CTX_wm_area_set(C, NULL);

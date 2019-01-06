@@ -48,10 +48,10 @@
 #include "BKE_context.h"
 #include "BKE_global.h"
 #include "BKE_main.h"
-#include "BKE_sequencer.h"
 #include "BKE_report.h"
+#include "BKE_sequencer.h"
 #include "BKE_sound.h"
-
+#include "BKE_library.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -219,8 +219,7 @@ static void seq_proxy_build_job(const bContext *C)
 		if ((seq->flag & SELECT)) {
 			BKE_sequencer_proxy_rebuild_context(pj->main, pj->depsgraph, pj->scene, seq, file_list, &pj->queue);
 		}
-	}
-	SEQ_END
+	} SEQ_END;
 
 	BLI_gset_free(file_list, MEM_freeN);
 
@@ -457,8 +456,7 @@ void ED_sequencer_deselect_all(Scene *scene)
 	SEQP_BEGIN (ed, seq)
 	{
 		seq->flag &= ~SEQ_ALLSEL;
-	}
-	SEQ_END
+	} SEQ_END;
 
 }
 
@@ -560,7 +558,7 @@ int seq_effect_find_selected(Scene *scene, Sequence *activeseq, int type, Sequen
 	switch (BKE_sequence_effect_get_num_inputs(type)) {
 		case 0:
 			*selseq1 = *selseq2 = *selseq3 = NULL;
-			return 1; /* succsess */
+			return 1; /* success */
 		case 1:
 			if (seq2 == NULL) {
 				*error_str = N_("At least one selected sequence strip is needed");
@@ -647,8 +645,7 @@ static void del_seq_clear_modifiers_recurs(Scene *scene, Sequence *deleting_sequ
 				}
 			}
 		}
-	}
-	SEQ_END
+	} SEQ_END;
 }
 
 static void recurs_del_seq_flag(Scene *scene, ListBase *lb, short flag, short deleteall)
@@ -995,8 +992,7 @@ static void set_filter_seq(Scene *scene)
 			}
 
 		}
-	}
-	SEQ_END
+	} SEQ_END;
 }
 #endif
 
@@ -1036,8 +1032,7 @@ static void UNUSED_FUNCTION(seq_remap_paths) (Scene *scene)
 				printf("new %s\n", seq->strip->dir);
 			}
 		}
-	}
-	SEQ_END
+	} SEQ_END;
 
 }
 
@@ -1379,7 +1374,7 @@ static int sequencer_slip_invoke(bContext *C, wmOperator *op, const wmEvent *eve
 	int num_seq, i;
 	View2D *v2d = UI_view2d_fromcontext(C);
 
-	/* first recursively cound the trimmed elements */
+	/* first recursively count the trimmed elements */
 	num_seq = slip_count_sequences_rec(ed->seqbasep, true);
 
 	if (num_seq == 0)
@@ -1487,7 +1482,7 @@ static int sequencer_slip_exec(bContext *C, wmOperator *op)
 	int offset = RNA_int_get(op->ptr, "offset");
 	bool success = false;
 
-	/* first recursively cound the trimmed elements */
+	/* first recursively count the trimmed elements */
 	num_seq = slip_count_sequences_rec(ed->seqbasep, true);
 
 	if (num_seq == 0)
@@ -1789,7 +1784,7 @@ static int sequencer_unmute_exec(bContext *C, wmOperator *op)
 void SEQUENCER_OT_unmute(struct wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name = "Un-Mute Strips";
+	ot->name = "Unmute Strips";
 	ot->idname = "SEQUENCER_OT_unmute";
 	ot->description = "Unmute (un)selected strips";
 
@@ -1858,7 +1853,7 @@ static int sequencer_unlock_exec(bContext *C, wmOperator *UNUSED(op))
 void SEQUENCER_OT_unlock(struct wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name = "UnLock Strips";
+	ot->name = "Unlock Strips";
 	ot->idname = "SEQUENCER_OT_unlock";
 	ot->description = "Unlock the active strip so that it can't be transformed";
 
@@ -2652,7 +2647,7 @@ static int sequencer_meta_separate_exec(bContext *C, wmOperator *UNUSED(op))
 	BLI_remlink(ed->seqbasep, last_seq);
 	BKE_sequence_free(scene, last_seq);
 
-	/* emtpy meta strip, delete all effects depending on it */
+	/* empty meta strip, delete all effects depending on it */
 	for (seq = ed->seqbasep->first; seq; seq = seq->next)
 		if ((seq->type & SEQ_TYPE_EFFECT) && seq_depends_on_meta(seq, last_seq))
 			seq->flag |= SEQ_FLAG_DELETE;
@@ -3212,6 +3207,7 @@ static void seq_copy_del_sound(Scene *scene, Sequence *seq)
 
 static int sequencer_copy_exec(bContext *C, wmOperator *op)
 {
+	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
 	Editing *ed = BKE_sequencer_editing_get(scene, false);
 
@@ -3224,7 +3220,7 @@ static int sequencer_copy_exec(bContext *C, wmOperator *op)
 		return OPERATOR_CANCELLED;
 	}
 
-	BKE_sequence_base_dupli_recursive(scene, scene, &nseqbase, ed->seqbasep, SEQ_DUPE_UNIQUE_NAME, 0);
+	BKE_sequence_base_dupli_recursive(scene, scene, &nseqbase, ed->seqbasep, SEQ_DUPE_UNIQUE_NAME, LIB_ID_CREATE_NO_USER_REFCOUNT);
 
 	/* To make sure the copied strips have unique names between each other add
 	 * them temporarily to the end of the original seqbase. (bug 25932)
@@ -3249,15 +3245,13 @@ static int sequencer_copy_exec(bContext *C, wmOperator *op)
 	seqbase_clipboard_frame = scene->r.cfra;
 
 	/* Need to remove anything that references the current scene */
-	{
-		Sequence *seq;
-		for (seq = seqbase_clipboard.first; seq; seq = seq->next) {
-			seq_copy_del_sound(scene, seq);
-		}
-
-		/* duplicate pointers */
-		BKE_sequencer_base_clipboard_pointers_store(&seqbase_clipboard);
+	for (Sequence *seq = seqbase_clipboard.first; seq; seq = seq->next) {
+		seq_copy_del_sound(scene, seq);
 	}
+
+	/* Replace datablock pointers with copies, to keep things working in case
+	 * datablocks get deleted or another .blend file is openeded. */
+	BKE_sequencer_base_clipboard_pointers_store(bmain, &seqbase_clipboard);
 
 	return OPERATOR_FINISHED;
 }
@@ -3267,7 +3261,6 @@ void SEQUENCER_OT_copy(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Copy";
 	ot->idname = "SEQUENCER_OT_copy";
-	ot->description = "";
 
 	/* api callbacks */
 	ot->exec = sequencer_copy_exec;
@@ -3291,7 +3284,12 @@ static int sequencer_paste_exec(bContext *C, wmOperator *UNUSED(op))
 	ED_sequencer_deselect_all(scene);
 	ofs = scene->r.cfra - seqbase_clipboard_frame;
 
+	/* Copy strips, temporarily restoring pointers to actual datablocks. This
+	 * must happen on the clipboard itself, so that copying does user counting
+	 * on the actual datablocks. */
+	BKE_sequencer_base_clipboard_pointers_restore(&seqbase_clipboard, bmain);
 	BKE_sequence_base_dupli_recursive(scene, scene, &nseqbase, &seqbase_clipboard, SEQ_DUPE_UNIQUE_NAME, 0);
+	BKE_sequencer_base_clipboard_pointers_store(bmain, &seqbase_clipboard);
 
 	/* transform pasted strips before adding */
 	if (ofs) {
@@ -3299,8 +3297,6 @@ static int sequencer_paste_exec(bContext *C, wmOperator *UNUSED(op))
 			BKE_sequence_translate(scene, iseq, ofs);
 		}
 	}
-
-	BKE_sequencer_base_clipboard_pointers_restore(&nseqbase, bmain);
 
 	for (iseq = nseqbase.first; iseq; iseq = iseq->next) {
 		BKE_sequence_sound_init(scene, iseq);
@@ -3332,7 +3328,6 @@ void SEQUENCER_OT_paste(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Paste";
 	ot->idname = "SEQUENCER_OT_paste";
-	ot->description = "";
 
 	/* api callbacks */
 	ot->exec = sequencer_paste_exec;
@@ -3401,7 +3396,7 @@ void SEQUENCER_OT_swap_data(wmOperatorType *ot)
 	/* properties */
 }
 
-/* borderselect operator */
+/* box select operator */
 static int view_ghost_border_exec(bContext *C, wmOperator *op)
 {
 	Scene *scene = CTX_data_scene(C);
@@ -3436,7 +3431,7 @@ static int view_ghost_border_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-/* ****** Border Select ****** */
+/* ****** Box Select ****** */
 void SEQUENCER_OT_view_ghost_border(wmOperatorType *ot)
 {
 	/* identifiers */
@@ -3445,17 +3440,17 @@ void SEQUENCER_OT_view_ghost_border(wmOperatorType *ot)
 	ot->description = "Set the boundaries of the border used for offset-view";
 
 	/* api callbacks */
-	ot->invoke = WM_gesture_border_invoke;
+	ot->invoke = WM_gesture_box_invoke;
 	ot->exec = view_ghost_border_exec;
-	ot->modal = WM_gesture_border_modal;
+	ot->modal = WM_gesture_box_modal;
 	ot->poll = sequencer_view_preview_poll;
-	ot->cancel = WM_gesture_border_cancel;
+	ot->cancel = WM_gesture_box_cancel;
 
 	/* flags */
 	ot->flag = 0;
 
 	/* rna */
-	WM_operator_properties_gesture_border(ot);
+	WM_operator_properties_gesture_box(ot);
 }
 
 /* rebuild_proxy operator */
@@ -3500,8 +3495,7 @@ static int sequencer_rebuild_proxy_exec(bContext *C, wmOperator *UNUSED(op))
 			}
 			BKE_sequencer_free_imbuf(scene, &ed->seqbase, false);
 		}
-	}
-	SEQ_END
+	} SEQ_END;
 
 	BLI_gset_free(file_list, MEM_freeN);
 
@@ -3525,7 +3519,7 @@ void SEQUENCER_OT_rebuild_proxy(wmOperatorType *ot)
 
 static int sequencer_enable_proxies_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(event))
 {
-	return WM_operator_props_dialog_popup(C, op, 10 * UI_UNIT_X, 5 * UI_UNIT_Y);
+	return WM_operator_props_dialog_popup(C, op, 200, 100);
 }
 
 static int sequencer_enable_proxies_exec(bContext *C, wmOperator *op)
@@ -3579,8 +3573,7 @@ static int sequencer_enable_proxies_exec(bContext *C, wmOperator *op)
 					seq->strip->proxy->build_flags &= ~SEQ_PROXY_SKIP_EXISTING;
 			}
 		}
-	}
-	SEQ_END
+	} SEQ_END;
 
 	WM_event_add_notifier(C, NC_SCENE | ND_SEQUENCER, scene);
 
@@ -3663,7 +3656,6 @@ void SEQUENCER_OT_change_effect_input(struct wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Change Effect Input";
 	ot->idname = "SEQUENCER_OT_change_effect_input";
-	ot->description = "";
 
 	/* api callbacks */
 	ot->exec = sequencer_change_effect_input_exec;
@@ -3699,7 +3691,7 @@ static int sequencer_change_effect_type_exec(bContext *C, wmOperator *op)
 	}
 	else {
 		sh = BKE_sequence_get_effect(seq);
-		sh.free(seq);
+		sh.free(seq, true);
 
 		seq->type = new_type;
 
@@ -3723,7 +3715,6 @@ void SEQUENCER_OT_change_effect_type(struct wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Change Effect Type";
 	ot->idname = "SEQUENCER_OT_change_effect_type";
-	ot->description = "";
 
 	/* api callbacks */
 	ot->exec = sequencer_change_effect_type_exec;
@@ -3858,7 +3849,6 @@ void SEQUENCER_OT_change_path(struct wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Change Data/Files";
 	ot->idname = "SEQUENCER_OT_change_path";
-	ot->description = "";
 
 	/* api callbacks */
 	ot->exec = sequencer_change_path_exec;
@@ -3931,8 +3921,7 @@ static int sequencer_export_subtitles_exec(bContext *C, wmOperator *op)
 		if (seq->type == SEQ_TYPE_TEXT) {
 			BLI_addtail(&text_seq, MEM_dupallocN(seq));
 		}
-	}
-	SEQ_END
+	} SEQ_END;
 
 	if (BLI_listbase_is_empty(&text_seq)) {
 		BKE_report(op->reports, RPT_ERROR, "No subtitles (text strips) to export");

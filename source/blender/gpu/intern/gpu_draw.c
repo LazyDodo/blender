@@ -62,14 +62,13 @@
 #include "IMB_imbuf.h"
 #include "IMB_imbuf_types.h"
 
-#include "BKE_bmfont.h"
+#include "BKE_colorband.h"
 #include "BKE_global.h"
 #include "BKE_image.h"
 #include "BKE_main.h"
 #include "BKE_material.h"
 #include "BKE_node.h"
 #include "BKE_scene.h"
-#include "BKE_DerivedMesh.h"
 
 #include "GPU_draw.h"
 #include "GPU_extensions.h"
@@ -84,15 +83,6 @@
 #ifdef WITH_SMOKE
 #  include "smoke_API.h"
 #endif
-
-#ifdef WITH_OPENSUBDIV
-#  include "BKE_subsurf.h"
-#  include "BKE_editmesh.h"
-
-#  include "gpu_codegen.h"
-#endif
-
-extern Material defmaterial; /* from material.c */
 
 //* Checking powers of two for images since OpenGL ES requires it */
 #ifdef WITH_DDS
@@ -309,7 +299,7 @@ GPUTexture *GPU_texture_from_blender(
 
 	/* Check if we have a valid image. If not, we return a dummy
 	 * texture with zero bindcode so we don't keep trying. */
-	unsigned int bindcode = 0;
+	uint bindcode = 0;
 	if (ima->ok == 0) {
 		*tex = GPU_texture_from_bindcode(textarget, bindcode);
 		return *tex;
@@ -353,7 +343,7 @@ GPUTexture *GPU_texture_from_blender(
 
 	const int rectw = ibuf->x;
 	const int recth = ibuf->y;
-	unsigned int *rect = ibuf->rect;
+	uint *rect = ibuf->rect;
 	float *frect = NULL;
 	float *srgb_frect = NULL;
 
@@ -397,9 +387,9 @@ GPUTexture *GPU_texture_from_blender(
 	return *tex;
 }
 
-static void **gpu_gen_cube_map(unsigned int *rect, float *frect, int rectw, int recth, bool use_high_bit_depth)
+static void **gpu_gen_cube_map(uint *rect, float *frect, int rectw, int recth, bool use_high_bit_depth)
 {
-	size_t block_size = use_high_bit_depth ? sizeof(float) * 4 : sizeof(unsigned char) * 4;
+	size_t block_size = use_high_bit_depth ? sizeof(float[4]) : sizeof(uchar[4]);
 	void **sides = NULL;
 	int h = recth / 2;
 	int w = rectw / 3;
@@ -437,7 +427,7 @@ static void **gpu_gen_cube_map(unsigned int *rect, float *frect, int rectw, int 
 		}
 	}
 	else {
-		unsigned int **isides = (unsigned int **)sides;
+		uint **isides = (uint **)sides;
 
 		for (int y = 0; y < h; y++) {
 			for (int x = 0; x < w; x++) {
@@ -466,7 +456,7 @@ static void gpu_del_cube_map(void **cube_map)
 
 /* Image *ima can be NULL */
 void GPU_create_gl_tex(
-        unsigned int *bind, unsigned int *rect, float *frect, int rectw, int recth,
+        uint *bind, uint *rect, float *frect, int rectw, int recth,
         int textarget, bool mipmap, bool use_high_bit_depth, Image *ima)
 {
 	ImBuf *ibuf = NULL;
@@ -480,13 +470,11 @@ void GPU_create_gl_tex(
 
 	if (textarget == GL_TEXTURE_2D) {
 		if (use_high_bit_depth) {
-			if (GLEW_ARB_texture_float)
-				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, rectw, recth, 0, GL_RGBA, GL_FLOAT, frect);
-			else
-				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16, rectw, recth, 0, GL_RGBA, GL_FLOAT, frect);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, rectw, recth, 0, GL_RGBA, GL_FLOAT, frect);
 		}
-		else
+		else {
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, rectw, recth, 0, GL_RGBA, GL_UNSIGNED_BYTE, rect);
+		}
 
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, gpu_get_mipmap_filter(1));
 
@@ -509,10 +497,7 @@ void GPU_create_gl_tex(
 				for (i = 1; i < ibuf->miptot; i++) {
 					ImBuf *mip = ibuf->mipmap[i - 1];
 					if (use_high_bit_depth) {
-						if (GLEW_ARB_texture_float)
-							glTexImage2D(GL_TEXTURE_2D, i, GL_RGBA16F, mip->x, mip->y, 0, GL_RGBA, GL_FLOAT, mip->rect_float);
-						else
-							glTexImage2D(GL_TEXTURE_2D, i, GL_RGBA16, mip->x, mip->y, 0, GL_RGBA, GL_FLOAT, mip->rect_float);
+						glTexImage2D(GL_TEXTURE_2D, i, GL_RGBA16F, mip->x, mip->y, 0, GL_RGBA, GL_FLOAT, mip->rect_float);
 					}
 					else {
 						glTexImage2D(GL_TEXTURE_2D, i, GL_RGBA8, mip->x, mip->y, 0, GL_RGBA, GL_UNSIGNED_BYTE, mip->rect);
@@ -532,7 +517,7 @@ void GPU_create_gl_tex(
 
 		if (h == w && is_power_of_2_i(h) && !is_over_resolution_limit(textarget, h, w)) {
 			void **cube_map = gpu_gen_cube_map(rect, frect, rectw, recth, use_high_bit_depth);
-			GLenum informat = use_high_bit_depth ? (GLEW_ARB_texture_float ? GL_RGBA16F : GL_RGBA16) : GL_RGBA8;
+			GLenum informat = use_high_bit_depth ? GL_RGBA16F : GL_RGBA8;
 			GLenum type = use_high_bit_depth ? GL_FLOAT : GL_UNSIGNED_BYTE;
 
 			if (cube_map)
@@ -670,7 +655,7 @@ bool GPU_upload_dxt_texture(ImBuf *ibuf)
 }
 
 void GPU_create_gl_tex_compressed(
-        unsigned int *bind, unsigned int *pix, int x, int y,
+        uint *bind, uint *pix, int x, int y,
         int textarget, int mipmap, Image *ima, ImBuf *ibuf)
 {
 #ifndef WITH_DDS
@@ -775,8 +760,8 @@ static bool gpu_check_scaled_image(ImBuf *ibuf, Image *ima, float *frect, int x,
 		}
 		/* byte images are not continuous in memory so do manual interpolation */
 		else {
-			unsigned char *scalerect = MEM_mallocN(rectw * recth * sizeof(*scalerect) * 4, "scalerect");
-			unsigned int *p = (unsigned int *)scalerect;
+			uchar *scalerect = MEM_mallocN(rectw * recth * sizeof(*scalerect) * 4, "scalerect");
+			uint *p = (uint *)scalerect;
 			int i, j;
 			float inv_xratio = 1.0f / xratio;
 			float inv_yratio = 1.0f / yratio;
@@ -784,7 +769,7 @@ static bool gpu_check_scaled_image(ImBuf *ibuf, Image *ima, float *frect, int x,
 				float u = (x + i) * inv_xratio;
 				for (j = 0; j < recth; j++) {
 					float v = (y + j) * inv_yratio;
-					bilinear_interpolation_color_wrap(ibuf, (unsigned char *)(p + i + j * (rectw)), NULL, u, v);
+					bilinear_interpolation_color_wrap(ibuf, (uchar *)(p + i + j * (rectw)), NULL, u, v);
 				}
 			}
 
@@ -896,6 +881,192 @@ void GPU_paint_update_image(Image *ima, ImageUser *iuser, int x, int y, int w, i
 	BKE_image_release_ibuf(ima, ibuf, NULL);
 }
 
+/* *************************** Transfer functions *************************** */
+
+enum {
+	TFUNC_FLAME_SPECTRUM = 0,
+	TFUNC_COLOR_RAMP     = 1,
+};
+
+#define TFUNC_WIDTH 256
+
+#ifdef WITH_SMOKE
+static void create_flame_spectrum_texture(float *data)
+{
+#define FIRE_THRESH 7
+#define MAX_FIRE_ALPHA 0.06f
+#define FULL_ON_FIRE 100
+
+	float *spec_pixels = MEM_mallocN(TFUNC_WIDTH * 4 * 16 * 16 * sizeof(float), "spec_pixels");
+
+	blackbody_temperature_to_rgb_table(data, TFUNC_WIDTH, 1500, 3000);
+
+	for (int i = 0; i < 16; i++) {
+		for (int j = 0; j < 16; j++) {
+			for (int k = 0; k < TFUNC_WIDTH; k++) {
+				int index = (j * TFUNC_WIDTH * 16 + i * TFUNC_WIDTH + k) * 4;
+				if (k >= FIRE_THRESH) {
+					spec_pixels[index] = (data[k * 4]);
+					spec_pixels[index + 1] = (data[k * 4 + 1]);
+					spec_pixels[index + 2] = (data[k * 4 + 2]);
+					spec_pixels[index + 3] = MAX_FIRE_ALPHA * (
+					        (k > FULL_ON_FIRE) ? 1.0f : (k - FIRE_THRESH) / ((float)FULL_ON_FIRE - FIRE_THRESH));
+				}
+				else {
+					zero_v4(&spec_pixels[index]);
+				}
+			}
+		}
+	}
+
+	memcpy(data, spec_pixels, sizeof(float) * 4 * TFUNC_WIDTH);
+
+	MEM_freeN(spec_pixels);
+
+#undef FIRE_THRESH
+#undef MAX_FIRE_ALPHA
+#undef FULL_ON_FIRE
+}
+
+static void create_color_ramp(const ColorBand *coba, float *data)
+{
+	for (int i = 0; i < TFUNC_WIDTH; i++) {
+		BKE_colorband_evaluate(coba, (float)i / TFUNC_WIDTH, &data[i * 4]);
+	}
+}
+
+static GPUTexture *create_transfer_function(int type, const ColorBand *coba)
+{
+	float *data = MEM_mallocN(sizeof(float) * 4 * TFUNC_WIDTH, __func__);
+
+	switch (type) {
+		case TFUNC_FLAME_SPECTRUM:
+			create_flame_spectrum_texture(data);
+			break;
+		case TFUNC_COLOR_RAMP:
+			create_color_ramp(coba, data);
+			break;
+	}
+
+	GPUTexture *tex = GPU_texture_create_1D(TFUNC_WIDTH, GPU_RGBA8, data, NULL);
+
+	MEM_freeN(data);
+
+	return tex;
+}
+
+static void swizzle_texture_channel_rrrr(GPUTexture *tex)
+{
+	GPU_texture_bind(tex, 0);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_SWIZZLE_R, GL_RED);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_SWIZZLE_G, GL_RED);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_SWIZZLE_B, GL_RED);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_SWIZZLE_A, GL_RED);
+	GPU_texture_unbind(tex);
+}
+
+static GPUTexture *create_field_texture(SmokeDomainSettings *sds)
+{
+	float *field = NULL;
+
+	switch (sds->coba_field) {
+		case FLUID_FIELD_DENSITY:    field = smoke_get_density(sds->fluid); break;
+		case FLUID_FIELD_HEAT:       field = smoke_get_heat(sds->fluid); break;
+		case FLUID_FIELD_FUEL:       field = smoke_get_fuel(sds->fluid); break;
+		case FLUID_FIELD_REACT:      field = smoke_get_react(sds->fluid); break;
+		case FLUID_FIELD_FLAME:      field = smoke_get_flame(sds->fluid); break;
+		case FLUID_FIELD_VELOCITY_X: field = smoke_get_velocity_x(sds->fluid); break;
+		case FLUID_FIELD_VELOCITY_Y: field = smoke_get_velocity_y(sds->fluid); break;
+		case FLUID_FIELD_VELOCITY_Z: field = smoke_get_velocity_z(sds->fluid); break;
+		case FLUID_FIELD_COLOR_R:    field = smoke_get_color_r(sds->fluid); break;
+		case FLUID_FIELD_COLOR_G:    field = smoke_get_color_g(sds->fluid); break;
+		case FLUID_FIELD_COLOR_B:    field = smoke_get_color_b(sds->fluid); break;
+		case FLUID_FIELD_FORCE_X:    field = smoke_get_force_x(sds->fluid); break;
+		case FLUID_FIELD_FORCE_Y:    field = smoke_get_force_y(sds->fluid); break;
+		case FLUID_FIELD_FORCE_Z:    field = smoke_get_force_z(sds->fluid); break;
+		default: return NULL;
+	}
+
+	GPUTexture *tex = GPU_texture_create_nD(
+	               sds->res[0], sds->res[1], sds->res[2], 3,
+	               field, GPU_R8, GPU_DATA_FLOAT, 0, true, NULL);
+
+	swizzle_texture_channel_rrrr(tex);
+	return tex;
+}
+
+static GPUTexture *create_density_texture(SmokeDomainSettings *sds, int highres)
+{
+	float *data = NULL, *source;
+	int cell_count = (highres) ? smoke_turbulence_get_cells(sds->wt) : sds->total_cells;
+	const bool has_color = (highres) ? smoke_turbulence_has_colors(sds->wt) : smoke_has_colors(sds->fluid);
+	int *dim = (highres) ? sds->res_wt : sds->res;
+	GPUTextureFormat format = (has_color) ? GPU_RGBA8 : GPU_R8;
+
+	if (has_color) {
+		data = MEM_callocN(sizeof(float) * cell_count * 4, "smokeColorTexture");
+	}
+
+	if (highres) {
+		if (has_color) {
+			smoke_turbulence_get_rgba(sds->wt, data, 0);
+		}
+		else {
+			source = smoke_turbulence_get_density(sds->wt);
+		}
+	}
+	else {
+		if (has_color) {
+			smoke_get_rgba(sds->fluid, data, 0);
+		}
+		else {
+			source = smoke_get_density(sds->fluid);
+		}
+	}
+
+	GPUTexture *tex = GPU_texture_create_nD(
+	               dim[0], dim[1], dim[2], 3,
+	               (has_color) ? data : source,
+	               format, GPU_DATA_FLOAT, 0, true, NULL);
+	if (data) {
+		MEM_freeN(data);
+	}
+
+	if (format == GPU_R8) {
+		/* Swizzle the RGBA components to read the Red channel so
+		 * that the shader stay the same for colored and non color
+		 * density textures. */
+		swizzle_texture_channel_rrrr(tex);
+	}
+	return tex;
+}
+
+static GPUTexture *create_flame_texture(SmokeDomainSettings *sds, int highres)
+{
+	float *source = NULL;
+	const bool has_fuel = (highres) ? smoke_turbulence_has_fuel(sds->wt) : smoke_has_fuel(sds->fluid);
+	int *dim = (highres) ? sds->res_wt : sds->res;
+
+	if (!has_fuel)
+		return NULL;
+
+	if (highres) {
+		source = smoke_turbulence_get_flame(sds->wt);
+	}
+	else {
+		source = smoke_get_flame(sds->fluid);
+	}
+
+	GPUTexture *tex = GPU_texture_create_nD(
+	               dim[0], dim[1], dim[2], 3,
+	               source, GPU_R8, GPU_DATA_FLOAT, 0, true, NULL);
+
+	swizzle_texture_channel_rrrr(tex);
+
+	return tex;
+}
+#endif  /* WITH_SMOKE */
+
 void GPU_free_smoke(SmokeModifierData *smd)
 {
 	if (smd->type & MOD_SMOKE_TYPE_DOMAIN && smd->domain) {
@@ -910,7 +1081,37 @@ void GPU_free_smoke(SmokeModifierData *smd)
 		if (smd->domain->tex_flame)
 			GPU_texture_free(smd->domain->tex_flame);
 		smd->domain->tex_flame = NULL;
+
+		if (smd->domain->tex_flame_coba)
+			GPU_texture_free(smd->domain->tex_flame_coba);
+		smd->domain->tex_flame_coba = NULL;
+
+		if (smd->domain->tex_coba)
+			GPU_texture_free(smd->domain->tex_coba);
+		smd->domain->tex_coba = NULL;
+
+		if (smd->domain->tex_field)
+			GPU_texture_free(smd->domain->tex_field);
+		smd->domain->tex_field = NULL;
 	}
+}
+
+void GPU_create_smoke_coba_field(SmokeModifierData *smd)
+{
+#ifdef WITH_SMOKE
+	if (smd->type & MOD_SMOKE_TYPE_DOMAIN) {
+		SmokeDomainSettings *sds = smd->domain;
+
+		if (!sds->tex_field) {
+			sds->tex_field = create_field_texture(sds);
+		}
+		if (!sds->tex_coba) {
+			sds->tex_coba = create_transfer_function(TFUNC_COLOR_RAMP, sds->coba);
+		}
+	}
+#else // WITH_SMOKE
+	smd->domain->tex_field = NULL;
+#endif // WITH_SMOKE
 }
 
 void GPU_create_smoke(SmokeModifierData *smd, int highres)
@@ -918,77 +1119,28 @@ void GPU_create_smoke(SmokeModifierData *smd, int highres)
 #ifdef WITH_SMOKE
 	if (smd->type & MOD_SMOKE_TYPE_DOMAIN) {
 		SmokeDomainSettings *sds = smd->domain;
-		if (!sds->tex && !highres) {
-			/* rgba texture for color + density */
-			if (smoke_has_colors(sds->fluid)) {
-				float *data = MEM_callocN(sizeof(float) * sds->total_cells * 4, "smokeColorTexture");
-				smoke_get_rgba(sds->fluid, data, 0);
-				sds->tex = GPU_texture_create_3D(sds->res[0], sds->res[1], sds->res[2], GPU_RGBA8, data, NULL);
-				MEM_freeN(data);
-			}
-			/* density only */
-			else {
-				sds->tex = GPU_texture_create_3D(
-				        sds->res[0], sds->res[1], sds->res[2],
-				        GPU_R8, smoke_get_density(sds->fluid), NULL);
 
-				/* Swizzle the RGBA components to read the Red channel so
-				 * that the shader stay the same for colored and non color
-				 * density textures. */
-				GPU_texture_bind(sds->tex, 0);
-				glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_SWIZZLE_R, GL_RED);
-				glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_SWIZZLE_G, GL_RED);
-				glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_SWIZZLE_B, GL_RED);
-				glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_SWIZZLE_A, GL_RED);
-				GPU_texture_unbind(sds->tex);
-			}
-			sds->tex_flame = (
-			        smoke_has_fuel(sds->fluid) ?
-			        GPU_texture_create_3D(
-			                sds->res[0], sds->res[1], sds->res[2],
-			                GPU_R8, smoke_get_flame(sds->fluid), NULL) :
-			        NULL);
+		if (!sds->tex) {
+			sds->tex = create_density_texture(sds, highres);
 		}
-		else if (!sds->tex && highres) {
-			/* rgba texture for color + density */
-			if (smoke_turbulence_has_colors(sds->wt)) {
-				float *data = MEM_callocN(sizeof(float) * smoke_turbulence_get_cells(sds->wt) * 4, "smokeColorTexture");
-				smoke_turbulence_get_rgba(sds->wt, data, 0);
-				sds->tex = GPU_texture_create_3D(sds->res_wt[0], sds->res_wt[1], sds->res_wt[2], GPU_RGBA8, data, NULL);
-				MEM_freeN(data);
-			}
-			/* density only */
-			else {
-				sds->tex = GPU_texture_create_3D(
-				        sds->res_wt[0], sds->res_wt[1], sds->res_wt[2],
-				        GPU_R8, smoke_turbulence_get_density(sds->wt), NULL);
-
-				/* Swizzle the RGBA components to read the Red channel so
-				 * that the shader stay the same for colored and non color
-				 * density textures. */
-				GPU_texture_bind(sds->tex, 0);
-				glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_SWIZZLE_R, GL_RED);
-				glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_SWIZZLE_G, GL_RED);
-				glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_SWIZZLE_B, GL_RED);
-				glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_SWIZZLE_A, GL_RED);
-				GPU_texture_unbind(sds->tex);
-			}
-			sds->tex_flame = (
-			        smoke_turbulence_has_fuel(sds->wt) ?
-			        GPU_texture_create_3D(
-			                sds->res_wt[0], sds->res_wt[1], sds->res_wt[2],
-			                GPU_R8, smoke_turbulence_get_flame(sds->wt), NULL) :
-			        NULL);
+		if (!sds->tex_flame) {
+			sds->tex_flame = create_flame_texture(sds, highres);
 		}
-
-		sds->tex_shadow = GPU_texture_create_3D(
-		        sds->res[0], sds->res[1], sds->res[2],
-		        GPU_R8, sds->shadow, NULL);
+		if (!sds->tex_flame_coba && sds->tex_flame) {
+			sds->tex_flame_coba = create_transfer_function(TFUNC_FLAME_SPECTRUM, NULL);
+		}
+		if (!sds->tex_shadow) {
+			sds->tex_shadow = GPU_texture_create_nD(
+			                      sds->res[0], sds->res[1], sds->res[2], 3,
+			                      sds->shadow,
+			                      GPU_R8, GPU_DATA_FLOAT, 0, true, NULL);
+		}
 	}
 #else // WITH_SMOKE
 	(void)highres;
 	smd->domain->tex = NULL;
 	smd->domain->tex_flame = NULL;
+	smd->domain->tex_flame_coba = NULL;
 	smd->domain->tex_shadow = NULL;
 #endif // WITH_SMOKE
 }
@@ -1215,9 +1367,9 @@ void GPU_disable_program_point_size(void)
 
 /* apple seems to round colors to below and up on some configs */
 
-static unsigned int index_to_framebuffer(int index)
+static uint index_to_framebuffer(int index)
 {
-	unsigned int i = index;
+	uint i = index;
 
 	switch (GPU_color_depth()) {
 		case 12:
@@ -1245,9 +1397,9 @@ static unsigned int index_to_framebuffer(int index)
 
 /* this is the old method as being in use for ages.... seems to work? colors are rounded to lower values */
 
-static unsigned int index_to_framebuffer(int index)
+static uint index_to_framebuffer(int index)
 {
-	unsigned int i = index;
+	uint i = index;
 
 	switch (GPU_color_depth()) {
 		case 8:
@@ -1303,7 +1455,7 @@ void GPU_select_index_get(int index, int *r_col)
 #define INDEX_FROM_BUF_18(col)    ((((col) & 0xFC0000) >> 6)  + (((col) & 0xFC00) >> 4)  + (((col) & 0xFC) >> 2))
 #define INDEX_FROM_BUF_24(col)      ((col) & 0xFFFFFF)
 
-int GPU_select_to_index(unsigned int col)
+int GPU_select_to_index(uint col)
 {
 	if (col == 0) {
 		return 0;
@@ -1319,7 +1471,7 @@ int GPU_select_to_index(unsigned int col)
 	}
 }
 
-void GPU_select_to_index_array(unsigned int *col, const unsigned int size)
+void GPU_select_to_index_array(uint *col, const uint size)
 {
 #define INDEX_BUF_ARRAY(INDEX_FROM_BUF_BITS) \
 	for (i = size; i--; col++) { \
@@ -1329,7 +1481,7 @@ void GPU_select_to_index_array(unsigned int *col, const unsigned int size)
 	} ((void)0)
 
 	if (size > 0) {
-		unsigned int i, c;
+		uint i, c;
 
 		switch (GPU_color_depth()) {
 			case  8:
@@ -1360,32 +1512,32 @@ typedef struct {
 	eGPUAttribMask mask;
 
 	/* GL_ENABLE_BIT */
-	unsigned int is_blend : 1;
-	unsigned int is_cull_face : 1;
-	unsigned int is_depth_test : 1;
-	unsigned int is_dither : 1;
-	unsigned int is_lighting : 1;
-	unsigned int is_line_smooth : 1;
-	unsigned int is_color_logic_op : 1;
-	unsigned int is_multisample : 1;
-	unsigned int is_polygon_offset_line : 1;
-	unsigned int is_polygon_offset_fill : 1;
-	unsigned int is_polygon_smooth : 1;
-	unsigned int is_sample_alpha_to_coverage : 1;
-	unsigned int is_scissor_test : 1;
-	unsigned int is_stencil_test : 1;
+	uint is_blend : 1;
+	uint is_cull_face : 1;
+	uint is_depth_test : 1;
+	uint is_dither : 1;
+	uint is_lighting : 1;
+	uint is_line_smooth : 1;
+	uint is_color_logic_op : 1;
+	uint is_multisample : 1;
+	uint is_polygon_offset_line : 1;
+	uint is_polygon_offset_fill : 1;
+	uint is_polygon_smooth : 1;
+	uint is_sample_alpha_to_coverage : 1;
+	uint is_scissor_test : 1;
+	uint is_stencil_test : 1;
 
 	bool is_clip_plane[6];
 
 	/* GL_DEPTH_BUFFER_BIT */
-	/* unsigned int is_depth_test : 1; */
+	/* uint is_depth_test : 1; */
 	int depth_func;
 	double depth_clear_value;
 	bool depth_write_mask;
 
 	/* GL_SCISSOR_BIT */
 	int scissor_box[4];
-	/* unsigned int is_scissor_test : 1; */
+	/* uint is_scissor_test : 1; */
 
 	/* GL_VIEWPORT_BIT */
 	int viewport[4];
@@ -1394,11 +1546,11 @@ typedef struct {
 
 typedef struct {
 	GPUAttribValues attrib_stack[STATE_STACK_DEPTH];
-	unsigned int top;
+	uint top;
 } GPUAttribStack;
 
 static GPUAttribStack state = {
-	.top = 0
+	.top = 0,
 };
 
 #define AttribStack state

@@ -66,12 +66,12 @@
 
 #include "BKE_asset_engine.h"
 #include "BKE_context.h"
+#include "BKE_global.h"
 #include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_library_override.h"
 #include "BKE_library_remap.h"
 #include "BKE_material.h"
-#include "BKE_global.h"
 #include "BKE_image.h"
 #include "BKE_main.h"
 #include "BKE_report.h"
@@ -330,7 +330,7 @@ static void wm_link_virtual_lib(
 
 			/* If the link is sucessful, clear item's libs 'todo' flags.
 			 * This avoids trying to link same item with other libraries to come. */
-			BLI_BITMAP_SET_ALL(item->libraries, false, lapp_data->num_libraries);
+			BLI_bitmap_set_all(item->libraries, false, lapp_data->num_libraries);
 			item->new_id = new_id;
 		}
 	}
@@ -339,7 +339,7 @@ static void wm_link_virtual_lib(
 
 static void wm_link_do(
         WMLinkAppendData *lapp_data, ReportList *reports, Main *bmain, AssetEngineType *aet,
-        Scene *scene, ViewLayer *view_layer)
+        Scene *scene, ViewLayer *view_layer, const View3D *v3d)
 {
 	Main *mainl;
 	BlendHandle *bh;
@@ -399,17 +399,17 @@ static void wm_link_do(
 
 			new_id = BLO_library_link_named_part_asset(
 			             mainl, &bh, aet, lapp_data->root, item->idcode, item->name, item->uuid,
-			             flag, bmain, scene, view_layer);
+			             flag, bmain, scene, view_layer, v3d);
 
 			if (new_id) {
 				/* If the link is successful, clear item's libs 'todo' flags.
 				 * This avoids trying to link same item with other libraries to come. */
-				BLI_BITMAP_SET_ALL(item->libraries, false, lapp_data->num_libraries);
+				BLI_bitmap_set_all(item->libraries, false, lapp_data->num_libraries);
 				item->new_id = new_id;
 			}
 		}
 
-		BLO_library_link_end(mainl, &bh, flag, bmain, scene, view_layer);
+		BLO_library_link_end(mainl, &bh, flag, bmain, scene, view_layer, v3d);
 		BLO_blendhandle_close(bh);
 	}
 }
@@ -548,7 +548,7 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 				}
 
 				if (!BLI_ghash_haskey(libraries, libname)) {
-					BLI_ghash_insert(libraries, BLI_strdup(libname), SET_INT_IN_POINTER(lib_idx));
+					BLI_ghash_insert(libraries, BLI_strdup(libname), POINTER_FROM_INT(lib_idx));
 					lib_idx++;
 					wm_link_append_data_library_add(lapp_data, libname);
 				}
@@ -556,7 +556,7 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 			/* Non-blend paths are only valid in asset engine context (virtual libraries). */
 			else if (aet && path_to_idcode(path)) {
 				if (!BLI_ghash_haskey(libraries, "")) {
-					BLI_ghash_insert(libraries, BLI_strdup(""), SET_INT_IN_POINTER(lib_idx));
+					BLI_ghash_insert(libraries, BLI_strdup(""), POINTER_FROM_INT(lib_idx));
 					lib_idx++;
 					wm_link_append_data_library_add(lapp_data, "");
 				}
@@ -588,7 +588,7 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 					continue;
 				}
 
-				lib_idx = GET_INT_FROM_POINTER(BLI_ghash_lookup(libraries, libname));
+				lib_idx = POINTER_AS_INT(BLI_ghash_lookup(libraries, libname));
 				item = wm_link_append_data_item_add(lapp_data, name, BKE_idcode_from_name(group), &uuid, NULL);
 				BLI_BITMAP_ENABLE(item->libraries, lib_idx);
 			}
@@ -596,7 +596,7 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 				const int idcode = path_to_idcode(path);
 
 				if (idcode != 0) {
-					lib_idx = GET_INT_FROM_POINTER(BLI_ghash_lookup(libraries, ""));
+					lib_idx = POINTER_AS_INT(BLI_ghash_lookup(libraries, ""));
 					item = wm_link_append_data_item_add(lapp_data, path, idcode, &uuid, NULL);
 					BLI_BITMAP_ENABLE(item->libraries, lib_idx);
 				}
@@ -648,7 +648,7 @@ static int wm_link_append_exec(bContext *C, wmOperator *op)
 	/* XXX We'd need re-entrant locking on Main for this to work... */
 	/* BKE_main_lock(bmain); */
 
-	wm_link_do(lapp_data, op->reports, bmain, aet, scene, view_layer);
+	wm_link_do(lapp_data, op->reports, bmain, aet, scene, view_layer, CTX_wm_view3d(C));
 
 	/* BKE_main_unlock(bmain); */
 
@@ -876,7 +876,7 @@ static void lib_relocate_do(
 					/* Note that non-linkable IDs (like e.g. shapekeys) are also explicitely linked here... */
 					BLI_remlink(lbarray[lba_idx], id);
 					item = wm_link_append_data_item_add(lapp_data, id->name + 2, idcode, NULL, id);
-					BLI_BITMAP_SET_ALL(item->libraries, true, lapp_data->num_libraries);
+					BLI_bitmap_set_all(item->libraries, true, lapp_data->num_libraries);
 
 #ifdef DEBUG_LIBRARY
 					printf("\tdatablock to seek for: %s\n", id->name);
@@ -893,8 +893,8 @@ static void lib_relocate_do(
 
 	BKE_main_id_tag_all(bmain, LIB_TAG_PRE_EXISTING, true);
 
-	/* We do not want any instanciation here, nor do we want re-generating overrides. */
-	wm_link_do(lapp_data, reports, bmain, aet, NULL, NULL);
+	/* We do not want any instantiation here! */
+	wm_link_do(lapp_data, reports, bmain, aet, NULL, NULL, NULL);
 
 	BKE_main_lock(bmain);
 
@@ -1606,7 +1606,7 @@ static int wm_assets_reload_exec(bContext *C, wmOperator *op)
 				BLI_assert(group && name);
 
 				if (!BLI_ghash_haskey(libraries, libname)) {
-					BLI_ghash_insert(libraries, BLI_strdup(libname), SET_INT_IN_POINTER(lib_idx));
+					BLI_ghash_insert(libraries, BLI_strdup(libname), POINTER_FROM_INT(lib_idx));
 					lib_idx++;
 					wm_link_append_data_library_add(lapp_data, libname);
 				}
@@ -1614,7 +1614,7 @@ static int wm_assets_reload_exec(bContext *C, wmOperator *op)
 			/* Non-blend paths are only valid in asset engine context (virtual libraries). */
 			else if (path_to_idcode(path)) {
 				if (!BLI_ghash_haskey(libraries, "")) {
-					BLI_ghash_insert(libraries, BLI_strdup(""), SET_INT_IN_POINTER(lib_idx));
+					BLI_ghash_insert(libraries, BLI_strdup(""), POINTER_FROM_INT(lib_idx));
 					lib_idx++;
 					wm_link_append_data_library_add(lapp_data, "");
 				}
@@ -1645,7 +1645,7 @@ static int wm_assets_reload_exec(bContext *C, wmOperator *op)
 				ID *old_id = aref ? ((LinkData *)aref->id_list.first)->data : NULL;
 				BLI_assert(!old_id || (old_id->uuid && ASSETUUID_EQUAL(old_id->uuid, uuid)));
 
-				lib_idx = GET_INT_FROM_POINTER(BLI_ghash_lookup(libraries, libname_def));
+				lib_idx = POINTER_AS_INT(BLI_ghash_lookup(libraries, libname_def));
 
 				BLI_remlink(which_libbase(bmain, GS(old_id->name)), old_id);
 				item = wm_link_append_data_item_add(lapp_data, name_def, idcode, uuid, old_id);

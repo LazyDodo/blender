@@ -59,7 +59,7 @@
 /**
  * helper to find edge for edge_rip,
  *
- * \param inset is used so we get some useful distance
+ * \param inset: is used so we get some useful distance
  * when comparing multiple edges that meet at the same
  * point and would result in the same distance.
  */
@@ -1011,12 +1011,12 @@ static int edbm_rip_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 {
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	uint objects_len = 0;
-	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &objects_len);
+	Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, CTX_wm_view3d(C), &objects_len);
 	const bool do_fill = RNA_boolean_get(op->ptr, "use_fill");
 
 	bool no_vertex_selected = true;
 	bool error_face_selected = true;
-	bool error_disconected_vertices = true;
+	bool error_disconnected_vertices = true;
 	bool error_rip_failed = true;
 
 	for (uint ob_index = 0; ob_index < objects_len; ob_index++) {
@@ -1047,7 +1047,7 @@ static int edbm_rip_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 		if ((bm->totvertsel > 1) && (bm->totedgesel == 0)) {
 			continue;
 		}
-		error_disconected_vertices = false;
+		error_disconnected_vertices = false;
 
 		/* note on selection:
 		 * When calling edge split we operate on tagged edges rather then selected
@@ -1096,7 +1096,7 @@ static int edbm_rip_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 		BKE_report(op->reports, RPT_ERROR, "Cannot rip selected faces");
 		return OPERATOR_CANCELLED;
 	}
-	else if (error_disconected_vertices) {
+	else if (error_disconnected_vertices) {
 		BKE_report(op->reports, RPT_ERROR, "Cannot rip multiple disconnected vertices");
 		return OPERATOR_CANCELLED;
 	}

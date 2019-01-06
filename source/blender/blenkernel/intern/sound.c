@@ -159,7 +159,7 @@ void BKE_sound_free(bSound *sound)
  *
  * WARNING! This function will not handle ID user count!
  *
- * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
+ * \param flag: Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
  */
 void BKE_sound_copy_data(Main *bmain, bSound *sound_dst, const bSound *UNUSED(sound_src), const int UNUSED(flag))
 {
@@ -532,6 +532,10 @@ void *BKE_sound_scene_add_scene_sound_defaults(struct Scene *scene, struct Seque
 
 void *BKE_sound_add_scene_sound(struct Scene *scene, struct Sequence *sequence, int startframe, int endframe, int frameskip)
 {
+	/* Happens when sequence's sound datablock was removed. */
+	if (sequence->sound == NULL) {
+		return NULL;
+	}
 	const double fps = FPS;
 	void *handle = AUD_Sequence_add(scene->sound_scene, sequence->sound->playback_handle,
 	                               startframe / fps, endframe / fps, frameskip / fps);
@@ -545,8 +549,8 @@ void *BKE_sound_add_scene_sound(struct Scene *scene, struct Sequence *sequence, 
 void *BKE_sound_add_scene_sound_defaults(struct Scene *scene, struct Sequence *sequence)
 {
 	return BKE_sound_add_scene_sound(scene, sequence,
-	                             sequence->startdisp, sequence->enddisp,
-	                             sequence->startofs + sequence->anim_startofs);
+	                                 sequence->startdisp, sequence->enddisp,
+	                                 sequence->startofs + sequence->anim_startofs);
 }
 
 void BKE_sound_remove_scene_sound(struct Scene *scene, void *handle)

@@ -87,24 +87,32 @@ static void gpencil_set_fill_point(
 	GPU_vertbuf_attr_set(vbo, text_id, idx, uv);
 }
 
-/* create batch geometry data for points stroke shader */
-GPUBatch *DRW_gpencil_get_point_geom(bGPDstroke *gps, short thickness, const float ink[4])
+static void gpencil_vbo_ensure_size(GpencilBatchCacheElem *be, int totvertex)
 {
-	static GPUVertFormat format = { 0 };
-	static uint pos_id, color_id, size_id, uvdata_id;
-	if (format.attr_len == 0) {
-		pos_id = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
-		color_id = GPU_vertformat_attr_add(&format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
-		size_id = GPU_vertformat_attr_add(&format, "thickness", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
-		uvdata_id = GPU_vertformat_attr_add(&format, "uvdata", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+	if (be->vbo->vertex_alloc <= be->vbo_len + totvertex) {
+		uint newsize = be->vbo->vertex_alloc + (((totvertex / GPENCIL_VBO_BLOCK_SIZE) + 1) * GPENCIL_VBO_BLOCK_SIZE);
+		GPU_vertbuf_data_resize(be->vbo, newsize);
 	}
+}
 
-	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
-	GPU_vertbuf_data_alloc(vbo, gps->totpoints);
+/* create batch geometry data for points stroke shader */
+void DRW_gpencil_get_point_geom(GpencilBatchCacheElem *be, bGPDstroke *gps, short thickness, const float ink[4])
+{
+	int totvertex = gps->totpoints;
+	if (be->vbo == NULL) {
+		be->pos_id = GPU_vertformat_attr_add(&be->format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+		be->color_id = GPU_vertformat_attr_add(&be->format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
+		be->thickness_id = GPU_vertformat_attr_add(&be->format, "thickness", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
+		be->uvdata_id = GPU_vertformat_attr_add(&be->format, "uvdata", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+
+		be->vbo = GPU_vertbuf_create_with_format(&be->format);
+		GPU_vertbuf_data_alloc(be->vbo, be->tot_vertex);
+		be->vbo_len = 0;
+	}
+	gpencil_vbo_ensure_size(be, totvertex);
 
 	/* draw stroke curve */
 	const bGPDspoint *pt = gps->points;
-	int idx = 0;
 	float alpha;
 	float col[4];
 
@@ -116,86 +124,120 @@ GPUBatch *DRW_gpencil_get_point_geom(bGPDstroke *gps, short thickness, const flo
 
 		float thick = max_ff(pt->pressure * thickness, 1.0f);
 
-		GPU_vertbuf_attr_set(vbo, color_id, idx, col);
-		GPU_vertbuf_attr_set(vbo, size_id, idx, &thick);
+		GPU_vertbuf_attr_set(be->vbo, be->color_id, be->vbo_len, col);
+		GPU_vertbuf_attr_set(be->vbo, be->thickness_id, be->vbo_len, &thick);
 
 		/* transfer both values using the same shader variable */
 		float uvdata[2] = { pt->uv_fac, pt->uv_rot };
-		GPU_vertbuf_attr_set(vbo, uvdata_id, idx, uvdata);
+		GPU_vertbuf_attr_set(be->vbo, be->uvdata_id, be->vbo_len, uvdata);
 
-		GPU_vertbuf_attr_set(vbo, pos_id, idx, &pt->x);
-		idx++;
+		GPU_vertbuf_attr_set(be->vbo, be->pos_id, be->vbo_len, &pt->x);
+		be->vbo_len++;
 	}
-
-	return GPU_batch_create_ex(GPU_PRIM_POINTS, vbo, NULL, GPU_BATCH_OWNS_VBO);
 }
 
 /* create batch geometry data for stroke shader */
-GPUBatch *DRW_gpencil_get_stroke_geom(bGPDstroke *gps, short thickness, const float ink[4])
+void DRW_gpencil_get_stroke_geom(struct GpencilBatchCacheElem *be, bGPDstroke *gps, short thickness, const float ink[4])
 {
 	bGPDspoint *points = gps->points;
 	int totpoints = gps->totpoints;
 	/* if cyclic needs more vertex */
 	int cyclic_add = (gps->flag & GP_STROKE_CYCLIC) ? 1 : 0;
+	int totvertex = totpoints + cyclic_add + 2;
 
-	static GPUVertFormat format = { 0 };
-	static uint pos_id, color_id, thickness_id, uvdata_id;
-	if (format.attr_len == 0) {
-		pos_id = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
-		color_id = GPU_vertformat_attr_add(&format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
-		thickness_id = GPU_vertformat_attr_add(&format, "thickness", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
-		uvdata_id = GPU_vertformat_attr_add(&format, "uvdata", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+	if (be->vbo == NULL) {
+		be->pos_id = GPU_vertformat_attr_add(&be->format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+		be->color_id = GPU_vertformat_attr_add(&be->format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
+		be->thickness_id = GPU_vertformat_attr_add(&be->format, "thickness", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
+		be->uvdata_id = GPU_vertformat_attr_add(&be->format, "uvdata", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+
+		be->vbo = GPU_vertbuf_create_with_format(&be->format);
+		GPU_vertbuf_data_alloc(be->vbo, be->tot_vertex);
+		be->vbo_len = 0;
 	}
-
-	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
-	GPU_vertbuf_data_alloc(vbo, totpoints + cyclic_add + 2);
+	gpencil_vbo_ensure_size(be, totvertex);
 
 	/* draw stroke curve */
 	const bGPDspoint *pt = points;
-	int idx = 0;
 	for (int i = 0; i < totpoints; i++, pt++) {
 		/* first point for adjacency (not drawn) */
 		if (i == 0) {
 			if (gps->flag & GP_STROKE_CYCLIC && totpoints > 2) {
 				gpencil_set_stroke_point(
-				        vbo, &points[totpoints - 1], idx,
-				        pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
-				idx++;
+					be->vbo, &points[totpoints - 1], be->vbo_len,
+					be->pos_id, be->color_id, be->thickness_id, be->uvdata_id, thickness, ink);
+				be->vbo_len++;
 			}
 			else {
 				gpencil_set_stroke_point(
-				        vbo, &points[1], idx,
-				        pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
-				idx++;
+					be->vbo, &points[1], be->vbo_len,
+					be->pos_id, be->color_id, be->thickness_id, be->uvdata_id, thickness, ink);
+				be->vbo_len++;
 			}
 		}
 		/* set point */
 		gpencil_set_stroke_point(
-		        vbo, pt, idx,
-		        pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
-		idx++;
+			be->vbo, pt, be->vbo_len,
+			be->pos_id, be->color_id, be->thickness_id, be->uvdata_id, thickness, ink);
+		be->vbo_len++;
 	}
 
 	if (gps->flag & GP_STROKE_CYCLIC && totpoints > 2) {
 		/* draw line to first point to complete the cycle */
 		gpencil_set_stroke_point(
-		        vbo, &points[0], idx,
-		        pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
-		idx++;
+			be->vbo, &points[0], be->vbo_len,
+			be->pos_id, be->color_id, be->thickness_id, be->uvdata_id, thickness, ink);
+		be->vbo_len++;
 		/* now add adjacency point (not drawn) */
 		gpencil_set_stroke_point(
-		        vbo, &points[1], idx,
-		        pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
-		idx++;
+			be->vbo, &points[1], be->vbo_len,
+			be->pos_id, be->color_id, be->thickness_id, be->uvdata_id, thickness, ink);
+		be->vbo_len++;
 	}
 	/* last adjacency point (not drawn) */
 	else {
 		gpencil_set_stroke_point(
-		        vbo, &points[totpoints - 2], idx,
-		        pos_id, color_id, thickness_id, uvdata_id, thickness, ink);
+			be->vbo, &points[totpoints - 2], be->vbo_len,
+			be->pos_id, be->color_id, be->thickness_id, be->uvdata_id, thickness, ink);
+		be->vbo_len++;
+	}
+}
+
+/* create batch geometry data for stroke shader */
+void DRW_gpencil_get_fill_geom(struct GpencilBatchCacheElem *be, Object *ob, bGPDstroke *gps, const float color[4])
+{
+	BLI_assert(gps->totpoints >= 3);
+
+	/* Calculate triangles cache for filling area (must be done only after changes) */
+	if ((gps->flag & GP_STROKE_RECALC_GEOMETRY) || (gps->tot_triangles == 0) || (gps->triangles == NULL)) {
+		DRW_gpencil_triangulate_stroke_fill(ob, gps);
+		ED_gpencil_calc_stroke_uv(ob, gps);
 	}
 
-	return GPU_batch_create_ex(GPU_PRIM_LINE_STRIP_ADJ, vbo, NULL, GPU_BATCH_OWNS_VBO);
+	BLI_assert(gps->tot_triangles >= 1);
+	int totvertex = gps->tot_triangles * 3;
+
+	if (be->vbo == NULL) {
+		be->pos_id = GPU_vertformat_attr_add(&be->format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+		be->color_id = GPU_vertformat_attr_add(&be->format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
+		be->uvdata_id = GPU_vertformat_attr_add(&be->format, "texCoord", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
+
+		be->vbo = GPU_vertbuf_create_with_format(&be->format);
+		GPU_vertbuf_data_alloc(be->vbo, be->tot_vertex);
+		be->vbo_len = 0;
+	}
+	gpencil_vbo_ensure_size(be, totvertex);
+
+	/* Draw all triangles for filling the polygon (cache must be calculated before) */
+	bGPDtriangle *stroke_triangle = gps->triangles;
+	for (int i = 0; i < gps->tot_triangles; i++, stroke_triangle++) {
+		for (int j = 0; j < 3; j++) {
+			gpencil_set_fill_point(
+				be->vbo, be->vbo_len, &gps->points[stroke_triangle->verts[j]], color, stroke_triangle->uv[j],
+				be->pos_id, be->color_id, be->uvdata_id);
+			be->vbo_len++;
+		}
+	}
 }
 
 /* create batch geometry data for current buffer stroke shader */
@@ -203,7 +245,6 @@ GPUBatch *DRW_gpencil_get_buffer_stroke_geom(bGPdata *gpd, short thickness)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
-	View3D *v3d = draw_ctx->v3d;
 	ARegion *ar = draw_ctx->ar;
 	RegionView3D *rv3d = draw_ctx->rv3d;
 	ToolSettings *ts = scene->toolsettings;
@@ -211,6 +252,9 @@ GPUBatch *DRW_gpencil_get_buffer_stroke_geom(bGPdata *gpd, short thickness)
 
 	tGPspoint *points = gpd->runtime.sbuffer;
 	int totpoints = gpd->runtime.sbuffer_size;
+	/* if cyclic needs more vertex */
+	int cyclic_add = (gpd->runtime.sbuffer_sflag & GP_STROKE_CYCLIC) ? 1 : 0;
+	int totvertex = totpoints + cyclic_add + 2;
 
 	static GPUVertFormat format = { 0 };
 	static uint pos_id, color_id, thickness_id, uvdata_id;
@@ -222,17 +266,17 @@ GPUBatch *DRW_gpencil_get_buffer_stroke_geom(bGPdata *gpd, short thickness)
 	}
 
 	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
-	GPU_vertbuf_data_alloc(vbo, totpoints + 2);
+	GPU_vertbuf_data_alloc(vbo, totvertex);
 
 	/* draw stroke curve */
 	const tGPspoint *tpt = points;
-	bGPDspoint pt, pt2;
+	bGPDspoint pt, pt2, pt3;
 	int idx = 0;
 
 	/* get origin to reproject point */
 	float origin[3];
 	bGPDlayer *gpl = BKE_gpencil_layer_getactive(gpd);
-	ED_gp_get_drawing_reference(v3d, scene, ob, gpl, ts->gpencil_v3d_align, origin);
+	ED_gp_get_drawing_reference(scene, ob, gpl, ts->gpencil_v3d_align, origin);
 
 	for (int i = 0; i < totpoints; i++, tpt++) {
 		ED_gpencil_tpoint_to_point(ar, origin, tpt, &pt);
@@ -240,19 +284,22 @@ GPUBatch *DRW_gpencil_get_buffer_stroke_geom(bGPdata *gpd, short thickness)
 
 		/* first point for adjacency (not drawn) */
 		if (i == 0) {
-			if (totpoints > 1) {
-				ED_gpencil_tpoint_to_point(ar, origin, &points[1], &pt2);
+			if (gpd->runtime.sbuffer_sflag & GP_STROKE_CYCLIC && totpoints > 2) {
+				ED_gpencil_tpoint_to_point(ar, origin, &points[totpoints - 1], &pt2);
 				gpencil_set_stroke_point(
-				        vbo, &pt2, idx,
-				        pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->runtime.scolor);
+					vbo, &pt2, idx,
+					pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->runtime.scolor);
+				idx++;
 			}
 			else {
+				ED_gpencil_tpoint_to_point(ar, origin, &points[1], &pt2);
 				gpencil_set_stroke_point(
-				        vbo, &pt, idx,
-				        pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->runtime.scolor);
+					vbo, &pt2, idx,
+					pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->runtime.scolor);
+				idx++;
 			}
-			idx++;
 		}
+
 		/* set point */
 		gpencil_set_stroke_point(
 		        vbo, &pt, idx,
@@ -261,16 +308,27 @@ GPUBatch *DRW_gpencil_get_buffer_stroke_geom(bGPdata *gpd, short thickness)
 	}
 
 	/* last adjacency point (not drawn) */
-	if (totpoints > 2) {
+	if (gpd->runtime.sbuffer_sflag & GP_STROKE_CYCLIC && totpoints > 2) {
+		/* draw line to first point to complete the cycle */
+		ED_gpencil_tpoint_to_point(ar, origin, &points[0], &pt2);
+		gpencil_set_stroke_point(
+			vbo, &pt2, idx,
+			pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->runtime.scolor);
+		idx++;
+		/* now add adjacency point (not drawn) */
+		ED_gpencil_tpoint_to_point(ar, origin, &points[1], &pt3);
+		gpencil_set_stroke_point(
+			vbo, &pt3, idx,
+			pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->runtime.scolor);
+		idx++;
+	}
+	/* last adjacency point (not drawn) */
+	else {
 		ED_gpencil_tpoint_to_point(ar, origin, &points[totpoints - 2], &pt2);
 		gpencil_set_stroke_point(
-		        vbo, &pt2, idx,
-		        pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->runtime.scolor);
-	}
-	else {
-		gpencil_set_stroke_point(
-		        vbo, &pt, idx,
-		        pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->runtime.scolor);
+			vbo, &pt2, idx,
+			pos_id, color_id, thickness_id, uvdata_id, thickness, gpd->runtime.scolor);
+		idx++;
 	}
 
 	return GPU_batch_create_ex(GPU_PRIM_LINE_STRIP_ADJ, vbo, NULL, GPU_BATCH_OWNS_VBO);
@@ -281,7 +339,6 @@ GPUBatch *DRW_gpencil_get_buffer_point_geom(bGPdata *gpd, short thickness)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
-	View3D *v3d = draw_ctx->v3d;
 	ARegion *ar = draw_ctx->ar;
 	RegionView3D *rv3d = draw_ctx->rv3d;
 	ToolSettings *ts = scene->toolsettings;
@@ -310,7 +367,7 @@ GPUBatch *DRW_gpencil_get_buffer_point_geom(bGPdata *gpd, short thickness)
 	/* get origin to reproject point */
 	float origin[3];
 	bGPDlayer *gpl = BKE_gpencil_layer_getactive(gpd);
-	ED_gp_get_drawing_reference(v3d, scene, ob, gpl, ts->gpencil_v3d_align, origin);
+	ED_gp_get_drawing_reference(scene, ob, gpl, ts->gpencil_v3d_align, origin);
 
 	for (int i = 0; i < totpoints; i++, tpt++) {
 		ED_gpencil_tpoint_to_point(ar, origin, tpt, &pt);
@@ -321,6 +378,40 @@ GPUBatch *DRW_gpencil_get_buffer_point_geom(bGPdata *gpd, short thickness)
 		        vbo, &pt, idx,
 		        pos_id, color_id, thickness_id, uvdata_id,
 		        thickness, gpd->runtime.scolor);
+		idx++;
+	}
+
+	return GPU_batch_create_ex(GPU_PRIM_POINTS, vbo, NULL, GPU_BATCH_OWNS_VBO);
+}
+
+/* create batch geometry data for current buffer control point shader */
+GPUBatch *DRW_gpencil_get_buffer_ctrlpoint_geom(bGPdata *gpd)
+{
+	bGPDcontrolpoint *cps = gpd->runtime.cp_points;
+	int totpoints = gpd->runtime.tot_cp_points;
+
+	static GPUVertFormat format = { 0 };
+	static uint pos_id, color_id, size_id;
+	if (format.attr_len == 0) {
+		pos_id = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+		size_id = GPU_vertformat_attr_add(&format, "size", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
+		color_id = GPU_vertformat_attr_add(&format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
+	}
+
+	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
+	GPU_vertbuf_data_alloc(vbo, totpoints);
+
+	int idx = 0;
+	for (int i = 0; i < gpd->runtime.tot_cp_points; i++) {
+		bGPDcontrolpoint *cp = &cps[i];
+
+		GPU_vertbuf_attr_set(vbo, color_id, idx, cp->color);
+
+		/* scale size */
+		float size = cp->size * 0.8f;
+		GPU_vertbuf_attr_set(vbo, size_id, idx, &size);
+
+		GPU_vertbuf_attr_set(vbo, pos_id, idx, &cp->x);
 		idx++;
 	}
 
@@ -342,7 +433,6 @@ GPUBatch *DRW_gpencil_get_buffer_fill_geom(bGPdata *gpd)
 
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
-	View3D *v3d = draw_ctx->v3d;
 	ARegion *ar = draw_ctx->ar;
 	ToolSettings *ts = scene->toolsettings;
 	Object *ob = draw_ctx->obact;
@@ -350,7 +440,7 @@ GPUBatch *DRW_gpencil_get_buffer_fill_geom(bGPdata *gpd)
 	/* get origin to reproject point */
 	float origin[3];
 	bGPDlayer *gpl = BKE_gpencil_layer_getactive(gpd);
-	ED_gp_get_drawing_reference(v3d, scene, ob, gpl, ts->gpencil_v3d_align, origin);
+	ED_gp_get_drawing_reference(scene, ob, gpl, ts->gpencil_v3d_align, origin);
 
 	int tot_triangles = totpoints - 2;
 	/* allocate memory for temporary areas */
@@ -407,52 +497,13 @@ GPUBatch *DRW_gpencil_get_buffer_fill_geom(bGPdata *gpd)
 	return GPU_batch_create_ex(GPU_PRIM_TRIS, vbo, NULL, GPU_BATCH_OWNS_VBO);
 }
 
-/* create batch geometry data for stroke shader */
-GPUBatch *DRW_gpencil_get_fill_geom(Object *ob, bGPDstroke *gps, const float color[4])
-{
-	BLI_assert(gps->totpoints >= 3);
-
-	/* Calculate triangles cache for filling area (must be done only after changes) */
-	if ((gps->flag & GP_STROKE_RECALC_CACHES) || (gps->tot_triangles == 0) || (gps->triangles == NULL)) {
-		DRW_gpencil_triangulate_stroke_fill(gps);
-		ED_gpencil_calc_stroke_uv(ob, gps);
-	}
-
-	BLI_assert(gps->tot_triangles >= 1);
-
-	static GPUVertFormat format = { 0 };
-	static uint pos_id, color_id, text_id;
-	if (format.attr_len == 0) {
-		pos_id = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
-		color_id = GPU_vertformat_attr_add(&format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
-		text_id = GPU_vertformat_attr_add(&format, "texCoord", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
-	}
-
-	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
-	GPU_vertbuf_data_alloc(vbo, gps->tot_triangles * 3);
-
-	/* Draw all triangles for filling the polygon (cache must be calculated before) */
-	bGPDtriangle *stroke_triangle = gps->triangles;
-	int idx = 0;
-	for (int i = 0; i < gps->tot_triangles; i++, stroke_triangle++) {
-		for (int j = 0; j < 3; j++) {
-			gpencil_set_fill_point(
-			        vbo, idx, &gps->points[stroke_triangle->verts[j]], color, stroke_triangle->uv[j],
-			        pos_id, color_id, text_id);
-			idx++;
-		}
-	}
-
-	return GPU_batch_create_ex(GPU_PRIM_TRIS, vbo, NULL, GPU_BATCH_OWNS_VBO);
-}
-
 /* Draw selected verts for strokes being edited */
-GPUBatch *DRW_gpencil_get_edit_geom(bGPDstroke *gps, float alpha, short dflag)
+void DRW_gpencil_get_edit_geom(struct GpencilBatchCacheElem *be, bGPDstroke *gps, float alpha, short dflag)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Object *ob = draw_ctx->obact;
 	bGPdata *gpd = ob->data;
-	bool is_weight_paint = (gpd) && (gpd->flag & GP_DATA_STROKE_WEIGHTMODE);
+	const bool is_weight_paint = (gpd) && (gpd->flag & GP_DATA_STROKE_WEIGHTMODE);
 
 	int vgindex = ob->actdef - 1;
 	if (!BLI_findlink(&ob->defbase, vgindex)) {
@@ -483,16 +534,16 @@ GPUBatch *DRW_gpencil_get_edit_geom(bGPDstroke *gps, float alpha, short dflag)
 	UI_GetThemeColor3fv(TH_GP_VERTEX, unselectColor);
 	unselectColor[3] = alpha;
 
-	static GPUVertFormat format = { 0 };
-	static uint pos_id, color_id, size_id;
-	if (format.attr_len == 0) {
-		pos_id = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
-		color_id = GPU_vertformat_attr_add(&format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
-		size_id = GPU_vertformat_attr_add(&format, "size", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
-	}
+	if (be->vbo == NULL) {
+		be->pos_id = GPU_vertformat_attr_add(&be->format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+		be->color_id = GPU_vertformat_attr_add(&be->format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
+		be->thickness_id = GPU_vertformat_attr_add(&be->format, "size", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
 
-	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
-	GPU_vertbuf_data_alloc(vbo, gps->totpoints);
+		be->vbo = GPU_vertbuf_create_with_format(&be->format);
+		GPU_vertbuf_data_alloc(be->vbo, gps->totpoints);
+		be->vbo_len = 0;
+	}
+	gpencil_vbo_ensure_size(be, gps->totpoints);
 
 	/* Draw start and end point differently if enabled stroke direction hint */
 	bool show_direction_hint = (dflag & GP_DATA_SHOW_DIRECTION) && (gps->totpoints > 1);
@@ -501,13 +552,12 @@ GPUBatch *DRW_gpencil_get_edit_geom(bGPDstroke *gps, float alpha, short dflag)
 	bGPDspoint *pt = gps->points;
 	MDeformVert *dvert = gps->dvert;
 
-	int idx = 0;
 	float fcolor[4];
 	float fsize = 0;
 	for (int i = 0; i < gps->totpoints; i++, pt++) {
 		/* weight paint */
 		if (is_weight_paint) {
-			float weight = gps->dvert ? defvert_find_weight(dvert, vgindex) : 0.0f;
+			float weight = (dvert && dvert->dw) ? defvert_find_weight(dvert, vgindex) : 0.0f;
 			float hue = 2.0f * (1.0f - weight) / 3.0f;
 			hsv_to_rgb(hue, 1.0f, 1.0f, &selectColor[0], &selectColor[1], &selectColor[2]);
 			selectColor[3] = 1.0f;
@@ -535,25 +585,23 @@ GPUBatch *DRW_gpencil_get_edit_geom(bGPDstroke *gps, float alpha, short dflag)
 			}
 		}
 
-		GPU_vertbuf_attr_set(vbo, color_id, idx, fcolor);
-		GPU_vertbuf_attr_set(vbo, size_id, idx, &fsize);
-		GPU_vertbuf_attr_set(vbo, pos_id, idx, &pt->x);
-		idx++;
+		GPU_vertbuf_attr_set(be->vbo, be->color_id, be->vbo_len, fcolor);
+		GPU_vertbuf_attr_set(be->vbo, be->thickness_id, be->vbo_len, &fsize);
+		GPU_vertbuf_attr_set(be->vbo, be->pos_id, be->vbo_len, &pt->x);
+		be->vbo_len++;
 		if (gps->dvert != NULL) {
 			dvert++;
 		}
 	}
-
-	return GPU_batch_create_ex(GPU_PRIM_POINTS, vbo, NULL, GPU_BATCH_OWNS_VBO);
 }
 
 /* Draw lines for strokes being edited */
-GPUBatch *DRW_gpencil_get_edlin_geom(bGPDstroke *gps, float alpha, short UNUSED(dflag))
+void DRW_gpencil_get_edlin_geom(struct GpencilBatchCacheElem *be, bGPDstroke *gps, float alpha, short UNUSED(dflag))
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Object *ob = draw_ctx->obact;
 	bGPdata *gpd = ob->data;
-	bool is_weight_paint = (gpd) && (gpd->flag & GP_DATA_STROKE_WEIGHTMODE);
+	const bool is_weight_paint = (gpd) && (gpd->flag & GP_DATA_STROKE_WEIGHTMODE);
 
 	int vgindex = ob->actdef - 1;
 	if (!BLI_findlink(&ob->defbase, vgindex)) {
@@ -566,26 +614,25 @@ GPUBatch *DRW_gpencil_get_edlin_geom(bGPDstroke *gps, float alpha, short UNUSED(
 	float linecolor[4];
 	copy_v4_v4(linecolor, gpd->line_color);
 
-	static GPUVertFormat format = { 0 };
-	static uint pos_id, color_id;
-	if (format.attr_len == 0) {
-		pos_id = GPU_vertformat_attr_add(&format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
-		color_id = GPU_vertformat_attr_add(&format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
-	}
+	if (be->vbo == NULL) {
+		be->pos_id = GPU_vertformat_attr_add(&be->format, "pos", GPU_COMP_F32, 3, GPU_FETCH_FLOAT);
+		be->color_id = GPU_vertformat_attr_add(&be->format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
 
-	GPUVertBuf *vbo = GPU_vertbuf_create_with_format(&format);
-	GPU_vertbuf_data_alloc(vbo, gps->totpoints);
+		be->vbo = GPU_vertbuf_create_with_format(&be->format);
+		GPU_vertbuf_data_alloc(be->vbo, gps->totpoints);
+		be->vbo_len = 0;
+	}
+	gpencil_vbo_ensure_size(be, gps->totpoints);
 
 	/* Draw all the stroke lines (selected or not) */
 	bGPDspoint *pt = gps->points;
 	MDeformVert *dvert = gps->dvert;
 
-	int idx = 0;
 	float fcolor[4];
 	for (int i = 0; i < gps->totpoints; i++, pt++) {
 		/* weight paint */
 		if (is_weight_paint) {
-			float weight = gps->dvert ? defvert_find_weight(dvert, vgindex) : 0.0f;
+			float weight = (dvert && dvert->dw) ? defvert_find_weight(dvert, vgindex) : 0.0f;
 			float hue = 2.0f * (1.0f - weight) / 3.0f;
 			hsv_to_rgb(hue, 1.0f, 1.0f, &selectColor[0], &selectColor[1], &selectColor[2]);
 			selectColor[3] = 1.0f;
@@ -600,106 +647,84 @@ GPUBatch *DRW_gpencil_get_edlin_geom(bGPDstroke *gps, float alpha, short UNUSED(
 			}
 		}
 
-		GPU_vertbuf_attr_set(vbo, color_id, idx, fcolor);
-		GPU_vertbuf_attr_set(vbo, pos_id, idx, &pt->x);
-		idx++;
+		GPU_vertbuf_attr_set(be->vbo, be->color_id, be->vbo_len, fcolor);
+		GPU_vertbuf_attr_set(be->vbo, be->pos_id, be->vbo_len, &pt->x);
+		be->vbo_len++;
 
 		if (gps->dvert != NULL) {
 			dvert++;
 		}
 	}
-
-	return GPU_batch_create_ex(GPU_PRIM_LINE_STRIP, vbo, NULL, GPU_BATCH_OWNS_VBO);
 }
 
 static void set_grid_point(
         GPUVertBuf *vbo, int idx, float col_grid[4],
         uint pos_id, uint color_id,
-        float v1, float v2, int axis)
+        float v1, float v2, const int axis)
 {
 	GPU_vertbuf_attr_set(vbo, color_id, idx, col_grid);
 
 	float pos[3];
-	/* Set the grid in the selected axis (default is always Y axis) */
-	if (axis & V3D_GP_GRID_AXIS_X) {
-		pos[0] = 0.0f;
-		pos[1] = v1;
-		pos[2] = v2;
+	/* Set the grid in the selected axis */
+	switch (axis) {
+		case GP_LOCKAXIS_X:
+		{
+			ARRAY_SET_ITEMS(pos, 0.0f, v1, v2);
+			break;
+		}
+		case GP_LOCKAXIS_Y:
+		{
+			ARRAY_SET_ITEMS(pos, v1, 0.0f, v2);
+			break;
+		}
+		case GP_LOCKAXIS_Z:
+		default:  /* view aligned */
+		{
+			ARRAY_SET_ITEMS(pos, v1, v2, 0.0f);
+			break;
+		}
 	}
-	else if (axis & V3D_GP_GRID_AXIS_Z) {
-		pos[0] = v1;
-		pos[1] = v2;
-		pos[2] = 0.0f;
-	}
-	else {
-		pos[0] = v1;
-		pos[1] = 0.0f;
-		pos[2] = v2;
-	}
-
-
 
 	GPU_vertbuf_attr_set(vbo, pos_id, idx, pos);
 }
 
 /* Draw grid lines */
-GPUBatch *DRW_gpencil_get_grid(void)
+GPUBatch *DRW_gpencil_get_grid(Object *ob)
 {
 	const DRWContextState *draw_ctx = DRW_context_state_get();
 	Scene *scene = draw_ctx->scene;
 	ToolSettings *ts = scene->toolsettings;
 	View3D *v3d = draw_ctx->v3d;
+	bGPdata *gpd = (bGPdata *)ob->data;
+	const bool do_center = (gpd->grid.lines <= 0) ? false : true;
 
 	float col_grid[4];
 
 	/* verify we have something to draw and valid values */
-	if (v3d->overlay.gpencil_grid_lines < 1) {
-		v3d->overlay.gpencil_grid_lines = GP_DEFAULT_GRID_LINES;
+	if (gpd->grid.scale[0] == 0.0f) {
+		gpd->grid.scale[0] = 1.0f;
 	}
-
-	if (v3d->overlay.gpencil_grid_scale == 0.0f) {
-		v3d->overlay.gpencil_grid_scale = 1.0f;
+	if (gpd->grid.scale[1] == 0.0f) {
+		gpd->grid.scale[1] = 1.0f;
 	}
 
 	if (v3d->overlay.gpencil_grid_opacity < 0.1f) {
 		v3d->overlay.gpencil_grid_opacity = 0.1f;
 	}
 
-	UI_GetThemeColor3fv(TH_GRID, col_grid);
+	/* set color */
+	copy_v3_v3(col_grid, gpd->grid.color);
 	col_grid[3] = v3d->overlay.gpencil_grid_opacity;
 
-	/* if use locked axis, copy value */
-	int axis = v3d->overlay.gpencil_grid_axis;
-	if ((v3d->overlay.gpencil_grid_axis & V3D_GP_GRID_AXIS_LOCK) == 0) {
-
-		axis = v3d->overlay.gpencil_grid_axis;
-	}
-	else {
-		switch (ts->gp_sculpt.lock_axis) {
-			case GP_LOCKAXIS_X:
-			{
-				axis = V3D_GP_GRID_AXIS_X;
-				break;
-			}
-			case GP_LOCKAXIS_NONE:
-			case GP_LOCKAXIS_Y:
-			{
-				axis = V3D_GP_GRID_AXIS_Y;
-				break;
-			}
-			case GP_LOCKAXIS_Z:
-			{
-				axis = V3D_GP_GRID_AXIS_Z;
-				break;
-			}
-		}
-	}
+	const int axis = ts->gp_sculpt.lock_axis;
 
 	const char *grid_unit = NULL;
-	const int gridlines = v3d->overlay.gpencil_grid_lines;
-	const float grid_scale = v3d->overlay.gpencil_grid_scale * ED_scene_grid_scale(scene, &grid_unit);
-	const float grid = grid_scale;
-	const float space = (grid_scale / gridlines);
+	const int gridlines = (gpd->grid.lines <= 0) ? 1 : gpd->grid.lines;
+	const float grid_w = gpd->grid.scale[0] * ED_scene_grid_scale(scene, &grid_unit);
+	const float grid_h = gpd->grid.scale[1] * ED_scene_grid_scale(scene, &grid_unit);
+	const float space_w = (grid_w / gridlines);
+	const float space_h = (grid_h / gridlines);
+	const float offset[2] = { gpd->grid.offset[0], gpd->grid.offset[1] };
 
 	const uint vertex_len = 2 * (gridlines * 4 + 2);
 
@@ -716,36 +741,38 @@ GPUBatch *DRW_gpencil_get_grid(void)
 	int idx = 0;
 
 	for (int a = 1; a <= gridlines; a++) {
-		const float line = a * space;
+		const float line_w = a * space_w;
+		const float line_h = a * space_h;
 
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -grid, -line, axis);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -grid_w + offset[0], -line_h + offset[1], axis);
 		idx++;
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +grid, -line, axis);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +grid_w + offset[0], -line_h + offset[1], axis);
 		idx++;
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -grid, +line, axis);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -grid_w + offset[0], +line_h + offset[1], axis);
 		idx++;
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +grid, +line, axis);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +grid_w + offset[0], +line_h + offset[1], axis);
 		idx++;
 
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -line, -grid, axis);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -line_w + offset[0], -grid_h + offset[1], axis);
 		idx++;
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -line, +grid, axis);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -line_w + offset[0], +grid_h + offset[1], axis);
 		idx++;
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +line, -grid, axis);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +line_w + offset[0], -grid_h + offset[1], axis);
 		idx++;
-		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +line, +grid, axis);
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +line_w + offset[0], +grid_h + offset[1], axis);
 		idx++;
 	}
 	/* center lines */
-	set_grid_point(vbo, idx, col_grid, pos_id, color_id, -grid, 0.0f, axis);
-	idx++;
-	set_grid_point(vbo, idx, col_grid, pos_id, color_id, +grid, 0.0f, axis);
-	idx++;
+	if (do_center) {
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, -grid_w + offset[0], 0.0f + offset[1], axis);
+		idx++;
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, +grid_w + offset[0], 0.0f + offset[1], axis);
+		idx++;
 
-	set_grid_point(vbo, idx, col_grid, pos_id, color_id, 0.0f, -grid, axis);
-	idx++;
-	set_grid_point(vbo, idx, col_grid, pos_id, color_id, 0.0f, +grid, axis);
-	idx++;
-
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, 0.0f + offset[0], -grid_h + offset[1], axis);
+		idx++;
+		set_grid_point(vbo, idx, col_grid, pos_id, color_id, 0.0f + offset[0], +grid_h + offset[1], axis);
+		idx++;
+	}
 	return GPU_batch_create_ex(GPU_PRIM_LINES, vbo, NULL, GPU_BATCH_OWNS_VBO);
 }

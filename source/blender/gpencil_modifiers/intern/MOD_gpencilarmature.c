@@ -194,7 +194,7 @@ GpencilModifierTypeInfo modifierType_Gpencil_Armature = {
 	/* deformStroke */      deformStroke,
 	/* generateStrokes */   NULL,
 	/* bakeModifier */      bakeModifier,
-
+	/* remapTime */         NULL,
 	/* initData */          initData,
 	/* freeData */          NULL,
 	/* isDisabled */        isDisabled,
@@ -203,4 +203,5 @@ GpencilModifierTypeInfo modifierType_Gpencil_Armature = {
 	/* foreachObjectLink */ foreachObjectLink,
 	/* foreachIDLink */     NULL,
 	/* foreachTexLink */    NULL,
+	/* getDuplicationFactor */ NULL,
 };

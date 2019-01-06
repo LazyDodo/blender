@@ -62,6 +62,8 @@ static void curveinterp_v3_v3v3v3v3(float3 *p,
 
 static float shaperadius(float shape, float root, float tip, float time)
 {
+	assert(time >= 0.0f);
+	assert(time <= 1.0f);
 	float radius = 1.0f - time;
 
 	if(shape != 0.0f) {
@@ -247,11 +249,11 @@ static bool ObtainCacheParticleUV(Mesh *mesh,
 				b_psys.particles.begin(b_pa);
 				for(; pa_no < totparts+totchild; pa_no++) {
 					/* Add UVs */
-					BL::Mesh::tessface_uv_textures_iterator l;
-					b_mesh->tessface_uv_textures.begin(l);
+					BL::Mesh::uv_layers_iterator l;
+					b_mesh->uv_layers.begin(l);
 
 					float3 uv = make_float3(0.0f, 0.0f, 0.0f);
-					if(b_mesh->tessface_uv_textures.length())
+					if(b_mesh->uv_layers.length())
 						b_psys.uv_on_emitter(psmd, *b_pa, pa_no, uv_num, &uv.x);
 					CData->curve_uv.push_back_slow(uv);
 
@@ -306,11 +308,11 @@ static bool ObtainCacheParticleVcol(Mesh *mesh,
 				b_psys.particles.begin(b_pa);
 				for(; pa_no < totparts+totchild; pa_no++) {
 					/* Add vertex colors */
-					BL::Mesh::tessface_vertex_colors_iterator l;
-					b_mesh->tessface_vertex_colors.begin(l);
+					BL::Mesh::vertex_colors_iterator l;
+					b_mesh->vertex_colors.begin(l);
 
 					float3 vcol = make_float3(0.0f, 0.0f, 0.0f);
-					if(b_mesh->tessface_vertex_colors.length())
+					if(b_mesh->vertex_colors.length())
 						b_psys.mcol_on_emitter(psmd, *b_pa, pa_no, vcol_num, &vcol.x);
 					CData->curve_vcol.push_back_slow(vcol);
 
@@ -619,6 +621,44 @@ static void ExportCurveSegments(Scene *scene, Mesh *mesh, ParticleCurveData *CDa
 	}
 }
 
+static float4 CurveSegmentMotionCV(ParticleCurveData *CData, int sys, int curve, int curvekey)
+{
+	float3 ickey_loc = CData->curvekey_co[curvekey];
+	float time = CData->curvekey_time[curvekey]/CData->curve_length[curve];
+	float radius = shaperadius(CData->psys_shape[sys], CData->psys_rootradius[sys], CData->psys_tipradius[sys], time);
+
+	if(CData->psys_closetip[sys] && (curvekey == CData->curve_firstkey[curve] + CData->curve_keynum[curve] - 1))
+		radius = 0.0f;
+
+	/* curve motion keys store both position and radius in float4 */
+	float4 mP = float3_to_float4(ickey_loc);
+	mP.w = radius;
+	return mP;
+}
+
+static float4 LerpCurveSegmentMotionCV(ParticleCurveData *CData, int sys, int curve, float step)
+{
+	assert(step >= 0.0f);
+	assert(step <= 1.0f);
+	const int first_curve_key = CData->curve_firstkey[curve];
+	const float curve_key_f = step * (CData->curve_keynum[curve] - 1);
+	int curvekey = (int)floorf(curve_key_f);
+	const float remainder = curve_key_f - curvekey;
+	if(remainder == 0.0f) {
+		return CurveSegmentMotionCV(CData, sys, curve, first_curve_key + curvekey);
+	}
+	int curvekey2 = curvekey + 1;
+	if(curvekey2 >= (CData->curve_keynum[curve] - 1)) {
+		curvekey2 = (CData->curve_keynum[curve] - 1);
+		curvekey = curvekey2 - 1;
+	}
+	const float4 mP = CurveSegmentMotionCV(
+	        CData, sys, curve, first_curve_key + curvekey);
+	const float4 mP2 = CurveSegmentMotionCV(
+	        CData, sys, curve, first_curve_key + curvekey2);
+	return lerp(mP, mP2, remainder);
+}
+
 static void ExportCurveSegmentsMotion(Mesh *mesh, ParticleCurveData *CData, int motion_step)
 {
 	VLOG(1) << "Exporting curve motion segments for mesh " << mesh->name
@@ -640,6 +680,7 @@ static void ExportCurveSegmentsMotion(Mesh *mesh, ParticleCurveData *CData, int 
 	float4 *mP = attr_mP->data_float4() + motion_step*numkeys;
 	bool have_motion = false;
 	int i = 0;
+	int num_curves = 0;
 
 	for(int sys = 0; sys < CData->psys_firstcurve.size(); sys++) {
 		if(CData->psys_curvenum[sys] == 0)
@@ -649,30 +690,43 @@ static void ExportCurveSegmentsMotion(Mesh *mesh, ParticleCurveData *CData, int 
 			if(CData->curve_keynum[curve] <= 1 || CData->curve_length[curve] == 0.0f)
 				continue;
 
-			for(int curvekey = CData->curve_firstkey[curve]; curvekey < CData->curve_firstkey[curve] + CData->curve_keynum[curve]; curvekey++) {
-				if(i < mesh->curve_keys.size()) {
-					float3 ickey_loc = CData->curvekey_co[curvekey];
-					float time = CData->curvekey_time[curvekey]/CData->curve_length[curve];
-					float radius = shaperadius(CData->psys_shape[sys], CData->psys_rootradius[sys], CData->psys_tipradius[sys], time);
+			/* Curve lengths may not match! Curves can be clipped. */
+			int curve_key_end = (num_curves+1 < (int)mesh->curve_first_key.size() ? mesh->curve_first_key[num_curves+1] : (int)mesh->curve_keys.size());
+			const int num_center_curve_keys = curve_key_end - mesh->curve_first_key[num_curves];
+			const int is_num_keys_different = CData->curve_keynum[curve] - num_center_curve_keys;
 
-					if(CData->psys_closetip[sys] && (curvekey == CData->curve_firstkey[curve] + CData->curve_keynum[curve] - 1))
-						radius = 0.0f;
-
-					/* curve motion keys store both position and radius in float4 */
-					mP[i] = float3_to_float4(ickey_loc);
-					mP[i].w = radius;
-
-					/* unlike mesh coordinates, these tend to be slightly different
-					 * between frames due to particle transforms into/out of object
-					 * space, so we use an epsilon to detect actual changes */
-					float4 curve_key = float3_to_float4(mesh->curve_keys[i]);
-					curve_key.w = mesh->curve_radius[i];
-					if(len_squared(mP[i] - curve_key) > 1e-5f*1e-5f)
-						have_motion = true;
+			if(!is_num_keys_different) {
+				for(int curvekey = CData->curve_firstkey[curve]; curvekey < CData->curve_firstkey[curve] + CData->curve_keynum[curve]; curvekey++) {
+					if(i < mesh->curve_keys.size()) {
+						mP[i] = CurveSegmentMotionCV(CData, sys, curve, curvekey);
+						if(!have_motion) {
+							/* unlike mesh coordinates, these tend to be slightly different
+							 * between frames due to particle transforms into/out of object
+							 * space, so we use an epsilon to detect actual changes */
+							float4 curve_key = float3_to_float4(mesh->curve_keys[i]);
+							curve_key.w = mesh->curve_radius[i];
+							if(len_squared(mP[i] - curve_key) > 1e-5f*1e-5f)
+								have_motion = true;
+						}
+					}
+					i++;
 				}
-
-				i++;
 			}
+			else {
+				/* Number of keys has changed. Genereate an interpolated version
+				 * to preserve motion blur. */
+				float step_size = 1.0f / (num_center_curve_keys-1);
+				for(int step_index = 0;
+				    step_index < num_center_curve_keys;
+				    ++step_index)
+				{
+					const float step = step_index * step_size;
+					mP[i] = LerpCurveSegmentMotionCV(CData, sys, curve, step);
+					i++;
+				}
+				have_motion = true;
+			}
+			num_curves++;
 		}
 	}
 
@@ -968,10 +1022,10 @@ void BlenderSync::sync_curves(Mesh *mesh,
 
 	/* create vertex color attributes */
 	if(!motion) {
-		BL::Mesh::tessface_vertex_colors_iterator l;
+		BL::Mesh::vertex_colors_iterator l;
 		int vcol_num = 0;
 
-		for(b_mesh.tessface_vertex_colors.begin(l); l != b_mesh.tessface_vertex_colors.end(); ++l, vcol_num++) {
+		for(b_mesh.vertex_colors.begin(l); l != b_mesh.vertex_colors.end(); ++l, vcol_num++) {
 			if(!mesh->need_attribute(scene, ustring(l->name().c_str())))
 				continue;
 
@@ -1005,10 +1059,10 @@ void BlenderSync::sync_curves(Mesh *mesh,
 
 	/* create UV attributes */
 	if(!motion) {
-		BL::Mesh::tessface_uv_textures_iterator l;
+		BL::Mesh::uv_layers_iterator l;
 		int uv_num = 0;
 
-		for(b_mesh.tessface_uv_textures.begin(l); l != b_mesh.tessface_uv_textures.end(); ++l, uv_num++) {
+		for(b_mesh.uv_layers.begin(l); l != b_mesh.uv_layers.end(); ++l, uv_num++) {
 			bool active_render = l->active_render();
 			AttributeStandard std = (active_render)? ATTR_STD_UV: ATTR_STD_NONE;
 			ustring name = ustring(l->name().c_str());

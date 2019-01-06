@@ -566,7 +566,7 @@ static void initSystem(
 
 
 		mlooptri = BKE_mesh_runtime_looptri_ensure(mesh);
-		mloop = mesh->mloop;;
+		mloop = mesh->mloop;
 
 		for (i = 0; i < sys->total_tris; i++) {
 			sys->tris[i][0] = mloop[mlooptri[i].tri[0]].v;
@@ -734,10 +734,11 @@ static void deformVerts(
         ModifierData *md, const ModifierEvalContext *ctx, Mesh *mesh,
         float (*vertexCos)[3], int numVerts)
 {
-	Mesh *mesh_src = MOD_get_mesh_eval(ctx->object, NULL, mesh, NULL, false, false);
+	Mesh *mesh_src = MOD_deform_mesh_eval_get(ctx->object, NULL, mesh, NULL, numVerts, false, false);
 
 	LaplacianDeformModifier_do((LaplacianDeformModifierData *)md, ctx->object, mesh_src, vertexCos, numVerts);
-	if (mesh_src != mesh) {
+
+	if (!ELEM(mesh_src, NULL, mesh)) {
 		BKE_id_free(NULL, mesh_src);
 	}
 }
@@ -746,10 +747,12 @@ static void deformVertsEM(
         ModifierData *md, const ModifierEvalContext *ctx, struct BMEditMesh *editData,
         Mesh *mesh, float (*vertexCos)[3], int numVerts)
 {
-	Mesh *mesh_src = MOD_get_mesh_eval(ctx->object, editData, mesh, NULL, false, false);
+	Mesh *mesh_src = MOD_deform_mesh_eval_get(ctx->object, editData, mesh, NULL, numVerts, false, false);
+
 	LaplacianDeformModifier_do((LaplacianDeformModifierData *)md, ctx->object, mesh_src,
 	                           vertexCos, numVerts);
-	if (mesh_src != mesh) {
+
+	if (!ELEM(mesh_src, NULL, mesh)) {
 		BKE_id_free(NULL, mesh_src);
 	}
 }
@@ -778,14 +781,12 @@ ModifierTypeInfo modifierType_LaplacianDeform = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       deformVerts,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     deformVertsEM,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,

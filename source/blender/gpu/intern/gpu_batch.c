@@ -114,19 +114,22 @@ void GPU_batch_init_ex(
 }
 
 /* This will share the VBOs with the new batch. */
-GPUBatch *GPU_batch_duplicate(GPUBatch *batch_src)
+void GPU_batch_copy(GPUBatch *batch_dst, GPUBatch *batch_src)
 {
-	GPUBatch *batch = GPU_batch_create_ex(GPU_PRIM_POINTS, batch_src->verts[0], batch_src->elem, 0);
+	GPU_batch_init_ex(batch_dst, GPU_PRIM_POINTS, batch_src->verts[0], batch_src->elem, 0);
 
-	batch->gl_prim_type = batch_src->gl_prim_type;
+	batch_dst->gl_prim_type = batch_src->gl_prim_type;
 	for (int v = 1; v < GPU_BATCH_VBO_MAX_LEN; ++v) {
-		batch->verts[v] = batch_src->verts[v];
+		batch_dst->verts[v] = batch_src->verts[v];
 	}
-	return batch;
 }
 
-void GPU_batch_discard(GPUBatch *batch)
+void GPU_batch_clear(GPUBatch *batch)
 {
+	if (batch->free_callback) {
+		batch->free_callback(batch, batch->callback_data);
+	}
+
 	if (batch->owns_flag & GPU_BATCH_OWNS_INDEX) {
 		GPU_indexbuf_discard(batch->elem);
 	}
@@ -144,10 +147,11 @@ void GPU_batch_discard(GPUBatch *batch)
 		}
 	}
 	GPU_batch_vao_cache_clear(batch);
+}
 
-	if (batch->free_callback) {
-		batch->free_callback(batch, batch->callback_data);
-	}
+void GPU_batch_discard(GPUBatch *batch)
+{
+	GPU_batch_clear(batch);
 	MEM_freeN(batch);
 }
 
@@ -528,6 +532,18 @@ static void primitive_restart_disable(void)
 	glDisable(GL_PRIMITIVE_RESTART);
 }
 
+static void *elem_offset(const GPUIndexBuf *el, int v_first)
+{
+#if GPU_TRACK_INDEX_RANGE
+	if (el->index_type == GPU_INDEX_U8)
+		return (GLubyte *)0 + v_first;
+	else if (el->index_type == GPU_INDEX_U16)
+		return (GLushort *)0 + v_first;
+	else
+#endif
+		return (GLuint *)0 + v_first;
+}
+
 void GPU_batch_draw(GPUBatch *batch)
 {
 #if TRUST_NO_ONE
@@ -547,10 +563,11 @@ void GPU_batch_draw_range_ex(GPUBatch *batch, int v_first, int v_count, bool for
 #if TRUST_NO_ONE
 	assert(!(force_instance && (batch->inst == NULL)) || v_count > 0); // we cannot infer length if force_instance
 #endif
+
 	const bool do_instance = (force_instance || batch->inst);
 
 	// If using offset drawing, use the default VAO and redo bindings.
-	if (v_first != 0 && (do_instance || batch->elem)) {
+	if (v_first != 0 && do_instance) {
 		glBindVertexArray(GPU_vao_default());
 		batch_update_program_bindings(batch, v_first);
 	}
@@ -601,6 +618,8 @@ void GPU_batch_draw_range_ex(GPUBatch *batch, int v_first, int v_count, bool for
 				primitive_restart_enable(el);
 			}
 
+			void *v_first_ofs = elem_offset(el, v_first);
+
 #if GPU_TRACK_INDEX_RANGE
 			if (el->base_index) {
 				glDrawRangeElementsBaseVertex(
@@ -609,14 +628,14 @@ void GPU_batch_draw_range_ex(GPUBatch *batch, int v_first, int v_count, bool for
 				        el->max_index,
 				        v_count,
 				        el->gl_index_type,
-				        0,
+				        v_first_ofs,
 				        el->base_index);
 			}
 			else {
-				glDrawRangeElements(batch->gl_prim_type, el->min_index, el->max_index, v_count, el->gl_index_type, 0);
+				glDrawRangeElements(batch->gl_prim_type, el->min_index, el->max_index, v_count, el->gl_index_type, v_first_ofs);
 			}
 #else
-			glDrawElements(batch->gl_prim_type, v_count, GL_UNSIGNED_INT, 0);
+			glDrawElements(batch->gl_prim_type, v_count, GL_UNSIGNED_INT, v_first_ofs);
 #endif
 			if (el->use_prim_restart) {
 				primitive_restart_disable();

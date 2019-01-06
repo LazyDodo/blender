@@ -65,6 +65,13 @@
 #include "node_util.h"
 #include "node_shader_util.h"
 
+
+typedef struct nTreeTags {
+	float ssr_id, sss_id;
+} nTreeTags;
+
+static void ntree_shader_tag_nodes(bNodeTree *ntree, bNode *output_node, nTreeTags *tags);
+
 static bool shader_tree_poll(const bContext *C, bNodeTreeType *UNUSED(treetype))
 {
 	Scene *scene = CTX_data_scene(C);
@@ -257,6 +264,30 @@ bNode *ntreeShaderOutputNode(bNodeTree *ntree, int target)
 	return output_node;
 }
 
+/* Find the active output node of a group nodetree.
+ *
+ * Does not return the shading output node but the group output node.
+ */
+static bNode *ntree_group_output_node(bNodeTree *ntree)
+{
+	/* Make sure we only have single node tagged as output. */
+	ntreeSetOutput(ntree);
+
+	/* Find output node that matches type and target. If there are
+	 * multiple, we prefer exact target match and active nodes. */
+	bNode *output_node = NULL;
+
+	for (bNode *node = ntree->nodes.first; node; node = node->next) {
+		if ((node->type == NODE_GROUP_OUTPUT) &&
+		    (node->flag & NODE_DO_OUTPUT))
+		{
+			output_node = node;
+		}
+	}
+
+	return output_node;
+}
+
 /* Find socket with a specified identifier. */
 static bNodeSocket *ntree_shader_node_find_socket(ListBase *sockets,
                                                   const char *identifier)
@@ -281,6 +312,93 @@ static bNodeSocket *ntree_shader_node_find_output(bNode *node,
                                                   const char *identifier)
 {
 	return ntree_shader_node_find_socket(&node->outputs, identifier);
+}
+
+static void ntree_shader_unlink_hidden_value_sockets(bNode *group_node, bNodeSocket *isock)
+{
+	bNodeTree *group_ntree = (bNodeTree *)group_node->id;
+	bNode *node;
+	bool removed_link = false;
+
+	for (node = group_ntree->nodes.first; node; node = node->next) {
+		for (bNodeSocket *sock = node->inputs.first; sock; sock = sock->next) {
+			if ((sock->flag & SOCK_HIDE_VALUE) == 0)
+				continue;
+			/* If socket is linked to a group input node and sockets id match. */
+			if (sock && sock->link && sock->link->fromnode->type == NODE_GROUP_INPUT) {
+				if (STREQ(isock->identifier, sock->link->fromsock->identifier)) {
+					nodeRemLink(group_ntree, sock->link);
+					removed_link = true;
+				}
+			}
+		}
+	}
+
+	if (removed_link) {
+		ntreeUpdateTree(G.main, group_ntree);
+	}
+}
+
+/* Node groups once expanded looses their input sockets values.
+ * To fix this, link value/rgba nodes into the sockets and copy the group sockets values. */
+static void ntree_shader_groups_expand_inputs(bNodeTree *localtree)
+{
+	bNode *value_node, *group_node;
+	bNodeSocket *value_socket;
+	bNodeSocketValueRGBA *src_rgba, *dst_rgba;
+	bNodeSocketValueFloat *src_float, *dst_float;
+	bool link_added = false;
+
+	for (group_node = localtree->nodes.first; group_node; group_node = group_node->next) {
+
+		if (group_node->type != NODE_GROUP || group_node->id == NULL)
+			continue;
+
+		/* Do it recursively. */
+		ntree_shader_groups_expand_inputs((bNodeTree *)group_node->id);
+
+		bNodeSocket *group_socket = group_node->inputs.first;
+		for (; group_socket; group_socket = group_socket->next) {
+			if (group_socket->link != NULL)
+				continue;
+
+			/* Detect the case where an input is plugged into a hidden value socket.
+			 * In this case we should just remove the link to trigger the socket default override. */
+			ntree_shader_unlink_hidden_value_sockets(group_node, group_socket);
+
+			switch (group_socket->type) {
+				case SOCK_VECTOR:
+				case SOCK_RGBA:
+					value_node = nodeAddStaticNode(NULL, localtree, SH_NODE_RGB);
+					value_socket = ntree_shader_node_find_output(value_node, "Color");
+					BLI_assert(value_socket != NULL);
+					src_rgba = group_socket->default_value;
+					dst_rgba = value_socket->default_value;
+					copy_v4_v4(dst_rgba->value, src_rgba->value);
+					break;
+				case SOCK_FLOAT:
+					value_node = nodeAddStaticNode(NULL, localtree, SH_NODE_VALUE);
+					value_socket = ntree_shader_node_find_output(value_node, "Value");
+					BLI_assert(value_socket != NULL);
+					src_float = group_socket->default_value;
+					dst_float = value_socket->default_value;
+					dst_float->value = src_float->value;
+					break;
+				default:
+					continue;
+			}
+
+			nodeAddLink(localtree,
+			            value_node, value_socket,
+			            group_node, group_socket);
+
+			link_added = true;
+		}
+	}
+
+	if (link_added) {
+		ntreeUpdateTree(G.main, localtree);
+	}
 }
 
 /* Check whether shader has a displacement.
@@ -518,19 +636,42 @@ static void ntree_shader_relink_displacement(bNodeTree *ntree, bNode *output_nod
 	ntreeUpdateTree(G.main, ntree);
 }
 
-static bool ntree_tag_ssr_bsdf_cb(bNode *fromnode, bNode *UNUSED(tonode), void *userdata, const bool UNUSED(reversed))
+static bool ntree_tag_bsdf_cb(bNode *fromnode, bNode *UNUSED(tonode), void *userdata, const bool UNUSED(reversed))
 {
+	/* Don't evaluate nodes more than once. */
+	if (fromnode->tmp_flag) {
+		return true;
+	}
+	fromnode->tmp_flag = 1;
+
 	switch (fromnode->type) {
+		case NODE_GROUP:
+			/* Recursive */
+			if (fromnode->id != NULL) {
+				bNodeTree *ntree = (bNodeTree *)fromnode->id;
+				bNode *group_output = ntree_group_output_node(ntree);
+				ntree_shader_tag_nodes(ntree, group_output, (nTreeTags *)userdata);
+			}
+			break;
 		case SH_NODE_BSDF_ANISOTROPIC:
 		case SH_NODE_EEVEE_SPECULAR:
-		case SH_NODE_BSDF_PRINCIPLED:
 		case SH_NODE_BSDF_GLOSSY:
 		case SH_NODE_BSDF_GLASS:
-			fromnode->ssr_id = (*(float *)userdata);
-			(*(float *)userdata) += 1;
+			fromnode->ssr_id = ((nTreeTags *)userdata)->ssr_id;
+			((nTreeTags *)userdata)->ssr_id += 1;
+			break;
+		case SH_NODE_SUBSURFACE_SCATTERING:
+			fromnode->sss_id = ((nTreeTags *)userdata)->sss_id;
+			((nTreeTags *)userdata)->sss_id += 1;
+			break;
+		case SH_NODE_BSDF_PRINCIPLED:
+			fromnode->ssr_id = ((nTreeTags *)userdata)->ssr_id;
+			fromnode->sss_id = ((nTreeTags *)userdata)->sss_id;
+			((nTreeTags *)userdata)->sss_id += 1;
+			((nTreeTags *)userdata)->ssr_id += 1;
 			break;
 		default:
-			/* We could return false here but since we (will)
+			/* We could return false here but since we
 			 * allow the use of Closure as RGBA, we can have
 			 * Bsdf nodes linked to other Bsdf nodes. */
 			break;
@@ -540,9 +681,9 @@ static bool ntree_tag_ssr_bsdf_cb(bNode *fromnode, bNode *UNUSED(tonode), void *
 }
 
 /* EEVEE: Scan the ntree to set the Screen Space Reflection
- * layer id of every specular node.
+ * layer id of every specular node AND the Subsurface Scattering id of every SSS node.
  */
-static void ntree_shader_tag_ssr_node(bNodeTree *ntree, bNode *output_node)
+void ntree_shader_tag_nodes(bNodeTree *ntree, bNode *output_node, nTreeTags *tags)
 {
 	if (output_node == NULL) {
 		return;
@@ -550,37 +691,12 @@ static void ntree_shader_tag_ssr_node(bNodeTree *ntree, bNode *output_node)
 	/* Make sure sockets links pointers are correct. */
 	ntreeUpdateTree(G.main, ntree);
 
-	float lobe_id = 1;
-	nodeChainIter(ntree, output_node, ntree_tag_ssr_bsdf_cb, &lobe_id, true);
-}
-
-static bool ntree_tag_sss_bsdf_cb(bNode *fromnode, bNode *UNUSED(tonode), void *userdata, const bool UNUSED(reversed))
-{
-	switch (fromnode->type) {
-		case SH_NODE_BSDF_PRINCIPLED:
-		case SH_NODE_SUBSURFACE_SCATTERING:
-			fromnode->sss_id = (*(float *)userdata);
-			(*(float *)userdata) += 1;
-			break;
-		default:
-			break;
+	/* Reset visit flag. */
+	for (bNode *node = ntree->nodes.first; node; node = node->next) {
+		node->tmp_flag = 0;
 	}
 
-	return true;
-}
-
-/* EEVEE: Scan the ntree to set the Subsurface Scattering id of every SSS node.
- */
-static void ntree_shader_tag_sss_node(bNodeTree *ntree, bNode *output_node)
-{
-	if (output_node == NULL) {
-		return;
-	}
-	/* Make sure sockets links pointers are correct. */
-	ntreeUpdateTree(G.main, ntree);
-
-	float sss_id = 1;
-	nodeChainIter(ntree, output_node, ntree_tag_sss_bsdf_cb, &sss_id, true);
+	nodeChainIter(ntree, output_node, ntree_tag_bsdf_cb, tags, true);
 }
 
 /* This one needs to work on a local tree. */
@@ -589,13 +705,19 @@ void ntreeGPUMaterialNodes(bNodeTree *localtree, GPUMaterial *mat, bool *has_sur
 	bNode *output = ntreeShaderOutputNode(localtree, SHD_OUTPUT_EEVEE);
 	bNodeTreeExec *exec;
 
+	ntree_shader_groups_expand_inputs(localtree);
+
 	/* Perform all needed modifications on the tree in order to support
 	 * displacement/bump mapping.
 	 */
 	ntree_shader_relink_displacement(localtree, output);
 
-	ntree_shader_tag_ssr_node(localtree, output);
-	ntree_shader_tag_sss_node(localtree, output);
+	/* TODO(fclem): consider moving this to the gpu shader tree evaluation. */
+	nTreeTags tags = {
+		.ssr_id = 1.0,
+		.sss_id = 1.0,
+	};
+	ntree_shader_tag_nodes(localtree, output, &tags);
 
 	exec = ntreeShaderBeginExecTree(localtree);
 	ntreeExecGPUNodes(exec, mat, 1);

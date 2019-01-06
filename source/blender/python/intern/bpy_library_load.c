@@ -38,11 +38,11 @@
 #include "BLI_linklist.h"
 #include "BLI_path_util.h"
 
-#include "BKE_main.h"
-#include "BKE_library.h"
-#include "BKE_idcode.h"
-#include "BKE_report.h"
 #include "BKE_context.h"
+#include "BKE_idcode.h"
+#include "BKE_library.h"
+#include "BKE_main.h"
+#include "BKE_report.h"
 
 #include "DNA_space_types.h" /* FILE_LINK, FILE_RELPATH */
 
@@ -403,7 +403,7 @@ static PyObject *bpy_lib_exit(BPy_Library *self, PyObject *UNUSED(args))
 	}
 	else {
 		Library *lib = mainl->curlib; /* newly added lib, assign before append end */
-		BLO_library_link_end(mainl, &(self->blo_handle), self->flag, NULL, NULL, NULL);
+		BLO_library_link_end(mainl, &(self->blo_handle), self->flag, NULL, NULL, NULL, NULL);
 		BLO_blendhandle_close(self->blo_handle);
 		self->blo_handle = NULL;
 

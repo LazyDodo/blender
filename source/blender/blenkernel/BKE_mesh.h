@@ -32,7 +32,7 @@
  */
 
 /* defines BLI_INLINE */
-#include "BLI_utildefines.h"
+#include "BLI_compiler_compat.h"
 
 /* defines CustomDataMask */
 #include "BKE_customdata.h"
@@ -67,6 +67,7 @@ struct CustomData;
 struct Scene;
 struct MLoopUV;
 struct ReportList;
+struct BMEditMesh;
 
 #ifdef __cplusplus
 extern "C" {
@@ -82,14 +83,18 @@ extern "C" {
 /* *** mesh.c *** */
 
 struct BMesh *BKE_mesh_to_bmesh_ex(
-        struct Mesh *me,
+        const struct Mesh *me,
         const struct BMeshCreateParams *create_params,
         const struct BMeshFromMeshParams *convert_params);
 struct BMesh *BKE_mesh_to_bmesh(
         struct Mesh *me, struct Object *ob,
         const bool add_key_index, const struct BMeshCreateParams *params);
 
-struct Mesh *BKE_bmesh_to_mesh_nomain(struct BMesh *bm, const struct BMeshToMeshParams *params);
+struct Mesh *BKE_mesh_from_bmesh_nomain(struct BMesh *bm, const struct BMeshToMeshParams *params);
+struct Mesh *BKE_mesh_from_bmesh_for_eval_nomain(struct BMesh *bm, const int64_t cd_mask_extra);
+
+struct Mesh *BKE_mesh_from_editmesh_with_coords_thin_wrap(
+        struct BMEditMesh *em, CustomDataMask data_mask, float (*vertexCos)[3]);
 
 int poly_find_loop_from_vert(
         const struct MPoly *poly,
@@ -100,6 +105,7 @@ int poly_get_adj_loops_from_vert(
         unsigned int r_adj[2]);
 
 int BKE_mesh_edge_other_vert(const struct MEdge *e, int v);
+void BKE_mesh_looptri_get_real_edges(const struct Mesh *mesh, const struct MLoopTri *looptri, int r_edges[3]);
 
 void BKE_mesh_free(struct Mesh *me);
 void BKE_mesh_init(struct Mesh *me);
@@ -117,8 +123,8 @@ struct Mesh *BKE_mesh_new_nomain_from_template(
         int verts_len, int edges_len, int tessface_len,
         int loops_len, int polys_len);
 
-/* Performs copy for use during evaluation. */
-struct Mesh *BKE_mesh_copy_for_eval(struct Mesh *source);
+/* Performs copy for use during evaluation, optional referencing original arrays to reduce memory. */
+struct Mesh *BKE_mesh_copy_for_eval(struct Mesh *source, bool reference);
 
 /* These functions construct a new Mesh, contrary to BKE_mesh_from_nurbs which modifies ob itself. */
 struct Mesh *BKE_mesh_new_nomain_from_curve(struct Object *ob);
@@ -159,7 +165,7 @@ void BKE_mesh_smooth_flag_set(struct Object *meshOb, int enableSmooth);
 const char *BKE_mesh_cmp(struct Mesh *me1, struct Mesh *me2, float thresh);
 
 struct BoundBox *BKE_mesh_boundbox_get(struct Object *ob);
-void BKE_mesh_texspace_get(struct Mesh *me, float r_loc[3], float r_rot[3], float r_size[3]);
+struct BoundBox *BKE_mesh_texspace_get(struct Mesh *me, float r_loc[3], float r_rot[3], float r_size[3]);
 void BKE_mesh_texspace_get_reference(struct Mesh *me, short **r_texflag,  float **r_loc, float **r_rot, float **r_size);
 void BKE_mesh_texspace_copy_from_object(struct Mesh *me, struct Object *ob);
 
@@ -174,7 +180,7 @@ void BKE_mesh_split_faces(struct Mesh *mesh, bool free_loop_normals);
 
 struct Mesh *BKE_mesh_new_from_object(
         struct Depsgraph *depsgraph, struct Main *bmain, struct Scene *sce, struct Object *ob,
-        const bool apply_modifiers, const bool calc_tessface, const bool calc_undeformed);
+        const bool apply_modifiers, const bool calc_undeformed);
 struct Mesh *BKE_mesh_create_derived_for_modifier(
         struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob,
         struct ModifierData *md, int build_shapekey_layers);
@@ -206,6 +212,8 @@ int  BKE_mesh_mselect_find(struct Mesh *me, int index, int type);
 int  BKE_mesh_mselect_active_get(struct Mesh *me, int type);
 void BKE_mesh_mselect_active_set(struct Mesh *me, int index, int type);
 
+void BKE_mesh_count_selected_items(const struct Mesh *mesh, int r_count[3]);
+
 void BKE_mesh_apply_vert_coords(struct Mesh *mesh, float (*vertCoords)[3]);
 void BKE_mesh_apply_vert_normals(struct Mesh *mesh, short (*vertNormals)[3]);
 
@@ -230,6 +238,7 @@ void BKE_mesh_calc_normals_poly(
         const bool only_face_normals);
 void BKE_mesh_calc_normals(struct Mesh *me);
 void BKE_mesh_ensure_normals(struct Mesh *me);
+void BKE_mesh_ensure_normals_for_display(struct Mesh *mesh);
 void BKE_mesh_calc_normals_tessface(
         struct MVert *mverts, int numVerts,
         const struct MFace *mfaces, int numFaces,
@@ -239,13 +248,6 @@ void BKE_mesh_calc_normals_looptri(
         const struct MLoop *mloop,
         const struct MLoopTri *looptri, int looptri_num,
         float (*r_tri_nors)[3]);
-void BKE_mesh_loop_tangents_ex(
-        const struct MVert *mverts, const int numVerts, const struct MLoop *mloops,
-        float (*r_looptangent)[4], float (*loopnors)[3], const struct MLoopUV *loopuv,
-        const int numLoops, const struct MPoly *mpolys, const int numPolys,
-        struct ReportList *reports);
-void BKE_mesh_loop_tangents(
-        struct Mesh *mesh, const char *uvmap, float (*r_looptangents)[4], struct ReportList *reports);
 void BKE_mesh_loop_manifold_fan_around_vert_next(
         const struct MLoop *mloops, const struct MPoly *mpolys,
         const int *loop_to_poly, const int *e2lfan_curr, const uint mv_pivot_index,
@@ -487,8 +489,10 @@ bool BKE_mesh_validate_arrays(
         bool *r_change);
 
 bool BKE_mesh_validate_all_customdata(
-        struct CustomData *vdata, struct CustomData *edata,
-        struct CustomData *ldata, struct CustomData *pdata,
+        struct CustomData *vdata, const uint totvert,
+        struct CustomData *edata, const uint totedge,
+        struct CustomData *ldata, const uint totloop,
+        struct CustomData *pdata, const uint totpoly,
         const bool check_meshmask,
         const bool do_verbose, const bool do_fixes,
         bool *r_change);
@@ -498,7 +502,9 @@ void BKE_mesh_strip_loose_polysloops(struct Mesh *me);
 void BKE_mesh_strip_loose_edges(struct Mesh *me);
 
 void BKE_mesh_calc_edges_legacy(struct Mesh *me, const bool use_old);
+void BKE_mesh_calc_edges_loose(struct Mesh *mesh);
 void BKE_mesh_calc_edges(struct Mesh *mesh, bool update, const bool select);
+void BKE_mesh_calc_edges_tessface(struct Mesh *mesh);
 
 /* **** Depsgraph evaluation **** */
 
@@ -512,6 +518,8 @@ enum {
 	BKE_MESH_BATCH_DIRTY_SELECT,
 	BKE_MESH_BATCH_DIRTY_SHADING,
 	BKE_MESH_BATCH_DIRTY_SCULPT_COORDS,
+	BKE_MESH_BATCH_DIRTY_UVEDIT_ALL,
+	BKE_MESH_BATCH_DIRTY_UVEDIT_SELECT,
 };
 void BKE_mesh_batch_cache_dirty_tag(struct Mesh *me, int mode);
 void BKE_mesh_batch_cache_free(struct Mesh *me);
@@ -519,8 +527,7 @@ void BKE_mesh_batch_cache_free(struct Mesh *me);
 
 /* Inlines */
 
-/* This is a copy of DM_origindex_mface_mpoly().
- * Instead of -1 that function uses ORIGINDEX_NONE as defined in BKE_customdata.h,
+/* Instead of -1 that function uses ORIGINDEX_NONE as defined in BKE_customdata.h,
  * but I don't want to force every user of BKE_mesh.h to also include that file.
  * ~~ Sybren */
 BLI_INLINE int BKE_mesh_origindex_mface_mpoly(

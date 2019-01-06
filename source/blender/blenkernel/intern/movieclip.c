@@ -1162,6 +1162,7 @@ void BKE_movieclip_get_size(MovieClip *clip, MovieClipUser *user, int *width, in
 	 * cache lookups and even unwanted non-proxied files loading when doing mask parenting,
 	 * so let's disable this for now and assume image sequence consists of images with
 	 * equal sizes (sergey)
+	 * TODO(sergey): Support reading sequences of different resolution.
 	 */
 	if (user->framenr == clip->lastframe) {
 #endif
@@ -1513,7 +1514,7 @@ void BKE_movieclip_free(MovieClip *clip)
  *
  * WARNING! This function will not handle ID user count!
  *
- * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
+ * \param flag: Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
  */
 void BKE_movieclip_copy_data(Main *UNUSED(bmain), MovieClip *clip_dst, const MovieClip *clip_src, const int flag)
 {

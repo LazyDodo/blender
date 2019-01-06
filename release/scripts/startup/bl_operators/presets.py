@@ -238,17 +238,27 @@ class ExecutePreset(Operator):
 
         ext = splitext(filepath)[1].lower()
 
-        # execute the preset using script.python_file_run
+        if ext not in {".py", ".xml"}:
+            self.report({'ERROR'}, "unknown filetype: %r" % ext)
+            return {'CANCELLED'}
+
+        if hasattr(preset_class, "reset_cb"):
+            preset_class.reset_cb(context)
+
         if ext == ".py":
-            bpy.ops.script.python_file_run(filepath=filepath)
+            try:
+                bpy.utils.execfile(filepath)
+            except Exception as ex:
+                self.report({'ERROR'}, "Failed to execute the preset: " + repr(ex))
+
         elif ext == ".xml":
             import rna_xml
             rna_xml.xml_file_run(context,
                                  filepath,
                                  preset_class.preset_xml_map)
-        else:
-            self.report({'ERROR'}, "unknown filetype: %r" % ext)
-            return {'CANCELLED'}
+
+        if hasattr(preset_class, "post_cb"):
+            preset_class.post_cb(context)
 
         return {'FINISHED'}
 
@@ -431,32 +441,6 @@ class AddPresetHairDynamics(AddPresetBase, Operator):
     ]
 
 
-class AddPresetInteraction(AddPresetBase, Operator):
-    """Add or remove an Application Interaction Preset"""
-    bl_idname = "wm.interaction_preset_add"
-    bl_label = "Add Interaction Preset"
-    preset_menu = "USERPREF_MT_interaction_presets"
-
-    preset_defines = [
-        "user_preferences = bpy.context.user_preferences"
-    ]
-
-    preset_values = [
-        "user_preferences.edit.use_drag_immediately",
-        "user_preferences.edit.use_insertkey_xyz_to_rgb",
-        "user_preferences.inputs.invert_mouse_zoom",
-        "user_preferences.inputs.select_mouse",
-        "user_preferences.inputs.use_emulate_numpad",
-        "user_preferences.inputs.use_mouse_continuous",
-        "user_preferences.inputs.use_mouse_emulate_3_button",
-        "user_preferences.inputs.view_rotate_method",
-        "user_preferences.inputs.view_zoom_axis",
-        "user_preferences.inputs.view_zoom_method",
-    ]
-
-    preset_subdir = "interaction"
-
-
 class AddPresetTrackingCamera(AddPresetBase, Operator):
     """Add or remove a Tracking Camera Intrinsics Preset"""
     bl_idname = "clip.camera_preset_add"
@@ -614,7 +598,7 @@ class AddPresetOperator(AddPresetBase, Operator):
 
         prefix, suffix = self.operator.split("_OT_", 1)
         op = getattr(getattr(bpy.ops, prefix.lower()), suffix)
-        operator_rna = op.get_rna().bl_rna
+        operator_rna = op.get_rna_type()
         del op
 
         ret = []
@@ -652,24 +636,6 @@ class WM_MT_operator_presets(Menu):
     preset_operator = "script.execute_preset"
 
 
-class AddPresetUnitsLength(AddPresetBase, Operator):
-    """Add or remove length units preset"""
-    bl_idname = "scene.units_length_preset_add"
-    bl_label = "Add Length Units Preset"
-    preset_menu = "SCENE_PT_units_length_presets"
-
-    preset_defines = [
-        "scene = bpy.context.scene"
-    ]
-
-    preset_values = [
-        "scene.unit_settings.system",
-        "scene.unit_settings.scale_length",
-    ]
-
-    preset_subdir = "units_length"
-
-
 class AddPresetGpencilBrush(AddPresetBase, Operator):
     """Add or remove grease pencil brush preset"""
     bl_idname = "scene.gpencil_brush_preset_add"
@@ -677,7 +643,7 @@ class AddPresetGpencilBrush(AddPresetBase, Operator):
     preset_menu = "VIEW3D_PT_gpencil_brush_presets"
 
     preset_defines = [
-        "brush = bpy.context.active_gpencil_brush",
+        "brush = bpy.context.tool_settings.gpencil_paint.brush",
         "settings = brush.gpencil_settings"
     ]
 
@@ -686,7 +652,7 @@ class AddPresetGpencilBrush(AddPresetBase, Operator):
         "settings.active_smooth_factor",
         "settings.angle",
         "settings.angle_factor",
-        "settings.use_stabilizer",
+        "settings.use_settings_stabilizer",
         "brush.smooth_stroke_radius",
         "brush.smooth_stroke_factor",
         "settings.pen_smooth_factor",
@@ -695,7 +661,7 @@ class AddPresetGpencilBrush(AddPresetBase, Operator):
         "settings.pen_thick_smooth_steps",
         "settings.pen_subdivision_steps",
         "settings.random_subdiv",
-        "settings.enable_random",
+        "settings.use_settings_random",
         "settings.random_pressure",
         "settings.random_strength",
         "settings.uv_random",
@@ -744,6 +710,8 @@ class AddPresetGpencilMaterial(AddPresetBase, Operator):
         "gpcolor.texture_clamp",
         "gpcolor.texture_mix",
         "gpcolor.mix_factor",
+        "gpcolor.show_stroke",
+        "gpcolor.show_fill",
     ]
 
     preset_subdir = "gpencil_material"
@@ -754,7 +722,6 @@ classes = (
     AddPresetCloth,
     AddPresetFluid,
     AddPresetHairDynamics,
-    AddPresetInteraction,
     AddPresetInterfaceTheme,
     AddPresetKeyconfig,
     AddPresetNodeColor,
@@ -764,7 +731,6 @@ classes = (
     AddPresetTrackingCamera,
     AddPresetTrackingSettings,
     AddPresetTrackingTrackColor,
-    AddPresetUnitsLength,
     AddPresetGpencilBrush,
     AddPresetGpencilMaterial,
     ExecutePreset,

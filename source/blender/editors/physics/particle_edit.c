@@ -52,19 +52,18 @@
 #include "BLI_task.h"
 #include "BLI_utildefines.h"
 
+#include "BKE_bvhutils.h"
 #include "BKE_context.h"
 #include "BKE_global.h"
-#include "BKE_object.h"
-#include "BKE_library.h"
 #include "BKE_main.h"
 #include "BKE_mesh.h"
 #include "BKE_mesh_runtime.h"
 #include "BKE_modifier.h"
+#include "BKE_object.h"
 #include "BKE_particle.h"
+#include "BKE_pointcache.h"
 #include "BKE_report.h"
 #include "BKE_scene.h"
-#include "BKE_bvhutils.h"
-#include "BKE_pointcache.h"
 
 #include "DEG_depsgraph.h"
 
@@ -491,8 +490,8 @@ static void PE_free_shape_tree(PEData *data)
 static void PE_create_random_generator(PEData *data)
 {
 	uint rng_seed = (uint)(PIL_check_seconds_timer_i() & UINT_MAX);
-	rng_seed ^= GET_UINT_FROM_POINTER(data->ob);
-	rng_seed ^= GET_UINT_FROM_POINTER(data->edit);
+	rng_seed ^= POINTER_AS_UINT(data->ob);
+	rng_seed ^= POINTER_AS_UINT(data->edit);
 	data->rng = BLI_rng_new(rng_seed);
 }
 
@@ -1311,7 +1310,7 @@ void recalc_emitter_field(Depsgraph *UNUSED(depsgraph), Object *UNUSED(ob), Part
 	BLI_kdtree_free(edit->emitter_field);
 
 	totface = mesh->totface;
-	/*totvert=dm->getNumVerts(dm);*/ /*UNSUED*/
+	/*totvert=dm->getNumVerts(dm);*/ /*UNUSED*/
 
 	edit->emitter_cosnos = MEM_callocN(totface * 6 * sizeof(float), "emitter cosnos");
 
@@ -1386,7 +1385,7 @@ static void PE_update_selection(Depsgraph *depsgraph, Scene *scene, Object *ob, 
 		point->flag &= ~PEP_EDIT_RECALC;
 	}
 
-	DEG_id_tag_update(&ob->id, DEG_TAG_SELECT_UPDATE);
+	DEG_id_tag_update(&ob->id, ID_RECALC_SELECT);
 }
 
 void update_world_cos(Depsgraph *UNUSED(depsgraph), Object *ob, PTCacheEdit *edit)
@@ -1967,7 +1966,7 @@ void PARTICLE_OT_select_linked(wmOperatorType *ot)
 	RNA_def_int_vector(ot->srna, "location", 2, NULL, 0, INT_MAX, "Location", "", 0, 16384);
 }
 
-/************************ border select operator ************************/
+/************************ box select operator ************************/
 void PE_deselect_all_visible(PTCacheEdit *edit)
 {
 	POINT_P; KEY_K;
@@ -1980,7 +1979,7 @@ void PE_deselect_all_visible(PTCacheEdit *edit)
 	}
 }
 
-int PE_border_select(bContext *C, const rcti *rect, const int sel_op)
+int PE_box_select(bContext *C, const rcti *rect, const int sel_op)
 {
 	Scene *scene = CTX_data_scene(C);
 	Object *ob = CTX_data_active_object(C);
@@ -2828,7 +2827,7 @@ static int remove_doubles_exec(bContext *C, wmOperator *op)
 
 	BKE_reportf(op->reports, RPT_INFO, "Removed %d double particles", totremoved);
 
-	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+	DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_OBJECT | ND_PARTICLE | NA_EDITED, ob);
 
 	return OPERATOR_FINISHED;
@@ -2880,7 +2879,7 @@ static int weight_set_exec(bContext *C, wmOperator *op)
 		}
 	}
 
-	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+	DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_OBJECT | ND_PARTICLE | NA_EDITED, ob);
 
 	return OPERATOR_FINISHED;
@@ -2945,7 +2944,12 @@ static void toggle_particle_cursor(bContext *C, int enable)
 		pset->paintcursor = NULL;
 	}
 	else if (enable)
-		pset->paintcursor = WM_paint_cursor_activate(CTX_wm_manager(C), PE_poll_view3d, brush_drawcursor, NULL);
+		pset->paintcursor = WM_paint_cursor_activate(
+		        CTX_wm_manager(C),
+		        SPACE_VIEW3D, RGN_TYPE_WINDOW,
+		        PE_poll_view3d,
+		        brush_drawcursor,
+		        NULL);
 }
 
 /*************************** delete operator **************************/
@@ -2990,7 +2994,7 @@ static int delete_exec(bContext *C, wmOperator *op)
 		recalc_lengths(data.edit);
 	}
 
-	DEG_id_tag_update(&data.ob->id, OB_RECALC_DATA);
+	DEG_id_tag_update(&data.ob->id, ID_RECALC_GEOMETRY);
 	WM_event_add_notifier(C, NC_OBJECT | ND_PARTICLE | NA_EDITED, data.ob);
 
 	return OPERATOR_FINISHED;
@@ -3176,7 +3180,7 @@ static int mirror_exec(bContext *C, wmOperator *UNUSED(op))
 
 	update_world_cos(CTX_data_depsgraph(C), ob, edit);
 	WM_event_add_notifier(C, NC_OBJECT | ND_PARTICLE | NA_EDITED, ob);
-	DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+	DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 
 	return OPERATOR_FINISHED;
 }
@@ -3443,7 +3447,7 @@ static void brush_puff(PEData *data, int point_index)
 #else
 					/* translate (not rotate) the rest of the hair if its not selected  */
 					{
-#if 0                   /* kindof works but looks worse then whats below */
+#if 0                   /* kindof works but looks worse then what's below */
 
 						/* Move the unselected point on a vector based on the
 						 * hair direction and the offset */
@@ -3560,7 +3564,7 @@ static void intersect_dm_quad_weights(const float v1[3], const float v2[3], cons
 }
 
 /** Check intersection with an evaluated mesh. */
-static int particle_intersect_mesh(Depsgraph *depsgraph, Scene *scene, Object *ob, Mesh *mesh,
+static int particle_intersect_mesh(Depsgraph *depsgraph, Scene *UNUSED(scene), Object *ob, Mesh *mesh,
                                    float *vert_cos,
                                    const float co1[3], const float co2[3],
                                    float *min_d, int *min_face, float *min_w,
@@ -3576,9 +3580,12 @@ static int particle_intersect_mesh(Depsgraph *depsgraph, Scene *scene, Object *o
 	if (mesh == NULL) {
 		psys_disable_all(ob);
 
-		mesh = mesh_get_eval_final(depsgraph, scene, ob, CD_MASK_BAREMESH);
+		Scene *scene_eval = DEG_get_evaluated_scene(depsgraph);
+		Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
+
+		mesh = mesh_get_eval_final(depsgraph, scene_eval, ob_eval, CD_MASK_BAREMESH);
 		if (mesh == NULL) {
-			mesh = mesh_get_eval_deform(depsgraph, scene, ob, CD_MASK_BAREMESH);
+			mesh = mesh_get_eval_deform(depsgraph, scene_eval, ob_eval, CD_MASK_BAREMESH);
 		}
 
 		psys_enable_all(ob);
@@ -3751,7 +3758,7 @@ static void brush_add_count_iter(
 	mco[1] = data->mval[1] + dmy;
 
 	float co1[3], co2[3];
-	ED_view3d_win_to_segment(depsgraph, data->vc.ar, data->vc.v3d, mco, co1, co2, true);
+	ED_view3d_win_to_segment_clipped(depsgraph, data->vc.ar, data->vc.v3d, mco, co1, co2, true);
 
 	mul_m4_v3(iter_data->imat, co1);
 	mul_m4_v3(iter_data->imat, co2);
@@ -3841,7 +3848,7 @@ static int brush_add(const bContext *C, PEData *data, short number)
 	BLI_assert(mesh);
 
 	/* Calculate positions of new particles to add, based on brush interseciton
-	 * with object. New particle data is assigned to a correponding to check
+	 * with object. New particle data is assigned to a corresponding to check
 	 * index element of add_pars array. This means, that add_pars is a sparse
 	 * array.
 	 */
@@ -4293,7 +4300,7 @@ static void brush_edit_apply(bContext *C, wmOperator *op, PointerRNA *itemptr)
 
 				update_world_cos(depsgraph, ob, edit);
 				psys_free_path_cache(NULL, edit);
-				DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+				DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 			}
 			else {
 				PE_update_object(depsgraph, scene, ob, 1);
@@ -4303,10 +4310,10 @@ static void brush_edit_apply(bContext *C, wmOperator *op, PointerRNA *itemptr)
 		if (edit->psys) {
 			WM_event_add_notifier(C, NC_OBJECT | ND_PARTICLE | NA_EDITED, ob);
 			BKE_particle_batch_cache_dirty_tag(edit->psys, BKE_PARTICLE_BATCH_DIRTY_ALL);
-			DEG_id_tag_update(&ob->id, DEG_TAG_SELECT_UPDATE);
+			DEG_id_tag_update(&ob->id, ID_RECALC_SELECT);
 		}
 		else {
-			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+			DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 			WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, ob);
 		}
 
@@ -4563,7 +4570,7 @@ static int shape_cut_exec(bContext *C, wmOperator *UNUSED(op))
 		if (removed) {
 			update_world_cos(depsgraph, ob, edit);
 			psys_free_path_cache(NULL, edit);
-			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+			DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 		}
 		else {
 			PE_update_object(data.depsgraph, scene, ob, 1);
@@ -4572,10 +4579,10 @@ static int shape_cut_exec(bContext *C, wmOperator *UNUSED(op))
 		if (edit->psys) {
 			WM_event_add_notifier(C, NC_OBJECT | ND_PARTICLE | NA_EDITED, ob);
 			BKE_particle_batch_cache_dirty_tag(edit->psys, BKE_PARTICLE_BATCH_DIRTY_ALL);
-			DEG_id_tag_update(&ob->id, DEG_TAG_SELECT_UPDATE);
+			DEG_id_tag_update(&ob->id, ID_RECALC_SELECT);
 		}
 		else {
-			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+			DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 			WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, ob);
 		}
 
@@ -4642,25 +4649,6 @@ int PE_minmax(Scene *scene, ViewLayer *view_layer, float min[3], float max[3])
 }
 
 /************************ particle edit toggle operator ************************/
-
-static struct ParticleSystem *psys_eval_get(
-        Depsgraph *depsgraph,
-        Object *object,
-        ParticleSystem *psys)
-{
-	Object *object_eval = DEG_get_evaluated_object(depsgraph, object);
-	if (object_eval == object) {
-		return psys;
-	}
-	ParticleSystem *psys_eval = object_eval->particlesystem.first;
-	while (psys_eval != NULL) {
-		if (psys_eval->orig_psys == psys) {
-			return psys_eval;
-		}
-		psys_eval = psys_eval->next;
-	}
-	return psys_eval;
-}
 
 /* initialize needed data for bake edit */
 void PE_create_particle_edit(
@@ -4803,6 +4791,21 @@ static bool particle_edit_toggle_poll(bContext *C)
 	        modifiers_findByType(ob, eModifierType_Softbody));
 }
 
+static void free_all_psys_edit(Object *object)
+{
+	for (ParticleSystem *psys = object->particlesystem.first;
+	     psys != NULL;
+	     psys = psys->next)
+	{
+		if (psys->edit != NULL) {
+			BLI_assert(psys->free_edit != NULL);
+			psys->free_edit(psys->edit);
+			psys->free_edit = NULL;
+			psys->edit = NULL;
+		}
+	}
+}
+
 static int particle_edit_toggle_exec(bContext *C, wmOperator *op)
 {
 	struct wmMsgBus *mbus = CTX_wm_message_bus(C);
@@ -4825,10 +4828,18 @@ static int particle_edit_toggle_exec(bContext *C, wmOperator *op)
 
 		edit = PE_create_current(depsgraph, scene, ob);
 
-		/* mesh may have changed since last entering editmode.
-		 * note, this may have run before if the edit data was just created, so could avoid this and speed up a little */
-		if (edit && edit->psys)
+		/* Mesh may have changed since last entering editmode.
+		 * note, this may have run before if the edit data was just created,
+		 * so could avoid this and speed up a little. */
+		if (edit && edit->psys) {
+			/* Make sure pointer to the evaluated modifier data is up to date,
+			 * with possible changes applied when object was outside of the
+			 * edit mode. */
+			Object *object_eval = DEG_get_evaluated_object(depsgraph, ob);
+			edit->psmd_eval = (ParticleSystemModifierData *)modifiers_findByName(
+			        object_eval, edit->psmd->modifier.name);
 			recalc_emitter_field(depsgraph, ob, edit->psys);
+		}
 
 		toggle_particle_cursor(C, 1);
 		WM_event_add_notifier(C, NC_SCENE | ND_MODE | NS_MODE_PARTICLE, NULL);
@@ -4836,10 +4847,11 @@ static int particle_edit_toggle_exec(bContext *C, wmOperator *op)
 	else {
 		ob->mode &= ~mode_flag;
 		toggle_particle_cursor(C, 0);
+		free_all_psys_edit(ob);
 		WM_event_add_notifier(C, NC_SCENE | ND_MODE | NS_MODE_OBJECT, NULL);
 	}
 
-	DEG_id_tag_update(&ob->id, OB_RECALC_DATA | DEG_TAG_COPY_ON_WRITE);
+	DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY | ID_RECALC_COPY_ON_WRITE);
 
 	WM_msg_publish_rna_prop(mbus, &ob->id, ob, Object, mode);
 
@@ -4878,21 +4890,21 @@ static int clear_edited_exec(bContext *C, wmOperator *UNUSED(op))
 			psys->edit = NULL;
 			psys->free_edit = NULL;
 
-			psys->recalc |= PSYS_RECALC_RESET;
+			psys->recalc |= ID_RECALC_PSYS_RESET;
 			psys->flag &= ~PSYS_GLOBAL_HAIR;
 			psys->flag &= ~PSYS_EDITED;
 
 			psys_reset(psys, PSYS_RESET_DEPSGRAPH);
 			WM_event_add_notifier(C, NC_OBJECT | ND_PARTICLE | NA_EDITED, ob);
-			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+			DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 		}
 	}
 	else { /* some operation might have protected hair from editing so let's clear the flag */
-		psys->recalc |= PSYS_RECALC_RESET;
+		psys->recalc |= ID_RECALC_PSYS_RESET;
 		psys->flag &= ~PSYS_GLOBAL_HAIR;
 		psys->flag &= ~PSYS_EDITED;
 		WM_event_add_notifier(C, NC_OBJECT | ND_PARTICLE | NA_EDITED, ob);
-		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 	}
 
 	return OPERATOR_FINISHED;
@@ -5010,7 +5022,7 @@ static int unify_length_exec(bContext *C, wmOperator *UNUSED(op))
 		WM_event_add_notifier(C, NC_OBJECT | ND_PARTICLE | NA_EDITED, ob);
 	}
 	else {
-		DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 		WM_event_add_notifier(C, NC_OBJECT | ND_MODIFIER, ob);
 	}
 

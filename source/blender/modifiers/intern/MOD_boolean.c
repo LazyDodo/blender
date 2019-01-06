@@ -48,10 +48,11 @@
 
 #include "BLI_alloca.h"
 #include "BLI_math_geom.h"
-#include "BKE_material.h"
+
 #include "BKE_global.h"  /* only to check G.debug */
-#include "BKE_mesh.h"
 #include "BKE_library.h"
+#include "BKE_material.h"
+#include "BKE_mesh.h"
 
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
@@ -175,15 +176,14 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 	Mesh *mesh_other;
 	bool mesh_other_free;
 
-	if (!bmd->object) {
+	if (bmd->object == NULL) {
 		return result;
 	}
 
-	Object *ob_eval = DEG_get_evaluated_object(ctx->depsgraph, bmd->object);
-	mesh_other = BKE_modifier_get_evaluated_mesh_from_evaluated_object(ob_eval, &mesh_other_free);
+	Object *other = DEG_get_evaluated_object(ctx->depsgraph, bmd->object);
+	mesh_other = BKE_modifier_get_evaluated_mesh_from_evaluated_object(other, &mesh_other_free);
 	if (mesh_other) {
 		Object *object = ctx->object;
-		Object *other = bmd->object;
 
 		/* when one of objects is empty (has got no faces) we could speed up
 		 * calculation a bit returning one of objects' derived meshes (or empty one)
@@ -265,6 +265,7 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 						short *material_remap = BLI_array_alloca(material_remap, ob_src_totcol ? ob_src_totcol : 1);
 
 						/* Using original (not evaluated) object here since we are writing to it. */
+						/* XXX Pretty sure comment above is fully wrong now with CoW & co ? */
 						BKE_material_remap_object_calc(ctx->object, other, material_remap);
 
 						BMFace *efa;
@@ -317,7 +318,7 @@ static Mesh *applyModifier(ModifierData *md, const ModifierEvalContext *ctx, Mes
 				MEM_freeN(looptris);
 			}
 
-			result = BKE_bmesh_to_mesh_nomain(bm, &((struct BMeshToMeshParams){0}));
+			result = BKE_mesh_from_bmesh_for_eval_nomain(bm, 0);
 
 			BM_mesh_free(bm);
 
@@ -365,14 +366,12 @@ ModifierTypeInfo modifierType_Boolean = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,

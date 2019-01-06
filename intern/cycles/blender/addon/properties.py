@@ -272,7 +272,7 @@ class CyclesRenderSettings(bpy.types.PropertyGroup):
 
     use_layer_samples: EnumProperty(
         name="Layer Samples",
-        description="How to use per render layer sample settings",
+        description="How to use per view layer sample settings",
         items=enum_use_layer_samples,
         default='USE',
     )
@@ -528,6 +528,11 @@ class CyclesRenderSettings(bpy.types.PropertyGroup):
         description="Choose between faster updates, or faster render",
         items=enum_bvh_types,
         default='DYNAMIC_BVH',
+    )
+    use_bvh_embree: BoolProperty(
+        name="Use Embree",
+        description="Use Embree as ray accelerator",
+        default=False,
     )
     debug_use_spatial_splits: BoolProperty(
         name="Use Spatial Splits",
@@ -834,8 +839,6 @@ class CyclesCameraSettings(bpy.types.PropertyGroup):
 
     @classmethod
     def register(cls):
-        import math
-
         bpy.types.Camera.cycles = PointerProperty(
             name="Cycles Camera Settings",
             description="Cycles camera settings",
@@ -1126,7 +1129,7 @@ class CyclesObjectSettings(bpy.types.PropertyGroup):
 
     dicing_rate: FloatProperty(
         name="Dicing Scale",
-        description="Multiplier for scene dicing rate (located in the Geometry Panel)",
+        description="Multiplier for scene dicing rate (located in the Subdivision panel)",
         min=0.1, max=1000.0, soft_min=0.5,
         default=1.0,
     )
@@ -1141,7 +1144,7 @@ class CyclesObjectSettings(bpy.types.PropertyGroup):
         name="Holdout",
         description="Render objects as a holdout or matte, creating a "
         "hole in the image with zero alpha, to fill out in "
-        "compositing with real footange or another render",
+        "compositing with real footage or another render",
         default=False,
     )
 
@@ -1221,8 +1224,6 @@ class CyclesCurveRenderSettings(bpy.types.PropertyGroup):
 
 
 def update_render_passes(self, context):
-    scene = context.scene
-    rd = scene.render
     view_layer = context.view_layer
     view_layer.update_render_passes()
 
@@ -1347,6 +1348,36 @@ class CyclesRenderLayerSettings(bpy.types.PropertyGroup):
         default=False,
         update=update_render_passes,
     )
+    use_pass_crypto_object: BoolProperty(
+        name="Cryptomatte Object",
+        description="Render cryptomatte object pass, for isolating objects in compositing",
+        default=False,
+        update=update_render_passes,
+        )
+    use_pass_crypto_material: BoolProperty(
+        name="Cryptomatte Material",
+        description="Render cryptomatte material pass, for isolating materials in compositing",
+        default=False,
+        update=update_render_passes,
+        )
+    use_pass_crypto_asset: BoolProperty(
+        name="Cryptomatte Asset",
+        description="Render cryptomatte asset pass, for isolating groups of objects with the same parent",
+        default=False,
+        update=update_render_passes,
+        )
+    pass_crypto_depth: IntProperty(
+        name="Cryptomatte Levels",
+        description="Sets how many unique objects can be distinguished per pixel",
+        default=6, min=2, max=16, step=2,
+        update=update_render_passes,
+        )
+    pass_crypto_accurate: BoolProperty(
+        name="Cryptomatte Accurate",
+        description="Generate a more accurate Cryptomatte pass. CPU only, may render slower and use more memory",
+        default=True,
+        update=update_render_passes,
+        )
 
     @classmethod
     def register(cls):
@@ -1362,12 +1393,10 @@ class CyclesRenderLayerSettings(bpy.types.PropertyGroup):
 
 
 class CyclesDeviceSettings(bpy.types.PropertyGroup):
-    @classmethod
-    def register(cls):
-        cls.id = StringProperty(name="ID")
-        cls.name = StringProperty(name="Name")
-        cls.use = BoolProperty(name="Use", default=True)
-        cls.type = EnumProperty(name="Type", items=enum_device_type, default='CUDA')
+    id: StringProperty(name="ID")
+    name: StringProperty(name="Name")
+    use: BoolProperty(name="Use", default=True)
+    type: EnumProperty(name="Type", items=enum_device_type, default='CUDA')
 
 
 class CyclesPreferences(bpy.types.AddonPreferences):
@@ -1455,7 +1484,10 @@ class CyclesPreferences(bpy.types.AddonPreferences):
         return self.get_num_gpu_devices() > 0
 
     def draw_impl(self, layout, context):
-        layout.label(text="Cycles Compute Device:")
+        available_device_types = self.get_device_types(context)
+        if len(available_device_types) == 1:
+            layout.label(text="No compatible GPUs found", icon='INFO')
+            return
         layout.row().prop(self, "compute_device_type", expand=True)
 
         cuda_devices, opencl_devices = self.get_devices()

@@ -32,7 +32,6 @@
  */
 
 struct AnimData;
-struct AnimMapper;
 struct ChannelDriver;
 struct Depsgraph;
 struct FCurve;
@@ -49,6 +48,7 @@ struct Scene;
 struct bAction;
 struct bActionGroup;
 struct bContext;
+struct NlaKeyframingContext;
 
 /* ************************************* */
 /* AnimData API */
@@ -70,10 +70,10 @@ bool BKE_animdata_set_action(struct ReportList *reports, struct ID *id, struct b
 void BKE_animdata_free(struct ID *id, const bool do_id_user);
 
 /* Copy AnimData */
-struct AnimData *BKE_animdata_copy(struct Main *bmain, struct AnimData *adt, const bool do_action, const bool do_id_user);
+struct AnimData *BKE_animdata_copy(struct Main *bmain, struct AnimData *adt, const int flag);
 
 /* Copy AnimData */
-bool BKE_animdata_copy_id(struct Main *bmain, struct ID *id_to, struct ID *id_from, const bool do_action, const bool do_id_user);
+bool BKE_animdata_copy_id(struct Main *bmain, struct ID *id_to, struct ID *id_from, const int flag);
 
 /* Copy AnimData Actions */
 void BKE_animdata_copy_id_action(struct Main *bmain, struct ID *id, const bool set_newid);
@@ -137,8 +137,9 @@ void BKE_animdata_fix_paths_rename(struct ID *owner_id, struct AnimData *adt, st
 /* Fix all the paths for the entire database... */
 void BKE_animdata_fix_paths_rename_all(struct ID *ref_id, const char *prefix, const char *oldName, const char *newName);
 
-/* Fix the path after removing elements that are not ID (e.g., node) */
-void BKE_animdata_fix_paths_remove(struct ID *id, const char *path);
+/* Fix the path after removing elements that are not ID (e.g., node).
+ * Returen truth if any animation data was affected. */
+bool BKE_animdata_fix_paths_remove(struct ID *id, const char *path);
 
 /* -------------------------------------- */
 
@@ -171,6 +172,14 @@ void BKE_fcurves_main_cb(struct Main *bmain, ID_FCurve_Edit_Callback func, void 
 /* ************************************* */
 // TODO: overrides, remapping, and path-finding api's
 
+/* ------------ NLA Keyframing --------------- */
+
+typedef struct NlaKeyframingContext NlaKeyframingContext;
+
+struct NlaKeyframingContext *BKE_animsys_get_nla_keyframing_context(struct ListBase *cache, struct Depsgraph *depsgraph, struct PointerRNA *ptr, struct AnimData *adt, float ctime);
+bool BKE_animsys_nla_remap_keyframe_value(struct NlaKeyframingContext *context, struct PointerRNA *prop_ptr, struct PropertyRNA *prop, int index, float *r_value);
+void BKE_animsys_free_nla_keyframing_context_cache(struct ListBase *cache);
+
 /* ************************************* */
 /* Evaluation API */
 
@@ -184,21 +193,21 @@ void BKE_animsys_evaluate_animdata(struct Depsgraph *depsgraph, struct Scene *sc
 void BKE_animsys_evaluate_all_animation(struct Main *main, struct Depsgraph *depsgraph, struct Scene *scene, float ctime);
 
 /* TODO(sergey): This is mainly a temp public function. */
-bool BKE_animsys_execute_fcurve(struct PointerRNA *ptr, struct AnimMapper *remap, struct FCurve *fcu, float curval);
+bool BKE_animsys_execute_fcurve(struct PointerRNA *ptr, struct FCurve *fcu, float curval);
 
 /* ------------ Specialized API --------------- */
 /* There are a few special tools which require these following functions. They are NOT to be used
  * for standard animation evaluation UNDER ANY CIRCUMSTANCES!
  *
  * i.e. Pose Library (PoseLib) uses some of these for selectively applying poses, but
- *	    Particles/Sequencer performing funky time manipulation is not ok.
+ *      Particles/Sequencer performing funky time manipulation is not ok.
  */
 
 /* Evaluate Action (F-Curve Bag) */
-void animsys_evaluate_action(struct Depsgraph *depsgraph, struct PointerRNA *ptr, struct bAction *act, struct AnimMapper *remap, float ctime);
+void animsys_evaluate_action(struct Depsgraph *depsgraph, struct PointerRNA *ptr, struct bAction *act, float ctime);
 
 /* Evaluate Action Group */
-void animsys_evaluate_action_group(struct PointerRNA *ptr, struct bAction *act, struct bActionGroup *agrp, struct AnimMapper *remap, float ctime);
+void animsys_evaluate_action_group(struct PointerRNA *ptr, struct bAction *act, struct bActionGroup *agrp, float ctime);
 
 /* ************************************* */
 

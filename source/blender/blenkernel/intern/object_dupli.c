@@ -44,18 +44,19 @@
 #include "DNA_anim_types.h"
 #include "DNA_collection_types.h"
 #include "DNA_mesh_types.h"
+#include "DNA_meshdata_types.h"
 #include "DNA_scene_types.h"
 #include "DNA_vfont_types.h"
 
 #include "BKE_animsys.h"
 #include "BKE_collection.h"
-#include "BKE_DerivedMesh.h"
 #include "BKE_font.h"
 #include "BKE_global.h"
 #include "BKE_idprop.h"
 #include "BKE_lattice.h"
 #include "BKE_main.h"
 #include "BKE_mesh.h"
+#include "BKE_mesh_iterators.h"
 #include "BKE_mesh_runtime.h"
 #include "BKE_object.h"
 #include "BKE_particle.h"
@@ -242,7 +243,7 @@ static void make_child_duplis(const DupliContext *ctx, void *userdata, MakeChild
 
 				/* mballs have a different dupli handling */
 				if (ob->type != OB_MBALL) {
-					ob->flag |= OB_DONE;  /* doesnt render */
+					ob->flag |= OB_DONE;  /* doesn't render */
 				}
 				make_child_duplis_cb(&pctx, userdata, ob);
 			}
@@ -260,7 +261,7 @@ static void make_child_duplis(const DupliContext *ctx, void *userdata, MakeChild
 
 				/* mballs have a different dupli handling */
 				if (ob->type != OB_MBALL)
-					ob->flag |= OB_DONE;  /* doesnt render */
+					ob->flag |= OB_DONE;  /* doesn't render */
 
 				make_child_duplis_cb(&pctx, userdata, ob);
 			}
@@ -316,9 +317,7 @@ static void make_duplis_frames(const DupliContext *ctx)
 	Depsgraph *depsgraph = ctx->depsgraph;
 	Scene *scene = ctx->scene;
 	Object *ob = ctx->object;
-	extern int enable_cu_speed; /* object.c */
 	Object copyob;
-	int cfrao = scene->r.cfra;
 	int dupend = ob->dupend;
 
 	/* dupliframes not supported inside collections */
@@ -332,22 +331,21 @@ static void make_duplis_frames(const DupliContext *ctx)
 
 	/* make a copy of the object's original data (before any dupli-data overwrites it)
 	 * as we'll need this to keep track of unkeyed data
-	 *	- this doesn't take into account other data that can be reached from the object,
-	 *	  for example it's shapekeys or bones, hence the need for an update flush at the end
+	 * - this doesn't take into account other data that can be reached from the object,
+	 *   for example it's shapekeys or bones, hence the need for an update flush at the end
 	 */
 	copyob = *ob;
 
 	/* duplicate over the required range */
-	if (ob->transflag & OB_DUPLINOSPEED) enable_cu_speed = 0;
-
-	for (scene->r.cfra = ob->dupsta; scene->r.cfra <= dupend; scene->r.cfra++) {
+	const int dupli_transflag = (ob->transflag & OB_DUPLINOSPEED);
+	for (int frame = ob->dupsta; frame <= dupend; frame++) {
 		int ok = 1;
 
 		/* - dupoff = how often a frames within the range shouldn't be made into duplis
 		 * - dupon = the length of each "skipping" block in frames
 		 */
 		if (ob->dupoff) {
-			ok = scene->r.cfra - ob->dupsta;
+			ok = frame - ob->dupsta;
 			ok = ok % (ob->dupon + ob->dupoff);
 			ok = (ok < ob->dupon);
 		}
@@ -358,23 +356,17 @@ static void make_duplis_frames(const DupliContext *ctx)
 			 * However, this has always been the way that this worked (i.e. pre 2.5), so I guess that it'll be fine!
 			 */
 			/* ob-eval will do drivers, so we don't need to do them */
-			BKE_animsys_evaluate_animdata(depsgraph, scene, &ob->id, ob->adt, (float)scene->r.cfra, ADT_RECALC_ANIM);
-			BKE_object_where_is_calc_time(depsgraph, scene, ob, (float)scene->r.cfra);
+			BKE_animsys_evaluate_animdata(depsgraph, scene, &ob->id, ob->adt, (float)frame, ADT_RECALC_ANIM);
+			BKE_object_where_is_calc_time_for_dupli(depsgraph, scene, ob, (float)frame, dupli_transflag);
 
-			make_dupli(ctx, ob, ob->obmat, scene->r.cfra);
+			make_dupli(ctx, ob, ob->obmat, frame);
 		}
 	}
 
-	enable_cu_speed = 1;
-
-	/* reset frame to original frame, then re-evaluate animation as above
-	 * as 2.5 animation data may have far-reaching consequences
-	 */
-	scene->r.cfra = cfrao;
-
 	/* ob-eval will do drivers, so we don't need to do them */
-	BKE_animsys_evaluate_animdata(depsgraph, scene, &ob->id, ob->adt, (float)scene->r.cfra, ADT_RECALC_ANIM);
-	BKE_object_where_is_calc_time(depsgraph, scene, ob, (float)scene->r.cfra);
+	const float original_ctime = DEG_get_ctime(depsgraph);
+	BKE_animsys_evaluate_animdata(depsgraph, scene, &ob->id, ob->adt, original_ctime, ADT_RECALC_ANIM);
+	BKE_object_where_is_calc_time(depsgraph, scene, ob, original_ctime);
 
 	/* but, to make sure unkeyed object transforms are still sane,
 	 * let's copy object's original data back over
@@ -389,7 +381,7 @@ static const DupliGenerator gen_dupli_frames = {
 
 /* OB_DUPLIVERTS */
 typedef struct VertexDupliData {
-	DerivedMesh *dm;
+	Mesh *me_eval;
 	BMEditMesh *edit_btmesh;
 	int totvert;
 	float (*orco)[3];
@@ -459,37 +451,15 @@ static void vertex_dupli__mapFunc(void *userData, int index, const float co[3],
 static void make_child_duplis_verts(const DupliContext *ctx, void *userdata, Object *child)
 {
 	VertexDupliData *vdd = userdata;
-	DerivedMesh *dm = vdd->dm;
+	Mesh *me_eval = vdd->me_eval;
 
 	vdd->inst_ob = child;
 	invert_m4_m4(child->imat, child->obmat);
 	/* relative transform from parent to child space */
 	mul_m4_m4m4(vdd->child_imat, child->imat, ctx->object->obmat);
 
-	if (vdd->edit_btmesh) {
-		dm->foreachMappedVert(dm, vertex_dupli__mapFunc, vdd,
-		                      vdd->use_rotation ? DM_FOREACH_USE_NORMAL : 0);
-	}
-	else {
-		int a, totvert = vdd->totvert;
-		float vec[3], no[3];
-
-		if (vdd->use_rotation) {
-			for (a = 0; a < totvert; a++) {
-				dm->getVertCo(dm, a, vec);
-				dm->getVertNo(dm, a, no);
-
-				vertex_dupli__mapFunc(vdd, a, vec, no, NULL);
-			}
-		}
-		else {
-			for (a = 0; a < totvert; a++) {
-				dm->getVertCo(dm, a, vec);
-
-				vertex_dupli__mapFunc(vdd, a, vec, NULL, NULL);
-			}
-		}
-	}
+	BKE_mesh_foreach_mapped_vert(me_eval, vertex_dupli__mapFunc, vdd,
+	                             vdd->use_rotation ? MESH_FOREACH_USE_NORMAL : 0);
 }
 
 static void make_duplis_verts(const DupliContext *ctx)
@@ -504,32 +474,31 @@ static void make_duplis_verts(const DupliContext *ctx)
 
 	/* gather mesh info */
 	{
-		Mesh *me = parent->data;
-		BMEditMesh *em = BKE_editmesh_from_object(parent);
 		CustomDataMask dm_mask = (use_texcoords ? CD_MASK_BAREMESH | CD_MASK_ORCO : CD_MASK_BAREMESH);
+		vdd.edit_btmesh = BKE_editmesh_from_object(parent);
 
-		if (DEG_get_mode(ctx->depsgraph) == DAG_EVAL_RENDER) {
-			vdd.dm = mesh_create_derived_render(ctx->depsgraph, scene, parent, dm_mask);
-		}
-		else if (em) {
-			vdd.dm = editbmesh_get_derived_cage(ctx->depsgraph, scene, parent, em, dm_mask);
+		/* We do not need any render-smecific handling anymore, depsgraph takes care of that. */
+		if (vdd.edit_btmesh != NULL) {
+			/* XXX TODO replace with equivalent of editbmesh_get_eval_cage when available. */
+			vdd.me_eval = mesh_get_eval_deform(ctx->depsgraph, scene, parent, dm_mask);
 		}
 		else {
-			vdd.dm = mesh_get_derived_final(ctx->depsgraph, scene, parent, dm_mask);
+			vdd.me_eval = mesh_get_eval_final(ctx->depsgraph, scene, parent, dm_mask);
 		}
-		vdd.edit_btmesh = me->edit_btmesh;
 
-		if (use_texcoords)
-			vdd.orco = vdd.dm->getVertDataArray(vdd.dm, CD_ORCO);
-		else
+		if (use_texcoords) {
+			vdd.orco = CustomData_get_layer(&vdd.me_eval->vdata, CD_ORCO);
+		}
+		else {
 			vdd.orco = NULL;
+		}
 
-		vdd.totvert = vdd.dm->getNumVerts(vdd.dm);
+		vdd.totvert = vdd.me_eval->totvert;
 	}
 
 	make_child_duplis(ctx, &vdd, make_child_duplis_verts);
 
-	vdd.dm->release(vdd.dm);
+	vdd.me_eval = NULL;
 }
 
 static const DupliGenerator gen_dupli_verts = {
@@ -542,7 +511,7 @@ static Object *find_family_object(Main *bmain, const char *family, size_t family
 {
 	Object **ob_pt;
 	Object *ob;
-	void *ch_key = SET_UINT_IN_POINTER(ch);
+	void *ch_key = POINTER_FROM_UINT(ch);
 
 	if ((ob_pt = (Object **)BLI_ghash_lookup_p(family_gh, ch_key))) {
 		ob = *ob_pt;
@@ -654,7 +623,7 @@ static const DupliGenerator gen_dupli_verts_font = {
 
 /* OB_DUPLIFACES */
 typedef struct FaceDupliData {
-	DerivedMesh *dm;
+	Mesh *me_eval;
 	int totface;
 	MPoly *mpoly;
 	MLoop *mloop;
@@ -778,36 +747,34 @@ static void make_duplis_faces(const DupliContext *ctx)
 		BMEditMesh *em = BKE_editmesh_from_object(parent);
 		CustomDataMask dm_mask = (use_texcoords ? CD_MASK_BAREMESH | CD_MASK_ORCO | CD_MASK_MLOOPUV : CD_MASK_BAREMESH);
 
-		if (DEG_get_mode(ctx->depsgraph) == DAG_EVAL_RENDER) {
-			fdd.dm = mesh_create_derived_render(ctx->depsgraph, scene, parent, dm_mask);
-		}
-		else if (em) {
-			fdd.dm = editbmesh_get_derived_cage(ctx->depsgraph, scene, parent, em, dm_mask);
+		/* We do not need any render-smecific handling anymore, depsgraph takes care of that. */
+		if (em != NULL) {
+			/* XXX TODO replace with equivalent of editbmesh_get_eval_cage when available. */
+			fdd.me_eval = mesh_get_eval_deform(ctx->depsgraph, scene, parent, dm_mask);
 		}
 		else {
-			fdd.dm = mesh_get_derived_final(ctx->depsgraph, scene, parent, dm_mask);
+			fdd.me_eval = mesh_get_eval_final(ctx->depsgraph, scene, parent, dm_mask);
 		}
 
 		if (use_texcoords) {
-			CustomData *ml_data = fdd.dm->getLoopDataLayout(fdd.dm);
-			const int uv_idx = CustomData_get_render_layer(ml_data, CD_MLOOPUV);
-			fdd.orco = fdd.dm->getVertDataArray(fdd.dm, CD_ORCO);
-			fdd.mloopuv = CustomData_get_layer_n(ml_data, CD_MLOOPUV, uv_idx);
+			fdd.orco = CustomData_get_layer(&fdd.me_eval->vdata, CD_ORCO);
+			const int uv_idx = CustomData_get_render_layer(&fdd.me_eval->ldata, CD_MLOOPUV);
+			fdd.mloopuv = CustomData_get_layer_n(&fdd.me_eval->ldata, CD_MLOOPUV, uv_idx);
 		}
 		else {
 			fdd.orco = NULL;
 			fdd.mloopuv = NULL;
 		}
 
-		fdd.totface = fdd.dm->getNumPolys(fdd.dm);
-		fdd.mpoly = fdd.dm->getPolyArray(fdd.dm);
-		fdd.mloop = fdd.dm->getLoopArray(fdd.dm);
-		fdd.mvert = fdd.dm->getVertArray(fdd.dm);
+		fdd.totface = fdd.me_eval->totpoly;
+		fdd.mpoly = fdd.me_eval->mpoly;
+		fdd.mloop = fdd.me_eval->mloop;
+		fdd.mvert = fdd.me_eval->mvert;
 	}
 
 	make_child_duplis(ctx, &fdd, make_child_duplis_faces);
 
-	fdd.dm->release(fdd.dm);
+	fdd.me_eval = NULL;
 }
 
 static const DupliGenerator gen_dupli_faces = {

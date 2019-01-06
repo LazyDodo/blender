@@ -68,6 +68,7 @@
 #include "ED_mask.h"
 #include "ED_sequencer.h"
 #include "ED_gizmo_library.h"
+#include "ED_transform.h"
 
 #include "io_ops.h"
 
@@ -140,6 +141,10 @@ void ED_spacetypes_init(void)
 	ED_gizmotypes_blank_3d();
 	ED_gizmotypes_cage_2d();
 	ED_gizmotypes_cage_3d();
+	ED_gizmotypes_value_2d();
+
+	/* gizmo group types */
+	ED_gizmogrouptypes_value_2d();
 
 	/* register types for operators and gizmos */
 	spacetypes = BKE_spacetypes_list();
@@ -212,6 +217,8 @@ void ED_spacetypes_keymap(wmKeyConfig *keyconf)
 	ED_keymap_view2d(keyconf);
 	ED_keymap_ui(keyconf);
 
+	ED_keymap_transform(keyconf);
+
 	spacetypes = BKE_spacetypes_list();
 	for (stype = spacetypes->first; stype; stype = stype->next) {
 		if (stype->keymap)
@@ -260,11 +267,6 @@ void ED_region_draw_cb_exit(ARegionType *art, void *handle)
 			return;
 		}
 	}
-}
-
-void *ED_region_draw_cb_customdata(void *handle)
-{
-	return ((RegionDrawCB *)handle)->customdata;
 }
 
 void ED_region_draw_cb_draw(const bContext *C, ARegion *ar, int type)

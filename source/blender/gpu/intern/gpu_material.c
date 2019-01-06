@@ -58,10 +58,6 @@
 
 #include "gpu_codegen.h"
 
-#ifdef WITH_OPENSUBDIV
-#  include "BKE_DerivedMesh.h"
-#endif
-
 /* Structs */
 #define MAX_COLOR_BAND 128
 
@@ -71,12 +67,9 @@ typedef struct GPUColorBandBuilder {
 } GPUColorBandBuilder;
 
 struct GPUMaterial {
-	Scene *scene; /* DEPRECATED was only usefull for lamps */
+	Scene *scene; /* DEPRECATED was only useful for lamps */
 	Material *ma;
 
-	/* material for mesh surface, worlds or something else.
-	 * some code generation is done differently depending on the use case */
-	int type; /* DEPRECATED */
 	GPUMaterialStatus status;
 
 	const void *engine_type;   /* attached engine type */
@@ -107,8 +100,6 @@ struct GPUMaterial {
 	int partangvel;
 
 	int objectinfoloc;
-
-	bool is_opensubdiv;
 
 	/* XXX: Should be in Material. But it depends on the output node
 	 * used and since the output selection is difference for GPUMaterial...
@@ -147,7 +138,7 @@ enum {
 
 /* Functions */
 
-/* Returns the adress of the future pointer to coba_tex */
+/* Returns the address of the future pointer to coba_tex */
 GPUTexture **gpu_material_ramp_texture_row_set(GPUMaterial *mat, int size, float *pixels, float *row)
 {
 	/* In order to put all the colorbands into one 1D array texture,
@@ -234,11 +225,6 @@ Scene *GPU_material_scene(GPUMaterial *material)
 	return material->scene;
 }
 
-GPUMatType GPU_Material_get_type(GPUMaterial *material)
-{
-	return material->type;
-}
-
 GPUPass *GPU_material_get_pass(GPUMaterial *material)
 {
 	return material->pass;
@@ -256,7 +242,8 @@ GPUUniformBuffer *GPU_material_uniform_buffer_get(GPUMaterial *material)
 
 /**
  * Create dynamic UBO from parameters
- * \param ListBase of BLI_genericNodeN(GPUInput)
+ *
+ * \param inputs: Items are #LinkData, data is #GPUInput (`BLI_genericNodeN(GPUInput)`).
  */
 void GPU_material_uniform_buffer_create(GPUMaterial *material, ListBase *inputs)
 {
@@ -473,7 +460,7 @@ static void compute_sss_translucence_kernel(
 		/* Distance from surface. */
 		float d = kd->max_radius * ((float)i + 0.00001f) / ((float)resolution);
 
-		/* For each distance d we compute the radiance incomming from an hypothetic parallel plane. */
+		/* For each distance d we compute the radiance incoming from an hypothetic parallel plane. */
 		/* Compute radius of the footprint on the hypothetic plane */
 		float r_fp = sqrtf(kd->max_radius * kd->max_radius - d * d);
 		float r_step = r_fp / INTEGRAL_RESOLUTION;
@@ -488,7 +475,7 @@ static void compute_sss_translucence_kernel(
 			profile[1] = eval_profile(dist, falloff_type, sharpness, kd->param[1]);
 			profile[2] = eval_profile(dist, falloff_type, sharpness, kd->param[2]);
 
-			/* Since the profile and configuration are radially symetrical we
+			/* Since the profile and configuration are radially symmetrical we
 			 * can just evaluate it once and weight it accordingly */
 			float r_next = r + r_step;
 			float disk_area = (M_PI * r_next * r_next) - (M_PI * r * r);
@@ -572,6 +559,11 @@ struct GPUUniformBuffer *GPU_material_sss_profile_get(GPUMaterial *material, int
 		*tex_profile = material->sss_tex_profile;
 	}
 	return material->sss_profile;
+}
+
+struct GPUUniformBuffer *GPU_material_create_sss_profile_ubo(void)
+{
+	return GPU_uniformbuffer_create(sizeof(GPUSssKernelData), NULL, NULL);
 }
 
 #undef SSS_EXPONENT
@@ -660,7 +652,7 @@ GPUMaterial *GPU_material_from_nodetree(
 	BLI_assert(GPU_material_from_nodetree_find(gpumaterials, engine_type, options) == NULL);
 
 	/* allocate material */
-	GPUMaterial *mat = MEM_callocN(sizeof(GPUMaterial), "GPUMaterial");;
+	GPUMaterial *mat = MEM_callocN(sizeof(GPUMaterial), "GPUMaterial");
 	mat->scene = scene;
 	mat->engine_type = engine_type;
 	mat->options = options;
@@ -689,11 +681,12 @@ GPUMaterial *GPU_material_from_nodetree(
 		GPU_nodes_prune(&mat->nodes, mat->outlink);
 		GPU_nodes_get_vertex_attributes(&mat->nodes, &mat->attribs);
 		/* Create source code and search pass cache for an already compiled version. */
-		mat->pass = GPU_generate_pass_new(
+		mat->pass = GPU_generate_pass(
 		        mat,
 		        mat->outlink,
 		        &mat->attribs,
 		        &mat->nodes,
+		        &mat->builtins,
 		        vert_code,
 		        geom_code,
 		        frag_lib,
@@ -721,7 +714,7 @@ GPUMaterial *GPU_material_from_nodetree(
 
 	/* Only free after GPU_pass_shader_get where GPUUniformBuffer
 	 * read data from the local tree. */
-	ntreeFreeTree(localtree);
+	ntreeFreeLocalTree(localtree);
 	MEM_freeN(localtree);
 
 	/* note that even if building the shader fails in some way, we still keep

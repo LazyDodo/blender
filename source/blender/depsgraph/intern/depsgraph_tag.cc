@@ -52,8 +52,6 @@ extern "C" {
 
 #include "BKE_animsys.h"
 #include "BKE_idcode.h"
-#include "BKE_library.h"
-#include "BKE_main.h"
 #include "BKE_node.h"
 #include "BKE_scene.h"
 #include "BKE_workspace.h"
@@ -89,44 +87,9 @@ void deg_graph_id_tag_update(Main *bmain, Depsgraph *graph, ID *id, int flag);
 void depsgraph_geometry_tag_to_component(const ID *id,
                                          eDepsNode_Type *component_type)
 {
-	const ID_Type id_type = GS(id->name);
-	switch (id_type) {
-		case ID_OB:
-		{
-			const Object *object = (Object *)id;
-			switch (object->type) {
-				case OB_MESH:
-				case OB_CURVE:
-				case OB_SURF:
-				case OB_FONT:
-				case OB_LATTICE:
-				case OB_MBALL:
-				case OB_GPENCIL:
-					*component_type = DEG_NODE_TYPE_GEOMETRY;
-					break;
-				case OB_ARMATURE:
-					*component_type = DEG_NODE_TYPE_EVAL_POSE;
-					break;
-					/* TODO(sergey): More cases here? */
-			}
-			break;
-		}
-		case ID_ME:
-			*component_type = DEG_NODE_TYPE_GEOMETRY;
-			break;
-		case ID_PA: /* Particles */
-			return;
-		case ID_LP:
-			*component_type = DEG_NODE_TYPE_PARAMETERS;
-			break;
-		case ID_GD:
-			*component_type = DEG_NODE_TYPE_GEOMETRY;
-			break;
-		case ID_PAL: /* Palettes */
-			*component_type = DEG_NODE_TYPE_PARAMETERS;
-			break;
-		default:
-			break;
+	const eDepsNode_Type result = deg_geometry_tag_to_component(id);
+	if (result != DEG_NODE_TYPE_UNDEFINED) {
+		*component_type = result;
 	}
 }
 
@@ -179,8 +142,16 @@ void depsgraph_base_flags_tag_to_component_opcode(
 	}
 }
 
+eDepsOperation_Code psysTagToOperationCode(IDRecalcFlag tag)
+{
+	if (tag == ID_RECALC_PSYS_RESET) {
+		return DEG_OPCODE_PARTICLE_SETTINGS_RESET;
+	}
+	return DEG_OPCODE_OPERATION;
+}
+
 void depsgraph_tag_to_component_opcode(const ID *id,
-                                       eDepsgraph_Tag tag,
+                                       IDRecalcFlag tag,
                                        eDepsNode_Type *component_type,
                                        eDepsOperation_Code *operation_code)
 {
@@ -194,20 +165,19 @@ void depsgraph_tag_to_component_opcode(const ID *id,
 		return;
 	}
 	switch (tag) {
-		case DEG_TAG_TRANSFORM:
+		case ID_RECALC_TRANSFORM:
 			*component_type = DEG_NODE_TYPE_TRANSFORM;
 			break;
-		case DEG_TAG_GEOMETRY:
+		case ID_RECALC_GEOMETRY:
 			depsgraph_geometry_tag_to_component(id, component_type);
 			break;
-		case DEG_TAG_TIME:
+		case ID_RECALC_ANIMATION:
 			*component_type = DEG_NODE_TYPE_ANIMATION;
 			break;
-		case DEG_TAG_PSYS_REDO:
-		case DEG_TAG_PSYS_RESET:
-		case DEG_TAG_PSYS_TYPE:
-		case DEG_TAG_PSYS_CHILD:
-		case DEG_TAG_PSYS_PHYS:
+		case ID_RECALC_PSYS_REDO:
+		case ID_RECALC_PSYS_RESET:
+		case ID_RECALC_PSYS_CHILD:
+		case ID_RECALC_PSYS_PHYS:
 			if (id_type == ID_PA) {
 				/* NOTES:
 				 * - For particle settings node we need to use different
@@ -215,16 +185,17 @@ void depsgraph_tag_to_component_opcode(const ID *id,
 				 *   but we can survive for now with single exception here.
 				 *   Particles needs reconsideration anyway,
 				 */
-				*component_type = DEG_NODE_TYPE_PARAMETERS;
+				*component_type = DEG_NODE_TYPE_PARTICLE_SETTINGS;
+				*operation_code = psysTagToOperationCode(tag);
 			}
 			else {
-				*component_type = DEG_NODE_TYPE_EVAL_PARTICLES;
+				*component_type = DEG_NODE_TYPE_PARTICLE_SYSTEM;
 			}
 			break;
-		case DEG_TAG_COPY_ON_WRITE:
+		case ID_RECALC_COPY_ON_WRITE:
 			*component_type = DEG_NODE_TYPE_COPY_ON_WRITE;
 			break;
-		case DEG_TAG_SHADING_UPDATE:
+		case ID_RECALC_SHADING:
 			if (id_type == ID_NT) {
 				*component_type = DEG_NODE_TYPE_SHADING_PARAMETERS;
 			}
@@ -232,21 +203,26 @@ void depsgraph_tag_to_component_opcode(const ID *id,
 				*component_type = DEG_NODE_TYPE_SHADING;
 			}
 			break;
-		case DEG_TAG_SELECT_UPDATE:
+		case ID_RECALC_SELECT:
 			depsgraph_select_tag_to_component_opcode(id,
 			                                         component_type,
 			                                         operation_code);
 			break;
-		case DEG_TAG_BASE_FLAGS_UPDATE:
+		case ID_RECALC_BASE_FLAGS:
 			depsgraph_base_flags_tag_to_component_opcode(id,
 			                                             component_type,
 			                                             operation_code);
-		case DEG_TAG_EDITORS_UPDATE:
+			break;
+		case ID_RECALC_POINT_CACHE:
+			*component_type = DEG_NODE_TYPE_POINT_CACHE;
+			break;
+		case ID_RECALC_EDITORS:
 			/* There is no such node in depsgraph, this tag is to be handled
 			 * separately.
 			 */
 			break;
-		case DEG_TAG_PSYS_ALL:
+		case ID_RECALC_ALL:
+		case ID_RECALC_PSYS_ALL:
 			BLI_assert(!"Should not happen");
 			break;
 	}
@@ -286,36 +262,36 @@ void depsgraph_tag_component(Depsgraph *graph,
 		return;
 	}
 	if (operation_code == DEG_OPCODE_OPERATION) {
-		component_node->tag_update(graph);
+		component_node->tag_update(graph, DEG_UPDATE_SOURCE_USER_EDIT);
 	}
 	else {
 		OperationDepsNode *operation_node =
 		        component_node->find_operation(operation_code);
 		if (operation_node != NULL) {
-			operation_node->tag_update(graph);
+			operation_node->tag_update(graph, DEG_UPDATE_SOURCE_USER_EDIT);
 		}
 	}
 	/* If component depends on copy-on-write, tag it as well. */
 	if (component_node->need_tag_cow_before_update()) {
 		ComponentDepsNode *cow_comp =
 		        id_node->find_component(DEG_NODE_TYPE_COPY_ON_WRITE);
-		cow_comp->tag_update(graph);
+		cow_comp->tag_update(graph, DEG_UPDATE_SOURCE_USER_EDIT);
 		id_node->id_orig->recalc |= ID_RECALC_COPY_ON_WRITE;
 	}
 }
 
 /* This is a tag compatibility with legacy code.
  *
- * Mainly, old code was tagging object with OB_RECALC_DATA tag to inform
+ * Mainly, old code was tagging object with ID_RECALC_GEOMETRY tag to inform
  * that object's data datablock changed. Now API expects that ID is given
  * explicitly, but not all areas are aware of this yet.
  */
 void deg_graph_id_tag_legacy_compat(Main *bmain,
                                     Depsgraph *depsgraph,
                                     ID *id,
-                                    eDepsgraph_Tag tag)
+                                    IDRecalcFlag tag)
 {
-	if (tag == DEG_TAG_GEOMETRY || tag == 0) {
+	if (tag == ID_RECALC_GEOMETRY || tag == 0) {
 		switch (GS(id->name)) {
 			case ID_OB:
 			{
@@ -367,9 +343,9 @@ static void deg_graph_id_tag_update_single_flag(Main *bmain,
                                                 Depsgraph *graph,
                                                 ID *id,
                                                 IDDepsNode *id_node,
-                                                eDepsgraph_Tag tag)
+                                                IDRecalcFlag tag)
 {
-	if (tag == DEG_TAG_EDITORS_UPDATE) {
+	if (tag == ID_RECALC_EDITORS) {
 		if (graph != NULL) {
 			depsgraph_update_editors_tag(bmain, graph, id);
 		}
@@ -401,7 +377,7 @@ static void deg_graph_id_tag_update_single_flag(Main *bmain,
 	}
 	/* Tag corresponding dependency graph operation for update. */
 	if (component_type == DEG_NODE_TYPE_ID_REF) {
-		id_node->tag_update(graph);
+		id_node->tag_update(graph, DEG_UPDATE_SOURCE_USER_EDIT);
 	}
 	else {
 		depsgraph_tag_component(graph, id_node, component_type, operation_code);
@@ -413,7 +389,7 @@ static void deg_graph_id_tag_update_single_flag(Main *bmain,
 
 }
 
-string stringify_append_bit(const string& str, eDepsgraph_Tag tag)
+string stringify_append_bit(const string& str, IDRecalcFlag tag)
 {
 	string result = str;
 	if (!result.empty()) {
@@ -433,13 +409,13 @@ string stringify_update_bitfield(int flag)
 	/* Special cases to avoid ALL flags form being split into
 	 * individual bits.
 	 */
-	if ((current_flag & DEG_TAG_PSYS_ALL) == DEG_TAG_PSYS_ALL) {
-		result = stringify_append_bit(result, DEG_TAG_PSYS_ALL);
+	if ((current_flag & ID_RECALC_PSYS_ALL) == ID_RECALC_PSYS_ALL) {
+		result = stringify_append_bit(result, ID_RECALC_PSYS_ALL);
 	}
 	/* Handle all the rest of the flags. */
 	while (current_flag != 0) {
-		eDepsgraph_Tag tag =
-		        (eDepsgraph_Tag)(1 << bitscan_forward_clear_i(&current_flag));
+		IDRecalcFlag tag =
+		        (IDRecalcFlag)(1 << bitscan_forward_clear_i(&current_flag));
 		result = stringify_append_bit(result, tag);
 	}
 	return result;
@@ -458,16 +434,16 @@ void deg_graph_node_tag_zero(Main *bmain, Depsgraph *graph, IDDepsNode *id_node)
 	}
 	ID *id = id_node->id_orig;
 	/* TODO(sergey): Which recalc flags to set here? */
-	id->recalc |= ID_RECALC_ALL & ~(DEG_TAG_PSYS_ALL | ID_RECALC_ANIMATION);
+	id->recalc |= ID_RECALC_ALL & ~(ID_RECALC_PSYS_ALL | ID_RECALC_ANIMATION);
 	GHASH_FOREACH_BEGIN(ComponentDepsNode *, comp_node, id_node->components)
 	{
 		if (comp_node->type == DEG_NODE_TYPE_ANIMATION) {
 			continue;
 		}
-		comp_node->tag_update(graph);
+		comp_node->tag_update(graph, DEG_UPDATE_SOURCE_USER_EDIT);
 	}
 	GHASH_FOREACH_END();
-	deg_graph_id_tag_legacy_compat(bmain, graph, id, (eDepsgraph_Tag)0);
+	deg_graph_id_tag_legacy_compat(bmain, graph, id, (IDRecalcFlag)0);
 }
 
 void deg_graph_id_tag_update(Main *bmain, Depsgraph *graph, ID *id, int flag)
@@ -487,11 +463,11 @@ void deg_graph_id_tag_update(Main *bmain, Depsgraph *graph, ID *id, int flag)
 	if (flag == 0) {
 		deg_graph_node_tag_zero(bmain, graph, id_node);
 	}
-	id->recalc |= (flag & PSYS_RECALC);
+	id->recalc |= flag;
 	int current_flag = flag;
 	while (current_flag != 0) {
-		eDepsgraph_Tag tag =
-		        (eDepsgraph_Tag)(1 << bitscan_forward_clear_i(&current_flag));
+		IDRecalcFlag tag =
+		        (IDRecalcFlag)(1 << bitscan_forward_clear_i(&current_flag));
 		deg_graph_id_tag_update_single_flag(bmain,
 		                                    graph,
 		                                    id,
@@ -500,6 +476,11 @@ void deg_graph_id_tag_update(Main *bmain, Depsgraph *graph, ID *id, int flag)
 	}
 	/* Special case for nested node tree datablocks. */
 	id_tag_update_ntree_special(bmain, graph, id, flag);
+	/* Direct update tags means that something outside of simulated/cached
+	 * physics did change and that cache is to be invalidated.
+	 */
+	deg_graph_id_tag_update_single_flag(
+	        bmain, graph, id, id_node, ID_RECALC_POINT_CACHE);
 }
 
 void deg_id_tag_update(Main *bmain, ID *id, int flag)
@@ -521,13 +502,15 @@ void deg_id_tag_update(Main *bmain, ID *id, int flag)
 void deg_graph_on_visible_update(Main *bmain, Depsgraph *graph)
 {
 	foreach (DEG::IDDepsNode *id_node, graph->id_nodes) {
-		if (!id_node->is_visible) {
-			/* ID is not visible within the current dependency graph, no need
-			 * botherwith it to tag or anything.
+		if (!id_node->visible_components_mask) {
+			/* ID has no components which affects anything visible. no meed
+			 * bother with it to tag or anything.
 			 */
 			continue;
 		}
-		if (id_node->is_previous_visible) {
+		if (id_node->visible_components_mask ==
+		    id_node->previously_visible_components_mask)
+		{
 			/* The ID was already visible and evaluated, all the subsequent
 			 * updates and tags are to be done explicitly.
 			 */
@@ -535,7 +518,7 @@ void deg_graph_on_visible_update(Main *bmain, Depsgraph *graph)
 		}
 		int flag = 0;
 		if (!DEG::deg_copy_on_write_is_expanded(id_node->id_cow)) {
-			flag |= DEG_TAG_COPY_ON_WRITE;
+			flag |= ID_RECALC_COPY_ON_WRITE;
 		}
 		/* We only tag components which needs an update. Tagging everything is
 		 * not a good idea because that might reset particles cache (or any
@@ -545,12 +528,12 @@ void deg_graph_on_visible_update(Main *bmain, Depsgraph *graph)
 		 */
 		const ID_Type id_type = GS(id_node->id_orig->name);
 		if (id_type == ID_OB) {
-			flag |= OB_RECALC_OB | OB_RECALC_DATA;
+			flag |= ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY;
 		}
 		deg_graph_id_tag_update(bmain, graph, id_node->id_orig, flag);
 		if (id_type == ID_SCE) {
 			/* Make sure collection properties are up to date. */
-			id_node->tag_update(graph);
+			id_node->tag_update(graph, DEG_UPDATE_SOURCE_VISIBILITY);
 		}
 		/* Now when ID is updated to the new visibility state, prevent it from
 		 * being re-tagged again. Simplest way to do so is to pretend that it
@@ -562,31 +545,71 @@ void deg_graph_on_visible_update(Main *bmain, Depsgraph *graph)
 		 * tags we request from here will be applied in the updated state of
 		 * dependency graph.
 		 */
-		id_node->is_previous_visible = true;
+		id_node->previously_visible_components_mask =
+		        id_node->visible_components_mask;
 	}
 }
 
 }  /* namespace */
 
+eDepsNode_Type deg_geometry_tag_to_component(const ID *id)
+{
+	const ID_Type id_type = GS(id->name);
+	switch (id_type) {
+		case ID_OB:
+		{
+			const Object *object = (Object *)id;
+			switch (object->type) {
+				case OB_MESH:
+				case OB_CURVE:
+				case OB_SURF:
+				case OB_FONT:
+				case OB_LATTICE:
+				case OB_MBALL:
+				case OB_GPENCIL:
+					return DEG_NODE_TYPE_GEOMETRY;
+				case OB_ARMATURE:
+					return DEG_NODE_TYPE_EVAL_POSE;
+					/* TODO(sergey): More cases here? */
+			}
+			break;
+		}
+		case ID_ME:
+			return DEG_NODE_TYPE_GEOMETRY;
+		case ID_PA: /* Particles */
+			return DEG_NODE_TYPE_UNDEFINED;
+		case ID_LP:
+			return DEG_NODE_TYPE_PARAMETERS;
+		case ID_GD:
+			return DEG_NODE_TYPE_GEOMETRY;
+		case ID_PAL: /* Palettes */
+			return DEG_NODE_TYPE_PARAMETERS;
+		default:
+			break;
+	}
+	return DEG_NODE_TYPE_UNDEFINED;
+}
+
 }  // namespace DEG
 
-const char *DEG_update_tag_as_string(eDepsgraph_Tag flag)
+const char *DEG_update_tag_as_string(IDRecalcFlag flag)
 {
 	switch (flag) {
-		case DEG_TAG_TRANSFORM: return "TRANSFORM";
-		case DEG_TAG_GEOMETRY: return "GEOMETRY";
-		case DEG_TAG_TIME: return "TIME";
-		case DEG_TAG_PSYS_REDO: return "PSYS_REDO";
-		case DEG_TAG_PSYS_RESET: return "PSYS_RESET";
-		case DEG_TAG_PSYS_TYPE: return "PSYS_TYPE";
-		case DEG_TAG_PSYS_CHILD: return "PSYS_CHILD";
-		case DEG_TAG_PSYS_PHYS: return "PSYS_PHYS";
-		case DEG_TAG_PSYS_ALL: return "PSYS_ALL";
-		case DEG_TAG_COPY_ON_WRITE: return "COPY_ON_WRITE";
-		case DEG_TAG_SHADING_UPDATE: return "SHADING_UPDATE";
-		case DEG_TAG_SELECT_UPDATE: return "SELECT_UPDATE";
-		case DEG_TAG_BASE_FLAGS_UPDATE: return "BASE_FLAGS_UPDATE";
-		case DEG_TAG_EDITORS_UPDATE: return "EDITORS_UPDATE";
+		case ID_RECALC_TRANSFORM: return "TRANSFORM";
+		case ID_RECALC_GEOMETRY: return "GEOMETRY";
+		case ID_RECALC_ANIMATION: return "ANIMATION";
+		case ID_RECALC_PSYS_REDO: return "PSYS_REDO";
+		case ID_RECALC_PSYS_RESET: return "PSYS_RESET";
+		case ID_RECALC_PSYS_CHILD: return "PSYS_CHILD";
+		case ID_RECALC_PSYS_PHYS: return "PSYS_PHYS";
+		case ID_RECALC_PSYS_ALL: return "PSYS_ALL";
+		case ID_RECALC_COPY_ON_WRITE: return "COPY_ON_WRITE";
+		case ID_RECALC_SHADING: return "SHADING";
+		case ID_RECALC_SELECT: return "SELECT";
+		case ID_RECALC_BASE_FLAGS: return "BASE_FLAGS";
+		case ID_RECALC_POINT_CACHE: return "POINT_CACHE";
+		case ID_RECALC_EDITORS: return "EDITORS";
+		case ID_RECALC_ALL: return "ALL";
 	}
 	BLI_assert(!"Unhandled update flag, should never happen!");
 	return "UNKNOWN";

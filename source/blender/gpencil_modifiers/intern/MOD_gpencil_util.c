@@ -69,7 +69,7 @@ void gpencil_modifier_type_init(GpencilModifierTypeInfo *types[])
 	INIT_GP_TYPE(Thick);
 	INIT_GP_TYPE(Tint);
 	INIT_GP_TYPE(Color);
-	INIT_GP_TYPE(Instance);
+	INIT_GP_TYPE(Array);
 	INIT_GP_TYPE(Build);
 	INIT_GP_TYPE(Opacity);
 	INIT_GP_TYPE(Lattice);
@@ -78,13 +78,14 @@ void gpencil_modifier_type_init(GpencilModifierTypeInfo *types[])
 	INIT_GP_TYPE(Hook);
 	INIT_GP_TYPE(Offset);
 	INIT_GP_TYPE(Armature);
+	INIT_GP_TYPE(Time);
 #undef INIT_GP_TYPE
 }
 
 /* verify if valid layer and pass index */
 bool is_stroke_affected_by_modifier(
-        Object *ob, char *mlayername, int mpassindex, int minpoints,
-        bGPDlayer *gpl, bGPDstroke *gps, bool inv1, bool inv2)
+        Object *ob, char *mlayername, int mpassindex, int gpl_passindex, int minpoints,
+        bGPDlayer *gpl, bGPDstroke *gps, bool inv1, bool inv2, bool inv3)
 {
 	MaterialGPencilStyle *gp_style = BKE_material_gpencil_settings_get(ob, gps->mat_nr + 1);
 
@@ -101,7 +102,20 @@ bool is_stroke_affected_by_modifier(
 			}
 		}
 	}
-	/* verify pass */
+	/* verify layer pass */
+	if (gpl_passindex > 0) {
+		if (inv3 == false) {
+			if (gpl->pass_index != gpl_passindex) {
+				return false;
+			}
+		}
+		else {
+			if (gpl->pass_index == gpl_passindex) {
+				return false;
+			}
+		}
+	}
+	/* verify material pass */
 	if (mpassindex > 0) {
 		if (inv2 == false) {
 			if (gp_style->index != mpassindex) {
@@ -127,7 +141,7 @@ float get_modifier_point_weight(MDeformVert *dvert, bool inverse, int def_nr)
 {
 	float weight = 1.0f;
 
-	if (def_nr != -1) {
+	if ((dvert != NULL) && (def_nr != -1)) {
 		MDeformWeight *dw = defvert_find_index(dvert, def_nr);
 		weight = dw ? dw->weight : -1.0f;
 		if ((weight >= 0.0f) && (inverse == 1)) {
@@ -143,6 +157,16 @@ float get_modifier_point_weight(MDeformVert *dvert, bool inverse, int def_nr)
 			return 1.0f;
 		}
 
+	}
+
+	/* handle special empty groups */
+	if ((dvert == NULL) && (def_nr != -1)) {
+		if (inverse == 1) {
+			return 1.0f;
+		}
+		else {
+			return -1.0f;
+		}
 	}
 
 	return weight;
@@ -169,7 +193,7 @@ void gpencil_apply_modifier_material(
 			copy_v4_v4(newmat->gp_style->fill_rgba, gps->runtime.tmp_fill_rgba);
 
 			BLI_ghash_insert(gh_color, mat->id.name, newmat);
-			DEG_id_tag_update(&newmat->id, DEG_TAG_COPY_ON_WRITE);
+			DEG_id_tag_update(&newmat->id, ID_RECALC_COPY_ON_WRITE);
 		}
 		/* reasign color index */
 		int idx = BKE_gpencil_get_material_index(ob, newmat);
@@ -187,6 +211,6 @@ void gpencil_apply_modifier_material(
 			mat->preview->flag[ICON_SIZE_ICON] |= PRV_CHANGED;
 			mat->preview->flag[ICON_SIZE_PREVIEW] |= PRV_CHANGED;
 		}
-		DEG_id_tag_update(&mat->id, DEG_TAG_COPY_ON_WRITE);
+		DEG_id_tag_update(&mat->id, ID_RECALC_COPY_ON_WRITE);
 	}
 }

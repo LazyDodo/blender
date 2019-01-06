@@ -128,7 +128,7 @@ struct ApplicationState app_state = {
 	},
 	.exit_code_on_error = {
 		.python = 0,
-	}
+	},
 };
 
 /* -------------------------------------------------------------------- */
@@ -365,6 +365,7 @@ int main(
 	BKE_appdir_program_path_init(argv[0]);
 
 	BLI_threadapi_init();
+	BLI_thread_put_process_on_fast_node();
 
 	DNA_sdna_current_init();
 
@@ -467,12 +468,7 @@ int main(
 #endif
 
 	CTX_py_init_set(C, 1);
-	WM_keymap_init(C);
-
-	/* Called on load, however Python is not yet initialized, so call again here. */
-	if (!G.background) {
-		WM_toolsystem_init(C);
-	}
+	WM_keyconfig_init(C);
 
 #ifdef WITH_FREESTYLE
 	/* initialize Freestyle */

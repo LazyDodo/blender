@@ -68,9 +68,9 @@ BLI_INLINE bool edgeref_is_init(const EdgeFaceRef *edge_ref)
 }
 
 /**
- * \param dm  Mesh to calculate normals for.
- * \param face_nors  Precalculated face normals.
- * \param r_vert_nors  Return vert normals.
+ * \param dm: Mesh to calculate normals for.
+ * \param face_nors: Precalculated face normals.
+ * \param r_vert_nors: Return vert normals.
  */
 static void mesh_calc_hq_normal(Mesh *mesh, float (*face_nors)[3], float (*r_vert_nors)[3])
 {
@@ -964,14 +964,12 @@ ModifierTypeInfo modifierType_Solidify = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,

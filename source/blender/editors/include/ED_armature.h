@@ -48,6 +48,7 @@ struct Mesh;
 struct Object;
 struct ReportList;
 struct Scene;
+struct View3D;
 struct ViewLayer;
 struct ViewContext;
 struct wmKeyConfig;
@@ -70,7 +71,7 @@ typedef struct EditBone {
 	float head[3];          /* Orientation and length is implicit during editing */
 	float tail[3];
 	/* All joints are considered to have zero rotation with respect to
-	 * their parents.	Therefore any rotations specified during the
+	 * their parents. Therefore any rotations specified during the
 	 * animation are automatically relative to the bones' rest positions*/
 	int flag;
 	int layer;
@@ -90,11 +91,18 @@ typedef struct EditBone {
 
 	short segments;
 
+	char bbone_prev_type;	/* Type of next/prev bone handles */
+	char bbone_next_type;
+	struct EditBone *bbone_prev;	/* Next/prev bones to use as handle references when calculating bbones (optional) */
+	struct EditBone *bbone_next;
+
 	/* Used for display */
 	float disp_mat[4][4];  /*  in Armature space, rest pos matrix */
 	float disp_tail_mat[4][4];  /*  in Armature space, rest pos matrix */
 	/* 32 == MAX_BBONE_SUBDIV */
 	float disp_bbone_mat[32][4][4]; /*  in Armature space, rest pos matrix */
+
+	struct EditBone *bbone_child;	/* connected child temporary during drawing */
 
 	/* Used to store temporary data */
 	union {
@@ -147,10 +155,14 @@ void ED_armature_edit_deselect_all_multi(struct Object **objects, uint objects_l
 void ED_armature_edit_deselect_all_visible_multi(struct Object **objects, uint objects_len);
 
 bool ED_armature_pose_select_pick_with_buffer(
-        struct ViewLayer *view_layer, struct Base *base, const unsigned int *buffer, short hits,
+        struct ViewLayer *view_layer, struct View3D *v3d, struct Base *base, const unsigned int *buffer, short hits,
         bool extend, bool deselect, bool toggle, bool do_nearest);
 bool ED_armature_edit_select_pick(
         struct bContext *C, const int mval[2], bool extend, bool deselect, bool toggle);
+
+bool ED_armature_edit_select_op_from_tagged(
+        struct bArmature *arm, const int sel_op);
+
 int join_armature_exec(struct bContext *C, struct wmOperator *op);
 float ED_armature_ebone_roll_to_vector(const EditBone *bone, const float new_up_axis[3], const bool axis_only);
 EditBone *ED_armature_ebone_find_name(const struct ListBase *edbo, const char *name);
@@ -225,12 +237,11 @@ bool ED_pose_deselect_all(struct Object *ob, int select_mode, const bool ignore_
 void ED_pose_deselect_all_multi(struct Object **objects, uint objects_len, int select_mode, const bool ignore_visibility);
 void ED_pose_bone_select_tag_update(struct Object *ob);
 void ED_pose_bone_select(struct Object *ob, struct bPoseChannel *pchan, bool select);
-void ED_pose_recalculate_paths(struct bContext *C, struct Scene *scene, struct Object *ob);
+void ED_pose_recalculate_paths(struct bContext *C, struct Scene *scene, struct Object *ob, bool current_frame_only);
 struct Object *ED_pose_object_from_context(struct bContext *C);
 
 /* meshlaplacian.c */
 void ED_mesh_deform_bind_callback(
-        struct Scene *scene,
         struct MeshDeformModifierData *mmd,
         struct Mesh *cagemesh,
         float *vertexcos, int totvert, float cagemat[4][4]);

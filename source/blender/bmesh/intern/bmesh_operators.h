@@ -56,12 +56,6 @@ enum {
 	SUBDIV_SELECT_LOOPCUT
 };
 
-enum {
-	SIM_CMP_EQ = 0,
-	SIM_CMP_GT,
-	SIM_CMP_LT
-};
-
 /* subdivide_edgering */
 enum {
 	/* just subdiv */
@@ -84,9 +78,7 @@ enum {
 	SIMFACE_COPLANAR,
 	SIMFACE_SMOOTH,
 	SIMFACE_FACEMAP,
-#ifdef WITH_FREESTYLE
 	SIMFACE_FREESTYLE
-#endif
 };
 
 /* similar edge selection slot values */
@@ -99,9 +91,7 @@ enum {
 	SIMEDGE_BEVEL,
 	SIMEDGE_SEAM,
 	SIMEDGE_SHARP,
-#ifdef WITH_FREESTYLE
 	SIMEDGE_FREESTYLE
-#endif
 };
 
 /* similar vertex selection slot values */
@@ -114,8 +104,8 @@ enum {
 
 /* Poke face center calculation */
 enum {
-	BMOP_POKE_MEAN_WEIGHTED = 0,
-	BMOP_POKE_MEAN,
+	BMOP_POKE_MEDIAN_WEIGHTED = 0,
+	BMOP_POKE_MEDIAN,
 	BMOP_POKE_BOUNDS
 };
 
@@ -127,11 +117,12 @@ enum {
 	BEVEL_AMT_PERCENT
 };
 
+/* Bevel face_strength_mode values: should match face_str mode enum in DNA_modifer_types.h */
 enum {
-	BEVEL_HN_NONE,			/* Disable harden normals */
-	BEVEL_HN_FACE,			/* harden normals according to face area */
-	BEVEL_HN_ADJ,			/* harden normals according to adjacent 'beveled' faces */
-	BEVEL_HN_FIX_SHA,		/* Special mode to fix normal shading continuity */
+	BEVEL_FACE_STRENGTH_NONE,
+	BEVEL_FACE_STRENGTH_NEW,
+	BEVEL_FACE_STRENGTH_AFFECTED,
+	BEVEL_FACE_STRENGTH_ALL,
 };
 
 extern const BMOpDefine *bmo_opdefines[];

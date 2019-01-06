@@ -90,7 +90,7 @@ static PyObject *pyrna_prop_collection_values(BPy_PropertyRNA *self);
 #define BPY_DOC_ID_PROP_TYPE_NOTE                                             \
 "   .. note::\n"                                                              \
 "\n"                                                                          \
-"      Only :class:`bpy.types.ID`, :class:`bpy.types.Bone` and \n"            \
+"      Only :class:`bpy.types.ID`, :class:`bpy.types.Bone` and\n"             \
 "      :class:`bpy.types.PoseBone` classes support custom properties.\n"
 
 
@@ -1206,7 +1206,7 @@ static int pyrna_string_to_enum(
 		if (!RNA_property_enum_value(BPy_GetContext(), ptr, prop, param, r_value)) {
 			const char *enum_str = pyrna_enum_as_string(ptr, prop);
 			PyErr_Format(PyExc_TypeError,
-			             "%.200s enum \"%.200s\" not found in (%.200s)",
+			             "%.200s enum \"%.200s\" not found in (%s)",
 			             error_prefix, param, enum_str);
 			MEM_freeN((void *)enum_str);
 			return -1;
@@ -1401,53 +1401,39 @@ static PyObject *pyrna_enum_to_py(PointerRNA *ptr, PropertyRNA *prop, int val)
 			ret = PyUnicode_FromString(identifier);
 		}
 		else {
+			/* Static, no need to free. */
 			const EnumPropertyItem *enum_item;
-			bool free;
+			bool free_dummy;
+			RNA_property_enum_items_ex(NULL, ptr, prop, true, &enum_item, NULL, &free_dummy);
+			BLI_assert(!free_dummy);
 
-			/* don't throw error here, can't trust blender 100% to give the
-			 * right values, python code should not generate error for that */
-			RNA_property_enum_items(BPy_GetContext(), ptr, prop, &enum_item, NULL, &free);
-			if (enum_item && enum_item->identifier) {
-				ret = PyUnicode_FromString(enum_item->identifier);
-			}
-			else {
-				if (free) {
-					MEM_freeN((void *)enum_item);
-				}
-				RNA_property_enum_items(NULL, ptr, prop, &enum_item, NULL, &free);
+			/* Do not print warning in case of DummyRNA_NULL_items, this one will never match any value... */
+			if (enum_item != DummyRNA_NULL_items) {
+				const char *ptr_name = RNA_struct_name_get_alloc(ptr, NULL, 0, NULL);
 
-				/* Do not print warning in case of DummyRNA_NULL_items, this one will never match any value... */
-				if (enum_item != DummyRNA_NULL_items) {
-					const char *ptr_name = RNA_struct_name_get_alloc(ptr, NULL, 0, NULL);
-
-					/* prefer not fail silently in case of api errors, maybe disable it later */
-					CLOG_WARN(BPY_LOG_RNA,
-					          "current value '%d' "
-					          "matches no enum in '%s', '%s', '%s'",
-					          val, RNA_struct_identifier(ptr->type),
-					          ptr_name, RNA_property_identifier(prop));
+				/* prefer not fail silently in case of api errors, maybe disable it later */
+				CLOG_WARN(BPY_LOG_RNA,
+				          "current value '%d' "
+				          "matches no enum in '%s', '%s', '%s'",
+				          val, RNA_struct_identifier(ptr->type),
+				          ptr_name, RNA_property_identifier(prop));
 
 #if 0				/* gives python decoding errors while generating docs :( */
-					char error_str[256];
-					BLI_snprintf(error_str, sizeof(error_str),
-					             "RNA Warning: Current value \"%d\" "
-					             "matches no enum in '%s', '%s', '%s'",
-					             val, RNA_struct_identifier(ptr->type),
-					             ptr_name, RNA_property_identifier(prop));
+				char error_str[256];
+				BLI_snprintf(error_str, sizeof(error_str),
+				             "RNA Warning: Current value \"%d\" "
+				             "matches no enum in '%s', '%s', '%s'",
+				             val, RNA_struct_identifier(ptr->type),
+				             ptr_name, RNA_property_identifier(prop));
 
-					PyErr_Warn(PyExc_RuntimeWarning, error_str);
+				PyErr_Warn(PyExc_RuntimeWarning, error_str);
 #endif
 
-					if (ptr_name)
-						MEM_freeN((void *)ptr_name);
-				}
-
-				ret = PyUnicode_FromString("");
+				if (ptr_name)
+					MEM_freeN((void *)ptr_name);
 			}
 
-			if (free) {
-				MEM_freeN((void *)enum_item);
-			}
+			ret = PyUnicode_FromString("");
 #if 0
 			PyErr_Format(PyExc_AttributeError,
 			             "RNA Error: Current value \"%d\" matches no enum", val);
@@ -1729,7 +1715,25 @@ static int pyrna_py_to_prop(
 				const int subtype = RNA_property_subtype(prop);
 				const char *param;
 
-				if (subtype == PROP_BYTESTRING) {
+				if (value == Py_None) {
+					if ((RNA_property_flag(prop) & PROP_NEVER_NULL) == 0) {
+						if (data) {
+							*((char **)data) = (char *)NULL;
+						}
+						else {
+							RNA_property_string_set(ptr, prop, NULL);
+						}
+					}
+					else {
+						PyC_Err_Format_Prefix(
+						        PyExc_TypeError,
+						        "%.200s %.200s.%.200s doesn't support None from string types",
+						        error_prefix, RNA_struct_identifier(ptr->type),
+						        RNA_property_identifier(prop));
+						return -1;
+					}
+				}
+				else if (subtype == PROP_BYTESTRING) {
 
 					/* Byte String */
 
@@ -2360,7 +2364,7 @@ static int pyrna_prop_collection_subscript_str_lib_pair_ptr(
 		}
 		else {
 			PyErr_Format(PyExc_KeyError,
-			             "%s: lib must be a sting or None, not %.200s",
+			             "%s: lib must be a string or None, not %.200s",
 			             err_prefix, Py_TYPE(keylib)->tp_name);
 			return -1;
 		}
@@ -4162,7 +4166,7 @@ static PyObject *pyrna_struct_meta_idprop_getattro(PyObject *cls, PyObject *attr
 	 * <bpy_struct, BoolProperty("foo")>
 	 * ...rather than returning the deferred class register tuple as checked by pyrna_is_deferred_prop()
 	 *
-	 * Disable for now, this is faking internal behavior in a way thats too tricky to maintain well. */
+	 * Disable for now, this is faking internal behavior in a way that's too tricky to maintain well. */
 #if 0
 	if (ret == NULL) { // || pyrna_is_deferred_prop(ret)
 		StructRNA *srna = srna_from_self(cls, "StructRNA.__getattr__");
@@ -7393,7 +7397,7 @@ static int deferred_register_prop(StructRNA *srna, PyObject *key, PyObject *item
 				    RNA_struct_idprops_contains_datablock(type_srna))
 				{
 					PyErr_Format(PyExc_ValueError,
-					             "bpy_struct \"%.200s\" doesn't support datablock properties \n",
+					             "bpy_struct \"%.200s\" doesn't support datablock properties\n",
 					             RNA_struct_identifier(srna));
 					return -1;
 				}
@@ -7437,15 +7441,17 @@ static int deferred_register_prop(StructRNA *srna, PyObject *key, PyObject *item
 
 static int pyrna_deferred_register_props(StructRNA *srna, PyObject *class_dict)
 {
-	PyObject *fields_dict;
+	PyObject *annotations_dict;
 	PyObject *item, *key;
 	Py_ssize_t pos = 0;
 	int ret = 0;
 
 	/* in both cases PyDict_CheckExact(class_dict) will be true even
 	 * though Operators have a metaclass dict namespace */
-	if ((fields_dict = PyDict_GetItem(class_dict, bpy_intern_str___annotations__)) && PyDict_CheckExact(fields_dict)) {
-		while (PyDict_Next(fields_dict, &pos, &key, &item)) {
+	if ((annotations_dict = PyDict_GetItem(class_dict, bpy_intern_str___annotations__)) &&
+	    PyDict_CheckExact(annotations_dict))
+	{
+		while (PyDict_Next(annotations_dict, &pos, &key, &item)) {
 			ret = deferred_register_prop(srna, key, item);
 
 			if (ret != 0) {
@@ -7455,18 +7461,18 @@ static int pyrna_deferred_register_props(StructRNA *srna, PyObject *class_dict)
 	}
 
 	{
-		/* This block can be removed once 2.8x is released and fields are in use. */
+		/* This block can be removed once 2.8x is released and annotations are in use. */
 		bool has_warning = false;
 		while (PyDict_Next(class_dict, &pos, &key, &item)) {
 			if (pyrna_is_deferred_prop(item)) {
 				if (!has_warning) {
 					printf("Warning: class %.200s "
-					       "contains a properties which should be a field!\n",
+					       "contains a properties which should be an annotation!\n",
 					       RNA_struct_identifier(srna));
 					PyC_LineSpit();
 					has_warning = true;
 				}
-				printf("    make field: %.200s.%.200s\n",
+				printf("    make annotation: %.200s.%.200s\n",
 				       RNA_struct_identifier(srna), _PyUnicode_AsString(key));
 			}
 			ret = deferred_register_prop(srna, key, item);
@@ -8454,9 +8460,46 @@ typedef struct BPyRNA_CallBack {
 	StructRNA   *bpy_srna;
 } PyRNA_CallBack;
 
+PyDoc_STRVAR(pyrna_draw_handler_add_doc,
+".. method:: draw_handler_add(callback, args, region_type, draw_type)\n"
+"\n"
+"   Add a new draw handler to this space type.\n"
+"   It will be called every time the specified region in the space type will be drawn.\n"
+"   Note: All arguments are positional only for now.\n"
+"\n"
+"   :param callback:\n"
+"        A function that will be called when the region is drawn.\n"
+"        It gets the specified arguments as input.\n"
+"   :type callback: function\n"
+"   :param args: Arguments that will be passed to the callback.\n"
+"   :type args: tuple\n"
+"   :param region_type: The region type the callback draws in; usually `'WINDOW'`. (:class:`bpy.types.Region.type`)\n"
+"   :type region_type: str\n"
+"   :param draw_type: Usually `POST_PIXEL` for 2D drawing and `POST_VIEW` for 3D drawing. In some cases `PRE_VIEW` can be used.\n"
+"   :type draw_type: str\n"
+"   :return: Handler that can be removed later on.\n"
+"   :rtype: object"
+);
+
+PyDoc_STRVAR(pyrna_draw_handler_remove_doc,
+".. method:: draw_handler_remove(handler, region_type)\n"
+"\n"
+"   Remove a draw handler that was added previously.\n"
+"\n"
+"   :param handler: The draw handler that should be removed.\n"
+"   :type handler: object\n"
+"   :param region_type: Region type the callback was added to.\n"
+"   :type region_type: str\n"
+);
+
 static struct BPyRNA_CallBack pyrna_cb_methods[] = {
-	{{"draw_handler_add",    (PyCFunction)pyrna_callback_classmethod_add,   METH_VARARGS | METH_STATIC, ""}, &RNA_Space},
-	{{"draw_handler_remove", (PyCFunction)pyrna_callback_classmethod_remove, METH_VARARGS | METH_STATIC, ""}, &RNA_Space},
+	{{"draw_handler_add",    (PyCFunction)pyrna_callback_classmethod_add,
+	  METH_VARARGS | METH_STATIC, pyrna_draw_handler_add_doc}, &RNA_Space},
+	{{"draw_handler_remove", (PyCFunction)pyrna_callback_classmethod_remove,
+	  METH_VARARGS | METH_STATIC, pyrna_draw_handler_remove_doc}, &RNA_Space},
+
+	{{"draw_cursor_add",    (PyCFunction)pyrna_callback_classmethod_add,    METH_VARARGS | METH_STATIC, ""}, &RNA_WindowManager},
+	{{"draw_cursor_remove", (PyCFunction)pyrna_callback_classmethod_remove, METH_VARARGS | METH_STATIC, ""}, &RNA_WindowManager},
 	{{NULL, NULL, 0, NULL}, NULL}
 };
 

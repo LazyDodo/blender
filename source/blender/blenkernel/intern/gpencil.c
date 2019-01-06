@@ -78,7 +78,7 @@ void(*BKE_gpencil_batch_cache_free_cb)(bGPdata *gpd) = NULL;
 void BKE_gpencil_batch_cache_dirty_tag(bGPdata *gpd)
 {
 	if (gpd) {
-		DEG_id_tag_update(&gpd->id, OB_RECALC_DATA);
+		DEG_id_tag_update(&gpd->id, ID_RECALC_GEOMETRY);
 		BKE_gpencil_batch_cache_dirty_tag_cb(gpd);
 	}
 }
@@ -169,8 +169,6 @@ bool BKE_gpencil_free_frame_runtime_data(bGPDframe *derived_gpf)
 	}
 	BLI_listbase_clear(&derived_gpf->strokes);
 
-	MEM_SAFE_FREE(derived_gpf);
-
 	return true;
 }
 
@@ -213,57 +211,6 @@ void BKE_gpencil_free_layers(ListBase *list)
 	}
 }
 
-/* clear all runtime derived data */
-static void BKE_gpencil_clear_derived(bGPDlayer *gpl)
-{
-	GHashIterator gh_iter;
-
-	if (gpl->runtime.derived_data == NULL) {
-		return;
-	}
-
-	GHASH_ITER(gh_iter, gpl->runtime.derived_data) {
-		bGPDframe *gpf = (bGPDframe *)BLI_ghashIterator_getValue(&gh_iter);
-		if (gpf) {
-			BKE_gpencil_free_frame_runtime_data(gpf);
-		}
-	}
-}
-
-/* Free all of the gp-layers temp data*/
-static void BKE_gpencil_free_layers_temp_data(ListBase *list)
-{
-	bGPDlayer *gpl_next;
-
-	/* error checking */
-	if (list == NULL) return;
-	/* delete layers */
-	for (bGPDlayer *gpl = list->first; gpl; gpl = gpl_next) {
-		gpl_next = gpl->next;
-		BKE_gpencil_clear_derived(gpl);
-
-		if (gpl->runtime.derived_data) {
-			BLI_ghash_free(gpl->runtime.derived_data, NULL, NULL);
-			gpl->runtime.derived_data = NULL;
-		}
-	}
-}
-
-/* Free temp gpf derived frames */
-void BKE_gpencil_free_derived_frames(bGPdata *gpd)
-{
-	/* error checking */
-	if (gpd == NULL) return;
-	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
-		BKE_gpencil_clear_derived(gpl);
-
-		if (gpl->runtime.derived_data) {
-			BLI_ghash_free(gpl->runtime.derived_data, NULL, NULL);
-			gpl->runtime.derived_data = NULL;
-		}
-	}
-}
-
 /** Free (or release) any data used by this grease pencil (does not free the gpencil itself). */
 void BKE_gpencil_free(bGPdata *gpd, bool free_all)
 {
@@ -271,9 +218,6 @@ void BKE_gpencil_free(bGPdata *gpd, bool free_all)
 	BKE_animdata_free(&gpd->id, false);
 
 	/* free layers */
-	if (free_all) {
-		BKE_gpencil_free_layers_temp_data(&gpd->layers);
-	}
 	BKE_gpencil_free_layers(&gpd->layers);
 
 	/* materials */
@@ -399,7 +343,8 @@ bGPDframe *BKE_gpencil_frame_addcopy(bGPDlayer *gpl, int cframe)
 /* add a new gp-layer and make it the active layer */
 bGPDlayer *BKE_gpencil_layer_addnew(bGPdata *gpd, const char *name, bool setactive)
 {
-	bGPDlayer *gpl;
+	bGPDlayer *gpl = NULL;
+	bGPDlayer *gpl_active = NULL;
 
 	/* check that list is ok */
 	if (gpd == NULL)
@@ -408,10 +353,18 @@ bGPDlayer *BKE_gpencil_layer_addnew(bGPdata *gpd, const char *name, bool setacti
 	/* allocate memory for frame and add to end of list */
 	gpl = MEM_callocN(sizeof(bGPDlayer), "bGPDlayer");
 
-	/* add to datablock */
-	BLI_addtail(&gpd->layers, gpl);
+	gpl_active = BKE_gpencil_layer_getactive(gpd);
 
-	/* annotation vs GP Object behaviour is slightly different */
+	/* add to datablock */
+	if (gpl_active == NULL) {
+		BLI_addtail(&gpd->layers, gpl);
+	}
+	else {
+		/* if active layer, add after that layer */
+		BLI_insertlinkafter(&gpd->layers, gpl_active, gpl);
+	}
+
+	/* annotation vs GP Object behavior is slightly different */
 	if (gpd->flag & GP_DATA_ANNOTATIONS) {
 		/* set default color of new strokes for this layer */
 		copy_v4_v4(gpl->color, U.gpencil_new_layer_col);
@@ -420,13 +373,14 @@ bGPDlayer *BKE_gpencil_layer_addnew(bGPdata *gpd, const char *name, bool setacti
 		/* set default thickness of new strokes for this layer */
 		gpl->thickness = 3;
 
+		/* Onion colors */
+		ARRAY_SET_ITEMS(gpl->gcolor_prev, 0.302f, 0.851f, 0.302f);
+		ARRAY_SET_ITEMS(gpl->gcolor_next, 0.250f, 0.1f, 1.0f);
 	}
 	else {
 		/* thickness parameter represents "thickness change", not absolute thickness */
 		gpl->thickness = 0;
 		gpl->opacity = 1.0f;
-		/* onion-skinning settings */
-		gpl->onion_flag |= GP_LAYER_ONIONSKIN;
 	}
 
 	/* auto-name */
@@ -458,13 +412,19 @@ bGPdata *BKE_gpencil_data_addnew(Main *bmain, const char name[])
 
 	/* general flags */
 	gpd->flag |= GP_DATA_VIEWALIGN;
-
+	gpd->flag |= GP_DATA_STROKE_FORCE_RECALC;
+	/* always enable object onion skin swith */
+	gpd->flag |= GP_DATA_SHOW_ONIONSKINS;
 	/* GP object specific settings */
 	ARRAY_SET_ITEMS(gpd->line_color, 0.6f, 0.6f, 0.6f, 0.5f);
 
 	gpd->xray_mode = GP_XRAY_3DSPACE;
-	gpd->runtime.batch_cache_data = NULL;
 	gpd->pixfactor = GP_DEFAULT_PIX_FACTOR;
+
+	/* grid settings */
+	ARRAY_SET_ITEMS(gpd->grid.color, 0.5f, 0.5f, 0.5f); // Color
+	ARRAY_SET_ITEMS(gpd->grid.scale, 1.0f, 1.0f); // Scale
+	gpd->grid.lines = GP_DEFAULT_GRID_LINES; // Number of lines
 
 	/* onion-skinning settings (datablock level) */
 	gpd->onion_flag |= (GP_ONION_GHOST_PREVCOL | GP_ONION_GHOST_NEXTCOL);
@@ -487,8 +447,8 @@ bGPdata *BKE_gpencil_data_addnew(Main *bmain, const char name[])
 /**
  * Populate stroke with point data from data buffers
  *
- * \param array Flat array of point data values. Each entry has GP_PRIM_DATABUF_SIZE values
- * \param mat   4x4 transform matrix to transform points into the right coordinate space
+ * \param array: Flat array of point data values. Each entry has GP_PRIM_DATABUF_SIZE values
+ * \param mat: 4x4 transform matrix to transform points into the right coordinate space
  */
 void BKE_gpencil_stroke_add_points(bGPDstroke *gps, const float *array, const int totpoints, const float mat[4][4])
 {
@@ -512,18 +472,18 @@ bGPDstroke *BKE_gpencil_add_stroke(bGPDframe *gpf, int mat_idx, int totpoints, s
 	/* allocate memory for a new stroke */
 	bGPDstroke *gps = MEM_callocN(sizeof(bGPDstroke), "gp_stroke");
 
-	gps->thickness = thickness * 25;
+	gps->thickness = thickness;
 	gps->inittime = 0;
 
 	/* enable recalculation flag by default */
-	gps->flag = GP_STROKE_RECALC_CACHES | GP_STROKE_3DSPACE;
+	gps->flag = GP_STROKE_RECALC_GEOMETRY | GP_STROKE_3DSPACE;
 
 	gps->totpoints = totpoints;
 	gps->points = MEM_callocN(sizeof(bGPDspoint) * gps->totpoints, "gp_stroke_points");
 
 	/* initialize triangle memory to dummy data */
 	gps->triangles = MEM_callocN(sizeof(bGPDtriangle), "GP Stroke triangulation");
-	gps->flag |= GP_STROKE_RECALC_CACHES;
+	gps->flag |= GP_STROKE_RECALC_GEOMETRY;
 	gps->tot_triangles = 0;
 
 	gps->mat_nr = mat_idx;
@@ -572,7 +532,7 @@ bGPDstroke *BKE_gpencil_stroke_duplicate(bGPDstroke *gps_src)
 	 * this data to get recalculated will destroy the data anyway though.
 	 */
 	gps_dst->triangles = MEM_dupallocN(gps_dst->triangles);
-	/* gps_dst->flag |= GP_STROKE_RECALC_CACHES; */
+	/* gps_dst->flag |= GP_STROKE_RECALC_GEOMETRY; */
 
 	/* return new stroke */
 	return gps_dst;
@@ -638,7 +598,6 @@ bGPDlayer *BKE_gpencil_layer_duplicate(const bGPDlayer *gpl_src)
 	/* make a copy of source layer */
 	gpl_dst = MEM_dupallocN(gpl_src);
 	gpl_dst->prev = gpl_dst->next = NULL;
-	gpl_dst->runtime.derived_data = NULL;
 
 	/* copy frames */
 	BLI_listbase_clear(&gpl_dst->frames);
@@ -662,13 +621,10 @@ bGPDlayer *BKE_gpencil_layer_duplicate(const bGPDlayer *gpl_src)
  *
  * WARNING! This function will not handle ID user count!
  *
- * \param flag  Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
+ * \param flag: Copying options (see BKE_library.h's LIB_ID_COPY_... flags for more).
  */
 void BKE_gpencil_copy_data(bGPdata *gpd_dst, const bGPdata *gpd_src, const int UNUSED(flag))
 {
-	/* cache data is not duplicated */
-	gpd_dst->runtime.batch_cache_data = NULL;
-
 	/* duplicate material array */
 	if (gpd_src->mat) {
 		gpd_dst->mat = MEM_dupallocN(gpd_src->mat);
@@ -714,7 +670,6 @@ bGPdata *BKE_gpencil_data_duplicate(Main *bmain, const bGPdata *gpd_src, bool in
 	else {
 		BLI_assert(bmain != NULL);
 		BKE_id_copy_ex(bmain, &gpd_src->id, (ID **)&gpd_dst, 0, false);
-		gpd_dst->runtime.batch_cache_data = NULL;
 	}
 
 	/* Copy internal data (layers, etc.) */
@@ -828,8 +783,8 @@ bGPDframe *BKE_gpencil_layer_find_frame(bGPDlayer *gpl, int cframe)
 }
 
 /* get the appropriate gp-frame from a given layer
- *	- this sets the layer's actframe var (if allowed to)
- *	- extension beyond range (if first gp-frame is after all frame in interest and cannot add)
+ * - this sets the layer's actframe var (if allowed to)
+ * - extension beyond range (if first gp-frame is after all frame in interest and cannot add)
  */
 bGPDframe *BKE_gpencil_layer_getframe(bGPDlayer *gpl, int cframe, eGP_GetFrame_Mode addnew)
 {
@@ -1006,11 +961,18 @@ void BKE_gpencil_layer_setactive(bGPdata *gpd, bGPDlayer *active)
 		return;
 
 	/* loop over layers deactivating all */
-	for (gpl = gpd->layers.first; gpl; gpl = gpl->next)
+	for (gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		gpl->flag &= ~GP_LAYER_ACTIVE;
+		if (gpd->flag & GP_DATA_AUTOLOCK_LAYERS) {
+			gpl->flag |= GP_LAYER_LOCKED;
+		}
+	}
 
 	/* set as active one */
 	active->flag |= GP_LAYER_ACTIVE;
+	if (gpd->flag & GP_DATA_AUTOLOCK_LAYERS) {
+		active->flag &= ~GP_LAYER_LOCKED;
+	}
 }
 
 /* delete the active gp-layer */
@@ -1025,13 +987,6 @@ void BKE_gpencil_layer_delete(bGPdata *gpd, bGPDlayer *gpl)
 
 	/* free icon providing preview of icon color */
 	BKE_icon_delete(gpl->runtime.icon_id);
-
-	/* free derived data */
-	BKE_gpencil_clear_derived(gpl);
-	if (gpl->runtime.derived_data) {
-		BLI_ghash_free(gpl->runtime.derived_data, NULL, NULL);
-		gpl->runtime.derived_data = NULL;
-	}
 
 	BLI_freelinkN(&gpd->layers, gpl);
 }
@@ -1101,30 +1056,56 @@ bool BKE_gpencil_stroke_minmax(
 }
 
 /* get min/max bounds of all strokes in GP datablock */
-static void gpencil_minmax(bGPdata *gpd, float r_min[3], float r_max[3])
+bool BKE_gpencil_data_minmax(Object *ob, const bGPdata *gpd, float r_min[3], float r_max[3])
 {
+	float bmat[3][3];
+	bool changed = false;
+
 	INIT_MINMAX(r_min, r_max);
 
 	if (gpd == NULL)
-		return;
+		return changed;
 
 	for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 		bGPDframe *gpf = gpl->actframe;
 
 		if (gpf != NULL) {
 			for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-				BKE_gpencil_stroke_minmax(gps, false, r_min, r_max);
+				changed = BKE_gpencil_stroke_minmax(gps, false, r_min, r_max);
 			}
 		}
 	}
+
+	if ((changed) && (ob)) {
+		copy_m3_m4(bmat, ob->obmat);
+		mul_m3_v3(bmat, r_min);
+		add_v3_v3(r_min, ob->obmat[3]);
+		mul_m3_v3(bmat, r_max);
+		add_v3_v3(r_max, ob->obmat[3]);
+	}
+
+	return changed;
+}
+
+bool BKE_gpencil_stroke_select_check(
+        const bGPDstroke *gps)
+{
+	const bGPDspoint *pt;
+	int i;
+	for (i = 0, pt = gps->points; i < gps->totpoints; i++, pt++) {
+		if (pt->flag & GP_SPOINT_SELECT) {
+			return true;
+		}
+	}
+	return false;
 }
 
 /* compute center of bounding box */
-void BKE_gpencil_centroid_3D(bGPdata *gpd, float r_centroid[3])
+void BKE_gpencil_centroid_3d(bGPdata *gpd, float r_centroid[3])
 {
 	float min[3], max[3], tot[3];
 
-	gpencil_minmax(gpd, min, max);
+	BKE_gpencil_data_minmax(NULL, gpd, min, max);
 
 	add_v3_v3v3(tot, min, max);
 	mul_v3_v3fl(r_centroid, tot, 0.5f);
@@ -1145,7 +1126,7 @@ static void boundbox_gpencil(Object *ob)
 	bb  = ob->bb;
 	gpd = ob->data;
 
-	gpencil_minmax(gpd, min, max);
+	BKE_gpencil_data_minmax(NULL, gpd, min, max);
 	BKE_boundbox_init_from_minmax(bb, min, max);
 
 	bb->flag &= ~BOUNDBOX_DIRTY;
@@ -1198,7 +1179,7 @@ void BKE_gpencil_transform(bGPdata *gpd, float mat[4][4])
 				}
 
 				/* TODO: Do we need to do this? distortion may mean we need to re-triangulate */
-				gps->flag |= GP_STROKE_RECALC_CACHES;
+				gps->flag |= GP_STROKE_RECALC_GEOMETRY;
 				gps->tot_triangles = 0;
 			}
 		}
@@ -1221,11 +1202,13 @@ void BKE_gpencil_vgroup_remove(Object *ob, bDeformGroup *defgroup)
 		for (bGPDlayer *gpl = gpd->layers.first; gpl; gpl = gpl->next) {
 			for (bGPDframe *gpf = gpl->frames.first; gpf; gpf = gpf->next) {
 				for (bGPDstroke *gps = gpf->strokes.first; gps; gps = gps->next) {
-					for (int i = 0; i < gps->totpoints; i++) {
-						dvert = &gps->dvert[i];
-						MDeformWeight *dw = defvert_find_index(dvert, def_nr);
-						if (dw != NULL) {
-							defvert_remove_group(dvert, dw);
+					if (gps->dvert != NULL) {
+						for (int i = 0; i < gps->totpoints; i++) {
+							dvert = &gps->dvert[i];
+							MDeformWeight *dw = defvert_find_index(dvert, def_nr);
+							if (dw != NULL) {
+								defvert_remove_group(dvert, dw);
+							}
 						}
 					}
 				}
@@ -1235,6 +1218,7 @@ void BKE_gpencil_vgroup_remove(Object *ob, bDeformGroup *defgroup)
 
 	/* Remove the group */
 	BLI_freelinkN(&ob->defbase, defgroup);
+	DEG_id_tag_update(&gpd->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 }
 
 
@@ -1249,9 +1233,9 @@ void BKE_gpencil_dvert_ensure(bGPDstroke *gps)
 
 /**
  * Apply smooth to stroke point
- * \param gps              Stroke to smooth
- * \param i                Point index
- * \param inf              Amount of smoothing to apply
+ * \param gps: Stroke to smooth
+ * \param i: Point index
+ * \param inf: Amount of smoothing to apply
  */
 bool BKE_gpencil_smooth_stroke(bGPDstroke *gps, int i, float inf)
 {
@@ -1428,9 +1412,9 @@ bool BKE_gpencil_smooth_stroke_uv(bGPDstroke *gps, int point_index, float influe
  * Get range of selected frames in layer.
  * Always the active frame is considered as selected, so if no more selected the range
  * will be equal to the current active frame.
- * \param gpl              Layer
- * \param r_initframe      Number of first selected frame
- * \param r_endframe       Number of last selected frame
+ * \param gpl: Layer
+ * \param r_initframe: Number of first selected frame
+ * \param r_endframe: Number of last selected frame
  */
 void BKE_gpencil_get_range_selected(bGPDlayer *gpl, int *r_initframe, int *r_endframe)
 {
@@ -1451,16 +1435,21 @@ void BKE_gpencil_get_range_selected(bGPDlayer *gpl, int *r_initframe, int *r_end
 
 /**
  * Get Falloff factor base on frame range
- * \param gpf          Frame
- * \param actnum       Number of active frame in layer
- * \param f_init       Number of first selected frame
- * \param f_end        Number of last selected frame
- * \param cur_falloff  Curve with falloff factors
+ * \param gpf: Frame
+ * \param actnum: Number of active frame in layer
+ * \param f_init: Number of first selected frame
+ * \param f_end: Number of last selected frame
+ * \param cur_falloff: Curve with falloff factors
  */
 float BKE_gpencil_multiframe_falloff_calc(bGPDframe *gpf, int actnum, int f_init, int f_end, CurveMapping *cur_falloff)
 {
 	float fnum = 0.5f; /* default mid curve */
 	float value;
+
+	/* check curve is available */
+	if (cur_falloff == NULL) {
+		return 1.0f;
+	}
 
 	/* frames to the right of the active frame */
 	if (gpf->framenum < actnum) {
@@ -1570,3 +1559,48 @@ int BKE_gpencil_get_material_index(Object *ob, Material *ma)
 
 	return 0;
 }
+
+/* Get points of stroke always flat to view not affected by camera view or view position */
+void BKE_gpencil_stroke_2d_flat(const bGPDspoint *points, int totpoints, float(*points2d)[2], int *r_direction)
+{
+	const bGPDspoint *pt0 = &points[0];
+	const bGPDspoint *pt1 = &points[1];
+	const bGPDspoint *pt3 = &points[(int)(totpoints * 0.75)];
+
+	float locx[3];
+	float locy[3];
+	float loc3[3];
+	float normal[3];
+
+	/* local X axis (p0 -> p1) */
+	sub_v3_v3v3(locx, &pt1->x, &pt0->x);
+
+	/* point vector at 3/4 */
+	sub_v3_v3v3(loc3, &pt3->x, &pt0->x);
+
+	/* vector orthogonal to polygon plane */
+	cross_v3_v3v3(normal, locx, loc3);
+
+	/* local Y axis (cross to normal/x axis) */
+	cross_v3_v3v3(locy, normal, locx);
+
+	/* Normalize vectors */
+	normalize_v3(locx);
+	normalize_v3(locy);
+
+	/* Get all points in local space */
+	for (int i = 0; i < totpoints; i++) {
+		const bGPDspoint *pt = &points[i];
+		float loc[3];
+
+		/* Get local space using first point as origin */
+		sub_v3_v3v3(loc, &pt->x, &pt0->x);
+
+		points2d[i][0] = dot_v3v3(loc, locx);
+		points2d[i][1] = dot_v3v3(loc, locy);
+	}
+
+	/* Concave (-1), Convex (1), or Autodetect (0)? */
+	*r_direction = (int)locy[2];
+}
+

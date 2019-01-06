@@ -270,7 +270,7 @@ static int node_resize_area_default(bNode *node, int x, int y)
 			return 0;
 	}
 	else {
-		const float size = 10.0f;
+		const float size = NODE_RESIZE_MARGIN;
 		rctf totr = node->totr;
 		int dir = 0;
 
@@ -921,7 +921,7 @@ static void node_shader_buts_tex_pointdensity(uiLayout *layout, bContext *UNUSED
 static void node_shader_buts_tex_coord(uiLayout *layout, bContext *UNUSED(C), PointerRNA *ptr)
 {
 	uiItemR(layout, ptr, "object", 0, NULL, 0);
-	uiItemR(layout, ptr, "from_dupli", 0, NULL, 0);
+	uiItemR(layout, ptr, "from_instancer", 0, NULL, 0);
 }
 
 static void node_shader_buts_bump(uiLayout *layout, bContext *UNUSED(C), PointerRNA *ptr)
@@ -931,9 +931,9 @@ static void node_shader_buts_bump(uiLayout *layout, bContext *UNUSED(C), Pointer
 
 static void node_shader_buts_uvmap(uiLayout *layout, bContext *C, PointerRNA *ptr)
 {
-	uiItemR(layout, ptr, "from_dupli", 0, NULL, 0);
+	uiItemR(layout, ptr, "from_instancer", 0, NULL, 0);
 
-	if (!RNA_boolean_get(ptr, "from_dupli")) {
+	if (!RNA_boolean_get(ptr, "from_instancer")) {
 		PointerRNA obptr = CTX_data_pointer_get(C, "active_object");
 
 		if (obptr.data && RNA_enum_get(&obptr, "type") == OB_MESH) {
@@ -1786,7 +1786,7 @@ static void node_composit_buts_file_output_ex(uiLayout *layout, bContext *C, Poi
 
 	uiItemS(layout);
 
-	uiItemO(layout, IFACE_("Add Input"), ICON_ZOOMIN, "NODE_OT_output_file_add_socket");
+	uiItemO(layout, IFACE_("Add Input"), ICON_ADD, "NODE_OT_output_file_add_socket");
 
 	row = uiLayoutRow(layout, false);
 	col = uiLayoutColumn(row, true);
@@ -1795,13 +1795,13 @@ static void node_composit_buts_file_output_ex(uiLayout *layout, bContext *C, Poi
 	/* using different collection properties if multilayer format is enabled */
 	if (multilayer) {
 		uiTemplateList(col, C, "UI_UL_list", "file_output_node", ptr, "layer_slots", ptr, "active_input_index",
-		               NULL, 0, 0, 0, 0);
+		               NULL, 0, 0, 0, 0, false);
 		RNA_property_collection_lookup_int(ptr, RNA_struct_find_property(ptr, "layer_slots"),
 		                                   active_index, &active_input_ptr);
 	}
 	else {
 		uiTemplateList(col, C, "UI_UL_list", "file_output_node", ptr, "file_slots", ptr, "active_input_index",
-		               NULL, 0, 0, 0, 0);
+		               NULL, 0, 0, 0, 0, false);
 		RNA_property_collection_lookup_int(ptr, RNA_struct_find_property(ptr, "file_slots"),
 		                                   active_index, &active_input_ptr);
 	}
@@ -2495,8 +2495,8 @@ static void node_composit_buts_cryptomatte(uiLayout *layout, bContext *UNUSED(C)
 
 static void node_composit_buts_cryptomatte_ex(uiLayout *layout, bContext *UNUSED(C), PointerRNA *UNUSED(ptr))
 {
-	uiItemO(layout, IFACE_("Add Crypto Layer"), ICON_ZOOMIN, "NODE_OT_cryptomatte_layer_add");
-	uiItemO(layout, IFACE_("Remove Crypto Layer"), ICON_ZOOMOUT, "NODE_OT_cryptomatte_layer_remove");
+	uiItemO(layout, IFACE_("Add Crypto Layer"), ICON_ADD, "NODE_OT_cryptomatte_layer_add");
+	uiItemO(layout, IFACE_("Remove Crypto Layer"), ICON_REMOVE, "NODE_OT_cryptomatte_layer_remove");
 }
 
 static void node_composit_buts_brightcontrast(uiLayout *layout, bContext *UNUSED(C), PointerRNA *ptr)
@@ -2986,7 +2986,7 @@ void ED_node_init_butfuncs(void)
 	NodeSocketTypeUndefined.interface_draw_color = node_socket_undefined_interface_draw_color;
 
 	/* node type ui functions */
-	NODE_TYPES_BEGIN(ntype)
+	NODE_TYPES_BEGIN(ntype) {
 		/* default ui functions */
 		ntype->draw_nodetype = node_draw_default;
 		ntype->draw_nodetype_prepare = node_update_default;
@@ -3004,12 +3004,12 @@ void ED_node_init_butfuncs(void)
 
 		/* define update callbacks for socket properties */
 		node_template_properties_update(ntype);
-	NODE_TYPES_END
+	} NODE_TYPES_END;
 
 	/* tree type icons */
-	ntreeType_Composite->ui_icon = ICON_RENDERLAYERS;
-	ntreeType_Shader->ui_icon = ICON_MATERIAL;
-	ntreeType_Texture->ui_icon = ICON_TEXTURE;
+	ntreeType_Composite->ui_icon = ICON_NODE_COMPOSITING;
+	ntreeType_Shader->ui_icon = ICON_NODE_MATERIAL;
+	ntreeType_Texture->ui_icon = ICON_NODE_TEXTURE;
 }
 
 void ED_init_custom_node_type(bNodeType *ntype)

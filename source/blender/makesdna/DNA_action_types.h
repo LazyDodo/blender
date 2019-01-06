@@ -68,7 +68,7 @@ typedef enum eMotionPathVert_Flag {
 /* ........ */
 
 /* Motion Path data cache (mpath)
- *  - for elements providing transforms (i.e. Objects or PoseChannels)
+ * - for elements providing transforms (i.e. Objects or PoseChannels)
  */
 typedef struct bMotionPath {
 	bMotionPathVert *points;    /* path samples */
@@ -199,6 +199,22 @@ typedef struct bPoseChannelDrawData {
 	float bbone_matrix[0][4][4];
 } bPoseChannelDrawData;
 
+struct Mat4;
+struct DualQuat;
+
+typedef struct bPoseChannelRuntime {
+	int bbone_segments;
+	char pad[4];
+
+	/* Rest and posed matrices for segments. */
+	struct Mat4 *bbone_rest_mats;
+	struct Mat4 *bbone_pose_mats;
+
+	/* Delta from rest to pose in matrix and DualQuat form. */
+	struct Mat4 *bbone_deform_mats;
+	struct DualQuat *bbone_dual_quats;
+} bPoseChannelRuntime;
+
 /* ************************************************ */
 /* Poses */
 
@@ -224,7 +240,7 @@ typedef struct bPoseChannel {
 	char constflag;                 /* for quick detecting which constraints affect this channel */
 	char selectflag;                /* copy of bone flag, so you can work with library armatures, not for runtime use */
 	char drawflag;
-	char bboneflag;
+	char bboneflag DNA_DEPRECATED;
 	char pad0[4];
 
 	struct Bone         *bone;      /* set on read file or rebuild pose */
@@ -278,7 +294,7 @@ typedef struct bPoseChannel {
 	float ease1, ease2;
 	float scaleIn, scaleOut;
 
-	struct bPoseChannel *bbone_prev; /* next/prev bones to use as handle references when calculating bbones (optional) */
+	struct bPoseChannel *bbone_prev; /* B-Bone custom handles; set on read file or rebuild pose based on pchan->bone data */
 	struct bPoseChannel *bbone_next;
 
 	void        *temp;              /* use for outliner */
@@ -287,6 +303,9 @@ typedef struct bPoseChannel {
 
 	/* Points to an original pose channel. */
 	struct bPoseChannel *orig_pchan;
+
+	/* Runtime data. */
+	struct bPoseChannelRuntime runtime;
 } bPoseChannel;
 
 
@@ -361,6 +380,7 @@ typedef enum ePchan_DrawFlag {
 #define PCHAN_CUSTOM_DRAW_SIZE(pchan) \
 	(pchan)->custom_scale * (((pchan)->drawflag & PCHAN_DRAW_NO_CUSTOM_BONE_SIZE) ? 1.0f : (pchan)->bone->length)
 
+#ifdef DNA_DEPRECATED_ALLOW
 /* PoseChannel->bboneflag */
 typedef enum ePchan_BBoneFlag {
 	/* Use custom reference bones (for roll and handle alignment), instead of immediate neighbors */
@@ -370,6 +390,7 @@ typedef enum ePchan_BBoneFlag {
 	/* Evaluate end handle as being "relative" */
 	PCHAN_BBONE_CUSTOM_END_REL    = (1 << 3),
 } ePchan_BBoneFlag;
+#endif
 
 /* PoseChannel->rotmode and Object->rotmode */
 typedef enum eRotationModes {
@@ -671,6 +692,11 @@ typedef enum eDopeSheet_Flag {
 
 
 
+typedef struct SpaceAction_Runtime {
+	char flag;
+	char _pad0[7];
+} SpaceAction_Runtime;
+
 /* Action Editor Space. This is defined here instead of in DNA_space_types.h */
 typedef struct SpaceAction {
 	struct SpaceLink *next, *prev;
@@ -695,6 +721,8 @@ typedef struct SpaceAction {
 	char autosnap;              /* automatic keyframe snapping mode   */
 	char cache_display;         /* (eTimeline_Cache_Flag) */
 	char _pad1[6];
+
+	SpaceAction_Runtime runtime;
 } SpaceAction;
 
 /* SpaceAction flag */
@@ -717,13 +745,22 @@ typedef enum eSAction_Flag {
 	SACTION_NODRAWGCOLORS = (1 << 7),
 	/* don't draw current frame number beside frame indicator */
 	SACTION_NODRAWCFRANUM = (1 << 8),
-	/* temporary flag to force channel selections to be synced with main */
-	SACTION_TEMP_NEEDCHANSYNC = (1 << 9),
 	/* don't perform realtime updates */
 	SACTION_NOREALTIMEUPDATES = (1 << 10),
 	/* move markers as well as keyframes */
-	SACTION_MARKERS_MOVE = (1 << 11)
+	SACTION_MARKERS_MOVE = (1 << 11),
+	/* show interpolation type */
+	SACTION_SHOW_INTERPOLATION = (1 << 12),
+	/* show extremes */
+	SACTION_SHOW_EXTREMES = (1 << 13),
 } eSAction_Flag;
+
+
+/* SpaceAction_Runtime.flag */
+typedef enum eSAction_Runtime_Flag {
+	/** Temporary flag to force channel selections to be synced with main */
+	SACTION_RUNTIME_FLAG_NEED_CHAN_SYNC = (1 << 0),
+} eSAction_Runtime_Flag;
 
 /* SpaceAction Mode Settings */
 typedef enum eAnimEdit_Context {

@@ -40,6 +40,8 @@
 #include "BKE_library_query.h"
 #include "BKE_modifier.h"
 
+#include "DEG_depsgraph_query.h"
+
 #include "MOD_util.h"
 
 
@@ -167,8 +169,8 @@ static Mesh *applyModifier(
 	}
 
 	/* make sure anything moving UVs is available */
-	matrix_from_obj_pchan(mat_src, umd->object_src, umd->bone_src);
-	matrix_from_obj_pchan(mat_dst, umd->object_dst, umd->bone_dst);
+	matrix_from_obj_pchan(mat_src, DEG_get_evaluated_object(ctx->depsgraph, umd->object_src), umd->bone_src);
+	matrix_from_obj_pchan(mat_dst, DEG_get_evaluated_object(ctx->depsgraph, umd->object_dst), umd->bone_dst);
 
 	invert_m4_m4(imat_dst, mat_dst);
 	mul_m4_m4m4(warp_mat, imat_dst, mat_src);
@@ -200,9 +202,11 @@ static Mesh *applyModifier(
 	mloopuv = CustomData_duplicate_referenced_layer_named(&mesh->ldata, CD_MLOOPUV, uvname, numLoops);
 	MOD_get_vgroup(ctx->object, mesh, umd->vgroup_name, &dvert, &defgrp_index);
 
-	UVWarpData data = {.mpoly = mpoly, .mloop = mloop, .mloopuv = mloopuv,
-	                   .dvert = dvert, .defgrp_index = defgrp_index,
-	                   .warp_mat = warp_mat, .axis_u = axis_u, .axis_v = axis_v};
+	UVWarpData data = {
+		.mpoly = mpoly, .mloop = mloop, .mloopuv = mloopuv,
+		.dvert = dvert, .defgrp_index = defgrp_index,
+		.warp_mat = warp_mat, .axis_u = axis_u, .axis_v = axis_v,
+	};
 	ParallelRangeSettings settings;
 	BLI_parallel_range_settings_defaults(&settings);
 	settings.use_threading = (numPolys > 1000);
@@ -244,6 +248,8 @@ static void updateDepsgraph(ModifierData *md, const ModifierUpdateDepsgraphConte
 
 	uv_warp_deps_object_bone_new(ctx->node, umd->object_src, umd->bone_src);
 	uv_warp_deps_object_bone_new(ctx->node, umd->object_dst, umd->bone_dst);
+
+	DEG_add_object_relation(ctx->node, ctx->object, DEG_OB_COMP_TRANSFORM, "UVWarp Modifier");
 }
 
 ModifierTypeInfo modifierType_UVWarp = {
@@ -262,14 +268,12 @@ ModifierTypeInfo modifierType_UVWarp = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,

@@ -65,8 +65,8 @@
 
 // XXX bad level call...
 extern short compare_ak_cfraPtr(void *node, void *data);
-extern void agroup_to_keylist(struct AnimData *adt, struct bActionGroup *agrp, struct DLRBT_Tree *keys, struct DLRBT_Tree *blocks);
-extern void action_to_keylist(struct AnimData *adt, struct bAction *act, struct DLRBT_Tree *keys, struct DLRBT_Tree *blocks);
+extern void agroup_to_keylist(struct AnimData *adt, struct bActionGroup *agrp, struct DLRBT_Tree *keys, int saction_flag);
+extern void action_to_keylist(struct AnimData *adt, struct bAction *act, struct DLRBT_Tree *keys, int saction_flag);
 
 /* --------------------- */
 /* forward declarations */
@@ -168,9 +168,9 @@ bMotionPath *animviz_copy_motionpath(const bMotionPath *mpath_src)
  * Setup motion paths for the given data.
  * \note Only used when explicitly calculating paths on bones which may/may not be consider already
  *
- * \param scene Current scene (for frame ranges, etc.)
- * \param ob Object to add paths for (must be provided)
- * \param pchan Posechannel to add paths for (optional; if not provided, object-paths are assumed)
+ * \param scene: Current scene (for frame ranges, etc.)
+ * \param ob: Object to add paths for (must be provided)
+ * \param pchan: Posechannel to add paths for (optional; if not provided, object-paths are assumed)
  */
 bMotionPath *animviz_verify_motionpaths(ReportList *reports, Scene *scene, Object *ob, bPoseChannel *pchan)
 {
@@ -282,7 +282,7 @@ typedef struct MPathTarget {
 /* ........ */
 
 /* get list of motion paths to be baked for the given object
- *  - assumes the given list is ready to be used
+ * - assumes the given list is ready to be used
  */
 /* TODO: it would be nice in future to be able to update objects dependent on these bones too? */
 void animviz_get_object_motionpaths(Object *ob, ListBase *targets)
@@ -347,17 +347,16 @@ static void motionpaths_calc_bake_targets(ListBase *targets, int cframe)
 	/* for each target, check if it can be baked on the current frame */
 	for (mpt = targets->first; mpt; mpt = mpt->next) {
 		bMotionPath *mpath = mpt->mpath;
-		bMotionPathVert *mpv;
 
 		/* current frame must be within the range the cache works for
-		 *	- is inclusive of the first frame, but not the last otherwise we get buffer overruns
+		 * - is inclusive of the first frame, but not the last otherwise we get buffer overruns
 		 */
 		if ((cframe < mpath->start_frame) || (cframe >= mpath->end_frame)) {
 			continue;
 		}
 
 		/* get the relevant cache vert to write to */
-		mpv = mpath->points + (cframe - mpath->start_frame);
+		bMotionPathVert *mpv = mpath->points + (cframe - mpath->start_frame);
 
 		Object *ob_eval = mpt->ob_eval;
 
@@ -392,45 +391,77 @@ static void motionpaths_calc_bake_targets(ListBase *targets, int cframe)
 		if (BLI_dlrbTree_search_exact(&mpt->keys, compare_ak_cfraPtr, &mframe)) {
 			mpv->flag |= MOTIONPATH_VERT_KEY;
 		}
+
+		/* Incremental update on evaluated object if possible, for fast updating
+		 * while dragging in transform. */
+		bMotionPath *mpath_eval = NULL;
+		if (mpt->pchan) {
+			mpath_eval = (pchan_eval) ? pchan_eval->mpath : NULL;
+		}
+		else {
+			mpath_eval = ob_eval->mpath;
+		}
+
+		if (mpath_eval && mpath_eval->length == mpath->length) {
+			bMotionPathVert *mpv_eval = mpath_eval->points + (cframe - mpath_eval->start_frame);
+			*mpv_eval = *mpv;
+
+			GPU_VERTBUF_DISCARD_SAFE(mpath_eval->points_vbo);
+			GPU_BATCH_DISCARD_SAFE(mpath_eval->batch_line);
+			GPU_BATCH_DISCARD_SAFE(mpath_eval->batch_points);
+		}
 	}
 }
 
 /* Perform baking of the given object's and/or its bones' transforms to motion paths
- *	- scene: current scene
- *	- ob: object whose flagged motionpaths should get calculated
- *	- recalc: whether we need to
+ * - scene: current scene
+ * - ob: object whose flagged motionpaths should get calculated
+ * - recalc: whether we need to
  */
 /* TODO: include reports pointer? */
- void animviz_calc_motionpaths(Depsgraph *depsgraph, Main *bmain, Scene *scene, ListBase *targets)
+void animviz_calc_motionpaths(Depsgraph *depsgraph,
+                              Main *bmain,
+                              Scene *scene,
+                              ListBase *targets,
+                              bool restore,
+                              bool current_frame_only)
 {
-	MPathTarget *mpt;
-	int sfra, efra;
-	int cfra;
-
 	/* sanity check */
 	if (ELEM(NULL, targets, targets->first))
 		return;
 
-	/* set frame values */
-	cfra = CFRA;
-	sfra = efra = cfra;
-
-	/* TODO: this method could be improved...
+	/* Compute frame range to bake within.
+	 * TODO: this method could be improved...
 	 * 1) max range for standard baking
 	 * 2) minimum range for recalc baking (i.e. between keyframes, but how?) */
-	for (mpt = targets->first; mpt; mpt = mpt->next) {
+	int sfra = INT_MAX;
+	int efra = INT_MIN;
+
+	for (MPathTarget *mpt = targets->first; mpt; mpt = mpt->next) {
 		/* try to increase area to do (only as much as needed) */
 		sfra = MIN2(sfra, mpt->mpath->start_frame);
 		efra = MAX2(efra, mpt->mpath->end_frame);
 	}
-	if (efra <= sfra) return;
 
+	if (efra <= sfra) {
+		return;
+	}
+
+	/* Limit frame range if we are updating just the current frame. */
+	/* set frame values */
+	int cfra = CFRA;
+	if (current_frame_only) {
+		if (cfra < sfra || cfra > efra) {
+			return;
+		}
+		sfra = efra = cfra;
+	}
 
 	/* get copies of objects/bones to get the calculated results from
 	 * (for copy-on-write evaluation), so that we actually get some results
 	 */
 	// TODO: Create a copy of background depsgraph that only contain these entities, and only evaluates them..
-	for (mpt = targets->first; mpt; mpt = mpt->next) {
+	for (MPathTarget *mpt = targets->first; mpt; mpt = mpt->next) {
 		mpt->ob_eval = DEG_get_evaluated_object(depsgraph, mpt->ob);
 
 		AnimData *adt = BKE_animdata_from_id(&mpt->ob_eval->id);
@@ -454,13 +485,11 @@ static void motionpaths_calc_bake_targets(ListBase *targets, int cframe)
 				bActionGroup *agrp = BKE_action_group_find_name(adt->action, mpt->pchan->name);
 
 				if (agrp) {
-					agroup_to_keylist(adt, agrp, &mpt->keys, NULL);
-					BLI_dlrbTree_linkedlist_sync(&mpt->keys);
+					agroup_to_keylist(adt, agrp, &mpt->keys, 0);
 				}
 			}
 			else {
-				action_to_keylist(adt, adt->action, &mpt->keys, NULL);
-				BLI_dlrbTree_linkedlist_sync(&mpt->keys);
+				action_to_keylist(adt, adt->action, &mpt->keys, 0);
 			}
 		}
 	}
@@ -468,23 +497,30 @@ static void motionpaths_calc_bake_targets(ListBase *targets, int cframe)
 	/* calculate path over requested range */
 	printf("Calculating MotionPaths between frames %d - %d (%d frames)\n", sfra, efra, efra - sfra + 1);
 	for (CFRA = sfra; CFRA <= efra; CFRA++) {
-		/* update relevant data for new frame */
-		motionpaths_calc_update_scene(bmain, depsgraph);
+		if (current_frame_only) {
+			/* For current frame, only update tagged. */
+			BKE_scene_graph_update_tagged(depsgraph, bmain);
+		}
+		else {
+			/* Update relevant data for new frame. */
+			motionpaths_calc_update_scene(bmain, depsgraph);
+		}
 
 		/* perform baking for targets */
 		motionpaths_calc_bake_targets(targets, CFRA);
 	}
 
 	/* reset original environment */
-	/* NOTE: We shouldn't need to reevaluate the main scene,
-	 * as the depsgraph passed in calculates the results on a
-	 * a copy-on-write copy of the data. That said, we have to
-	 * restore the current frame settings
-	 */
+	/* NOTE: We don't always need to reevaluate the main scene, as the depsgraph
+	 * may be a temporary one that works on a subset of the data. We always have
+	 * to resoture the current frame though. */
 	CFRA = cfra;
+	if (!current_frame_only && restore) {
+		motionpaths_calc_update_scene(bmain, depsgraph);
+	}
 
 	/* clear recalc flags from targets */
-	for (mpt = targets->first; mpt; mpt = mpt->next) {
+	for (MPathTarget *mpt = targets->first; mpt; mpt = mpt->next) {
 		bAnimVizSettings *avs;
 		bMotionPath *mpath = mpt->mpath;
 
@@ -521,7 +557,7 @@ void free_path(Path *path)
 }
 
 /* calculate a curve-deform path for a curve
- *  - only called from displist.c -> do_makeDispListCurveTypes
+ * - only called from displist.c -> do_makeDispListCurveTypes
  */
 void calc_curvepath(Object *ob, ListBase *nurbs)
 {
@@ -690,7 +726,7 @@ int where_on_path(Object *ob, float ctime, float vec[4], float dir[3], float qua
 	s1 = (int)floor(ctime);
 	fac = (float)(s1 + 1) - ctime;
 
-	/* path->len is corected for cyclic */
+	/* path->len is corrected for cyclic */
 	s0 = interval_test(0, path->len - 1 - cycl, s1 - 1, cycl);
 	s1 = interval_test(0, path->len - 1 - cycl, s1, cycl);
 	s2 = interval_test(0, path->len - 1 - cycl, s1 + 1, cycl);

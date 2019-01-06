@@ -42,10 +42,10 @@
 #include "BKE_appdir.h"
 #include "BKE_asset_engine.h"
 #include "BKE_context.h"
-#include "BKE_screen.h"
 #include "BKE_global.h"
-#include "BKE_report.h"
 #include "BKE_main.h"
+#include "BKE_report.h"
+#include "BKE_screen.h"
 
 #ifdef WIN32
 #  include "BLI_winstuff.h"
@@ -115,7 +115,7 @@ typedef enum FileSelect {
 
 static void clamp_to_filelist(int numfiles, FileSelection *sel)
 {
-	/* border select before the first file */
+	/* box select before the first file */
 	if ( (sel->first < 0) && (sel->last >= 0) ) {
 		sel->first = 0;
 	}
@@ -340,7 +340,7 @@ static FileSelect file_select(bContext *C, const rcti *rect, FileSelType select,
 	return retval;
 }
 
-static int file_border_select_find_last_selected(
+static int file_box_select_find_last_selected(
         SpaceFile *sfile, ARegion *ar, const FileSelection *sel,
         const int mouse_xy[2])
 {
@@ -373,7 +373,7 @@ static int file_border_select_find_last_selected(
 	return (dist_first < dist_last) ? sel->first : sel->last;
 }
 
-static int file_border_select_modal(bContext *C, wmOperator *op, const wmEvent *event)
+static int file_box_select_modal(bContext *C, wmOperator *op, const wmEvent *event)
 {
 	ARegion *ar = CTX_wm_region(C);
 	SpaceFile *sfile = CTX_wm_space_file(C);
@@ -383,7 +383,7 @@ static int file_border_select_modal(bContext *C, wmOperator *op, const wmEvent *
 
 	int result;
 
-	result = WM_gesture_border_modal(C, op, event);
+	result = WM_gesture_box_modal(C, op, event);
 
 	if (result == OPERATOR_RUNNING_MODAL) {
 		WM_operator_properties_border_to_rcti(op, &rect);
@@ -401,7 +401,7 @@ static int file_border_select_modal(bContext *C, wmOperator *op, const wmEvent *
 			for (idx = sel.last; idx >= 0; idx--) {
 				const FileDirEntry *file = filelist_file(sfile->files, idx);
 
-				/* dont highlight readonly file (".." or ".") on border select */
+				/* dont highlight readonly file (".." or ".") on box select */
 				if (FILENAME_IS_CURRPAR(file->relpath)) {
 					filelist_entry_select_set(sfile->files, file, FILE_SEL_REMOVE, FILE_SEL_HIGHLIGHTED, CHECK_ALL);
 				}
@@ -413,7 +413,7 @@ static int file_border_select_modal(bContext *C, wmOperator *op, const wmEvent *
 			}
 		}
 		params->sel_first = sel.first; params->sel_last = sel.last;
-		params->active_file = file_border_select_find_last_selected(sfile, ar, &sel, event->mval);
+		params->active_file = file_box_select_find_last_selected(sfile, ar, &sel, event->mval);
 	}
 	else {
 		params->highlight_file = -1;
@@ -426,7 +426,7 @@ static int file_border_select_modal(bContext *C, wmOperator *op, const wmEvent *
 	return result;
 }
 
-static int file_border_select_exec(bContext *C, wmOperator *op)
+static int file_box_select_exec(bContext *C, wmOperator *op)
 {
 	ARegion *ar = CTX_wm_region(C);
 	SpaceFile *sfile = CTX_wm_space_file(C);
@@ -457,22 +457,22 @@ static int file_border_select_exec(bContext *C, wmOperator *op)
 	return OPERATOR_FINISHED;
 }
 
-void FILE_OT_select_border(wmOperatorType *ot)
+void FILE_OT_select_box(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name = "Border Select";
+	ot->name = "Box Select";
 	ot->description = "Activate/select the file(s) contained in the border";
-	ot->idname = "FILE_OT_select_border";
+	ot->idname = "FILE_OT_select_box";
 
 	/* api callbacks */
-	ot->invoke = WM_gesture_border_invoke;
-	ot->exec = file_border_select_exec;
-	ot->modal = file_border_select_modal;
+	ot->invoke = WM_gesture_box_invoke;
+	ot->exec = file_box_select_exec;
+	ot->modal = file_box_select_modal;
 	ot->poll = ED_operator_file_active;
-	ot->cancel = WM_gesture_border_cancel;
+	ot->cancel = WM_gesture_box_cancel;
 
 	/* properties */
-	WM_operator_properties_gesture_border_select(ot);
+	WM_operator_properties_gesture_box_select(ot);
 }
 
 static int file_select_invoke(bContext *C, wmOperator *op, const wmEvent *event)
@@ -1149,11 +1149,11 @@ static int file_highlight_invoke(bContext *C, wmOperator *UNUSED(op), const wmEv
 	SpaceFile *sfile = CTX_wm_space_file(C);
 
 	if (!file_highlight_set(sfile, ar, event->x, event->y))
-		return OPERATOR_CANCELLED;
+		return OPERATOR_PASS_THROUGH;
 
 	ED_area_tag_redraw(CTX_wm_area(C));
 
-	return OPERATOR_FINISHED;
+	return OPERATOR_PASS_THROUGH;
 }
 
 void FILE_OT_highlight(struct wmOperatorType *ot)
@@ -1376,7 +1376,7 @@ void file_operator_to_sfile(bContext *C, SpaceFile *sfile, wmOperator *op)
 	}
 
 	/* we could check for relative_path property which is used when converting
-	 * in the other direction but doesnt hurt to do this every time */
+	 * in the other direction but doesn't hurt to do this every time */
 	BLI_path_abs(sfile->params->dir, BKE_main_blendfile_path(bmain));
 
 	/* XXX, files and dirs updates missing, not really so important though */
@@ -1790,7 +1790,6 @@ static int filepath_drop_exec(bContext *C, wmOperator *op)
 void FILE_OT_filepath_drop(wmOperatorType *ot)
 {
 	ot->name = "File Selector Drop";
-	ot->description = "";
 	ot->idname = "FILE_OT_filepath_drop";
 
 	ot->exec = filepath_drop_exec;

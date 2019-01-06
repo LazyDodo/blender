@@ -121,7 +121,7 @@ wmGizmo *WM_gizmo_new_ptr(
 }
 
 /**
- * \param gt: Must be valid,
+ * \param name: Must be a valid gizmo type name,
  * if you need to check it exists use #WM_gizmo_new_ptr
  * because callers of this function don't NULL check the return value.
  */
@@ -150,8 +150,6 @@ static void gizmo_init(wmGizmo *gz)
 
 /**
  * Register \a gizmo.
- *
- * \param name: name used to create a unique idname for \a gizmo in \a gzgroup
  *
  * \note Not to be confused with type registration from RNA.
  */
@@ -258,19 +256,19 @@ PointerRNA *WM_gizmo_operator_set(
 		gz->op_data_len = part_index + 1;
 		gz->op_data = MEM_recallocN(gz->op_data, sizeof(*gz->op_data) * gz->op_data_len);
 	}
-	wmGizmoOpElem *mpop = &gz->op_data[part_index];
-	mpop->type = ot;
+	wmGizmoOpElem *gzop = &gz->op_data[part_index];
+	gzop->type = ot;
 
-	if (mpop->ptr.data) {
-		WM_operator_properties_free(&mpop->ptr);
+	if (gzop->ptr.data) {
+		WM_operator_properties_free(&gzop->ptr);
 	}
-	WM_operator_properties_create_ptr(&mpop->ptr, ot);
+	WM_operator_properties_create_ptr(&gzop->ptr, ot);
 
 	if (properties) {
-		mpop->ptr.data = properties;
+		gzop->ptr.data = properties;
 	}
 
-	return &mpop->ptr;
+	return &gzop->ptr;
 }
 
 static void wm_gizmo_set_matrix_rotation_from_z_axis__internal(
@@ -357,12 +355,6 @@ void WM_gizmo_set_line_width(wmGizmo *gz, const float line_width)
 	gz->line_width = line_width;
 }
 
-/**
- * Set gizmo rgba colors.
- *
- * \param col  Normal state color.
- * \param col_hi  Highlighted state color.
- */
 void WM_gizmo_get_color(const wmGizmo *gz, float color[4])
 {
 	copy_v4_v4(color, gz->color);
@@ -627,7 +619,7 @@ void WM_gizmo_calc_matrix_final(const wmGizmo *gz, float r_mat[4][4])
 	);
 }
 
-/** \name Gizmo Propery Access
+/** \name Gizmo Property Access
  *
  * Matches `WM_operator_properties` conventions.
  *
@@ -698,9 +690,9 @@ void WM_gizmo_properties_sanitize(PointerRNA *ptr, const bool no_context)
 
 
 /** set all props to their default,
- * \param do_update Only update un-initialized props.
+ * \param do_update: Only update un-initialized props.
  *
- * \note, theres nothing specific to gizmos here.
+ * \note, there's nothing specific to gizmos here.
  * this could be made a general function.
  */
 bool WM_gizmo_properties_default(PointerRNA *ptr, const bool do_update)

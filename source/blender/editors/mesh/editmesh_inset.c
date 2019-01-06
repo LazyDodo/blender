@@ -134,7 +134,7 @@ static bool edbm_inset_init(bContext *C, wmOperator *op, const bool is_modal)
 
 	{
 		uint ob_store_len = 0;
-		Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, &ob_store_len);
+		Object **objects = BKE_view_layer_array_from_objects_in_edit_mode_unique_data(view_layer, CTX_wm_view3d(C), &ob_store_len);
 		opdata->ob_store = MEM_malloc_arrayN(ob_store_len, sizeof(*opdata->ob_store), __func__);
 		for (uint ob_index = 0; ob_index < ob_store_len; ob_index++) {
 			Object *obedit = objects[ob_index];
@@ -326,7 +326,7 @@ static int edbm_inset_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 	opdata = op->customdata;
 
 	/* initialize mouse values */
-	if (!calculateTransformCenter(C, V3D_AROUND_CENTER_MEAN, center_3d, opdata->mcenter)) {
+	if (!calculateTransformCenter(C, V3D_AROUND_CENTER_MEDIAN, center_3d, opdata->mcenter)) {
 		/* in this case the tool will likely do nothing,
 		 * ideally this will never happen and should be checked for above */
 		opdata->mcenter[0] = opdata->mcenter[1] = 0;

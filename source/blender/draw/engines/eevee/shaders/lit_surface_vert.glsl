@@ -1,9 +1,9 @@
 
 uniform mat4 ModelViewProjectionMatrix;
-uniform mat4 ModelMatrix;
 uniform mat4 ModelViewMatrix;
 uniform mat3 WorldNormalMatrix;
 #ifndef ATTRIB
+uniform mat4 ModelMatrix;
 uniform mat3 NormalMatrix;
 uniform mat4 ModelMatrixInverse;
 #endif
@@ -52,6 +52,7 @@ void main()
 	vec3 pos, binor;
 	hair_get_pos_tan_binor_time(
 	        (ProjectionMatrix[3][3] == 0.0),
+	        ModelMatrixInverse,
 	        ViewMatrixInverse[3].xyz, ViewMatrixInverse[2].xyz,
 	        pos, hairTangent, binor, hairTime, hairThickness, hairThickTime);
 

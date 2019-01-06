@@ -122,7 +122,7 @@ PyDoc_STRVAR(SShape_add_vertex_doc,
 "   :arg vertex: An SVertex object.\n"
 "   :type vertex: :class:`SVertex`");
 
-static PyObject * SShape_add_vertex(BPy_SShape *self, PyObject *args, PyObject *kwds)
+static PyObject *SShape_add_vertex(BPy_SShape *self, PyObject *args, PyObject *kwds)
 {
 	static const char *kwlist[] = {"edge", NULL};
 	PyObject *py_sv = 0;
@@ -185,7 +185,7 @@ PyDoc_STRVAR(SShape_name_doc,
 
 static PyObject *SShape_name_get(BPy_SShape *self, void *UNUSED(closure))
 {
-	return PyUnicode_FromString(self->ss->getName());
+	return PyUnicode_FromString(self->ss->getName().c_str());
 }
 
 static int SShape_name_set(BPy_SShape *self, PyObject *value, void *UNUSED(closure))

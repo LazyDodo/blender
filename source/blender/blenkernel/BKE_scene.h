@@ -104,7 +104,6 @@ int BKE_scene_base_iter_next(
         struct Scene **scene, int val, struct Base **base, struct Object **ob);
 
 void BKE_scene_base_flag_to_objects(struct ViewLayer *view_layer);
-void BKE_scene_base_flag_from_objects(struct Scene *scene);
 void BKE_scene_object_base_flag_sync_from_base(struct Base *base);
 void BKE_scene_object_base_flag_sync_from_object(struct Base *base);
 
@@ -139,6 +138,10 @@ float BKE_scene_frame_get(const struct Scene *scene);
 float BKE_scene_frame_get_from_ctime(const struct Scene *scene, const float frame);
 void  BKE_scene_frame_set(struct Scene *scene, double cfra);
 
+struct TransformOrientationSlot *BKE_scene_orientation_slot_get(struct Scene *scene, int flag);
+void BKE_scene_orientation_slot_set_index(struct TransformOrientationSlot *orient_slot, int orientation);
+int BKE_scene_orientation_slot_get_index(const struct TransformOrientationSlot *orient_slot);
+
 /* **  Scene evaluation ** */
 
 void BKE_scene_graph_update_tagged(struct Depsgraph *depsgraph,
@@ -161,7 +164,7 @@ bool BKE_scene_use_shading_nodes_custom(struct Scene *scene);
 bool BKE_scene_use_spherical_stereo(struct Scene *scene);
 
 bool BKE_scene_uses_blender_eevee(const struct Scene *scene);
-bool BKE_scene_uses_blender_opengl(const struct Scene *scene);
+bool BKE_scene_uses_blender_workbench(const struct Scene *scene);
 bool BKE_scene_uses_cycles(const struct Scene *scene);
 
 void BKE_scene_disable_color_management(struct Scene *scene);

@@ -49,6 +49,8 @@
 #include "BKE_mesh.h"
 #include "BKE_modifier.h"
 
+#include "DEG_depsgraph_query.h"
+
 #include "bmesh.h"
 #include "bmesh_tools.h"
 
@@ -121,7 +123,7 @@ static void deformVerts(
 
 	MOD_previous_vcos_store(md, vertexCos); /* if next modifier needs original vertices */
 
-	armature_deform_verts(amd->object, ctx->object, mesh, vertexCos, NULL,
+	armature_deform_verts(DEG_get_evaluated_object(ctx->depsgraph, amd->object), ctx->object, mesh, vertexCos, NULL,
 	                      numVerts, amd->deformflag, (float(*)[3])amd->prevCos, amd->defgrp_name, NULL);
 
 	/* free cache */
@@ -136,11 +138,11 @@ static void deformVertsEM(
         Mesh *mesh, float (*vertexCos)[3], int numVerts)
 {
 	ArmatureModifierData *amd = (ArmatureModifierData *) md;
-	Mesh *mesh_src = MOD_get_mesh_eval(ctx->object, em, mesh, NULL, false, false);
+	Mesh *mesh_src = MOD_deform_mesh_eval_get(ctx->object, em, mesh, NULL, numVerts, false, false);
 
 	MOD_previous_vcos_store(md, vertexCos); /* if next modifier needs original vertices */
 
-	armature_deform_verts(amd->object, ctx->object, mesh_src, vertexCos, NULL,
+	armature_deform_verts(DEG_get_evaluated_object(ctx->depsgraph, amd->object), ctx->object, mesh_src, vertexCos, NULL,
 	                      numVerts, amd->deformflag, (float(*)[3])amd->prevCos, amd->defgrp_name, NULL);
 
 	/* free cache */
@@ -160,10 +162,10 @@ static void deformMatricesEM(
         float (*defMats)[3][3], int numVerts)
 {
 	ArmatureModifierData *amd = (ArmatureModifierData *) md;
-	Mesh *mesh_src = MOD_get_mesh_eval(ctx->object, em, mesh, NULL, false, false);
+	Mesh *mesh_src = MOD_deform_mesh_eval_get(ctx->object, em, mesh, NULL, numVerts, false, false);
 
-	armature_deform_verts(amd->object, ctx->object, mesh_src, vertexCos, defMats, numVerts,
-	                      amd->deformflag, NULL, amd->defgrp_name, NULL);
+	armature_deform_verts(DEG_get_evaluated_object(ctx->depsgraph, amd->object), ctx->object, mesh_src, vertexCos, defMats,
+	                      numVerts, amd->deformflag, NULL, amd->defgrp_name, NULL);
 
 	if (mesh_src != mesh) {
 		BKE_id_free(NULL, mesh_src);
@@ -175,10 +177,10 @@ static void deformMatrices(
         float (*vertexCos)[3], float (*defMats)[3][3], int numVerts)
 {
 	ArmatureModifierData *amd = (ArmatureModifierData *) md;
-	Mesh *mesh_src = MOD_get_mesh_eval(ctx->object, NULL, mesh, NULL, false, false);
+	Mesh *mesh_src = MOD_deform_mesh_eval_get(ctx->object, NULL, mesh, NULL, numVerts, false, false);
 
-	armature_deform_verts(amd->object, ctx->object, mesh_src, vertexCos, defMats, numVerts,
-	                      amd->deformflag, NULL, amd->defgrp_name, NULL);
+	armature_deform_verts(DEG_get_evaluated_object(ctx->depsgraph, amd->object), ctx->object, mesh_src, vertexCos, defMats,
+	                      numVerts, amd->deformflag, NULL, amd->defgrp_name, NULL);
 
 	if (mesh_src != mesh) {
 		BKE_id_free(NULL, mesh_src);
@@ -201,14 +203,12 @@ ModifierTypeInfo modifierType_Armature = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       deformVerts,
 	/* deformMatrices */    deformMatrices,
 	/* deformVertsEM */     deformVertsEM,
 	/* deformMatricesEM */  deformMatricesEM,
 	/* applyModifier */     NULL,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,

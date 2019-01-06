@@ -283,6 +283,7 @@ void curvemap_reset(CurveMap *cuma, const rctf *clipr, int preset, int slope)
 		case CURVE_PRESET_ROUND: cuma->totpoint = 4; break;
 		case CURVE_PRESET_ROOT: cuma->totpoint = 4; break;
 		case CURVE_PRESET_GAUSS: cuma->totpoint = 7; break;
+		case CURVE_PRESET_BELL: cuma->totpoint = 3; break;
 	}
 
 	cuma->curve = MEM_callocN(cuma->totpoint * sizeof(CurveMapPoint), "curve points");
@@ -370,6 +371,16 @@ void curvemap_reset(CurveMap *cuma, const rctf *clipr, int preset, int slope)
 			cuma->curve[5].y = 0.135f;
 			cuma->curve[6].x = 1.0f;
 			cuma->curve[6].y = 0.025f;
+			break;
+		case CURVE_PRESET_BELL:
+			cuma->curve[0].x = 0;
+			cuma->curve[0].y = 0.025f;
+
+			cuma->curve[1].x = 0.50f;
+			cuma->curve[1].y = 1.0f;
+
+			cuma->curve[2].x = 1.0f;
+			cuma->curve[2].y = 0.025f;
 			break;
 	}
 
@@ -954,33 +965,14 @@ static void curvemapping_evaluateRGBF_filmlike(const CurveMapping *cumap, float 
 	vecout[channel_offset[2]] = v2;
 }
 
-static float curvemapping_weighted_standard_triangle(float a, float b, float a1)
-{
-	if (a != b) {
-		float b1;
-		float a2 = a1 - a;
-
-		if (b < a) {
-			b1 = b + a2 * b / a ;
-		}
-		else {
-			b1 = b + a2 * (65535.0f - b) / (65535.0f - a);
-		}
-
-		return b1;
-	}
-
-	return a1;
-}
-
 /** same as #curvemapping_evaluate_premulRGBF
  * but black/bwmul are passed as args for the compositor
  * where they can change per pixel.
  *
  * Use in conjunction with #curvemapping_set_black_white_ex
  *
- * \param black Use instead of cumap->black
- * \param bwmul Use instead of cumap->bwmul
+ * \param black: Use instead of cumap->black
+ * \param bwmul: Use instead of cumap->bwmul
  */
 void curvemapping_evaluate_premulRGBF_ex(
         const CurveMapping *cumap, float vecout[3], const float vecin[3],
@@ -997,25 +989,6 @@ void curvemapping_evaluate_premulRGBF_ex(
 			vecout[0] = curvemap_evaluateF(&cumap->cm[0], r);
 			vecout[1] = curvemap_evaluateF(&cumap->cm[1], g);
 			vecout[2] = curvemap_evaluateF(&cumap->cm[2], b);
-			break;
-		}
-		case CURVE_TONE_WEIGHTED_STANDARD:
-		{
-			float r1 = curvemap_evaluateF(&cumap->cm[0], r);
-			float g1 = curvemapping_weighted_standard_triangle(r, r1, g);
-			float b1 = curvemapping_weighted_standard_triangle(r, r1, b);
-
-			float g2 = curvemap_evaluateF(&cumap->cm[1], g);
-			float r2 = curvemapping_weighted_standard_triangle(g, g2, r);
-			float b2 = curvemapping_weighted_standard_triangle(g, g2, b);
-
-			float b3 = curvemap_evaluateF(&cumap->cm[2], b);
-			float r3 = curvemapping_weighted_standard_triangle(b, b3, r);
-			float g3 = curvemapping_weighted_standard_triangle(b, b3, g);
-
-			vecout[0] = r1 * 0.50f + r2 * 0.25f + r3 * 0.25f;
-			vecout[1] = g1 * 0.25f + g2 * 0.50f + g3 * 0.25f;
-			vecout[2] = b1 * 0.25f + b2 * 0.25f + b3 * 0.50f;
 			break;
 		}
 		case CURVE_TONE_FILMLIKE:
@@ -1527,17 +1500,6 @@ void scopes_update(Scopes *scopes, ImBuf *ibuf, const ColorManagedViewSettings *
 	                        scopes_update_cb,
 	                        &settings);
 
-	/* test for nicer distribution even - non standard, leave it out for a while */
-#if 0
-	for (a = 0; a < 256; a++) {
-		bin_lum[a] = sqrt (bin_lum[a]);
-		bin_r[a] = sqrt(bin_r[a]);
-		bin_g[a] = sqrt(bin_g[a]);
-		bin_b[a] = sqrt(bin_b[a]);
-		bin_a[a] = sqrt(bin_a[a]);
-	}
-#endif
-
 	/* convert hist data to float (proportional to max count) */
 	nl = na = nr = nb = ng = 0;
 	for (a = 0; a < 256; a++) {
@@ -1618,17 +1580,33 @@ void BKE_color_managed_display_settings_copy(ColorManagedDisplaySettings *new_se
 	BLI_strncpy(new_settings->display_device, settings->display_device, sizeof(new_settings->display_device));
 }
 
-void BKE_color_managed_view_settings_init(ColorManagedViewSettings *settings)
+void BKE_color_managed_view_settings_init_render(
+        ColorManagedViewSettings *view_settings,
+        const ColorManagedDisplaySettings *display_settings)
 {
-	/* OCIO_TODO: use default view transform here when OCIO is completely integrated
-	 *            and proper versioning stuff is added.
-	 *            for now use NONE to be compatible with all current files
-	 */
-	BLI_strncpy(settings->view_transform, "Default", sizeof(settings->view_transform));
-	BLI_strncpy(settings->look, "None", sizeof(settings->look));
+	struct ColorManagedDisplay *display =
+	        IMB_colormanagement_display_get_named(
+	                display_settings->display_device);
+	BLI_strncpy(
+	        view_settings->view_transform,
+	        IMB_colormanagement_display_get_default_view_transform_name(display),
+	        sizeof(view_settings->view_transform));
+	/* TODO(sergey): Find a way to make look query more reliable with non
+	 * default configuration. */
+	BLI_strncpy(view_settings->look, "None", sizeof(view_settings->look));
 
-	settings->gamma = 1.0f;
-	settings->exposure = 0.0f;
+	view_settings->flag = 0;
+	view_settings->gamma = 1.0f;
+	view_settings->exposure = 0.0f;
+	view_settings->curve_mapping = NULL;
+}
+
+void BKE_color_managed_view_settings_init_default(
+        struct ColorManagedViewSettings *view_settings,
+        const struct ColorManagedDisplaySettings *display_settings)
+{
+	IMB_colormanagement_init_default_view_settings(
+	        view_settings, display_settings);
 }
 
 void BKE_color_managed_view_settings_copy(ColorManagedViewSettings *new_settings,

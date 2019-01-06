@@ -399,7 +399,7 @@ MovieTrackingReconstruction *BKE_tracking_get_active_reconstruction(MovieTrackin
 /* Get transformation matrix for a given object which is used
  * for parenting motion tracker reconstruction to 3D world.
  */
-void BKE_tracking_get_camera_object_matrix(struct Depsgraph *depsgraph, Scene *scene, Object *ob, float mat[4][4])
+void BKE_tracking_get_camera_object_matrix(Scene *scene, Object *ob, float mat[4][4])
 {
 	if (!ob) {
 		if (scene->camera)
@@ -409,7 +409,7 @@ void BKE_tracking_get_camera_object_matrix(struct Depsgraph *depsgraph, Scene *s
 	}
 
 	if (ob)
-		BKE_object_where_is_calc_mat4(depsgraph, scene, ob, mat);
+		BKE_object_where_is_calc_mat4(ob, mat);
 	else
 		unit_m4(mat);
 }
@@ -1607,7 +1607,7 @@ MovieTrackingPlaneMarker *BKE_tracking_plane_marker_insert(MovieTrackingPlaneTra
 		int a = plane_track->markersnr;
 
 		/* Find position in array where to add new marker. */
-		/* TODO(sergey): we coud use bisect to speed things up. */
+		/* TODO(sergey): we could use bisect to speed things up. */
 		while (a--) {
 			if (plane_track->markers[a].framenr < plane_marker->framenr) {
 				break;
@@ -1993,10 +1993,10 @@ void BKE_tracking_camera_to_blender(MovieTracking *tracking, Scene *scene, Camer
 	camera->sensor_fit = CAMERA_SENSOR_FIT_AUTO;
 	camera->lens = focal * camera->sensor_x / width;
 
-	scene->r.xsch = width * tracking->camera.pixel_aspect;
+	scene->r.xsch = width;
 	scene->r.ysch = height;
 
-	scene->r.xasp = 1.0f;
+	scene->r.xasp = tracking->camera.pixel_aspect;
 	scene->r.yasp = 1.0f;
 
 	BKE_tracking_camera_shift_get(tracking, width, height, &camera->shiftx, &camera->shifty);

@@ -103,7 +103,7 @@ typedef struct bContextStore {
 
 /* for the context's rna mode enum
  * keep aligned with data_mode_strings in context.c */
-enum {
+enum eContextObjectMode {
 	CTX_MODE_EDIT_MESH = 0,
 	CTX_MODE_EDIT_CURVE,
 	CTX_MODE_EDIT_SURFACE,
@@ -118,12 +118,12 @@ enum {
 	CTX_MODE_PAINT_TEXTURE,
 	CTX_MODE_PARTICLE,
 	CTX_MODE_OBJECT,
-	CTX_MODE_GPENCIL_PAINT,
-	CTX_MODE_GPENCIL_EDIT,
-	CTX_MODE_GPENCIL_SCULPT,
-	CTX_MODE_GPENCIL_WEIGHT,
-	CTX_MODE_NUM /* must be last */
+	CTX_MODE_PAINT_GPENCIL,
+	CTX_MODE_EDIT_GPENCIL,
+	CTX_MODE_SCULPT_GPENCIL,
+	CTX_MODE_WEIGHT_GPENCIL,
 };
+#define CTX_MODE_NUM (CTX_MODE_WEIGHT_GPENCIL + 1)
 
 /* Context */
 
@@ -224,11 +224,6 @@ short CTX_data_type_get(struct bContextDataResult *result);
 bool CTX_data_equals(const char *member, const char *str);
 bool CTX_data_dir(const char *member);
 
-#if 0
-void CTX_data_pointer_set(bContextDataResult *result, void *data);
-void CTX_data_list_add(bContextDataResult *result, void *data);
-#endif
-
 #define CTX_DATA_BEGIN(C, Type, instance, member)                             \
 	{                                                                         \
 		ListBase ctx_data_list;                                               \
@@ -310,12 +305,12 @@ int CTX_data_editable_bones(const bContext *C, ListBase *list);
 
 struct bPoseChannel *CTX_data_active_pose_bone(const bContext *C);
 int CTX_data_selected_pose_bones(const bContext *C, ListBase *list);
+int CTX_data_selected_pose_bones_from_active_object(const bContext *C, ListBase *list);
 int CTX_data_visible_pose_bones(const bContext *C, ListBase *list);
 
 struct bGPdata *CTX_data_gpencil_data(const bContext *C);
 struct bGPDlayer *CTX_data_active_gpencil_layer(const bContext *C);
 struct bGPDframe *CTX_data_active_gpencil_frame(const bContext *C);
-struct Brush *CTX_data_active_gpencil_brush(const bContext *C);
 int CTX_data_visible_gpencil_layers(const bContext *C, ListBase *list);
 int CTX_data_editable_gpencil_layers(const bContext *C, ListBase *list);
 int CTX_data_editable_gpencil_strokes(const bContext *C, ListBase *list);

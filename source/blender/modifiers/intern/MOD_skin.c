@@ -66,7 +66,7 @@
 
 #include "BLI_utildefines.h"
 #include "BLI_array.h"
-#include "BLI_heap.h"
+#include "BLI_heap_simple.h"
 #include "BLI_math.h"
 #include "BLI_stack.h"
 #include "BLI_bitmap.h"
@@ -859,6 +859,7 @@ static Mesh *subdivide_base(Mesh *orig)
 	for (i = 0, totsubd = 0; i < totorigedge; i++) {
 		edge_subd[i] += calc_edge_subdivisions(origvert, orignode,
 		                                       &origedge[i], degree);
+		BLI_assert(edge_subd[i] >= 0);
 		totsubd += edge_subd[i];
 	}
 
@@ -1218,7 +1219,7 @@ static BMFace *skin_hole_target_face(BMesh *bm, Frame *frame)
 		}
 
 		/* Nearest test */
-		BM_face_calc_center_mean(f, poly_center);
+		BM_face_calc_center_median(f, poly_center);
 		dist = len_v3v3(frame_center, poly_center);
 		if (dist < best_center_dist) {
 			center_target_face = f;
@@ -1431,10 +1432,10 @@ static void hull_merge_triangles(SkinOutput *so, const SkinModifierData *smd)
 {
 	BMIter iter;
 	BMEdge *e;
-	Heap *heap;
+	HeapSimple *heap;
 	float score;
 
-	heap = BLI_heap_new();
+	heap = BLI_heapsimple_new();
 
 	BM_mesh_elem_hflag_disable_all(so->bm, BM_FACE, BM_ELEM_TAG, false);
 
@@ -1477,15 +1478,15 @@ static void hull_merge_triangles(SkinOutput *so, const SkinModifierData *smd)
 					continue;
 				}
 
-				BLI_heap_insert(heap, -score, e);
+				BLI_heapsimple_insert(heap, -score, e);
 			}
 		}
 	}
 
-	while (!BLI_heap_is_empty(heap)) {
+	while (!BLI_heapsimple_is_empty(heap)) {
 		BMFace *adj[2];
 
-		e = BLI_heap_pop_min(heap);
+		e = BLI_heapsimple_pop_min(heap);
 
 		if (BM_edge_face_pair(e, &adj[0], &adj[1])) {
 			/* If both triangles still free, and if they don't already
@@ -1502,7 +1503,7 @@ static void hull_merge_triangles(SkinOutput *so, const SkinModifierData *smd)
 		}
 	}
 
-	BLI_heap_free(heap, NULL);
+	BLI_heapsimple_free(heap, NULL);
 
 	BM_mesh_delete_hflag_tagged(so->bm, BM_ELEM_TAG, BM_EDGE | BM_FACE);
 
@@ -1880,7 +1881,7 @@ static Mesh *base_skin(Mesh *origmesh,
 	if (!bm)
 		return NULL;
 
-	result = BKE_bmesh_to_mesh_nomain(bm, &(struct BMeshToMeshParams){0});
+	result = BKE_mesh_from_bmesh_for_eval_nomain(bm, 0);
 	BM_mesh_free(bm);
 
 	result->runtime.cd_dirty_vert |= CD_MASK_NORMAL;
@@ -1951,14 +1952,12 @@ ModifierTypeInfo modifierType_Skin = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       NULL,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     NULL,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     applyModifier,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  requiredDataMask,

@@ -45,6 +45,7 @@
 #include "BKE_global.h"
 #include "BKE_mesh.h"
 #include "BKE_mesh_tangent.h"
+#include "BKE_mesh_runtime.h"
 #include "BKE_report.h"
 
 #include "BLI_strict_flags.h"
@@ -689,6 +690,30 @@ void BKE_mesh_calc_loop_tangent_ex(
 		    CustomData_set_layer_render_index(loopdata, CD_TANGENT, tan_index);
 		}/* else tangent has been built from orco */
 	}
+}
+
+void BKE_mesh_calc_loop_tangents(
+        Mesh *me_eval, bool calc_active_tangent,
+        const char (*tangent_names)[MAX_NAME], int tangent_names_len)
+{
+	BKE_mesh_runtime_looptri_ensure(me_eval);
+
+	/* TODO(campbell): store in Mesh.runtime to avoid recalculation. */
+	short tangent_mask = 0;
+	BKE_mesh_calc_loop_tangent_ex(
+	        me_eval->mvert,
+	        me_eval->mpoly, (uint)me_eval->totpoly,
+	        me_eval->mloop,
+	        me_eval->runtime.looptris.array, (uint)me_eval->runtime.looptris.len,
+	        &me_eval->ldata,
+	        calc_active_tangent,
+	        tangent_names, tangent_names_len,
+	        CustomData_get_layer(&me_eval->pdata, CD_NORMAL),
+	        CustomData_get_layer(&me_eval->ldata, CD_NORMAL),
+	        CustomData_get_layer(&me_eval->vdata, CD_ORCO),  /* may be NULL */
+	        /* result */
+	        &me_eval->ldata, (uint)me_eval->totloop,
+	        &tangent_mask);
 }
 
 /** \} */

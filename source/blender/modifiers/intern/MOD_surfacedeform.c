@@ -16,6 +16,7 @@
 #include "BKE_modifier.h"
 
 #include "DEG_depsgraph.h"
+#include "DEG_depsgraph_query.h"
 
 #include "MEM_guardedalloc.h"
 
@@ -268,7 +269,7 @@ BLI_INLINE void sortPolyVertsTri(unsigned int *indices, const MLoop * const mloo
 
 BLI_INLINE unsigned int nearestVert(SDefBindCalcData * const data, const float point_co[3])
 {
-	BVHTreeNearest nearest = {.dist_sq = FLT_MAX, .index = -1};
+	BVHTreeNearest nearest = { .dist_sq = FLT_MAX, .index = -1, };
 	const MPoly *poly;
 	const MEdge *edge;
 	const MLoop *loop;
@@ -975,18 +976,20 @@ static bool surfacedeformBind(
 	smd->numverts = numverts;
 	smd->numpoly = tnumpoly;
 
-	SDefBindCalcData data = {.treeData = &treeData,
-		                     .vert_edges = vert_edges,
-		                     .edge_polys = edge_polys,
-		                     .mpoly = mpoly,
-		                     .medge = medge,
-		                     .mloop = mloop,
-		                     .looptri = BKE_mesh_runtime_looptri_ensure(target),
-		                     .targetCos = MEM_malloc_arrayN(tnumverts, sizeof(float[3]), "SDefTargetBindVertArray"),
-		                     .bind_verts = smd->verts,
-		                     .vertexCos = vertexCos,
-		                     .falloff = smd->falloff,
-		                     .success = MOD_SDEF_BIND_RESULT_SUCCESS};
+	SDefBindCalcData data = {
+		.treeData = &treeData,
+		.vert_edges = vert_edges,
+		.edge_polys = edge_polys,
+		.mpoly = mpoly,
+		.medge = medge,
+		.mloop = mloop,
+		.looptri = BKE_mesh_runtime_looptri_ensure(target),
+		.targetCos = MEM_malloc_arrayN(tnumverts, sizeof(float[3]), "SDefTargetBindVertArray"),
+		.bind_verts = smd->verts,
+		.vertexCos = vertexCos,
+		.falloff = smd->falloff,
+		.success = MOD_SDEF_BIND_RESULT_SUCCESS,
+	};
 
 	if (data.targetCos == NULL) {
 		modifier_setError((ModifierData *)smd, "Out of memory");
@@ -1100,7 +1103,7 @@ static void deformVert(
 
 static void surfacedeformModifier_do(
         ModifierData *md,
-        const ModifierEvalContext *UNUSED(ctx),
+        const ModifierEvalContext *ctx,
         float (*vertexCos)[3], unsigned int numverts, Object *ob)
 {
 	SurfaceDeformModifierData *smd = (SurfaceDeformModifierData *)md;
@@ -1108,13 +1111,32 @@ static void surfacedeformModifier_do(
 	Mesh *target;
 	unsigned int tnumverts, tnumpoly;
 
-	/* Exit function if bind flag is not set (free bind data if any) */
+	/* Exit function if bind flag is not set (free bind data if any). */
 	if (!(smd->flags & MOD_SDEF_BIND)) {
-		freeData(md);
+		/* Note: with new CoW system, we expect unbinding to be done by a special call from main thread,
+		 * outside of depsgraph evaluation (see object_force_modifier_update_for_bind() in object_modifier.c). */
+		if (smd->verts != NULL) {
+			if (ob != DEG_get_original_object(ob)) {
+				BLI_assert(!"Trying to unbind inside of depsgraph evaluation");
+				modifier_setError(md, "Trying to unbind inside of depsgraph evaluation");
+			}
+			else {
+				freeData(md);
+			}
+		}
 		return;
 	}
 
-	target = BKE_modifier_get_evaluated_mesh_from_evaluated_object(smd->target, &free_target);
+	Object *ob_target = DEG_get_evaluated_object(ctx->depsgraph, smd->target);
+	target = BKE_modifier_get_evaluated_mesh_from_evaluated_object(ob_target, &free_target);
+#if 0  /* Should not be needed anymore since we always get that mesh from eval object ? */
+	if (target == NULL && smd->verts == NULL && ob == DEG_get_original_object(ob)) {
+		/* Special case, binding happens outside of depsgraph evaluation, so we can build our own
+		 * target mesh if needed. */
+		target = mesh_create_eval_final_view(ctx->depsgraph, DEG_get_input_scene(ctx->depsgraph), smd->target, 0);
+		free_target = target != NULL;
+	}
+#endif
 	if (!target) {
 		modifier_setError(md, "No valid target mesh");
 		return;
@@ -1123,29 +1145,35 @@ static void surfacedeformModifier_do(
 	tnumverts = target->totvert;
 	tnumpoly = target->totpoly;
 
-	/* If not bound, execute bind */
-	if (!(smd->verts)) {
+	/* If not bound, execute bind. */
+	/* Note: with new CoW system, we expect binding to be done by a special call from main thread,
+	 * outside of depsgraph evaluation (see object_force_modifier_update_for_bind() in object_modifier.c). */
+	if (smd->verts == NULL) {
+		if (ob != DEG_get_original_object(ob)) {
+			BLI_assert(!"Trying to bind inside of depsgraph evaluation");
+			modifier_setError(md, "Trying to bind inside of depsgraph evaluation");
+			goto finally;
+		}
 		float tmp_mat[4][4];
 
 		invert_m4_m4(tmp_mat, ob->obmat);
-		mul_m4_m4m4(smd->mat, tmp_mat, smd->target->obmat);
+		mul_m4_m4m4(smd->mat, tmp_mat, ob_target->obmat);
 
 		if (!surfacedeformBind(smd, vertexCos, numverts, tnumpoly, tnumverts, target)) {
 			smd->flags &= ~MOD_SDEF_BIND;
-			return;
 		}
+		/* Early abort, this is binding 'call', no need to perform whole evaluation. */
+		goto finally;
 	}
 
 	/* Poly count checks */
 	if (smd->numverts != numverts) {
 		modifier_setError(md, "Verts changed from %u to %u", smd->numverts, numverts);
-		if (free_target) BKE_id_free(NULL, target);
-		return;
+		goto finally;
 	}
 	else if (smd->numpoly != tnumpoly) {
 		modifier_setError(md, "Target polygons changed from %u to %u", smd->numpoly, tnumpoly);
-		if (free_target) BKE_id_free(NULL, target);
-		return;
+		goto finally;
 	}
 
 	/* Actual vertex location update starts here */
@@ -1173,6 +1201,7 @@ static void surfacedeformModifier_do(
 		MEM_freeN(data.targetCos);
 	}
 
+finally:
 	if (target != NULL && free_target) {
 		BKE_id_free(NULL, target);
 	}
@@ -1199,7 +1228,7 @@ static bool isDisabled(const Scene *UNUSED(scene), ModifierData *md, bool UNUSED
 {
 	SurfaceDeformModifierData *smd = (SurfaceDeformModifierData *)md;
 
-	return !smd->target && !(smd->verts && !(smd->flags & MOD_SDEF_BIND));
+	return smd->target == NULL && !(smd->verts != NULL && !(smd->flags & MOD_SDEF_BIND));
 }
 
 ModifierTypeInfo modifierType_SurfaceDeform = {
@@ -1217,14 +1246,12 @@ ModifierTypeInfo modifierType_SurfaceDeform = {
 	/* deformVertsEM_DM */  NULL,
 	/* deformMatricesEM_DM*/NULL,
 	/* applyModifier_DM */  NULL,
-	/* applyModifierEM_DM */NULL,
 
 	/* deformVerts */       deformVerts,
 	/* deformMatrices */    NULL,
 	/* deformVertsEM */     deformVertsEM,
 	/* deformMatricesEM */  NULL,
 	/* applyModifier */     NULL,
-	/* applyModifierEM */   NULL,
 
 	/* initData */          initData,
 	/* requiredDataMask */  NULL,

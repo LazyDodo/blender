@@ -28,7 +28,6 @@
  *  \ingroup edutil
  */
 
-
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -54,15 +53,15 @@
 
 #include "BKE_context.h"
 #include "BKE_global.h"
+#include "BKE_layer.h"
 #include "BKE_main.h"
 #include "BKE_multires.h"
 #include "BKE_object.h"
 #include "BKE_packedFile.h"
 #include "BKE_paint.h"
 #include "BKE_screen.h"
-#include "BKE_workspace.h"
-#include "BKE_layer.h"
 #include "BKE_undo_system.h"
+#include "BKE_workspace.h"
 
 #include "ED_armature.h"
 #include "ED_buttons.h"
@@ -92,6 +91,7 @@
 void ED_editors_init(bContext *C)
 {
 	Main *bmain = CTX_data_main(C);
+	Scene *scene = CTX_data_scene(C);
 	wmWindowManager *wm = CTX_wm_manager(C);
 
 	if (wm->undo_stack == NULL) {
@@ -116,22 +116,31 @@ void ED_editors_init(bContext *C)
 				/* pass */
 			}
 			else if (!BKE_object_has_mode_data(ob, mode)) {
-				/* For multi-edit mode we may already have mode data. */
-				ID *data = ob->data;
-				ob->mode = OB_MODE_OBJECT;
-				if ((ob == obact) && !ID_IS_LINKED(ob) && !(data && ID_IS_LINKED(data))) {
-					ED_object_mode_toggle(C, mode);
+				/* For multi-edit mode we may already have mode data.
+				 * (grease pencil does not need it)
+				 */
+				if (ob->type != OB_GPENCIL) {
+					ID *data = ob->data;
+					ob->mode = OB_MODE_OBJECT;
+					if ((ob->type == obact->type) && !ID_IS_LINKED(ob) && !(data && ID_IS_LINKED(data))) {
+						if (mode == OB_MODE_EDIT) {
+							ED_object_editmode_enter_ex(bmain, scene, ob, 0);
+						}
+						else if (mode == OB_MODE_POSE) {
+							ED_object_posemode_enter_ex(bmain, ob);
+						}
+						else {
+							ED_object_mode_toggle(C, mode);
+						}
+					}
 				}
 			}
 		}
 	}
 
 	/* image editor paint mode */
-	{
-		Scene *sce = CTX_data_scene(C);
-		if (sce) {
-			ED_space_image_paint_update(bmain, wm, sce);
-		}
+	if (scene) {
+		ED_space_image_paint_update(bmain, wm, scene);
 	}
 
 	SWAP(int, reports->flag, reports_flag_prev);
@@ -344,7 +353,7 @@ void ED_region_draw_mouse_line_cb(const bContext *C, ARegion *ar, void *arg_info
 
 	const uint shdr_pos = GPU_vertformat_attr_add(immVertexFormat(), "pos", GPU_COMP_F32, 2, GPU_FETCH_FLOAT);
 
-	GPU_line_width(1.0f * U.pixelsize);
+	GPU_line_width(1.0f);
 
 	immBindBuiltinProgram(GPU_SHADER_2D_LINE_DASHED_UNIFORM_COLOR);
 
@@ -368,7 +377,7 @@ void ED_region_draw_mouse_line_cb(const bContext *C, ARegion *ar, void *arg_info
 /**
  * Use to free ID references within runtime data (stored outside of DNA)
  *
- * \param new_id may be NULL to unlink \a old_id.
+ * \param new_id: may be NULL to unlink \a old_id.
  */
 void ED_spacedata_id_remap(struct ScrArea *sa, struct SpaceLink *sl, ID *old_id, ID *new_id)
 {

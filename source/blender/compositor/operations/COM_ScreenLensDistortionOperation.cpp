@@ -16,8 +16,8 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  *
  * Contributor:
- *		Jeroen Bakker
- *		Monique Dewanchand
+ *      Jeroen Bakker
+ *      Monique Dewanchand
  */
 
 #include "COM_ScreenLensDistortionOperation.h"
@@ -62,7 +62,7 @@ void ScreenLensDistortionOperation::initExecution()
 	this->initMutex();
 
 	uint rng_seed = (uint)(PIL_check_seconds_timer_i() & UINT_MAX);
-	rng_seed ^= (uint)GET_INT_FROM_POINTER(m_inputProgram);
+	rng_seed ^= (uint)POINTER_AS_INT(m_inputProgram);
 	this->m_rng = BLI_rng_new(rng_seed);
 
 	this->m_cx = 0.5f * (float)getWidth();

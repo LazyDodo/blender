@@ -63,6 +63,10 @@ void DEG_evaluate_on_refresh(Depsgraph *graph)
 	/* Update time on primary timesource. */
 	DEG::TimeSourceDepsNode *tsrc = deg_graph->find_time_source();
 	tsrc->cfra = deg_graph->ctime;
+	/* Update time in scene. */
+	if (deg_graph->scene_cow) {
+		BKE_scene_frame_set(deg_graph->scene_cow, deg_graph->ctime);
+	}
 	DEG::deg_evaluate_on_refresh(deg_graph);
 }
 
@@ -76,8 +80,12 @@ void DEG_evaluate_on_framechange(Main *bmain,
 	/* Update time on primary timesource. */
 	DEG::TimeSourceDepsNode *tsrc = deg_graph->find_time_source();
 	tsrc->cfra = ctime;
-	tsrc->tag_update(deg_graph);
+	tsrc->tag_update(deg_graph, DEG::DEG_UPDATE_SOURCE_TIME);
 	DEG::deg_graph_flush_updates(bmain, deg_graph);
+	/* Update time in scene. */
+	if (deg_graph->scene_cow) {
+		BKE_scene_frame_set(deg_graph->scene_cow, deg_graph->ctime);
+	}
 	/* Perform recalculation updates. */
 	DEG::deg_evaluate_on_refresh(deg_graph);
 }

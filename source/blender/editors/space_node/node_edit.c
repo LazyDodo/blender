@@ -258,7 +258,7 @@ static void compo_startjob(void *cjv, short *stop, short *do_update, float *prog
 }
 
 /**
- * \param scene_owner is the owner of the job,
+ * \param scene_owner: is the owner of the job,
  * we don't use it for anything else currently so could also be a void pointer,
  * but for now keep it an 'Scene' for consistency.
  *
@@ -330,10 +330,10 @@ void snode_dag_update(bContext *C, SpaceNode *snode)
 
 	/* for groups, update all ID's using this */
 	if (snode->edittree != snode->nodetree) {
-		FOREACH_NODETREE(bmain, tntree, id) {
+		FOREACH_NODETREE_BEGIN(bmain, tntree, id) {
 			if (ntreeHasTree(tntree, snode->edittree))
 				DEG_id_tag_update(id, 0);
-		} FOREACH_NODETREE_END
+		} FOREACH_NODETREE_END;
 	}
 
 	DEG_id_tag_update(snode->id, 0);
@@ -676,7 +676,7 @@ void ED_node_set_active(Main *bmain, bNodeTree *ntree, bNode *node)
 				if (was_output == 0)
 					ED_node_tag_update_nodetree(bmain, ntree, node);
 
-				/* addnode() doesnt link this yet... */
+				/* addnode() doesn't link this yet... */
 				node->id = (ID *)BKE_image_verify_viewer(bmain, IMA_TYPE_COMPOSITE, "Viewer Node");
 			}
 			else if (node->type == CMP_NODE_COMPOSITE) {
@@ -1586,7 +1586,7 @@ static int node_delete_exec(bContext *C, wmOperator *UNUSED(op))
 			do_tag_update |= (do_tag_update || node_connected_to_output(bmain, snode->edittree, node));
 			if (node->id)
 				id_us_min(node->id);
-			nodeFreeNode(snode->edittree, node);
+			nodeDeleteNode(bmain, snode->edittree, node);
 		}
 	}
 
@@ -1666,6 +1666,7 @@ void NODE_OT_switch_view_update(wmOperatorType *ot)
 /* ****************** Delete with reconnect ******************* */
 static int node_delete_reconnect_exec(bContext *C, wmOperator *UNUSED(op))
 {
+	Main *bmain = CTX_data_main(C);
 	SpaceNode *snode = CTX_wm_space_node(C);
 	bNode *node, *next;
 
@@ -1679,7 +1680,7 @@ static int node_delete_reconnect_exec(bContext *C, wmOperator *UNUSED(op))
 			/* check id user here, nodeFreeNode is called for free dbase too */
 			if (node->id)
 				id_us_min(node->id);
-			nodeFreeNode(snode->edittree, node);
+			nodeDeleteNode(bmain, snode->edittree, node);
 		}
 	}
 
@@ -2389,17 +2390,17 @@ static int node_shader_script_update_exec(bContext *C, wmOperator *op)
 
 		if (text) {
 			/* clear flags for recursion check */
-			FOREACH_NODETREE(bmain, ntree, id) {
+			FOREACH_NODETREE_BEGIN(bmain, ntree, id) {
 				if (ntree->type == NTREE_SHADER)
 					ntree->done = false;
-			} FOREACH_NODETREE_END
+			} FOREACH_NODETREE_END;
 
-			FOREACH_NODETREE(bmain, ntree, id) {
+			FOREACH_NODETREE_BEGIN(bmain, ntree, id) {
 				if (ntree->type == NTREE_SHADER) {
 					if (!ntree->done)
 						found |= node_shader_script_update_text_recursive(engine, type, ntree, text);
 				}
-			} FOREACH_NODETREE_END
+			} FOREACH_NODETREE_END;
 
 			if (!found)
 				BKE_report(op->reports, RPT_INFO, "Text not used by any node, no update done");
@@ -2509,17 +2510,17 @@ void NODE_OT_viewer_border(wmOperatorType *ot)
 	ot->idname = "NODE_OT_viewer_border";
 
 	/* api callbacks */
-	ot->invoke = WM_gesture_border_invoke;
+	ot->invoke = WM_gesture_box_invoke;
 	ot->exec = viewer_border_exec;
-	ot->modal = WM_gesture_border_modal;
-	ot->cancel = WM_gesture_border_cancel;
+	ot->modal = WM_gesture_box_modal;
+	ot->cancel = WM_gesture_box_cancel;
 	ot->poll = composite_node_active;
 
 	/* flags */
 	ot->flag = OPTYPE_REGISTER | OPTYPE_UNDO;
 
 	/* properties */
-	WM_operator_properties_gesture_border_select(ot);
+	WM_operator_properties_gesture_box_select(ot);
 }
 
 static int clear_viewer_border_exec(bContext *C, wmOperator *UNUSED(op))
@@ -2628,7 +2629,7 @@ void NODE_OT_cryptomatte_layer_remove(wmOperatorType *ot)
 {
 	/* identifiers */
 	ot->name = "Remove Cryptomatte Socket";
-	ot->description = "Remove layer from a Crytpomatte node";
+	ot->description = "Remove layer from a Cryptomatte node";
 	ot->idname = "NODE_OT_cryptomatte_layer_remove";
 
 	/* callbacks */

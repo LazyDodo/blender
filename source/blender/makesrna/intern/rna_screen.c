@@ -46,6 +46,8 @@ const EnumPropertyItem rna_enum_region_type_items[] = {
 	{RGN_TYPE_TOOLS, "TOOLS", 0, "Tools", ""},
 	{RGN_TYPE_TOOL_PROPS, "TOOL_PROPS", 0, "Tool Properties", ""},
 	{RGN_TYPE_PREVIEW, "PREVIEW", 0, "Preview", ""},
+	{RGN_TYPE_NAV_BAR, "NAVIGATION_BAR", 0, "Navigation Bar", ""},
+	{RGN_TYPE_EXECUTE, "EXECUTE", 0, "Execute Buttons", ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -144,15 +146,16 @@ static bool rna_Screen_fullscreen_get(PointerRNA *ptr)
 
 /* UI compatible list: should not be needed, but for now we need to keep EMPTY
  * at least in the static version of this enum for python scripts. */
-static const EnumPropertyItem *rna_Area_type_itemf(bContext *UNUSED(C), PointerRNA *UNUSED(ptr),
-                                             PropertyRNA *UNUSED(prop), bool *r_free)
+static const EnumPropertyItem *rna_Area_type_itemf(
+        bContext *UNUSED(C), PointerRNA *UNUSED(ptr),
+        PropertyRNA *UNUSED(prop), bool *r_free)
 {
 	EnumPropertyItem *item = NULL;
 	int totitem = 0;
 
 	/* +1 to skip SPACE_EMPTY */
 	for (const EnumPropertyItem *item_from = rna_enum_space_type_items + 1; item_from->identifier; item_from++) {
-		if (ELEM(item_from->value, SPACE_TOPBAR, SPACE_STATUSBAR, SPACE_USERPREF)) {
+		if (ELEM(item_from->value, SPACE_TOPBAR, SPACE_STATUSBAR)) {
 			continue;
 		}
 		RNA_enum_item_add(&item, &totitem, item_from);
@@ -173,7 +176,7 @@ static int rna_Area_type_get(PointerRNA *ptr)
 
 static void rna_Area_type_set(PointerRNA *ptr, int value)
 {
-	if (ELEM(value, SPACE_TOPBAR, SPACE_STATUSBAR, SPACE_USERPREF)) {
+	if (ELEM(value, SPACE_TOPBAR, SPACE_STATUSBAR)) {
 		/* Special case: An area can not be set to show the top-bar editor (or
 		 * other global areas). However it should still be possible to identify
 		 * its type from Python. */
@@ -231,7 +234,7 @@ static const EnumPropertyItem *rna_Area_ui_type_itemf(
 
 	/* +1 to skip SPACE_EMPTY */
 	for (const EnumPropertyItem *item_from = rna_enum_space_type_items + 1; item_from->identifier; item_from++) {
-		if (ELEM(item_from->value, SPACE_TOPBAR, SPACE_STATUSBAR, SPACE_USERPREF)) {
+		if (ELEM(item_from->value, SPACE_TOPBAR, SPACE_STATUSBAR)) {
 			continue;
 		}
 
@@ -331,8 +334,9 @@ static void rna_def_area_api(StructRNA *srna)
 
 	func = RNA_def_function(srna, "header_text_set", "ED_area_status_text");
 	RNA_def_function_ui_description(func, "Set the header status text");
-	parm = RNA_def_string(func, "text", NULL, 0, "Text", "New string for the header, no argument clears the text");
+	parm = RNA_def_string(func, "text", NULL, 0, "Text", "New string for the header, None clears the text");
 	RNA_def_parameter_flags(parm, 0, PARM_REQUIRED);
+	RNA_def_property_clear_flag(parm, PROP_NEVER_NULL);
 }
 
 static void rna_def_area(BlenderRNA *brna)
@@ -519,7 +523,7 @@ static void rna_def_screen(BlenderRNA *brna)
 	srna = RNA_def_struct(brna, "Screen", "ID");
 	RNA_def_struct_sdna(srna, "Screen"); /* it is actually bScreen but for 2.5 the dna is patched! */
 	RNA_def_struct_ui_text(srna, "Screen", "Screen data-block, defining the layout of areas in a window");
-	RNA_def_struct_ui_icon(srna, ICON_SPLITSCREEN);
+	RNA_def_struct_ui_icon(srna, ICON_WORKSPACE);
 
 	prop = RNA_def_property(srna, "layout_name", PROP_STRING, PROP_NONE);
 	RNA_def_property_string_funcs(prop, "rna_Screen_layout_name_get", "rna_Screen_layout_name_length",

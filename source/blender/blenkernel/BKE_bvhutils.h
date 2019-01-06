@@ -35,7 +35,7 @@
 #include "BLI_kdopbvh.h"
 
 /**
- * This header encapsulates necessary code to buld a BVH
+ * This header encapsulates necessary code to build a BVH
  */
 
 struct DerivedMesh;
@@ -150,10 +150,6 @@ BVHTree *bvhtree_from_mesh_looptri_ex(
         const struct MLoopTri *looptri, const int looptri_num, const bool looptri_allocated,
         const BLI_bitmap *mask, int looptri_num_active,
         float epsilon, int tree_type, int axis);
-
-BVHTree *bvhtree_from_mesh_get(
-        struct BVHTreeFromMesh *data, struct DerivedMesh *mesh,
-        const int type, const int tree_type);
 
 BVHTree *BKE_bvhtree_from_mesh_get(
         struct BVHTreeFromMesh *data, struct Mesh *mesh,

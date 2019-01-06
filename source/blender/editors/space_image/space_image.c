@@ -48,10 +48,14 @@
 #include "BKE_image.h"
 #include "BKE_layer.h"
 #include "BKE_library.h"
+#include "BKE_material.h"
 #include "BKE_scene.h"
 #include "BKE_screen.h"
-#include "BKE_material.h"
 #include "BKE_workspace.h"
+
+#include "RNA_access.h"
+#include "RNA_define.h"
+#include "RNA_enum_types.h"
 
 #include "DEG_depsgraph.h"
 
@@ -68,8 +72,6 @@
 #include "ED_transform.h"
 
 #include "BIF_gl.h"
-
-#include "RNA_access.h"
 
 #include "WM_api.h"
 #include "WM_types.h"
@@ -188,7 +190,7 @@ static SpaceLink *image_new(const ScrArea *UNUSED(area), const Scene *UNUSED(sce
 
 	BLI_addtail(&simage->regionbase, ar);
 	ar->regiontype = RGN_TYPE_HEADER;
-	ar->alignment = RGN_ALIGN_TOP;
+	ar->alignment = (U.uiflag & USER_HEADER_BOTTOM) ? RGN_ALIGN_BOTTOM : RGN_ALIGN_TOP;
 
 	/* buttons/list view */
 	ar = MEM_callocN(sizeof(ARegion), "buttons for image");
@@ -293,97 +295,8 @@ static void image_operatortypes(void)
 
 static void image_keymap(struct wmKeyConfig *keyconf)
 {
-	wmKeyMap *keymap = WM_keymap_ensure(keyconf, "Image Generic", SPACE_IMAGE, 0);
-	wmKeyMapItem *kmi;
-	int i;
-
-	WM_keymap_add_item(keymap, "IMAGE_OT_new", NKEY, KM_PRESS, KM_ALT, 0);
-	WM_keymap_add_item(keymap, "IMAGE_OT_open", OKEY, KM_PRESS, KM_ALT, 0);
-	WM_keymap_add_item(keymap, "IMAGE_OT_reload", RKEY, KM_PRESS, KM_ALT, 0);
-	WM_keymap_add_item(keymap, "IMAGE_OT_read_viewlayers", RKEY, KM_PRESS, KM_CTRL, 0);
-	WM_keymap_add_item(keymap, "IMAGE_OT_save", SKEY, KM_PRESS, KM_ALT, 0);
-	WM_keymap_add_item(keymap, "IMAGE_OT_save_as", SKEY, KM_PRESS, KM_SHIFT, 0);
-	WM_keymap_add_item(keymap, "IMAGE_OT_properties", NKEY, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "IMAGE_OT_toolshelf", TKEY, KM_PRESS, 0, 0);
-
-	WM_keymap_add_menu(keymap, "IMAGE_MT_specials", WKEY, KM_PRESS, 0, 0);
-
-	WM_keymap_add_item(keymap, "IMAGE_OT_cycle_render_slot", JKEY, KM_PRESS, 0, 0);
-	RNA_boolean_set(WM_keymap_add_item(keymap, "IMAGE_OT_cycle_render_slot", JKEY, KM_PRESS, KM_ALT, 0)->ptr, "reverse", true);
-
-	keymap = WM_keymap_ensure(keyconf, "Image", SPACE_IMAGE, 0);
-
-	WM_keymap_add_item(keymap, "IMAGE_OT_view_all", HOMEKEY, KM_PRESS, 0, 0);
-
-	kmi = WM_keymap_add_item(keymap, "IMAGE_OT_view_all", HOMEKEY, KM_PRESS, KM_SHIFT, 0);
-	RNA_boolean_set(kmi->ptr, "fit_view", true);
-
-	WM_keymap_add_item(keymap, "IMAGE_OT_view_selected", PADPERIOD, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "IMAGE_OT_view_pan", MIDDLEMOUSE, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "IMAGE_OT_view_pan", MIDDLEMOUSE, KM_PRESS, KM_SHIFT, 0);
-	WM_keymap_add_item(keymap, "IMAGE_OT_view_pan", MOUSEPAN, 0, 0, 0);
-
-#ifdef WITH_INPUT_NDOF
-	WM_keymap_add_item(keymap, "IMAGE_OT_view_all", NDOF_BUTTON_FIT, KM_PRESS, 0, 0); // or view selected?
-	WM_keymap_add_item(keymap, "IMAGE_OT_view_ndof", NDOF_MOTION, 0, 0, 0);
-#endif
-
-	WM_keymap_add_item(keymap, "IMAGE_OT_view_zoom_in", WHEELINMOUSE, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "IMAGE_OT_view_zoom_out", WHEELOUTMOUSE, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "IMAGE_OT_view_zoom_in", PADPLUSKEY, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "IMAGE_OT_view_zoom_out", PADMINUS, KM_PRESS, 0, 0);
-	WM_keymap_add_item(keymap, "IMAGE_OT_view_zoom", MIDDLEMOUSE, KM_PRESS, KM_CTRL, 0);
-	WM_keymap_add_item(keymap, "IMAGE_OT_view_zoom", MOUSEZOOM, 0, 0, 0);
-	WM_keymap_add_item(keymap, "IMAGE_OT_view_zoom", MOUSEPAN, 0, KM_CTRL, 0);
-	WM_keymap_add_item(keymap, "IMAGE_OT_view_zoom_border", BKEY, KM_PRESS, KM_SHIFT, 0);
-
-	/* ctrl now works as well, shift + numpad works as arrow keys on Windows */
-	RNA_float_set(WM_keymap_add_item(keymap, "IMAGE_OT_view_zoom_ratio", PAD8, KM_PRESS, KM_CTRL, 0)->ptr, "ratio", 8.0f);
-	RNA_float_set(WM_keymap_add_item(keymap, "IMAGE_OT_view_zoom_ratio", PAD4, KM_PRESS, KM_CTRL, 0)->ptr, "ratio", 4.0f);
-	RNA_float_set(WM_keymap_add_item(keymap, "IMAGE_OT_view_zoom_ratio", PAD2, KM_PRESS, KM_CTRL, 0)->ptr, "ratio", 2.0f);
-	RNA_float_set(WM_keymap_add_item(keymap, "IMAGE_OT_view_zoom_ratio", PAD8, KM_PRESS, KM_SHIFT, 0)->ptr, "ratio", 8.0f);
-	RNA_float_set(WM_keymap_add_item(keymap, "IMAGE_OT_view_zoom_ratio", PAD4, KM_PRESS, KM_SHIFT, 0)->ptr, "ratio", 4.0f);
-	RNA_float_set(WM_keymap_add_item(keymap, "IMAGE_OT_view_zoom_ratio", PAD2, KM_PRESS, KM_SHIFT, 0)->ptr, "ratio", 2.0f);
-
-	RNA_float_set(WM_keymap_add_item(keymap, "IMAGE_OT_view_zoom_ratio", PAD1, KM_PRESS, 0, 0)->ptr, "ratio", 1.0f);
-	RNA_float_set(WM_keymap_add_item(keymap, "IMAGE_OT_view_zoom_ratio", PAD2, KM_PRESS, 0, 0)->ptr, "ratio", 0.5f);
-	RNA_float_set(WM_keymap_add_item(keymap, "IMAGE_OT_view_zoom_ratio", PAD4, KM_PRESS, 0, 0)->ptr, "ratio", 0.25f);
-	RNA_float_set(WM_keymap_add_item(keymap, "IMAGE_OT_view_zoom_ratio", PAD8, KM_PRESS, 0, 0)->ptr, "ratio", 0.125f);
-
-	WM_keymap_add_item(keymap, "IMAGE_OT_change_frame", LEFTMOUSE, KM_PRESS, 0, 0);
-
-	WM_keymap_add_item(keymap, "IMAGE_OT_sample", ACTIONMOUSE, KM_PRESS, 0, 0);
-	RNA_enum_set(WM_keymap_add_item(keymap, "IMAGE_OT_curves_point_set", ACTIONMOUSE, KM_PRESS, KM_CTRL, 0)->ptr, "point", 0);
-	RNA_enum_set(WM_keymap_add_item(keymap, "IMAGE_OT_curves_point_set", ACTIONMOUSE, KM_PRESS, KM_SHIFT, 0)->ptr, "point", 1);
-
-	/* toggle editmode is handy to have while UV unwrapping */
-	kmi = WM_keymap_add_item(keymap, "OBJECT_OT_mode_set", TABKEY, KM_PRESS, 0, 0);
-	RNA_enum_set(kmi->ptr, "mode", OB_MODE_EDIT);
-	RNA_boolean_set(kmi->ptr, "toggle", true);
-
-	/* fast switch to render slots */
-	for (i = 0; i < 9; i++) {
-		kmi = WM_keymap_add_item(keymap, "WM_OT_context_set_int", ONEKEY + i, KM_PRESS, 0, 0);
-		RNA_string_set(kmi->ptr, "data_path", "space_data.image.render_slots.active_index");
-		RNA_int_set(kmi->ptr, "value", i);
-	}
-
-	/* pivot */
-	kmi = WM_keymap_add_item(keymap, "WM_OT_context_set_enum", COMMAKEY, KM_PRESS, 0, 0);
-	RNA_string_set(kmi->ptr, "data_path", "space_data.pivot_point");
-	RNA_string_set(kmi->ptr, "value", "CENTER");
-
-	kmi = WM_keymap_add_item(keymap, "WM_OT_context_set_enum", COMMAKEY, KM_PRESS, KM_CTRL, 0);
-	RNA_string_set(kmi->ptr, "data_path", "space_data.pivot_point");
-	RNA_string_set(kmi->ptr, "value", "MEDIAN");
-
-	kmi = WM_keymap_add_item(keymap, "WM_OT_context_set_enum", PERIODKEY, KM_PRESS, 0, 0);
-	RNA_string_set(kmi->ptr, "data_path", "space_data.pivot_point");
-	RNA_string_set(kmi->ptr, "value", "CURSOR");
-
-	/* render border */
-	WM_keymap_add_item(keymap, "IMAGE_OT_render_border", BKEY, KM_PRESS, KM_CTRL, 0);
-	WM_keymap_add_item(keymap, "IMAGE_OT_clear_render_border", BKEY, KM_PRESS, KM_CTRL | KM_ALT, 0);
+	WM_keymap_ensure(keyconf, "Image Generic", SPACE_IMAGE, 0);
+	WM_keymap_ensure(keyconf, "Image", SPACE_IMAGE, 0);
 }
 
 /* dropboxes */
@@ -586,7 +499,8 @@ static void IMAGE_GGT_gizmo2d(wmGizmoGroupType *gzgt)
 	gzgt->name = "UV Transform Gizmo";
 	gzgt->idname = "IMAGE_GGT_gizmo2d";
 
-	gzgt->flag |= WM_GIZMOGROUPTYPE_PERSISTENT;
+	gzgt->gzmap_params.spaceid = SPACE_IMAGE;
+	gzgt->gzmap_params.regionid = RGN_TYPE_WINDOW;
 
 	gzgt->poll = ED_widgetgroup_gizmo2d_poll;
 	gzgt->setup = ED_widgetgroup_gizmo2d_setup;
@@ -596,10 +510,7 @@ static void IMAGE_GGT_gizmo2d(wmGizmoGroupType *gzgt)
 
 static void image_widgets(void)
 {
-	wmGizmoMapType *gzmap_type = WM_gizmomaptype_ensure(
-	        &(const struct wmGizmoMapType_Params){SPACE_IMAGE, RGN_TYPE_WINDOW});
-
-	WM_gizmogrouptype_append_and_link(gzmap_type, IMAGE_GGT_gizmo2d);
+	WM_gizmogrouptype_append(IMAGE_GGT_gizmo2d);
 }
 
 /************************** main region ***************************/
@@ -666,16 +577,6 @@ static void image_main_region_init(wmWindowManager *wm, ARegion *ar)
 
 	// image space manages own v2d
 	// UI_view2d_region_reinit(&ar->v2d, V2D_COMMONVIEW_STANDARD, ar->winx, ar->winy);
-
-	/* gizmos */
-	if (ar->gizmo_map == NULL) {
-		const struct wmGizmoMapType_Params wmap_params = {
-			.spaceid = SPACE_IMAGE,
-			.regionid = RGN_TYPE_WINDOW,
-		};
-		ar->gizmo_map = WM_gizmomap_new_from_type(&wmap_params);
-	}
-	WM_gizmomap_add_handlers(ar, ar->gizmo_map);
 
 	/* mask polls mode */
 	keymap = WM_keymap_ensure(wm->defaultconf, "Mask Editing", 0, 0);
@@ -987,21 +888,6 @@ static void image_tools_region_listener(
 	}
 }
 
-static void image_tools_region_message_subscribe(
-        const struct bContext *UNUSED(C),
-        struct WorkSpace *UNUSED(workspace), struct Scene *UNUSED(scene),
-        struct bScreen *UNUSED(screen), struct ScrArea *UNUSED(sa), struct ARegion *ar,
-        struct wmMsgBus *mbus)
-{
-	wmMsgSubscribeValue msg_sub_value_region_tag_redraw = {
-		.owner = ar,
-		.user_data = ar,
-		.notify = ED_region_do_msg_notify_tag_redraw,
-	};
-	WM_msg_subscribe_rna_anon_prop(mbus, WorkSpace, tools, &msg_sub_value_region_tag_redraw);
-}
-
-
 /************************* header region **************************/
 
 /* add handlers, stuff you only do once or on area/region changes */
@@ -1070,6 +956,37 @@ static void image_id_remap(ScrArea *UNUSED(sa), SpaceLink *slink, ID *old_id, ID
 	}
 }
 
+/**
+ * \note Used for splitting out a subset of modes is more involved,
+ * The previous non-uv-edit mode is stored so switching back to the
+ * image doesn't always reset the sub-mode.
+ */
+static int image_space_subtype_get(ScrArea *sa)
+{
+	SpaceImage *sima = sa->spacedata.first;
+	return sima->mode == SI_MODE_UV ? SI_MODE_UV : SI_MODE_VIEW;
+}
+
+static void image_space_subtype_set(ScrArea *sa, int value)
+{
+	SpaceImage *sima = sa->spacedata.first;
+	if (value == SI_MODE_UV) {
+		if (sima->mode != SI_MODE_UV) {
+			sima->mode_prev = sima->mode;
+		}
+		sima->mode = value;
+	}
+	else {
+		sima->mode = sima->mode_prev;
+	}
+}
+
+static void image_space_subtype_item_extend(
+        bContext *UNUSED(C), EnumPropertyItem **item, int *totitem)
+{
+	RNA_enum_items_add(item, totitem, rna_enum_space_image_mode_items);
+}
+
 /**************************** spacetype *****************************/
 
 /* only called once, from space/spacetypes.c */
@@ -1093,11 +1010,14 @@ void ED_spacetype_image(void)
 	st->context = image_context;
 	st->gizmos = image_widgets;
 	st->id_remap = image_id_remap;
+	st->space_subtype_item_extend = image_space_subtype_item_extend;
+	st->space_subtype_get = image_space_subtype_get;
+	st->space_subtype_set = image_space_subtype_set;
 
 	/* regions: main window */
 	art = MEM_callocN(sizeof(ARegionType), "spacetype image region");
 	art->regionid = RGN_TYPE_WINDOW;
-	art->keymapflag = ED_KEYMAP_FRAMES | ED_KEYMAP_GPENCIL;
+	art->keymapflag = ED_KEYMAP_GIZMO | ED_KEYMAP_FRAMES | ED_KEYMAP_GPENCIL;
 	art->init = image_main_region_init;
 	art->draw = image_main_region_draw;
 	art->listener = image_main_region_listener;
@@ -1119,10 +1039,12 @@ void ED_spacetype_image(void)
 	/* regions: statistics/scope buttons */
 	art = MEM_callocN(sizeof(ARegionType), "spacetype image region");
 	art->regionid = RGN_TYPE_TOOLS;
-	art->prefsizex = 220; // XXX
+	art->prefsizex = 58; /* XXX */
+	art->prefsizey = 50; /* XXX */
 	art->keymapflag = ED_KEYMAP_UI | ED_KEYMAP_FRAMES;
 	art->listener = image_tools_region_listener;
-	art->message_subscribe = image_tools_region_message_subscribe;
+	art->message_subscribe = ED_region_generic_tools_region_message_subscribe;
+	art->snap_size = ED_region_generic_tools_region_snap_size;
 	art->init = image_tools_region_init;
 	art->draw = image_tools_region_draw;
 	BLI_addhead(&st->regiontypes, art);

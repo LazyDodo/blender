@@ -40,7 +40,7 @@
 struct ScrArea;
 struct ARegion;
 
-/* wmKeyMap is in DNA_windowmanager.h, it's savable */
+/* wmKeyMap is in DNA_windowmanager.h, it's saveable */
 
 struct wmEventHandler_KeymapFn {
 	void (*handle_post_fn)(wmKeyMap *keymap, wmKeyMapItem *kmi, void *user_data);
@@ -100,6 +100,8 @@ void        wm_event_add_ghostevent (wmWindowManager *wm, wmWindow *win, int typ
 void        wm_event_do_depsgraph(bContext *C);
 void        wm_event_do_refresh_wm_and_depsgraph(bContext *C);
 void        wm_event_do_notifiers(bContext *C);
+
+float       wm_pressure_curve(float raw_pressure);
 
 /* wm_keymap.c */
 

@@ -50,22 +50,23 @@
 
 #include "BKE_context.h"
 #include "BKE_deform.h"
+#include "BKE_editmesh.h"
 #include "BKE_key.h"
+#include "BKE_layer.h"
 #include "BKE_library.h"
 #include "BKE_main.h"
+#include "BKE_material.h"
 #include "BKE_mesh.h"
 #include "BKE_mesh_iterators.h"
 #include "BKE_mesh_runtime.h"
-#include "BKE_material.h"
+#include "BKE_multires.h"
 #include "BKE_object.h"
 #include "BKE_object_deform.h"
 #include "BKE_report.h"
-#include "BKE_editmesh.h"
-#include "BKE_multires.h"
-#include "BKE_layer.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
+#include "DEG_depsgraph_query.h"
 
 #include "ED_mesh.h"
 #include "ED_object.h"
@@ -138,8 +139,8 @@ static void join_mesh_single(
 			}
 
 			/* for each shapekey in destination mesh:
-			 *	- if there's a matching one, copy it across (will need to transform vertices into new space...)
-			 *	- otherwise, just copy own coordinates of mesh (no need to transform vertex coordinates into new space)
+			 * - if there's a matching one, copy it across (will need to transform vertices into new space...)
+			 * - otherwise, just copy own coordinates of mesh (no need to transform vertex coordinates into new space)
 			 */
 			if (key) {
 				/* if this mesh has any shapekeys, check first, otherwise just copy coordinates */
@@ -168,8 +169,8 @@ static void join_mesh_single(
 		}
 		else {
 			/* for each shapekey in destination mesh:
-			 *	- if it was an 'original', copy the appropriate data from nkey
-			 *	- otherwise, copy across plain coordinates (no need to transform coordinates)
+			 * - if it was an 'original', copy the appropriate data from nkey
+			 * - otherwise, copy across plain coordinates (no need to transform coordinates)
 			 */
 			if (key) {
 				for (KeyBlock *kb = key->block.first; kb; kb = kb->next) {
@@ -298,18 +299,18 @@ int join_mesh_exec(bContext *C, wmOperator *op)
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 
 	/* count & check */
-	CTX_DATA_BEGIN (C, Base *, base, selected_editable_bases)
+	CTX_DATA_BEGIN (C, Object *, ob_iter, selected_editable_objects)
 	{
-		if (base->object->type == OB_MESH) {
-			me = base->object->data;
+		if (ob_iter->type == OB_MESH) {
+			me = ob_iter->data;
 
 			totvert += me->totvert;
 			totedge += me->totedge;
 			totloop += me->totloop;
 			totpoly += me->totpoly;
-			totmat += base->object->totcol;
+			totmat += ob_iter->totcol;
 
-			if (base->object == ob)
+			if (ob_iter == ob)
 				ok = true;
 
 			/* check for shapekeys */
@@ -379,14 +380,14 @@ int join_mesh_exec(bContext *C, wmOperator *op)
 	}
 
 	/* first pass over objects - copying materials and vertexgroups across */
-	CTX_DATA_BEGIN (C, Base *, base, selected_editable_bases)
+	CTX_DATA_BEGIN (C, Object *, ob_iter, selected_editable_objects)
 	{
 		/* only act if a mesh, and not the one we're joining to */
-		if ((ob != base->object) && (base->object->type == OB_MESH)) {
-			me = base->object->data;
+		if ((ob != ob_iter) && (ob_iter->type == OB_MESH)) {
+			me = ob_iter->data;
 
 			/* Join this object's vertex groups to the base one's */
-			for (dg = base->object->defbase.first; dg; dg = dg->next) {
+			for (dg = ob_iter->defbase.first; dg; dg = dg->next) {
 				/* See if this group exists in the object (if it doesn't, add it to the end) */
 				if (!defgroup_find_name(ob, dg->name)) {
 					odg = MEM_callocN(sizeof(bDeformGroup), "join deformGroup");
@@ -401,8 +402,8 @@ int join_mesh_exec(bContext *C, wmOperator *op)
 			if (me->totvert) {
 				/* Add this object's materials to the base one's if they don't exist already (but only if limits not exceeded yet) */
 				if (totcol < MAXMAT) {
-					for (a = 1; a <= base->object->totcol; a++) {
-						ma = give_current_material(base->object, a);
+					for (a = 1; a <= ob_iter->totcol; a++) {
+						ma = give_current_material(ob_iter, a);
 
 						for (b = 0; b < totcol; b++) {
 							if (ma == matar[b]) {
@@ -500,16 +501,16 @@ int join_mesh_exec(bContext *C, wmOperator *op)
 	            matar, matmap, totcol,
 	            &vertofs, &edgeofs, &loopofs, &polyofs);
 
-	CTX_DATA_BEGIN (C, Base *, base, selected_editable_bases)
+	CTX_DATA_BEGIN (C, Object *, ob_iter, selected_editable_objects)
 	{
-		if (base->object == ob) {
+		if (ob_iter == ob) {
 			continue;
 		}
 		/* only join if this is a mesh */
-		if (base->object->type == OB_MESH) {
+		if (ob_iter->type == OB_MESH) {
 			join_mesh_single(
 			            depsgraph, bmain, scene,
-			            ob, base->object, imat,
+			            ob, ob_iter, imat,
 			            &mvert, &medge, &mloop, &mpoly,
 			            &vdata, &edata, &ldata, &pdata,
 			            totvert, totedge, totloop, totpoly,
@@ -518,8 +519,8 @@ int join_mesh_exec(bContext *C, wmOperator *op)
 			            &vertofs, &edgeofs, &loopofs, &polyofs);
 
 			/* free base, now that data is merged */
-			if (base->object != ob) {
-				ED_object_base_free_and_unlink(bmain, scene, base->object);
+			if (ob_iter != ob) {
+				ED_object_base_free_and_unlink(bmain, scene, ob_iter);
 			}
 		}
 	}
@@ -592,9 +593,9 @@ int join_mesh_exec(bContext *C, wmOperator *op)
 
 	DEG_relations_tag_update(bmain);   /* removed objects, need to rebuild dag */
 
-	DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA);
+	DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 
-	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+	DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 
 	return OPERATOR_FINISHED;
@@ -609,21 +610,23 @@ int join_mesh_shapes_exec(bContext *C, wmOperator *op)
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
-	Object *ob = CTX_data_active_object(C);
+	Object *ob_active = CTX_data_active_object(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
-	Mesh *me = (Mesh *)ob->data;
+	Mesh *me = (Mesh *)ob_active->data;
 	Mesh *selme = NULL;
 	Mesh *me_deformed = NULL;
 	Key *key = me->key;
 	KeyBlock *kb;
 	bool ok = false, nonequal_verts = false;
 
-	CTX_DATA_BEGIN (C, Base *, base, selected_editable_bases)
+	CTX_DATA_BEGIN (C, Object *, ob_iter, selected_editable_objects)
 	{
-		if (base->object == ob) continue;
+		if (ob_iter == ob_active) {
+			continue;
+		}
 
-		if (base->object->type == OB_MESH) {
-			selme = (Mesh *)base->object->data;
+		if (ob_iter->type == OB_MESH) {
+			selme = (Mesh *)ob_iter->data;
 
 			if (selme->totvert == me->totvert)
 				ok = true;
@@ -651,21 +654,26 @@ int join_mesh_shapes_exec(bContext *C, wmOperator *op)
 	}
 
 	/* now ready to add new keys from selected meshes */
-	CTX_DATA_BEGIN (C, Base *, base, selected_editable_bases)
+	CTX_DATA_BEGIN (C, Object *, ob_iter, selected_editable_objects)
 	{
-		if (base->object == ob) continue;
+		if (ob_iter == ob_active) {
+			continue;
+		}
 
-		if (base->object->type == OB_MESH) {
-			selme = (Mesh *)base->object->data;
+		if (ob_iter->type == OB_MESH) {
+			selme = (Mesh *)ob_iter->data;
 
 			if (selme->totvert == me->totvert) {
-				me_deformed = mesh_get_eval_deform(depsgraph, scene, base->object, CD_MASK_BAREMESH);
+				Scene *scene_eval = DEG_get_evaluated_scene(depsgraph);
+				Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob_iter);
+
+				me_deformed = mesh_get_eval_deform(depsgraph, scene_eval, ob_eval, CD_MASK_BAREMESH);
 
 				if (!me_deformed) {
 					continue;
 				}
 
-				kb = BKE_keyblock_add(key, base->object->id.name + 2);
+				kb = BKE_keyblock_add(key, ob_iter->id.name + 2);
 
 				BKE_mesh_runtime_eval_to_meshkey(me_deformed, me, kb);
 			}
@@ -673,7 +681,7 @@ int join_mesh_shapes_exec(bContext *C, wmOperator *op)
 	}
 	CTX_DATA_END;
 
-	DEG_id_tag_update(&scene->id, DEG_TAG_SELECT_UPDATE);
+	DEG_id_tag_update(&scene->id, ID_RECALC_SELECT);
 	WM_event_add_notifier(C, NC_SCENE | ND_OB_ACTIVE, scene);
 
 	return OPERATOR_FINISHED;
@@ -1076,11 +1084,12 @@ bool ED_mesh_pick_face_vert(bContext *C, Object *ob, const int mval[2], unsigned
 	BLI_assert(me && GS(me->id.name) == ID_ME);
 
 	if (ED_mesh_pick_face(C, ob, mval, &poly_index, size)) {
-		Scene *scene = CTX_data_scene(C);
+		Scene *scene_eval = DEG_get_evaluated_scene(depsgraph);
+		Object *ob_eval = DEG_get_evaluated_object(depsgraph, ob);
 		struct ARegion *ar = CTX_wm_region(C);
 
 		/* derived mesh to find deformed locations */
-		Mesh *me_eval = mesh_get_eval_final(depsgraph, scene, ob, CD_MASK_BAREMESH | CD_MASK_ORIGINDEX);
+		Mesh *me_eval = mesh_get_eval_final(depsgraph, scene_eval, ob_eval, CD_MASK_BAREMESH | CD_MASK_ORIGINDEX);
 
 		int v_idx_best = ORIGINDEX_NONE;
 
@@ -1205,8 +1214,11 @@ bool ED_mesh_pick_vert(bContext *C, Object *ob, const int mval[2], unsigned int 
 		(*index)--;
 	}
 	else {
+		Scene *scene_eval = DEG_get_evaluated_scene(vc.depsgraph);
+		Object *ob_eval = DEG_get_evaluated_object(vc.depsgraph, ob);
+
 		/* derived mesh to find deformed locations */
-		Mesh *me_eval = mesh_get_eval_final(vc.depsgraph, vc.scene, ob, CD_MASK_BAREMESH);
+		Mesh *me_eval = mesh_get_eval_final(vc.depsgraph, scene_eval, ob_eval, CD_MASK_BAREMESH);
 		ARegion *ar = vc.ar;
 		RegionView3D *rv3d = ar->regiondata;
 

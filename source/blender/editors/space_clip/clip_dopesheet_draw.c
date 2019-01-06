@@ -82,7 +82,7 @@ static void draw_keyframe_shape(float x, float y, bool sel, float alpha,
 		UI_GetThemeColorShadeAlpha4fv(TH_STRIP_SELECT, 50, -255 * (1.0f - alpha), color);
 	}
 
-	immAttrib4fv(color_id, color);
+	immAttr4fv(color_id, color);
 	immVertex2f(pos_id, x, y);
 }
 
@@ -219,14 +219,17 @@ void clip_draw_dopesheet_main(SpaceClip *sc, ARegion *ar, Scene *scene)
 			uint size_id = GPU_vertformat_attr_add(format, "size", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
 			uint color_id = GPU_vertformat_attr_add(format, "color", GPU_COMP_F32, 4, GPU_FETCH_FLOAT);
 			uint outline_color_id = GPU_vertformat_attr_add(format, "outlineColor", GPU_COMP_U8, 4, GPU_FETCH_INT_TO_FLOAT_UNIT);
+			uint flags_id = GPU_vertformat_attr_add(format, "flags", GPU_COMP_U32, 1, GPU_FETCH_INT);
 
 			immBindBuiltinProgram(GPU_SHADER_KEYFRAME_DIAMOND);
 			GPU_enable_program_point_size();
+			immUniform2f("ViewportSize", BLI_rcti_size_x(&v2d->mask) + 1, BLI_rcti_size_y(&v2d->mask) + 1);
 			immBegin(GPU_PRIM_POINTS, keyframe_len);
 
 			/* all same size with black outline */
-			immAttrib1f(size_id, 2.0f * STRIP_HEIGHT_HALF);
-			immAttrib4ub(outline_color_id, 0, 0, 0, 255);
+			immAttr1f(size_id, 2.0f * STRIP_HEIGHT_HALF);
+			immAttr4ub(outline_color_id, 0, 0, 0, 255);
+			immAttr1u(flags_id, 0);
 
 			y = (float) CHANNEL_FIRST; /* start again at the top */
 			for (channel = dopesheet->channels.first; channel; channel = channel->next) {

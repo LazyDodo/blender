@@ -218,8 +218,8 @@ static PyObject *create_func(PyObject * /*self*/, PyObject *args)
 	BL::RenderEngine engine(engineptr);
 
 	PointerRNA userprefptr;
-	RNA_pointer_create(NULL, &RNA_UserPreferences, (void*)PyLong_AsVoidPtr(pyuserpref), &userprefptr);
-	BL::UserPreferences userpref(userprefptr);
+	RNA_pointer_create(NULL, &RNA_Preferences, (void*)PyLong_AsVoidPtr(pyuserpref), &userprefptr);
+	BL::Preferences userpref(userprefptr);
 
 	PointerRNA dataptr;
 	RNA_main_pointer_create((Main*)PyLong_AsVoidPtr(pydata), &dataptr);
@@ -504,7 +504,7 @@ static PyObject *osl_update_node_func(PyObject * /*self*/, PyObject *args)
 				socket_type = "NodeSocketString";
 				data_type = BL::NodeSocket::type_STRING;
 				if(param->validdefault)
-					default_string = param->sdefault[0];
+					default_string = param->sdefault[0].string();
 			}
 			else
 				continue;
@@ -843,10 +843,18 @@ void *CCL_python_module_init()
 #ifdef WITH_NETWORK
 	PyModule_AddObject(mod, "with_network", Py_True);
 	Py_INCREF(Py_True);
-#else /* WITH_NETWORK */
+#else  /* WITH_NETWORK */
 	PyModule_AddObject(mod, "with_network", Py_False);
 	Py_INCREF(Py_False);
-#endif /* WITH_NETWORK */
+#endif  /* WITH_NETWORK */
+
+#ifdef WITH_EMBREE
+	PyModule_AddObject(mod, "with_embree", Py_True);
+	Py_INCREF(Py_True);
+#else  /* WITH_EMBREE */
+	PyModule_AddObject(mod, "with_embree", Py_False);
+	Py_INCREF(Py_False);
+#endif  /* WITH_EMBREE */
 
 	return (void*)mod;
 }

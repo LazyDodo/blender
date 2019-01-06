@@ -43,7 +43,6 @@
 #include "DNA_texture_types.h"
 
 #include "BKE_animsys.h"
-#include "BKE_main.h"
 #include "BKE_node.h"
 #include "BKE_image.h"
 #include "BKE_texture.h"
@@ -113,41 +112,35 @@ static const EnumPropertyItem node_chunksize_items[] = {
 };
 #endif
 
-#define DEF_ICON_BLANK_SKIP
-#define DEF_ICON(name) {ICON_##name, (#name), 0, (#name), ""},
-#define DEF_VICO(name)
-const EnumPropertyItem rna_enum_node_icon_items[] = {
-#include "UI_icons.h"
-	{0, NULL, 0, NULL, NULL}};
-#undef DEF_ICON_BLANK_SKIP
-#undef DEF_ICON
-#undef DEF_VICO
-
 const EnumPropertyItem rna_enum_node_math_items[] = {
 	{NODE_MATH_ADD,     "ADD",          0, "Add",          ""},
 	{NODE_MATH_SUB,     "SUBTRACT",     0, "Subtract",     ""},
 	{NODE_MATH_MUL,     "MULTIPLY",     0, "Multiply",     ""},
 	{NODE_MATH_DIVIDE,  "DIVIDE",       0, "Divide",       ""},
+	{0, "", ICON_NONE, NULL, NULL},
+	{NODE_MATH_POW,     "POWER",        0, "Power",        ""},
+	{NODE_MATH_LOG,     "LOGARITHM",    0, "Logarithm",    ""},
+	{NODE_MATH_SQRT,    "SQRT",         0, "Square Root",  ""},
+	{NODE_MATH_ABS,     "ABSOLUTE",     0, "Absolute",     ""},
+	{0, "", ICON_NONE, NULL, NULL},
+	{NODE_MATH_MIN,     "MINIMUM",      0, "Minimum",      ""},
+	{NODE_MATH_MAX,     "MAXIMUM",      0, "Maximum",      ""},
+	{NODE_MATH_LESS,    "LESS_THAN",    0, "Less Than",    ""},
+	{NODE_MATH_GREATER, "GREATER_THAN", 0, "Greater Than", ""},
+	{0, "", ICON_NONE, NULL, NULL},
+	{NODE_MATH_ROUND,   "ROUND",        0, "Round",        ""},
+	{NODE_MATH_FLOOR,   "FLOOR",        0, "Floor",        ""},
+	{NODE_MATH_CEIL,    "CEIL",         0, "Ceil",         ""},
+	{NODE_MATH_FRACT,   "FRACT",        0, "Fract",        ""},
+	{NODE_MATH_MOD,     "MODULO",       0, "Modulo",       ""},
+	{0, "", ICON_NONE, NULL, NULL},
 	{NODE_MATH_SIN,     "SINE",         0, "Sine",         ""},
 	{NODE_MATH_COS,     "COSINE",       0, "Cosine",       ""},
 	{NODE_MATH_TAN,     "TANGENT",      0, "Tangent",      ""},
 	{NODE_MATH_ASIN,    "ARCSINE",      0, "Arcsine",      ""},
 	{NODE_MATH_ACOS,    "ARCCOSINE",    0, "Arccosine",    ""},
 	{NODE_MATH_ATAN,    "ARCTANGENT",   0, "Arctangent",   ""},
-	{NODE_MATH_POW,     "POWER",        0, "Power",        ""},
-	{NODE_MATH_LOG,     "LOGARITHM",    0, "Logarithm",    ""},
-	{NODE_MATH_MIN,     "MINIMUM",      0, "Minimum",      ""},
-	{NODE_MATH_MAX,     "MAXIMUM",      0, "Maximum",      ""},
-	{NODE_MATH_ROUND,   "ROUND",        0, "Round",        ""},
-	{NODE_MATH_LESS,    "LESS_THAN",    0, "Less Than",    ""},
-	{NODE_MATH_GREATER, "GREATER_THAN", 0, "Greater Than", ""},
-	{NODE_MATH_MOD,     "MODULO",       0, "Modulo",       ""},
-	{NODE_MATH_ABS,     "ABSOLUTE",     0, "Absolute",     ""},
 	{NODE_MATH_ATAN2,   "ARCTAN2",      0, "Arctan2",      ""},
-	{NODE_MATH_FLOOR,   "FLOOR",        0, "Floor",        ""},
-	{NODE_MATH_CEIL,    "CEIL",         0, "Ceil",         ""},
-	{NODE_MATH_FRACT,   "FRACT",        0, "Fract",        ""},
-	{NODE_MATH_SQRT,    "SQRT",         0, "Square Root",  ""},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -196,7 +189,6 @@ static const EnumPropertyItem prop_shader_output_target_items[] = {
 
 #include "BKE_context.h"
 #include "BKE_idprop.h"
-#include "BKE_library.h"
 
 #include "BKE_global.h"
 
@@ -300,26 +292,26 @@ const EnumPropertyItem *rna_node_tree_type_itemf(void *data, bool (*poll)(void *
 int rna_node_type_to_enum(bNodeType *typeinfo)
 {
 	int i = 0, result = -1;
-	NODE_TYPES_BEGIN(ntype)
+	NODE_TYPES_BEGIN(ntype) {
 		if (ntype == typeinfo) {
 			result = i;
 			break;
 		}
 		++i;
-	NODE_TYPES_END
+	} NODE_TYPES_END;
 	return result;
 }
 
 int rna_node_idname_to_enum(const char *idname)
 {
 	int i = 0, result = -1;
-	NODE_TYPES_BEGIN(ntype)
+	NODE_TYPES_BEGIN(ntype) {
 		if (STREQ(ntype->idname, idname)) {
 			result = i;
 			break;
 		}
 		++i;
-	NODE_TYPES_END
+	} NODE_TYPES_END;
 	return result;
 }
 
@@ -327,13 +319,13 @@ bNodeType *rna_node_type_from_enum(int value)
 {
 	int i = 0;
 	bNodeType *result = NULL;
-	NODE_TYPES_BEGIN(ntype)
+	NODE_TYPES_BEGIN(ntype) {
 		if (i == value) {
 			result = ntype;
 			break;
 		}
 		++i;
-	NODE_TYPES_END
+	} NODE_TYPES_END;
 	return result;
 }
 
@@ -343,7 +335,7 @@ const EnumPropertyItem *rna_node_type_itemf(void *data, bool (*poll)(void *data,
 	EnumPropertyItem tmp = {0};
 	int totitem = 0, i = 0;
 
-	NODE_TYPES_BEGIN(ntype)
+	NODE_TYPES_BEGIN(ntype) {
 		if (poll && !poll(data, ntype)) {
 			++i;
 			continue;
@@ -358,7 +350,7 @@ const EnumPropertyItem *rna_node_type_itemf(void *data, bool (*poll)(void *data,
 		RNA_enum_item_add(&item, &totitem, &tmp);
 
 		++i;
-	NODE_TYPES_END
+	} NODE_TYPES_END;
 
 	if (totitem == 0) {
 		*r_free = false;
@@ -374,26 +366,26 @@ const EnumPropertyItem *rna_node_type_itemf(void *data, bool (*poll)(void *data,
 int rna_node_socket_type_to_enum(bNodeSocketType *typeinfo)
 {
 	int i = 0, result = -1;
-	NODE_SOCKET_TYPES_BEGIN(stype)
+	NODE_SOCKET_TYPES_BEGIN(stype) {
 		if (stype == typeinfo) {
 			result = i;
 			break;
 		}
 		++i;
-	NODE_SOCKET_TYPES_END
+	} NODE_SOCKET_TYPES_END;
 	return result;
 }
 
 int rna_node_socket_idname_to_enum(const char *idname)
 {
 	int i = 0, result = -1;
-	NODE_SOCKET_TYPES_BEGIN(stype)
+	NODE_SOCKET_TYPES_BEGIN(stype) {
 		if (STREQ(stype->idname, idname)) {
 			result = i;
 			break;
 		}
 		++i;
-	NODE_SOCKET_TYPES_END
+	} NODE_SOCKET_TYPES_END;
 	return result;
 }
 
@@ -401,13 +393,13 @@ bNodeSocketType *rna_node_socket_type_from_enum(int value)
 {
 	int i = 0;
 	bNodeSocketType *result = NULL;
-	NODE_SOCKET_TYPES_BEGIN(stype)
+	NODE_SOCKET_TYPES_BEGIN(stype) {
 		if (i == value) {
 			result = stype;
 			break;
 		}
 		++i;
-	NODE_SOCKET_TYPES_END
+	} NODE_SOCKET_TYPES_END;
 	return result;
 }
 
@@ -419,7 +411,7 @@ const EnumPropertyItem *rna_node_socket_type_itemf(
 	int totitem = 0, i = 0;
 	StructRNA *srna;
 
-	NODE_SOCKET_TYPES_BEGIN(stype)
+	NODE_SOCKET_TYPES_BEGIN(stype) {
 		if (poll && !poll(data, stype)) {
 			++i;
 			continue;
@@ -435,7 +427,8 @@ const EnumPropertyItem *rna_node_socket_type_itemf(
 		RNA_enum_item_add(&item, &totitem, &tmp);
 
 		++i;
-	NODE_SOCKET_TYPES_END
+	}
+	NODE_SOCKET_TYPES_END;
 
 	if (totitem == 0) {
 		*r_free = false;
@@ -756,7 +749,7 @@ static void rna_NodeTree_node_remove(bNodeTree *ntree, Main *bmain, ReportList *
 	}
 
 	id_us_min(node->id);
-	nodeFreeNode(ntree, node);
+	nodeDeleteNode(bmain, ntree, node);
 	RNA_POINTER_INVALIDATE(node_ptr);
 
 	ntreeUpdateTree(bmain, ntree); /* update group node socket links */
@@ -776,7 +769,7 @@ static void rna_NodeTree_node_clear(bNodeTree *ntree, Main *bmain, ReportList *r
 		if (node->id)
 			id_us_min(node->id);
 
-		nodeFreeNode(ntree, node);
+		nodeDeleteNode(bmain, ntree, node);
 
 		node = next_node;
 	}
@@ -2664,8 +2657,9 @@ static const EnumPropertyItem *renderresult_layers_add_enum(RenderLayer *rl)
 	return item;
 }
 
-static const EnumPropertyItem *rna_Node_image_layer_itemf(bContext *UNUSED(C), PointerRNA *ptr,
-                                                    PropertyRNA *UNUSED(prop), bool *r_free)
+static const EnumPropertyItem *rna_Node_image_layer_itemf(
+        bContext *UNUSED(C), PointerRNA *ptr,
+        PropertyRNA *UNUSED(prop), bool *r_free)
 {
 	bNode *node = (bNode *)ptr->data;
 	Image *ima = (Image *)node->id;
@@ -2731,8 +2725,9 @@ static const EnumPropertyItem *renderresult_views_add_enum(RenderView *rv)
 	return item;
 }
 
-static const EnumPropertyItem *rna_Node_image_view_itemf(bContext *UNUSED(C), PointerRNA *ptr,
-                                                   PropertyRNA *UNUSED(prop), bool *r_free)
+static const EnumPropertyItem *rna_Node_image_view_itemf(
+        bContext *UNUSED(C), PointerRNA *ptr,
+        PropertyRNA *UNUSED(prop), bool *r_free)
 {
 	bNode *node = (bNode *)ptr->data;
 	Image *ima = (Image *)node->id;
@@ -2752,8 +2747,9 @@ static const EnumPropertyItem *rna_Node_image_view_itemf(bContext *UNUSED(C), Po
 	return item;
 }
 
-static const EnumPropertyItem *rna_Node_view_layer_itemf(bContext *UNUSED(C), PointerRNA *ptr,
-                                                    PropertyRNA *UNUSED(prop), bool *r_free)
+static const EnumPropertyItem *rna_Node_view_layer_itemf(
+        bContext *UNUSED(C), PointerRNA *ptr,
+        PropertyRNA *UNUSED(prop), bool *r_free)
 {
 	bNode *node = (bNode *)ptr->data;
 	Scene *sce = (Scene *)node->id;
@@ -2781,8 +2777,9 @@ static void rna_Node_view_layer_update(Main *bmain, Scene *scene, PointerRNA *pt
 	}
 }
 
-static const EnumPropertyItem *rna_Node_channel_itemf(bContext *UNUSED(C), PointerRNA *ptr,
-                                                PropertyRNA *UNUSED(prop), bool *r_free)
+static const EnumPropertyItem *rna_Node_channel_itemf(
+        bContext *UNUSED(C), PointerRNA *ptr,
+        PropertyRNA *UNUSED(prop), bool *r_free)
 {
 	bNode *node = (bNode *)ptr->data;
 	EnumPropertyItem *item = NULL;
@@ -3340,9 +3337,13 @@ static const EnumPropertyItem node_hair_items[] = {
 };
 
 static const EnumPropertyItem node_principled_hair_items[] = {
-	{SHD_PRINCIPLED_HAIR_DIRECT_ABSORPTION,     "ABSORPTION", 0, "Absorption coefficient",   "Directly set the absorption coefficient sigma_a. This is not the most intuitive way to color hair."},
-	{SHD_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION, "MELANIN",    0, "Melanin concentration",    "Define the melanin concentrations below to get the most realistic-looking hair. You can get the concentrations for different types of hair online."},
-	{SHD_PRINCIPLED_HAIR_REFLECTANCE,           "COLOR",      0, "Direct coloring",          "Choose the color of your preference, and the shader will approximate the absorption coefficient to render lookalike hair."},
+	{SHD_PRINCIPLED_HAIR_DIRECT_ABSORPTION,     "ABSORPTION", 0, "Absorption coefficient",
+	 "Directly set the absorption coefficient sigma_a (this is not the most intuitive way to color hair)"},
+	{SHD_PRINCIPLED_HAIR_PIGMENT_CONCENTRATION, "MELANIN",    0, "Melanin concentration",
+	 "Define the melanin concentrations below to get the most realistic-looking hair"
+	 "(you can get the concentrations for different types of hair online)"},
+	{SHD_PRINCIPLED_HAIR_REFLECTANCE,           "COLOR",      0, "Direct coloring",
+	 "Choose the color of your preference, and the shader will approximate the absorption coefficient to render lookalike hair"},
 	{0, NULL, 0, NULL, NULL}
 };
 
@@ -4065,9 +4066,9 @@ static void def_sh_tex_coord(StructRNA *srna)
 	RNA_def_property_ui_text(prop, "Object", "Use coordinates from this object (for object texture coordinates output)");
 	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
 
-	prop = RNA_def_property(srna, "from_dupli", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "from_instancer", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "custom1", 1);
-	RNA_def_property_ui_text(prop, "From Dupli", "Use the parent of the dupli object if possible");
+	RNA_def_property_ui_text(prop, "From Instancer", "Use the parent of the dupli object if possible");
 	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
 }
 
@@ -4363,9 +4364,9 @@ static void def_sh_uvmap(StructRNA *srna)
 {
 	PropertyRNA *prop;
 
-	prop = RNA_def_property(srna, "from_dupli", PROP_BOOLEAN, PROP_NONE);
+	prop = RNA_def_property(srna, "from_instancer", PROP_BOOLEAN, PROP_NONE);
 	RNA_def_property_boolean_sdna(prop, NULL, "custom1", 1);
-	RNA_def_property_ui_text(prop, "From Dupli", "Use the parent of the dupli object if possible");
+	RNA_def_property_ui_text(prop, "From Instancer", "Use the parent of the dupli object if possible");
 	RNA_def_property_update(prop, NC_NODE | NA_EDITED, "rna_Node_update");
 
 	RNA_def_struct_sdna_from(srna, "NodeShaderUVMap", "storage");
@@ -4436,7 +4437,7 @@ static void def_sh_displacement(StructRNA *srna)
 static void def_sh_vector_displacement(StructRNA *srna)
 {
 	static const EnumPropertyItem prop_space_items[] = {
-		{SHD_SPACE_TANGENT, "TANGENT", 0, "Tangent Space", "Tagent space vector displacement mapping"},
+		{SHD_SPACE_TANGENT, "TANGENT", 0, "Tangent Space", "Tangent space vector displacement mapping"},
 		{SHD_SPACE_OBJECT, "OBJECT", 0, "Object Space", "Object space vector displacement mapping"},
 		{SHD_SPACE_WORLD, "WORLD", 0, "World Space", "World space vector displacement mapping"},
 		{0, NULL, 0, NULL, NULL}
@@ -7104,7 +7105,7 @@ static void rna_def_node_socket(BlenderRNA *brna)
 	RNA_def_struct_ui_text(srna, "Node Socket", "Input or output socket of a node");
 	RNA_def_struct_sdna(srna, "bNodeSocket");
 	RNA_def_struct_refine_func(srna, "rna_NodeSocket_refine");
-	RNA_def_struct_ui_icon(srna, ICON_PLUG);
+	RNA_def_struct_ui_icon(srna, ICON_PLUGIN);
 	RNA_def_struct_path_func(srna, "rna_NodeSocket_path");
 	RNA_def_struct_register_funcs(srna, "rna_NodeSocket_register", "rna_NodeSocket_unregister", NULL);
 	RNA_def_struct_idprops_func(srna, "rna_NodeSocket_idprops");
@@ -8021,7 +8022,7 @@ static void rna_def_node(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "bl_icon", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "typeinfo->ui_icon");
-	RNA_def_property_enum_items(prop, rna_enum_node_icon_items);
+	RNA_def_property_enum_items(prop, rna_enum_icon_items);
 	RNA_def_property_enum_default(prop, ICON_NODE);
 	RNA_def_property_flag(prop, PROP_REGISTER_OPTIONAL);
 	RNA_def_property_ui_text(prop, "Icon", "The node icon");
@@ -8409,7 +8410,7 @@ static void rna_def_nodetree(BlenderRNA *brna)
 
 	prop = RNA_def_property(srna, "bl_icon", PROP_ENUM, PROP_NONE);
 	RNA_def_property_enum_sdna(prop, NULL, "typeinfo->ui_icon");
-	RNA_def_property_enum_items(prop, rna_enum_node_icon_items);
+	RNA_def_property_enum_items(prop, rna_enum_icon_items);
 	RNA_def_property_enum_default(prop, ICON_NODETREE);
 	RNA_def_property_flag(prop, PROP_REGISTER);
 	RNA_def_property_ui_text(prop, "Icon", "The node tree icon");

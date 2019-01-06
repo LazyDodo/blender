@@ -48,7 +48,7 @@ struct Main;
 struct SnapObjectContext;
 struct SnapObjectParams;
 
-void transform_keymap_for_space(struct wmKeyConfig *keyconf, struct wmKeyMap *keymap, int spaceid);
+void ED_keymap_transform(struct wmKeyConfig *keyconf);
 void transform_operatortypes(void);
 
 /* ******************** Macros & Prototypes *********************** */
@@ -132,7 +132,6 @@ void BIF_createTransformOrientation(struct bContext *C, struct ReportList *repor
                                     const char *name, const bool use_view,
                                     const bool activate, const bool overwrite);
 void BIF_selectTransformOrientation(struct bContext *C, struct TransformOrientation *ts);
-void BIF_selectTransformOrientationValue(struct Scene *scene, int orientation);
 
 void ED_getTransformOrientationMatrix(const struct bContext *C, float orientation_mat[3][3], const short around);
 
@@ -144,6 +143,7 @@ int BIF_countTransformOrientation(const struct bContext *C);
 #define P_MIRROR_DUMMY  (P_MIRROR | (1 << 9))
 #define P_PROPORTIONAL  (1 << 1)
 #define P_AXIS          (1 << 2)
+#define P_AXIS_ORTHO    (1 << 16)
 #define P_SNAP          (1 << 3)
 #define P_GEO_SNAP      (P_SNAP | (1 << 4))
 #define P_ALIGN_SNAP    (P_GEO_SNAP | (1 << 5))
@@ -163,6 +163,10 @@ void Transform_Properties(struct wmOperatorType *ot, int flags);
 
 void TRANSFORM_GGT_gizmo(struct wmGizmoGroupType *gzgt);
 void VIEW3D_GGT_xform_cage(struct wmGizmoGroupType *gzgt);
+void VIEW3D_GGT_xform_shear(struct wmGizmoGroupType *gzgt);
+
+/* *** transform_gizmo_extrude_3d.c *** */
+void VIEW3D_GGT_xform_extrude(struct wmGizmoGroupType *gzgt);
 
 bool ED_widgetgroup_gizmo2d_poll(const struct bContext *C, struct wmGizmoGroupType *gzgt);
 void ED_widgetgroup_gizmo2d_setup(const struct bContext *C, struct wmGizmoGroup *gzgroup);
@@ -173,6 +177,7 @@ void ED_widgetgroup_gizmo2d_draw_prepare(const struct bContext *C, struct wmGizm
 /* Snapping */
 
 #define SNAP_MIN_DISTANCE 30
+#define SNAP_INCREMENTAL_ANGLE DEG2RAD(5.0)
 
 bool peelObjectsTransform(
         struct TransInfo *t,
@@ -203,8 +208,9 @@ void ED_transform_calc_orientation_from_type(
  void ED_transform_calc_orientation_from_type_ex(
          const struct bContext *C, float r_mat[3][3],
          /* extra args */
-         struct Scene *scene, struct View3D *v3d, struct RegionView3D *rv3d, struct Object *ob, struct Object *obedit,
-         const short orientation_type, const int pivot_point);
+         struct Scene *scene, struct RegionView3D *rv3d, struct Object *ob, struct Object *obedit,
+         const short orientation_type, int orientation_index_custom,
+         const int pivot_point);
 
 struct TransformBounds {
 	float center[3];		/* Center for transform widget. */
@@ -220,6 +226,7 @@ struct TransformCalcParams {
 	uint use_local_axis : 1;
 	/* Use 'Scene.orientation_type' when zero, otherwise subtract one and use. */
 	ushort orientation_type;
+	ushort orientation_index_custom;
 };
 int ED_transform_calc_gizmo_stats(
         const struct bContext *C,

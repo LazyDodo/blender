@@ -70,8 +70,8 @@ class OUTLINER_HT_header(Header):
             layout.separator()
 
             row = layout.row(align=True)
-            row.operator("outliner.keyingset_add_selected", icon='ZOOMIN', text="")
-            row.operator("outliner.keyingset_remove_selected", icon='ZOOMOUT', text="")
+            row.operator("outliner.keyingset_add_selected", icon='ADD', text="")
+            row.operator("outliner.keyingset_remove_selected", icon='REMOVE', text="")
 
             if ks:
                 row = layout.row()
@@ -90,10 +90,7 @@ class OUTLINER_MT_editor_menus(Menu):
     bl_label = ""
 
     def draw(self, context):
-        self.draw_menus(self.layout, context)
-
-    @staticmethod
-    def draw_menus(layout, context):
+        layout = self.layout
         space = context.space_data
 
         if space.display_mode == 'DATA_API':
@@ -139,8 +136,6 @@ class OUTLINER_MT_collection_view_layer(Menu):
 
     def draw(self, context):
         layout = self.layout
-
-        space = context.space_data
 
         layout.operator("outliner.collection_exclude_set")
         layout.operator("outliner.collection_exclude_clear")
@@ -260,7 +255,7 @@ class OUTLINER_PT_filter(Panel):
 
         layout.separator()
 
-        if space.display_mode != 'DATA_API':
+        if display_mode != 'DATA_API':
             layout.prop(space, "use_sort_alpha")
             layout.prop(space, "show_restrict_columns")
             layout.separator()

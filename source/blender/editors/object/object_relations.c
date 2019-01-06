@@ -69,6 +69,7 @@
 #include "BKE_curve.h"
 #include "BKE_DerivedMesh.h"
 #include "BKE_displist.h"
+#include "BKE_editmesh.h"
 #include "BKE_global.h"
 #include "BKE_gpencil.h"
 #include "BKE_fcurve.h"
@@ -92,7 +93,6 @@
 #include "BKE_scene.h"
 #include "BKE_speaker.h"
 #include "BKE_texture.h"
-#include "BKE_editmesh.h"
 
 #include "DEG_depsgraph.h"
 #include "DEG_depsgraph_build.h"
@@ -129,12 +129,12 @@ static int vertex_parent_set_exec(bContext *C, wmOperator *op)
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
+	View3D *v3d = CTX_wm_view3d(C);
 	Depsgraph *depsgraph = CTX_data_depsgraph(C);
 	ViewLayer *view_layer = CTX_data_view_layer(C);
 	Object *obedit = CTX_data_edit_object(C);
 	BMVert *eve;
 	BMIter iter;
-	Curve *cu;
 	Nurb *nu;
 	BezTriple *bezt;
 	BPoint *bp;
@@ -175,15 +175,13 @@ static int vertex_parent_set_exec(bContext *C, wmOperator *op)
 	else if (ELEM(obedit->type, OB_SURF, OB_CURVE)) {
 		ListBase *editnurb = object_editcurve_get(obedit);
 
-		cu = obedit->data;
-
 		nu = editnurb->first;
 		while (nu) {
 			if (nu->type == CU_BEZIER) {
 				bezt = nu->bezt;
 				a = nu->pntsu;
 				while (a--) {
-					if (BEZT_ISSEL_ANY_HIDDENHANDLES(cu, bezt)) {
+					if (BEZT_ISSEL_ANY_HIDDENHANDLES(v3d, bezt)) {
 						if (v1 == 0) v1 = nr;
 						else if (v2 == 0) v2 = nr;
 						else if (v3 == 0) v3 = nr;
@@ -238,7 +236,7 @@ static int vertex_parent_set_exec(bContext *C, wmOperator *op)
 	CTX_DATA_BEGIN (C, Object *, ob, selected_editable_objects)
 	{
 		if (ob != obedit) {
-			DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+			DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION);
 			par = obedit->parent;
 
 			if (BKE_object_parent_loop_check(par, ob)) {
@@ -375,7 +373,7 @@ static int make_proxy_exec(bContext *C, wmOperator *op)
 
 		/* depsgraph flushes are needed for the new data */
 		DEG_relations_tag_update(bmain);
-		DEG_id_tag_update(&newob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+		DEG_id_tag_update(&newob->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION);
 		WM_event_add_notifier(C, NC_OBJECT | ND_DRAW, newob);
 	}
 	else {
@@ -387,8 +385,9 @@ static int make_proxy_exec(bContext *C, wmOperator *op)
 }
 
 /* Generic itemf's for operators that take library args */
-static const EnumPropertyItem *proxy_collection_object_itemf(bContext *C, PointerRNA *UNUSED(ptr),
-                                                             PropertyRNA *UNUSED(prop), bool *r_free)
+static const EnumPropertyItem *proxy_collection_object_itemf(
+        bContext *C, PointerRNA *UNUSED(ptr),
+        PropertyRNA *UNUSED(prop), bool *r_free)
 {
 	EnumPropertyItem item_tmp = {0}, *item = NULL;
 	int totitem = 0;
@@ -531,7 +530,7 @@ void ED_object_parent_clear(Object *ob, const int type)
 	/* Always clear parentinv matrix for sake of consistency, see T41950. */
 	unit_m4(ob->parentinv);
 
-	DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+	DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION);
 }
 
 /* note, poll should check for editable scene */
@@ -622,7 +621,7 @@ bool ED_object_parent_set(ReportList *reports, const bContext *C, Scene *scene, 
 	bPoseChannel *pchan = NULL;
 	const bool pararm = ELEM(partype, PAR_ARMATURE, PAR_ARMATURE_NAME, PAR_ARMATURE_ENVELOPE, PAR_ARMATURE_AUTO);
 
-	DEG_id_tag_update(&par->id, OB_RECALC_OB);
+	DEG_id_tag_update(&par->id, ID_RECALC_TRANSFORM);
 
 	/* preconditions */
 	if (partype == PAR_FOLLOW || partype == PAR_PATH_CONST) {
@@ -633,7 +632,7 @@ bool ED_object_parent_set(ReportList *reports, const bContext *C, Scene *scene, 
 
 			if ((cu->flag & CU_PATH) == 0) {
 				cu->flag |= CU_PATH | CU_FOLLOW;
-				BKE_displist_make_curveTypes(depsgraph, scene, par, 0);  /* force creation of path data */
+				BKE_displist_make_curveTypes(depsgraph, scene, par, false, false);  /* force creation of path data */
 			}
 			else {
 				cu->flag |= CU_FOLLOW;
@@ -643,7 +642,7 @@ bool ED_object_parent_set(ReportList *reports, const bContext *C, Scene *scene, 
 			if (partype == PAR_FOLLOW) {
 				/* get or create F-Curve */
 				bAction *act = verify_adt_action(bmain, &cu->id, 1);
-				FCurve *fcu = verify_fcurve(act, NULL, NULL, "eval_time", 0, 1);
+				FCurve *fcu = verify_fcurve(bmain, act, NULL, NULL, "eval_time", 0, 1);
 
 				/* setup dummy 'generator' modifier here to get 1-1 correspondence still working */
 				if (!fcu->bezt && !fcu->fpt && !fcu->modifiers.first)
@@ -719,7 +718,7 @@ bool ED_object_parent_set(ReportList *reports, const bContext *C, Scene *scene, 
 									((CurveModifierData *)md)->object = par;
 								}
 								if (par->runtime.curve_cache && par->runtime.curve_cache->path == NULL) {
-									DEG_id_tag_update(&par->id, OB_RECALC_DATA);
+									DEG_id_tag_update(&par->id, ID_RECALC_GEOMETRY);
 								}
 							}
 							break;
@@ -821,7 +820,7 @@ bool ED_object_parent_set(ReportList *reports, const bContext *C, Scene *scene, 
 				invert_m4_m4(ob->parentinv, workob.obmat);
 			}
 
-			DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA);
+			DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 		}
 	}
 
@@ -1012,7 +1011,7 @@ static int parent_noinv_set_exec(bContext *C, wmOperator *op)
 	Main *bmain = CTX_data_main(C);
 	Object *par = ED_object_active_context(C);
 
-	DEG_id_tag_update(&par->id, OB_RECALC_OB);
+	DEG_id_tag_update(&par->id, ID_RECALC_TRANSFORM);
 
 	/* context iterator */
 	CTX_DATA_BEGIN (C, Object *, ob, selected_editable_objects)
@@ -1027,7 +1026,7 @@ static int parent_noinv_set_exec(bContext *C, wmOperator *op)
 				memset(ob->loc, 0, 3 * sizeof(float));
 
 				/* set recalc flags */
-				DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA);
+				DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY);
 
 				/* set parenting type for object - object only... */
 				ob->parent = par;
@@ -1073,7 +1072,7 @@ static int object_slow_parent_clear_exec(bContext *C, wmOperator *UNUSED(op))
 				ob->partype -= PARSLOW;
 				BKE_object_where_is_calc(depsgraph, scene, ob);
 				ob->partype |= PARSLOW;
-				DEG_id_tag_update(&ob->id, OB_RECALC_OB);
+				DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM);
 			}
 		}
 	}
@@ -1111,7 +1110,7 @@ static int object_slow_parent_set_exec(bContext *C, wmOperator *UNUSED(op))
 		if (ob->parent)
 			ob->partype |= PARSLOW;
 
-		DEG_id_tag_update(&ob->id, OB_RECALC_OB);
+		DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM);
 	}
 	CTX_DATA_END;
 
@@ -1165,7 +1164,7 @@ static int object_track_clear_exec(bContext *C, wmOperator *op)
 
 		/* remove track-object for old track */
 		ob->track = NULL;
-		DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+		DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION);
 
 		/* also remove all tracking constraints */
 		for (con = ob->constraints.last; con; con = pcon) {
@@ -1239,7 +1238,7 @@ static int track_set_exec(bContext *C, wmOperator *op)
 
 					data = con->data;
 					data->tar = obact;
-					DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+					DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION);
 
 					/* Lamp, Camera and Speaker track differently by default */
 					if (ELEM(ob->type, OB_LAMP, OB_CAMERA, OB_SPEAKER)) {
@@ -1262,7 +1261,7 @@ static int track_set_exec(bContext *C, wmOperator *op)
 
 					data = con->data;
 					data->tar = obact;
-					DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+					DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION);
 
 					/* Lamp, Camera and Speaker track differently by default */
 					if (ELEM(ob->type, OB_LAMP, OB_CAMERA, OB_SPEAKER)) {
@@ -1286,7 +1285,7 @@ static int track_set_exec(bContext *C, wmOperator *op)
 
 					data = con->data;
 					data->tar = obact;
-					DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+					DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION);
 
 					/* Lamp, Camera and Speaker track differently by default */
 					if (ELEM(ob->type, OB_LAMP, OB_CAMERA, OB_SPEAKER)) {
@@ -1464,7 +1463,7 @@ static int make_links_data_exec(bContext *C, wmOperator *op)
 						/* if amount of material indices changed: */
 						test_object_materials(bmain, ob_dst, ob_dst->data);
 
-						DEG_id_tag_update(&ob_dst->id, OB_RECALC_DATA);
+						DEG_id_tag_update(&ob_dst->id, ID_RECALC_GEOMETRY);
 						break;
 					case MAKE_LINKS_MATERIALS:
 						/* new approach, using functions from kernel */
@@ -1472,18 +1471,18 @@ static int make_links_data_exec(bContext *C, wmOperator *op)
 							Material *ma = give_current_material(ob_src, a + 1);
 							assign_material(bmain, ob_dst, ma, a + 1, BKE_MAT_ASSIGN_USERPREF); /* also works with ma==NULL */
 						}
-						DEG_id_tag_update(&ob_dst->id, OB_RECALC_DATA);
+						DEG_id_tag_update(&ob_dst->id, ID_RECALC_GEOMETRY);
 						break;
 					case MAKE_LINKS_ANIMDATA:
-						BKE_animdata_copy_id(bmain, (ID *)ob_dst, (ID *)ob_src, false, true);
+						BKE_animdata_copy_id(bmain, (ID *)ob_dst, (ID *)ob_src, 0);
 						if (ob_dst->data && ob_src->data) {
 							if (ID_IS_LINKED(obdata_id)) {
 								is_lib = true;
 								break;
 							}
-							BKE_animdata_copy_id(bmain, (ID *)ob_dst->data, (ID *)ob_src->data, false, true);
+							BKE_animdata_copy_id(bmain, (ID *)ob_dst->data, (ID *)ob_src->data, 0);
 						}
-						DEG_id_tag_update(&ob_dst->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+						DEG_id_tag_update(&ob_dst->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION);
 						break;
 					case MAKE_LINKS_GROUP:
 					{
@@ -1512,7 +1511,7 @@ static int make_links_data_exec(bContext *C, wmOperator *op)
 						break;
 					case MAKE_LINKS_MODIFIERS:
 						BKE_object_link_modifiers(scene, ob_dst, ob_src);
-						DEG_id_tag_update(&ob_dst->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+						DEG_id_tag_update(&ob_dst->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION);
 						break;
 					case MAKE_LINKS_FONTS:
 					{
@@ -1541,7 +1540,7 @@ static int make_links_data_exec(bContext *C, wmOperator *op)
 						cu_dst->vfontbi = cu_src->vfontbi;
 						id_us_plus((ID *)cu_dst->vfontbi);
 
-						DEG_id_tag_update(&ob_dst->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+						DEG_id_tag_update(&ob_dst->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION);
 						break;
 					}
 				}
@@ -1628,20 +1627,11 @@ void OBJECT_OT_make_links_data(wmOperatorType *ot)
 
 /**************************** Make Single User ********************************/
 
-static Object *single_object_users_object(Main *bmain, Object *ob)
-{
-	/* base gets copy of object */
-	Object *obn = ID_NEW_SET(ob, BKE_object_copy(bmain, ob));
-
-
-	id_us_plus(&obn->id);
-	id_us_min(&ob->id);
-	return obn;
-}
-
 static void libblock_relink_collection(Collection *collection)
 {
-	for (CollectionObject *cob = collection->gobject.first; cob; cob = cob->next) {
+	BKE_libblock_relink_to_newid(&collection->id);
+
+	for (CollectionObject *cob = collection->gobject.first; cob != NULL; cob = cob->next) {
 		BKE_libblock_relink_to_newid(&cob->ob->id);
 	}
 
@@ -1650,42 +1640,47 @@ static void libblock_relink_collection(Collection *collection)
 	}
 }
 
-static void single_object_users_collection(Main *bmain, Scene *scene, Collection *collection, const int flag, const bool copy_collections)
+static void single_object_users_collection(
+        Main *bmain, Scene *scene, Collection *collection,
+        const int flag, const bool copy_collections, const bool is_master_collection)
 {
+	/* Generate new copies for objects in given collection and all its children,
+	 * and optionnaly also copy collections themselves. */
+	if (copy_collections && !is_master_collection) {
+		collection = ID_NEW_SET(collection, BKE_collection_copy(bmain, NULL, collection));
+	}
+
+	/* We do not remap to new objects here, this is done in separate step. */
 	for (CollectionObject *cob = collection->gobject.first; cob; cob = cob->next) {
 		Object *ob = cob->ob;
 		/* an object may be in more than one collection */
 		if ((ob->id.newid == NULL) && ((ob->flag & flag) == flag)) {
 			if (!ID_IS_LINKED(ob) && ob->id.us > 1) {
-				cob->ob = single_object_users_object(bmain, cob->ob);
+				ID_NEW_SET(ob, BKE_object_copy(bmain, ob));
 			}
 		}
 	}
 
 	for (CollectionChild *child = collection->children.first; child; child = child->next) {
-		single_object_users_collection(bmain, scene, child->collection, flag, copy_collections);
+		single_object_users_collection(bmain, scene, child->collection, flag, copy_collections, false);
 	}
 }
 
 /* Warning, sets ID->newid pointers of objects and collections, but does not clear them. */
 static void single_object_users(Main *bmain, Scene *scene, View3D *v3d, const int flag, const bool copy_collections)
 {
-	Collection *collection, *collectionn;
-
-	/* duplicate all the objects of the scene */
+	/* duplicate all the objects of the scene (and matching collections, if required). */
 	Collection *master_collection = BKE_collection_master(scene);
-	single_object_users_collection(bmain, scene, master_collection, flag, copy_collections);
-
-	/* loop over ViewLayers and assign the pointers accordingly */
-	for (ViewLayer *view_layer = scene->view_layers.first; view_layer; view_layer = view_layer->next) {
-		for (Base *base = view_layer->object_bases.first; base; base = base->next) {
-			ID_NEW_REMAP(base->object);
-		}
-	}
+	single_object_users_collection(bmain, scene, master_collection, flag, copy_collections, true);
 
 	/* duplicate collections that consist entirely of duplicated objects */
-	for (collection = bmain->collection.first; collection; collection = collection->id.next) {
-		if (copy_collections) {
+	/* XXX I guess that was designed for calls from 'make single user' operator... But since copy_collection is
+	 *     always false then, was not doing anything. And that kind of behavior should be added at operator level,
+	 *     not in a utility function also used by rather different code... */
+#if 0
+	if (copy_collections) {
+		Collection *collection, *collectionn;
+		for (collection = bmain->collection.first; collection; collection = collection->id.next) {
 			bool all_duplicated = true;
 			bool any_duplicated = false;
 
@@ -1707,6 +1702,10 @@ static void single_object_users(Main *bmain, Scene *scene, View3D *v3d, const in
 			}
 		}
 	}
+#endif
+
+	/* Collection and object pointers in collections */
+	libblock_relink_collection(master_collection);
 
 	/* collection pointers in scene */
 	BKE_scene_groups_relink(scene);
@@ -1715,8 +1714,7 @@ static void single_object_users(Main *bmain, Scene *scene, View3D *v3d, const in
 	ID_NEW_REMAP(scene->camera);
 	if (v3d) ID_NEW_REMAP(v3d->camera);
 
-	/* object and collection pointers */
-	libblock_relink_collection(master_collection);
+	BKE_scene_collection_sync(scene);
 }
 
 /* not an especially efficient function, only added so the single user
@@ -1757,7 +1755,7 @@ static void new_id_matar(Main *bmain, Material **matar, const int totcol)
 	}
 }
 
-static void single_obdata_users(Main *bmain, Scene *scene, ViewLayer *view_layer, const int flag)
+static void single_obdata_users(Main *bmain, Scene *scene, ViewLayer *view_layer, View3D *v3d, const int flag)
 {
 	Lamp *la;
 	Curve *cu;
@@ -1766,13 +1764,13 @@ static void single_obdata_users(Main *bmain, Scene *scene, ViewLayer *view_layer
 	Lattice *lat;
 	ID *id;
 
-	FOREACH_OBJECT_FLAG_BEGIN(scene, view_layer, flag, ob)
+	FOREACH_OBJECT_FLAG_BEGIN(scene, view_layer, v3d, flag, ob)
 	{
 		if (!ID_IS_LINKED(ob)) {
 			id = ob->data;
 
 			if (id && id->us > 1 && !ID_IS_LINKED(id)) {
-				DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+				DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 
 				switch (ob->type) {
 					case OB_LAMP:
@@ -1805,7 +1803,7 @@ static void single_obdata_users(Main *bmain, Scene *scene, ViewLayer *view_layer
 							BKE_animdata_copy_id_action(bmain, (ID *)lat->key, false);
 						break;
 					case OB_ARMATURE:
-						DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+						DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 						ob->data = ID_NEW_SET(ob->data, BKE_armature_copy(bmain, ob->data));
 						BKE_pose_rebuild(bmain, ob, ob->data, true);
 						break;
@@ -1847,24 +1845,24 @@ static void single_obdata_users(Main *bmain, Scene *scene, ViewLayer *view_layer
 	}
 }
 
-static void single_object_action_users(Main *bmain, Scene *scene, ViewLayer *view_layer, const int flag)
+static void single_object_action_users(Main *bmain, Scene *scene, ViewLayer *view_layer, View3D *v3d, const int flag)
 {
-	FOREACH_OBJECT_FLAG_BEGIN(scene, view_layer, flag, ob)
+	FOREACH_OBJECT_FLAG_BEGIN(scene, view_layer, v3d, flag, ob)
 	{
 		if (!ID_IS_LINKED(ob)) {
-			DEG_id_tag_update(&ob->id, OB_RECALC_DATA);
+			DEG_id_tag_update(&ob->id, ID_RECALC_GEOMETRY);
 			BKE_animdata_copy_id_action(bmain, &ob->id, false);
 		}
 	}
 	FOREACH_OBJECT_FLAG_END;
 }
 
-static void single_mat_users(Main *bmain, Scene *scene, ViewLayer *view_layer, const int flag)
+static void single_mat_users(Main *bmain, Scene *scene, ViewLayer *view_layer, View3D *v3d, const int flag)
 {
 	Material *ma, *man;
 	int a;
 
-	FOREACH_OBJECT_FLAG_BEGIN(scene, view_layer, flag, ob)
+	FOREACH_OBJECT_FLAG_BEGIN(scene, view_layer, v3d, flag, ob)
 	{
 		if (!ID_IS_LINKED(ob)) {
 			for (a = 1; a <= ob->totcol; a++) {
@@ -1875,6 +1873,9 @@ static void single_mat_users(Main *bmain, Scene *scene, ViewLayer *view_layer, c
 					if (ma->id.us > 1) {
 						man = BKE_material_copy(bmain, ma);
 						BKE_animdata_copy_id_action(bmain, &man->id, false);
+						if (man->nodetree != NULL) {
+							BKE_animdata_copy_id_action(bmain, &man->nodetree->id, false);
+						}
 
 						man->id.us = 0;
 						assign_material(bmain, ob, man, a, BKE_MAT_ASSIGN_USERPREF);
@@ -1922,13 +1923,13 @@ void ED_object_single_users(Main *bmain, Scene *scene, const bool full, const bo
 	single_object_users(bmain, scene, NULL, 0, copy_collections);
 
 	if (full) {
-		single_obdata_users(bmain, scene, NULL, 0);
-		single_object_action_users(bmain, scene, NULL, 0);
+		single_obdata_users(bmain, scene, NULL, NULL, 0);
+		single_object_action_users(bmain, scene, NULL, NULL, 0);
 		single_mat_users_expand(bmain);
 	}
 
 	/* Relink nodetrees' pointers that have been duplicated. */
-	FOREACH_NODETREE(bmain, ntree, id)
+	FOREACH_NODETREE_BEGIN(bmain, ntree, id)
 	{
 		/* This is a bit convoluted, we want to root ntree of copied IDs and only those,
 		 * so we first check that old ID has been copied and that ntree is root tree of old ID,
@@ -1937,7 +1938,7 @@ void ED_object_single_users(Main *bmain, Scene *scene, const bool full, const bo
 			ntree = ntreeFromID(id->newid);
 			BKE_libblock_relink_to_newid(&ntree->id);
 		}
-	} FOREACH_NODETREE_END
+	} FOREACH_NODETREE_END;
 
 	/* Relink datablock pointer properties */
 	{
@@ -2049,7 +2050,7 @@ static bool make_local_all__instance_indirect_unused(Main *bmain, ViewLayer *vie
 			base = BKE_view_layer_base_find(view_layer, ob);
 			base->flag |= BASE_SELECTED;
 			BKE_scene_object_base_flag_sync_from_base(base);
-			DEG_id_tag_update(&ob->id, OB_RECALC_OB | OB_RECALC_DATA | OB_RECALC_TIME);
+			DEG_id_tag_update(&ob->id, ID_RECALC_TRANSFORM | ID_RECALC_GEOMETRY | ID_RECALC_ANIMATION);
 
 			changed = true;
 		}
@@ -2066,9 +2067,6 @@ static void make_local_animdata_tag_strips(ListBase *strips)
 		if (strip->act) {
 			strip->act->id.tag &= ~LIB_TAG_PRE_EXISTING;
 		}
-		if (strip->remap && strip->remap->target) {
-			strip->remap->target->id.tag &= ~LIB_TAG_PRE_EXISTING;
-		}
 
 		make_local_animdata_tag_strips(&strip->strips);
 	}
@@ -2084,10 +2082,6 @@ static void make_local_animdata_tag(AnimData *adt)
 		}
 		if (adt->tmpact) {
 			adt->tmpact->id.tag &= ~LIB_TAG_PRE_EXISTING;
-		}
-		/* Remaps */
-		if (adt->remap && adt->remap->target) {
-			adt->remap->target->id.tag &= ~LIB_TAG_PRE_EXISTING;
 		}
 
 		/* Drivers */
@@ -2331,7 +2325,7 @@ static int make_override_static_exec(bContext *C, wmOperator *op)
 
 		success = BKE_override_static_create_from_tag(bmain);
 
-		/* Intantiate our newly overridden objects in scene, if not yet done. */
+		/* Instantiate our newly overridden objects in scene, if not yet done. */
 		Scene *scene = CTX_data_scene(C);
 		ViewLayer *view_layer = CTX_data_view_layer(C);
 		Collection *new_collection = (Collection *)collection->id.newid;
@@ -2343,14 +2337,15 @@ static int make_override_static_exec(bContext *C, wmOperator *op)
 				if ((base = BKE_view_layer_base_find(view_layer, new_ob)) == NULL) {
 					BKE_collection_object_add_from(bmain, scene, obcollection, new_ob);
 					base = BKE_view_layer_base_find(view_layer, new_ob);
-					DEG_id_tag_update_ex(bmain, &new_ob->id, DEG_TAG_TRANSFORM | DEG_TAG_BASE_FLAGS_UPDATE);
+					DEG_id_tag_update_ex(bmain, &new_ob->id, ID_RECALC_TRANSFORM | ID_RECALC_BASE_FLAGS);
 				}
 				/* parent to 'collection' empty */
 				if (new_ob->parent == NULL) {
 					new_ob->parent = obcollection;
 				}
 				if (new_ob == (Object *)obact->id.newid) {
-					BKE_view_layer_base_select(view_layer, base);
+					/* TODO: is setting active needed? */
+					BKE_view_layer_base_select_and_set_active(view_layer, base);
 				}
 				else {
 					/* Disable auto-override tags for non-active objects, will help with performaces... */
@@ -2365,7 +2360,7 @@ static int make_override_static_exec(bContext *C, wmOperator *op)
 		/* obcollection is no more duplicollection-ing, it merely parents whole collection of overriding instantiated objects. */
 		obcollection->dup_group = NULL;
 
-		/* Also, we'd likely want to lock by default things like transformations of implicitly overriden objects? */
+		/* Also, we'd likely want to lock by default things like transformations of implicitly overridden objects? */
 
 		DEG_id_tag_update(&scene->id, 0);
 
@@ -2385,7 +2380,7 @@ static int make_override_static_exec(bContext *C, wmOperator *op)
 
 		success = BKE_override_static_create_from_tag(bmain);
 
-		/* Also, we'd likely want to lock by default things like transformations of implicitly overriden objects? */
+		/* Also, we'd likely want to lock by default things like transformations of implicitly overridden objects? */
 
 		/* Cleanup. */
 		BKE_main_id_clear_newpoins(bmain);
@@ -2406,7 +2401,8 @@ static bool make_override_static_poll(bContext *C)
 	Object *obact = CTX_data_active_object(C);
 
 	/* Object must be directly linked to be overridable. */
-	return (ED_operator_objectmode(C) && obact != NULL &&
+	return (BKE_override_static_is_enabled() &&
+	        ED_operator_objectmode(C) && obact != NULL &&
 	        ((ID_IS_LINKED(obact) && obact->id.tag & LIB_TAG_EXTERN) ||
 	         (!ID_IS_LINKED(obact) && obact->dup_group != NULL && ID_IS_LINKED(obact->dup_group))));
 }
@@ -2464,15 +2460,15 @@ static int make_single_user_exec(bContext *C, wmOperator *op)
 	}
 
 	if (RNA_boolean_get(op->ptr, "obdata")) {
-		single_obdata_users(bmain, scene, view_layer, flag);
+		single_obdata_users(bmain, scene, view_layer, v3d, flag);
 	}
 
 	if (RNA_boolean_get(op->ptr, "material")) {
-		single_mat_users(bmain, scene, view_layer, flag);
+		single_mat_users(bmain, scene, view_layer, v3d, flag);
 	}
 
 	if (RNA_boolean_get(op->ptr, "animation")) {
-		single_object_action_users(bmain, scene, view_layer, flag);
+		single_object_action_users(bmain, scene, view_layer, v3d, flag);
 	}
 
 	BKE_main_id_clear_newpoins(bmain);
@@ -2529,7 +2525,7 @@ static int drop_named_material_invoke(bContext *C, wmOperator *op, const wmEvent
 
 	assign_material(CTX_data_main(C), base->object, ma, 1, BKE_MAT_ASSIGN_USERPREF);
 
-	DEG_id_tag_update(&base->object->id, OB_RECALC_OB);
+	DEG_id_tag_update(&base->object->id, ID_RECALC_TRANSFORM);
 
 	WM_event_add_notifier(C, NC_OBJECT | ND_OB_SHADING, base->object);
 	WM_event_add_notifier(C, NC_SPACE | ND_SPACE_VIEW3D, CTX_wm_view3d(C));
@@ -2544,7 +2540,6 @@ void OBJECT_OT_drop_named_material(wmOperatorType *ot)
 {
 	/* identifiers */
 	ot->name = "Drop Named Material on Object";
-	ot->description = "";
 	ot->idname = "OBJECT_OT_drop_named_material";
 
 	/* api callbacks */
@@ -2601,7 +2596,6 @@ void OBJECT_OT_unlink_data(wmOperatorType *ot)
 	/* identifiers */
 	ot->name = "Unlink";
 	ot->idname = "OBJECT_OT_unlink_data";
-	ot->description = "";
 
 	/* api callbacks */
 	ot->exec = object_unlink_data_exec;

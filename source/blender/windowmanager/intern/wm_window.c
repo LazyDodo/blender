@@ -52,10 +52,9 @@
 
 #include "BKE_blender.h"
 #include "BKE_context.h"
+#include "BKE_global.h"
 #include "BKE_icons.h"
 #include "BKE_layer.h"
-#include "BKE_library.h"
-#include "BKE_global.h"
 #include "BKE_main.h"
 #include "BKE_screen.h"
 #include "BKE_workspace.h"
@@ -117,8 +116,9 @@ static struct WMInitStruct {
 	int windowstate;
 	WinOverrideFlag override_flag;
 
+	bool window_focus;
 	bool native_pixels;
-} wm_init_state = {0, 0, 0, 0, GHOST_kWindowStateNormal, 0, true};
+} wm_init_state = {0, 0, 0, 0, GHOST_kWindowStateNormal, 0, true, true};
 
 /* ******** win open & close ************ */
 
@@ -377,6 +377,7 @@ static uiBlock *block_create_confirm_quit(struct bContext *C, struct ARegion *ar
 	uiBlock *block = UI_block_begin(C, ar, "confirm_quit_popup", UI_EMBOSS);
 
 	UI_block_flag_enable(block, UI_BLOCK_KEEP_OPEN | UI_BLOCK_LOOP | UI_BLOCK_NO_WIN_CLIP | UI_BLOCK_NUMSELECT);
+	UI_block_theme_style_set(block, UI_BLOCK_THEME_STYLE_POPUP);
 	UI_block_emboss_set(block, UI_EMBOSS);
 
 	uiLayout *layout = UI_block_layout(
@@ -443,7 +444,9 @@ static void wm_confirm_quit(bContext *C)
 	wmWindow *win = CTX_wm_window(C);
 
 	if (GHOST_SupportsNativeDialogs() == 0) {
-		UI_popup_block_invoke(C, block_create_confirm_quit, NULL);
+		if (!UI_popup_block_name_exists(C, "confirm_quit_popup")) {
+			UI_popup_block_invoke(C, block_create_confirm_quit, NULL);
+		}
 	}
 	else if (GHOST_confirmQuit(win->ghostwin)) {
 		wm_exit_schedule_delayed(C);
@@ -455,7 +458,7 @@ static void wm_confirm_quit(bContext *C)
  * still cancel via the confirmation popup. Also, this may not quit Blender
  * immediately, but rather schedule the closing.
  *
- * \param win The window to show the confirmation popup/window in.
+ * \param win: The window to show the confirmation popup/window in.
  */
 void wm_quit_with_optional_confirmation_prompt(bContext *C, wmWindow *win)
 {
@@ -670,7 +673,9 @@ static void wm_window_ghostwindow_add(wmWindowManager *wm, const char *title, wm
 
 #ifndef __APPLE__
 		/* set the state here, so minimized state comes up correct on windows */
-		GHOST_SetWindowState(ghostwin, (GHOST_TWindowState)win->windowstate);
+		if (wm_init_state.window_focus) {
+			GHOST_SetWindowState(ghostwin, (GHOST_TWindowState)win->windowstate);
+		}
 #endif
 		/* until screens get drawn, make it nice gray */
 		glClearColor(0.55, 0.55, 0.55, 0.0);
@@ -728,7 +733,9 @@ void wm_window_ghostwindows_ensure(wmWindowManager *wm)
 		wm_init_state.start_y = 0;
 
 #ifdef WITH_X11 /* X11 */
-		/* X11, start maximized but use default sane size */
+		/* X11, don't start maximized because we can't figure out the dimensions
+		 * of a single display yet if there are multiple, due to lack of Xinerama
+		 * handling in GHOST. */
 		wm_init_state.size_x = min_ii(wm_init_state.size_x, WM_WIN_INIT_SIZE_X);
 		wm_init_state.size_y = min_ii(wm_init_state.size_y, WM_WIN_INIT_SIZE_Y);
 		/* pad */
@@ -859,7 +866,7 @@ wmWindow *WM_window_open_temp(bContext *C, int x, int y, int sizex, int sizey, i
 	sizex /= native_pixel_size;
 	sizey /= native_pixel_size;
 
-	/* calculate postition */
+	/* calculate position */
 	rcti rect;
 	rect.xmin = x + win_prev->posx - sizex / 2;
 	rect.ymin = y + win_prev->posy - sizey / 2;
@@ -949,7 +956,7 @@ wmWindow *WM_window_open_temp(bContext *C, int x, int y, int sizex, int sizey, i
 	if (sa->spacetype == SPACE_IMAGE)
 		title = IFACE_("Blender Render");
 	else if (ELEM(sa->spacetype, SPACE_OUTLINER, SPACE_USERPREF))
-		title = IFACE_("Blender User Preferences");
+		title = IFACE_("Blender Preferences");
 	else if (sa->spacetype == SPACE_FILE)
 		title = IFACE_("Blender File View");
 	else if (sa->spacetype == SPACE_IPO)
@@ -1594,7 +1601,7 @@ static int wm_window_timer(const bContext *C)
 				else if (wt->event_type == TIMERAUTOSAVE)
 					wm_autosave_timer(C, wm, wt);
 				else if (wt->event_type == TIMERNOTIFIER)
-					WM_main_add_notifier(GET_UINT_FROM_POINTER(wt->customdata), NULL);
+					WM_main_add_notifier(POINTER_AS_UINT(wt->customdata), NULL);
 				else if (win) {
 					wmEvent event;
 					wm_event_init_from_window(win, &event);
@@ -1681,6 +1688,8 @@ void wm_ghost_init(bContext *C)
 		if (wm_init_state.native_pixels) {
 			GHOST_UseNativePixels();
 		}
+
+		GHOST_UseWindowFocus(wm_init_state.window_focus);
 	}
 }
 
@@ -1733,7 +1742,7 @@ wmTimer *WM_event_add_timer_notifier(wmWindowManager *wm, wmWindow *win, unsigne
 	wt->stime = wt->ltime;
 	wt->timestep = timestep;
 	wt->win = win;
-	wt->customdata = SET_UINT_IN_POINTER(type);
+	wt->customdata = POINTER_FROM_UINT(type);
 	wt->flags |= WM_TIMER_NO_FREE_CUSTOM_DATA;
 
 	BLI_addtail(&wm->timers, wt);
@@ -1960,6 +1969,11 @@ void WM_init_state_normal_set(void)
 	wm_init_state.override_flag |= WIN_OVERRIDE_WINSTATE;
 }
 
+void WM_init_window_focus_set(bool do_it)
+{
+	wm_init_state.window_focus = do_it;
+}
+
 void WM_init_native_pixels(bool do_it)
 {
 	wm_init_state.native_pixels = do_it;
@@ -2002,7 +2016,7 @@ float WM_cursor_pressure(const struct wmWindow *win)
 	const GHOST_TabletData *td = GHOST_GetTabletData(win->ghostwin);
 	/* if there's tablet data from an active tablet device then add it */
 	if ((td != NULL) && td->Active != GHOST_kTabletModeNone) {
-		return td->Pressure;
+		return wm_pressure_curve(td->Pressure);
 	}
 	else {
 		return -1.0f;
@@ -2042,7 +2056,7 @@ void WM_window_screen_rect_calc(const wmWindow *win, rcti *r_rect)
 	WM_window_rect_calc(win, &window_rect);
 	screen_rect = window_rect;
 
-	/* Substract global areas from screen rectangle. */
+	/* Subtract global areas from screen rectangle. */
 	for (ScrArea *global_area = win->global_areas.areabase.first; global_area; global_area = global_area->next) {
 		int height = ED_area_global_size_y(global_area) - 1;
 
@@ -2184,7 +2198,7 @@ void WM_window_set_active_view_layer(wmWindow *win, ViewLayer *view_layer)
 	wmWindow *win_parent = (win->parent) ? win->parent : win;
 
 	/* Set  view layer in parent and child windows. */
-	STRNCPY(win->view_layer_name, view_layer->name);
+	STRNCPY(win_parent->view_layer_name, view_layer->name);
 
 	for (wmWindow *win_child = wm->windows.first; win_child; win_child = win_child->next) {
 		if (win_child->parent == win_parent) {
@@ -2218,6 +2232,11 @@ void WM_window_set_active_workspace(bContext *C, wmWindow *win, WorkSpace *works
 
 	for (wmWindow *win_child = wm->windows.first; win_child; win_child = win_child->next) {
 		if (win_child->parent == win_parent) {
+			bScreen *screen = WM_window_get_active_screen(win_child);
+			/* Don't change temporary screens, they only serve a single purpose. */
+			if (screen->temp) {
+				continue;
+			}
 			ED_workspace_change(workspace, C, wm, win_child);
 		}
 	}

@@ -117,6 +117,7 @@ typedef struct ClothVertex {
 	float 	goal;		/* goal, from SB			*/
 	float	impulse[3];	/* used in collision.c */
 	float	xrest[3];   /* rest position of the vertex */
+	float	dcvel[3];	/* delta velocities to be applied by collision response */
 	unsigned int impulse_count; /* same as above */
 	float 	avg_spring_len; /* average length of connected springs */
 	float 	struct_stiff;
@@ -169,9 +170,9 @@ ClothSpring;
 /* These are the bits used in SimSettings.flags. */
 typedef enum {
 	CLOTH_SIMSETTINGS_FLAG_COLLOBJ = ( 1 << 2 ),// object is only collision object, no cloth simulation is done
-	CLOTH_SIMSETTINGS_FLAG_GOAL = ( 1 << 3 ), 	// we have goals enabled
+	CLOTH_SIMSETTINGS_FLAG_GOAL = ( 1 << 3 ), /* DEPRECATED, for versioning only. */
 	CLOTH_SIMSETTINGS_FLAG_TEARING = ( 1 << 4 ),// true if tearing is enabled
-	CLOTH_SIMSETTINGS_FLAG_SCALING = ( 1 << 8 ), /* is advanced scaling active? */
+	CLOTH_SIMSETTINGS_FLAG_SCALING = ( 1 << 8 ), /* DEPRECATED, for versioning only. */
 	CLOTH_SIMSETTINGS_FLAG_CCACHE_EDIT = (1 << 12),	/* edit cache in editmode */
 	CLOTH_SIMSETTINGS_FLAG_RESIST_SPRING_COMPRESS = (1 << 13), /* don't allow spring compression */
 	CLOTH_SIMSETTINGS_FLAG_SEW = (1 << 14), /* pull ends of loose edges together */
@@ -222,8 +223,7 @@ typedef struct ColliderContacts {
 } ColliderContacts;
 
 // needed for implicit.c
-int cloth_bvh_objcollision (struct Depsgraph *depsgraph, struct Object *ob, struct ClothModifierData *clmd, float step, float dt );
-int cloth_points_objcollision(struct Depsgraph *depsgraph, struct Object *ob, struct ClothModifierData *clmd, float step, float dt);
+int cloth_bvh_collision(struct Depsgraph *depsgraph, struct Object *ob, struct ClothModifierData *clmd, float step, float dt);
 
 void cloth_find_point_contacts(struct Depsgraph *depsgraph, struct Object *ob, struct ClothModifierData *clmd, float step, float dt,
                                ColliderContacts **r_collider_contacts, int *r_totcolliders);
@@ -239,13 +239,14 @@ void cloth_free_contacts(ColliderContacts *collider_contacts, int totcolliders);
 void cloth_free_modifier_extern (struct ClothModifierData *clmd );
 void cloth_free_modifier (struct ClothModifierData *clmd );
 void cloth_init (struct ClothModifierData *clmd );
-void clothModifier_do(struct ClothModifierData *clmd, struct Depsgraph *depsgraph, struct Scene *scene, struct Object *ob, struct Mesh *dm, float (*vertexCos)[3]);
+void clothModifier_do(
+        struct ClothModifierData *clmd, struct Depsgraph *depsgraph, struct Scene *scene,
+        struct Object *ob, struct Mesh *me, float (*vertexCos)[3]);
 
 int cloth_uses_vgroup(struct ClothModifierData *clmd);
 
 // needed for collision.c
-void bvhtree_update_from_cloth(struct ClothModifierData *clmd, bool moving);
-void bvhselftree_update_from_cloth(struct ClothModifierData *clmd, bool moving);
+void bvhtree_update_from_cloth(struct ClothModifierData *clmd, bool moving, bool self);
 
 // needed for button_object.c
 void cloth_clear_cache(

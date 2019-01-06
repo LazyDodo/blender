@@ -37,7 +37,6 @@ extern "C" {
 #include "BLI_listbase.h"
 #include "BLI_math_geom.h"
 
-#include "BKE_library.h"
 #include "BKE_mesh.h"
 #include "BKE_mesh_runtime.h"
 #include "BKE_object.h"
@@ -133,7 +132,7 @@ void AbcHairWriter::write_hair_sample(Mesh *mesh,
 		m_uv_warning_shown = true;
 	}
 
-	ParticleData * pa = m_psys->particles;
+	ParticleData *pa = m_psys->particles;
 	int k;
 
 	ParticleCacheKey **cache = m_psys->pathcache;

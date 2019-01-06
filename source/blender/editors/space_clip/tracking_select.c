@@ -349,7 +349,7 @@ static int mouse_select(bContext *C, float co[2], int extend)
 	BKE_tracking_dopesheet_tag_update(tracking);
 
 	WM_event_add_notifier(C, NC_GEOM | ND_SELECT, NULL);
-	DEG_id_tag_update(&clip->id, DEG_TAG_SELECT_UPDATE);
+	DEG_id_tag_update(&clip->id, ID_RECALC_SELECT);
 
 	return OPERATOR_FINISHED;
 }
@@ -393,7 +393,7 @@ static int select_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 			clip->tracking.act_track = track;
 
 			WM_event_add_notifier(C, NC_GEOM | ND_SELECT, NULL);
-			DEG_id_tag_update(&clip->id, DEG_TAG_SELECT_UPDATE);
+			DEG_id_tag_update(&clip->id, ID_RECALC_SELECT);
 
 			return OPERATOR_PASS_THROUGH;
 		}
@@ -427,9 +427,9 @@ void CLIP_OT_select(wmOperatorType *ot)
 	                     "Location", "Mouse location in normalized coordinates, 0.0 to 1.0 is within the image bounds", -100.0f, 100.0f);
 }
 
-/********************** border select operator *********************/
+/********************** box select operator *********************/
 
-static int border_select_exec(bContext *C, wmOperator *op)
+static int box_select_exec(bContext *C, wmOperator *op)
 {
 	SpaceClip *sc = CTX_wm_space_clip(C);
 	ARegion *ar = CTX_wm_region(C);
@@ -511,7 +511,7 @@ static int border_select_exec(bContext *C, wmOperator *op)
 		BKE_tracking_dopesheet_tag_update(tracking);
 
 		WM_event_add_notifier(C, NC_GEOM | ND_SELECT, NULL);
-		DEG_id_tag_update(&clip->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&clip->id, ID_RECALC_SELECT);
 
 		return OPERATOR_FINISHED;
 	}
@@ -519,24 +519,24 @@ static int border_select_exec(bContext *C, wmOperator *op)
 	return OPERATOR_CANCELLED;
 }
 
-void CLIP_OT_select_border(wmOperatorType *ot)
+void CLIP_OT_select_box(wmOperatorType *ot)
 {
 	/* identifiers */
-	ot->name = "Border Select";
-	ot->description = "Select markers using border selection";
-	ot->idname = "CLIP_OT_select_border";
+	ot->name = "Box Select";
+	ot->description = "Select markers using box selection";
+	ot->idname = "CLIP_OT_select_box";
 
 	/* api callbacks */
-	ot->invoke = WM_gesture_border_invoke;
-	ot->exec = border_select_exec;
-	ot->modal = WM_gesture_border_modal;
+	ot->invoke = WM_gesture_box_invoke;
+	ot->exec = box_select_exec;
+	ot->modal = WM_gesture_box_modal;
 	ot->poll = ED_space_clip_tracking_poll;
 
 	/* flags */
 	ot->flag = OPTYPE_UNDO;
 
 	/* properties */
-	WM_operator_properties_gesture_border_select(ot);
+	WM_operator_properties_gesture_box_select(ot);
 }
 
 /********************** lasso select operator *********************/
@@ -622,7 +622,7 @@ static int do_lasso_select_marker(bContext *C, const int mcords[][2], const shor
 		BKE_tracking_dopesheet_tag_update(tracking);
 
 		WM_event_add_notifier(C, NC_GEOM | ND_SELECT, NULL);
-		DEG_id_tag_update(&clip->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&clip->id, ID_RECALC_SELECT);
 	}
 
 	return changed;
@@ -765,7 +765,7 @@ static int circle_select_exec(bContext *C, wmOperator *op)
 		BKE_tracking_dopesheet_tag_update(tracking);
 
 		WM_event_add_notifier(C, NC_GEOM | ND_SELECT, NULL);
-		DEG_id_tag_update(&clip->id, DEG_TAG_SELECT_UPDATE);
+		DEG_id_tag_update(&clip->id, ID_RECALC_SELECT);
 
 		return OPERATOR_FINISHED;
 	}
@@ -891,7 +891,7 @@ static int select_all_exec(bContext *C, wmOperator *op)
 	BKE_tracking_dopesheet_tag_update(tracking);
 
 	WM_event_add_notifier(C, NC_GEOM | ND_SELECT, NULL);
-	DEG_id_tag_update(&clip->id, DEG_TAG_SELECT_UPDATE);
+	DEG_id_tag_update(&clip->id, ID_RECALC_SELECT);
 
 	return OPERATOR_FINISHED;
 }
@@ -975,7 +975,7 @@ static int select_grouped_exec(bContext *C, wmOperator *op)
 	BKE_tracking_dopesheet_tag_update(tracking);
 
 	WM_event_add_notifier(C, NC_MOVIECLIP | ND_DISPLAY, clip);
-	DEG_id_tag_update(&clip->id, DEG_TAG_SELECT_UPDATE);
+	DEG_id_tag_update(&clip->id, ID_RECALC_SELECT);
 
 	return OPERATOR_FINISHED;
 }
