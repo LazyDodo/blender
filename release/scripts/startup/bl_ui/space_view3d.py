@@ -5358,11 +5358,6 @@ class VIEW3D_PT_gpencil_guide(Panel):
         if settings.type in {'PARALLEL'}:
             col.prop(settings, "angle")
             row = col.row(align=True)
-            #op = row.operator("gpencil.guide_rotate", text="0", emboss=True)
-            #op.increment = False
-            #op.angle = 0.0            
-            #row.operator("gpencil.guide_rotate", text="+90", emboss=True).angle = pi * 0.5
-            #row.operator("gpencil.guide_rotate", text="+45", emboss=True).angle = pi * 0.25
         
         col.prop(settings, "use_snapping")        
         if settings.use_snapping:
