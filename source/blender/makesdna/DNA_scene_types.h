@@ -1045,7 +1045,7 @@ typedef struct GP_Sculpt_Settings {
 	int weighttype;               /* eGP_Sculpt_Types (weight paint) */
 	char _pad[4];
 	struct CurveMapping *cur_falloff; /* multiframe edit falloff effect by frame */
-	struct CurveMapping *cur_primitive; /* Curve used for primitve tools */
+	struct CurveMapping *cur_primitive; /* Curve used for primitive tools */
 	struct GP_Sculpt_Guide guide; /* Guides used for paint tools */
 } GP_Sculpt_Settings;
 
