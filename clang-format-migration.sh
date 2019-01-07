@@ -2,6 +2,8 @@
 
 FILES=$(
 	git ls-tree -r HEAD \
+		intern/clog/ \
+		intern/ghost/ \
 		intern/guardedalloc/ \
 		intern/string/ \
 		source/ \
