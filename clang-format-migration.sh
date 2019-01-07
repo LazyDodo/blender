@@ -1,6 +1,13 @@
 #!/bin/bash
 
-FILES=$(git ls-tree -r HEAD source/ intern/string --name-only | egrep \\.\(c\|cc\|cpp\|cxx\|h\|hh\|hpp\|hxx\|m\|mm\)$)
+FILES=$(
+	git ls-tree -r HEAD \
+		intern/guardedalloc/ \
+		intern/string/ \
+		source/ \
+		--name-only |
+		egrep \\.\(c\|cc\|cpp\|cxx\|h\|hh\|hpp\|hxx\|m\|mm\)$
+	 )
 
 # First expand tabs
 SCRIPT=$(cat <<EOF

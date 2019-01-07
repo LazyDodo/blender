@@ -1,6 +1,13 @@
 #!/bin/bash
 
-FILES=$(git diff --name-only source/ | egrep \\.\(c\|cc\|cpp\|cxx\|h\|hh\|hpp\|hxx\|m\|mm\)$)
+FILES=$(
+	git ls-tree -r HEAD \
+		intern/guardedalloc/ \
+		intern/string/ \
+		source/ \
+		--name-only |
+		egrep \\.\(c\|cc\|cpp\|cxx\|h\|hh\|hpp\|hxx\|m\|mm\)$
+	 )
 
 if [ -z "$FILES" ]; then
 	echo "Nothing to clang-format, exiting!"
