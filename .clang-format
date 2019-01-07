@@ -1,0 +1,195 @@
+# Copyright 2017 Blender Foundation
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may not
+# use this file except in compliance with the License.  You may obtain a copy
+# of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+# License for the specific language governing permissions and limitations under
+# the License.
+#
+# Clang-format for Blender, as describe in the Blender style guide:
+# https://wiki.blender.org/index.php/Dev:Doc/Code_Style
+#
+# NOTE: Not all Blender style rules are currently supported properly! Take care
+# when using this (see below for details).
+#
+# To apply clang-format to a file, run
+#
+#   clang-format -i foo.cpp
+#
+# This will update the file in place.
+#
+# To run on all files on a UNIX system, run
+#
+#   ./clang-format-migration.sh
+#
+# NOTE: At time of writing (10/30/2017) not all formatting can be made exactly
+# like current Blender sources, so a few compromises are made:
+#
+#   1. Newline after : in switch statements: clang-format will put the { on
+#      the same line. This is due to a limitation in clang-format; it does not
+#      support adding the newline after cases in switch statements.
+#   2. Nested preprocessor directives don't get proper indentation after the
+#      '#'. See IndentPPDirectives, which is supported in clang-format from
+#      LLVM6, but not LLVM5. It is included below but commented out.
+#   3. Special case of { position on if statements where the condition covers
+#      more than one line. clang-format is an all or nothing formatter in this
+#      case; so unfortunately the case of
+#
+#      if (long_condition_here() ||
+#          long_condition_here() ||
+#          long_condition_here() ||
+#          long_condition_here())
+#      {
+#          ...
+#      }
+#
+#      will become
+#
+#      if (long_condition_here() ||
+#          long_condition_here() ||
+#          long_condition_here() ||
+#          long_condition_here()) {
+#          ...
+#      }
+#
+
+# Configuration of clang-format
+# =============================
+
+# This causes parameters on continuations to stack after the open brace,
+# wrapped and indented at a fixed width.
+#
+#   like_this_long_name(
+#           parameter_one,
+#           parameter_two,
+#           parameter_three);
+#
+AlignAfterOpenBracket: 'AlwaysBreak'
+
+# Disallow short functions on one line; break them up.
+AllowShortBlocksOnASingleLine: false
+
+# These two settings trigger stacking of parameters in most cases; this is
+# easier to read and also makes diffs easier to read (since an added or removed
+# parameter is obvious). For example, function calls will look like this:
+#
+#   like_this_long_name(
+#           parameter_one,
+#           parameter_two,
+#           parameter_three,
+#           parameter_four,
+#           parameter_five,
+#           parameter_six);
+#
+# instead of this
+#
+#   like_this_long_name(
+#           parameter_one, parameter_two, parameter_three, parameter_four,
+#           parameter_five, parameter_six);
+#
+BinPackArguments: false
+BinPackParameters: false
+
+# 120 is the Blender standard. However, 80 columns is generally preferred.
+# Since 120 should be the exception, use a 80-column limit for clang format. If
+# this needs to be different, then a developer has two choices: Either manually
+# change the result of running clang-format, or introduce '// clang-format off'
+# and '// clang format on' markers to disable clang-format for that section.
+ColumnLimit: 99
+
+# Cause initializer lists to have one member initialized per line, in the case
+# that all initializers can't fit on a single line.
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+
+# Don't indent the : after a constructor. For example:
+#
+#   explicit foo_class ()
+#   : member1_(5)
+#   {
+#   }
+#
+ConstructorInitializerIndentWidth: 0
+
+# This will unfortunately use spaces in some cases where it's not desired (like
+# function calls) but the overall result is better since it will allow
+# alignment to work properly with different tab width settings.
+ContinuationIndentWidth: 4
+
+# This tries to match Blender's style as much as possible. One
+BreakBeforeBraces: Custom
+BraceWrapping: {
+    AfterClass: 'true'
+    AfterControlStatement: 'true'
+    AfterEnum : 'false'
+    AfterFunction : 'true'
+    AfterNamespace : 'false'
+    AfterStruct : 'false'
+    AfterUnion : 'false'
+    BeforeCatch : 'true'
+    BeforeElse : 'true'
+    IndentBraces : 'false'
+}
+
+# For switch statements, indent the cases.
+IndentCaseLabels: true
+
+# TODO: After clang 6.0 is released more broadly, turn this option on. It will
+# indent after the hash inside preprocessor directives, as is typically done
+# now. Unfortunately for now, this means some preprocessor directives won't be
+# formatted quite correctly. However, this is a small price to pay for the
+# overall utility of clang-format.
+IndentPPDirectives: AfterHash
+
+SpaceAfterTemplateKeyword: false
+
+# Use "if (...)" instead of "if(...)", but have function calls like foo().
+SpaceBeforeParens: ControlStatements
+SpaceInEmptyParentheses: false
+
+# Use two spaces before trailing comments, for example
+#
+#   foo = bar;  /* comment */
+#
+SpacesBeforeTrailingComments: 2
+
+# Don't reflow comments, let developers define line breaks
+ReflowComments: false
+
+# Blender uses tabs for indentation, but assume 4-space tabs.
+# Note: TabWidth and IndentWidth must be the same, or strange things happen.
+UseTab: Never
+TabWidth: 4
+IndentWidth: 4
+
+# Add a big penalty on breaking after the return type of functions. For example,
+#
+#   static void foo(...)
+#
+# instead of
+#
+#   static void
+#   foo(very long content here that maybe could be stacked)
+#
+PenaltyReturnTypeOnItsOwnLine: 10000
+
+# 'Inline' also seems OK-ish ~ideasman42.
+AllowShortFunctionsOnASingleLine: None
+
+# Too disruptive.
+SortIncludes: false
+
+
+# There are macros in Blender for custom for loops; tell Clang to treat them
+# like loops rather than an expression, and so put the { on the same line.
+ForEachMacros:
+  - foreach
+  - LISTBASE_FOREACH
+  - BMO_ITER
+  - BM_ITER_MESH
+  - BM_ITER_ELEM
