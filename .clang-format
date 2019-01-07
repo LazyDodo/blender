@@ -66,9 +66,9 @@
 # wrapped and indented at a fixed width.
 #
 #   like_this_long_name(
-#           parameter_one,
-#           parameter_two,
-#           parameter_three);
+#       parameter_one,
+#       parameter_two,
+#       parameter_three);
 #
 AlignAfterOpenBracket: 'AlwaysBreak'
 
@@ -80,25 +80,26 @@ AllowShortBlocksOnASingleLine: false
 # parameter is obvious). For example, function calls will look like this:
 #
 #   like_this_long_name(
-#           parameter_one,
-#           parameter_two,
-#           parameter_three,
-#           parameter_four,
-#           parameter_five,
-#           parameter_six);
+#       parameter_one,
+#       parameter_two,
+#       parameter_three,
+#       parameter_four,
+#       parameter_five,
+#       parameter_six);
 #
 # instead of this
 #
 #   like_this_long_name(
-#           parameter_one, parameter_two, parameter_three, parameter_four,
-#           parameter_five, parameter_six);
+#       parameter_one, parameter_two, parameter_three, parameter_four,
+#       parameter_five, parameter_six);
 #
 BinPackArguments: false
 BinPackParameters: false
 
 # 120 is the Blender standard. However, 80 columns is generally preferred.
-# Since 120 should be the exception, use a 80-column limit for clang format. If
-# this needs to be different, then a developer has two choices: Either manually
+# We're going with a compromise and using 100, since this allows
+# side-by-side viewing of files on most modern systems.
+# If this needs to be different, then a developer has two choices: Either manually
 # change the result of running clang-format, or introduce '// clang-format off'
 # and '// clang format on' markers to disable clang-format for that section.
 ColumnLimit: 99
@@ -139,8 +140,7 @@ BraceWrapping: {
 # For switch statements, indent the cases.
 IndentCaseLabels: true
 
-# TODO: After clang 6.0 is released more broadly, turn this option on. It will
-# indent after the hash inside preprocessor directives, as is typically done
+# Indent after the hash inside preprocessor directives, as is typically done
 # now. Unfortunately for now, this means some preprocessor directives won't be
 # formatted quite correctly. However, this is a small price to pay for the
 # overall utility of clang-format.
@@ -161,7 +161,7 @@ SpacesBeforeTrailingComments: 2
 # Don't reflow comments, let developers define line breaks
 ReflowComments: false
 
-# Blender uses tabs for indentation, but assume 4-space tabs.
+# Never use tabs for indentation.
 # Note: TabWidth and IndentWidth must be the same, or strange things happen.
 UseTab: Never
 TabWidth: 4
@@ -178,7 +178,6 @@ IndentWidth: 4
 #
 PenaltyReturnTypeOnItsOwnLine: 10000
 
-# 'Inline' also seems OK-ish ~ideasman42.
 AllowShortFunctionsOnASingleLine: None
 
 # Too disruptive.
