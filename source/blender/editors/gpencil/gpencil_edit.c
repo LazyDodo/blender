@@ -3922,6 +3922,7 @@ static int gpencil_cutter_lasso_select(
 	GP_EDITABLE_STROKES_BEGIN(gpstroke_iter, C, gpl, gps)
 	{
 		int tot_inside = 0;
+		const int oldtot = gps->totpoints;
 		for (i = 0; i < gps->totpoints; i++) {
 			pt = &gps->points[i];
 			if ((pt->flag & GP_SPOINT_SELECT) || (pt->flag & GP_SPOINT_TAG)) {
@@ -3938,6 +3939,10 @@ static int gpencil_cutter_lasso_select(
 				if (gps->totpoints > 1) {
 					ED_gpencil_select_stroke_segment(
 						gpl, gps, pt, true, true, scale, r_hita, r_hitb);
+				}
+				/* avoid infinite loops */
+				if (gps->totpoints > oldtot) {
+					break;
 				}
 			}
 		}
