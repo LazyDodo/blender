@@ -795,7 +795,7 @@ void gp_point_3d_to_xy(const GP_SpaceConversion *gsc, const short flag, const fl
  *
  * \warning Assumes that it is getting called in a 3D view only.
  */
-bool gp_point_xy_to_3d(GP_SpaceConversion *gsc, Scene *scene, const float screen_co[2], float r_out[3])
+bool gp_point_xy_to_3d(const GP_SpaceConversion *gsc, Scene *scene, const float screen_co[2], float r_out[3])
 {
 	const RegionView3D *rv3d = gsc->ar->regiondata;
 	float rvec[3];
