@@ -6,7 +6,7 @@ FILES=$(
 		intern/string/ \
 		source/ \
 		--name-only |
-		egrep \\.\(c\|cc\|cpp\|cxx\|h\|hh\|hpp\|hxx\|m\|mm\)$
+		egrep \\.\(c\|cc\|cpp\|cxx\|h\|hh\|hpp\|hxx\|m\|mm\|osl\|glsl\)$
 	 )
 
 # First expand tabs
