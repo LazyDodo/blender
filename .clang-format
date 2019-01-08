@@ -138,6 +138,8 @@ IndentCaseLabels: true
 # Indent after the hash inside preprocessor directives
 IndentPPDirectives: AfterHash
 
+BreakBeforeTernaryOperators: false
+
 SpaceAfterTemplateKeyword: false
 
 # Use "if (...)" instead of "if(...)", but have function calls like foo().
