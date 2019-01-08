@@ -234,9 +234,9 @@ void gp_apply_parent(struct Depsgraph *depsgraph, struct Object *obact, bGPdata 
  */
 void gp_apply_parent_point(struct Depsgraph *depsgraph, struct Object *obact, bGPdata *gpd, bGPDlayer *gpl, bGPDspoint *pt);
 
-void gp_point_3d_to_xy(GP_SpaceConversion *gsc, const short flag, const float pt[3], float xy[2]);
+void gp_point_3d_to_xy(const GP_SpaceConversion *gsc, const short flag, const float pt[3], float xy[2]);
 
-bool gp_point_xy_to_3d(GP_SpaceConversion *gsc, struct Scene *scene, const float screen_co[2], float r_out[3]);
+bool gp_point_xy_to_3d(const GP_SpaceConversion *gsc, struct Scene *scene, const float screen_co[2], float r_out[3]);
 
 /* helper to convert 2d to 3d */
 void gp_stroke_convertcoords_tpoint(

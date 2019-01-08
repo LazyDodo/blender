@@ -4071,10 +4071,7 @@ class VIEW3D_MT_shading_pie(Menu):
 
         view = context.space_data
 
-        pie.prop_enum(view.shading, "type", value='WIREFRAME')
-        pie.prop_enum(view.shading, "type", value='SOLID')
-        pie.prop_enum(view.shading, "type", value='MATERIAL')
-        pie.prop_enum(view.shading, "type", value='RENDERED')
+        pie.prop(view.shading, "type", expand=True)
 
 
 class VIEW3D_MT_shading_ex_pie(Menu):
@@ -5348,11 +5345,7 @@ class VIEW3D_PT_gpencil_guide(Panel):
         layout.label(text="Guides")
         
         col = layout.column()
-        col.prop(settings, "use_guide")
-
-        col = col.column()
         col.active = settings.use_guide
-        
         col.prop(settings, "type", expand=True)
                 
         if settings.type in {'PARALLEL'}:
@@ -5373,9 +5366,9 @@ class VIEW3D_PT_gpencil_guide(Panel):
         if settings.reference_point in {'CUSTOM'}:
             col.prop(settings, "location", text="Custom Location")        
         if settings.reference_point in {'OBJECT'}:
-            col.prop(settings, "reference_object", text="Object Location")
-        if settings.reference_point in {'CURSOR'}:
-            col.prop(context.scene, "cursor_location", text="Cursor Location")
+            col.prop(settings, "reference_object", text="Object Location")     
+            if not settings.reference_object:
+                col.label(text="No object selected, using cursor")
 
         
 class VIEW3D_PT_overlay_gpencil_options(Panel):

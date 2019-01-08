@@ -1258,16 +1258,16 @@ static void rna_def_gpencil_guides(BlenderRNA *brna)
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
 
-	prop = RNA_def_property(srna, "spacing", PROP_FLOAT, PROP_NONE);
+	prop = RNA_def_property(srna, "spacing", PROP_FLOAT, PROP_DISTANCE);
 	RNA_def_property_float_sdna(prop, NULL, "spacing");
-	RNA_def_property_float_default(prop, 25.0f);
-	RNA_def_property_range(prop, 1.0, FLT_MAX);
-	RNA_def_property_ui_range(prop, 1.0, 1000.0, 10, 2);
+	RNA_def_property_float_default(prop, 0.01f);
+	RNA_def_property_range(prop, 0.0f, FLT_MAX);
+	RNA_def_property_ui_range(prop, 0.0f, FLT_MAX, 1, 3);
 	RNA_def_property_ui_text(prop, "Spacing", "Guide spacing");
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);
 	RNA_def_property_update(prop, NC_SCENE | ND_TOOLSETTINGS, NULL);
 
-	prop = RNA_def_property(srna, "location", PROP_FLOAT, PROP_XYZ);
+	prop = RNA_def_property(srna, "location", PROP_FLOAT, PROP_DISTANCE);
 	RNA_def_property_float_sdna(prop, NULL, "location");
 	RNA_def_property_array(prop, 3);
 	RNA_def_parameter_clear_flags(prop, PROP_ANIMATABLE, 0);

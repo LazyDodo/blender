@@ -3849,8 +3849,10 @@ static void gpencil_cutter_dissolve(bGPDlayer *hit_layer, bGPDstroke *hit_stroke
 		}
 	}
 
-	/* if all points selected delete */
-	if (hit_stroke->totpoints == totselect) {
+	/* if all points selected delete or only 2 points and 1 selected */
+	if ((totselect == 1) && (hit_stroke->totpoints == 2) ||
+		(hit_stroke->totpoints == totselect))
+	{
 		BLI_remlink(&hit_layer->actframe->strokes, hit_stroke);
 		BKE_gpencil_free_stroke(hit_stroke);
 		hit_stroke = NULL;
@@ -3922,6 +3924,7 @@ static int gpencil_cutter_lasso_select(
 	GP_EDITABLE_STROKES_BEGIN(gpstroke_iter, C, gpl, gps)
 	{
 		int tot_inside = 0;
+		const int oldtot = gps->totpoints;
 		for (i = 0; i < gps->totpoints; i++) {
 			pt = &gps->points[i];
 			if ((pt->flag & GP_SPOINT_SELECT) || (pt->flag & GP_SPOINT_TAG)) {
@@ -3939,13 +3942,19 @@ static int gpencil_cutter_lasso_select(
 					ED_gpencil_select_stroke_segment(
 						gpl, gps, pt, true, true, scale, r_hita, r_hitb);
 				}
+				/* avoid infinite loops */
+				if (gps->totpoints > oldtot) {
+					break;
+				}
 			}
 		}
 		/* if mark all points inside lasso set to remove all stroke */
-		if (tot_inside == gps->totpoints) {
+		if ((tot_inside == oldtot) ||
+			((tot_inside == 1) && (oldtot == 2)))
+		{
 			for (i = 0; i < gps->totpoints; i++) {
 				pt = &gps->points[i];
-				pt->flag |= GP_SPOINT_SELECT;
+					pt->flag |= GP_SPOINT_SELECT;
 			}
 		}
 	}

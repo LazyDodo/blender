@@ -795,7 +795,7 @@ void gp_point_3d_to_xy(const GP_SpaceConversion *gsc, const short flag, const fl
  *
  * \warning Assumes that it is getting called in a 3D view only.
  */
-bool gp_point_xy_to_3d(GP_SpaceConversion *gsc, Scene *scene, const float screen_co[2], float r_out[3])
+bool gp_point_xy_to_3d(const GP_SpaceConversion *gsc, Scene *scene, const float screen_co[2], float r_out[3])
 {
 	const RegionView3D *rv3d = gsc->ar->regiondata;
 	float rvec[3];
@@ -2005,14 +2005,14 @@ void ED_gpencil_update_color_uv(Main *bmain, Material *mat)
 }
 
 static bool gpencil_check_collision(
-	bGPDstroke **gps_array, GHash *all_2d,
+	bGPDstroke *gps, bGPDstroke **gps_array, GHash *all_2d,
 	int totstrokes,	float p2d_a1[2], float p2d_a2[2], float r_hit[2])
 {
 	bool hit = false;
 	/* check segment with all segments of all strokes */
 	for (int s = 0; s < totstrokes; s++) {
 		bGPDstroke *gps_iter = gps_array[s];
-		if (gps_iter->totpoints < 3) {
+		if (gps_iter->totpoints < 2) {
 			continue;
 		}
 		/* get stroke 2d version */
@@ -2023,6 +2023,15 @@ static bool gpencil_check_collision(
 			copy_v2_v2(p2d_b1, points2d[i2]);
 			copy_v2_v2(p2d_b2, points2d[i2 + 1]);
 
+			/* don't self check */
+			if (gps == gps_iter) {
+				if (equals_v2v2(p2d_a1, p2d_b1) || equals_v2v2(p2d_a1, p2d_b2)) {
+					continue;
+				}
+				if (equals_v2v2(p2d_a2, p2d_b1) || equals_v2v2(p2d_a2, p2d_b2)) {
+					continue;
+				}
+			}
 			/* check collision */
 			int check = isect_seg_seg_v2_point(p2d_a1, p2d_a2, p2d_b1, p2d_b2, r_hit);
 			if (check > 0) {
@@ -2164,14 +2173,17 @@ int ED_gpencil_select_stroke_segment(
 		return 0;
 	}
 
-	int memsize = BLI_listbase_count(&gpf->strokes) - 1;
+	int memsize = BLI_listbase_count(&gpf->strokes);
 	bGPDstroke **gps_array = MEM_callocN(sizeof(bGPDstroke *) * memsize, __func__);
+
+	/* save points */
+	bGPDspoint *oldpoints = MEM_dupallocN(gps->points);
 
 	/* Save list of strokes to check */
 	int totstrokes = 0;
 	for (bGPDstroke *gps_iter = gpf->strokes.first; gps_iter; gps_iter = gps_iter->next) {
-		/* do not check selfcollision */
-		if ((gps == gps_iter) || (gps_iter->totpoints < 2)) {
+		
+		if (gps_iter->totpoints < 2) {
 			continue;
 		}
 		gps_array[totstrokes] = gps_iter;
@@ -2208,10 +2220,12 @@ int ED_gpencil_select_stroke_segment(
 		bGPDstroke *gps_iter = gps_array[s];
 		float(*points2d_iter)[2] = MEM_mallocN(sizeof(*points2d_iter) * gps_iter->totpoints, __func__);
 
-		/* the extremes of the stroke are scaled to improve collision detection for near lines */
+		/* the extremes of the stroke are scaled to improve collision detection
+		 * for near lines */
 		BKE_gpencil_stroke_2d_flat_ref(
 			gps->points, gps->totpoints,
-			gps_iter->points, gps_iter->totpoints, points2d_iter, scale, &direction);
+			gps_iter->points, gps_iter->totpoints, points2d_iter,
+			scale, &direction);
 		BLI_ghash_insert(all_2d, gps_iter, points2d_iter);
 	}
 
@@ -2235,7 +2249,7 @@ int ED_gpencil_select_stroke_segment(
 			copy_v2_v2(p2d_a2, points2d[i2]);
 
 			hit_a = gpencil_check_collision(
-				gps_array, all_2d, totstrokes, p2d_a1, p2d_a2, r_hit2d);
+				gps, gps_array, all_2d, totstrokes, p2d_a1, p2d_a2, r_hit2d);
 
 			if (select) {
 				pta1->flag |= GP_SPOINT_SELECT;
@@ -2269,7 +2283,7 @@ int ED_gpencil_select_stroke_segment(
 		copy_v2_v2(p2d_a2, points2d[i2]);
 
 		hit_b = gpencil_check_collision(
-			gps_array, all_2d, totstrokes, p2d_a1, p2d_a2, r_hit2d);
+			gps, gps_array, all_2d, totstrokes, p2d_a1, p2d_a2, r_hit2d);
 
 		if (select) {
 			pta1->flag |= GP_SPOINT_SELECT;
@@ -2306,8 +2320,18 @@ int ED_gpencil_select_stroke_segment(
 		BLI_ghash_free(all_2d, NULL, NULL);
 	}
 
+	/* if no hit, reset selection flag */
+	if ((!hit_a) && (!hit_b)) {
+		for (int i = 0; i < gps->totpoints; i++) {
+			pta1 = &gps->points[i];
+			pta2 = &oldpoints[i];
+			pta1->flag = pta2->flag;
+		}
+	}
+
 	MEM_SAFE_FREE(points2d);
 	MEM_SAFE_FREE(gps_array);
+	MEM_SAFE_FREE(oldpoints);
 
 	/* return type of hit */
 	if ((hit_a) && (hit_b)) {
