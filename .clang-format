@@ -96,12 +96,7 @@ AllowShortBlocksOnASingleLine: false
 BinPackArguments: false
 BinPackParameters: false
 
-# 120 is the Blender standard. However, 80 columns is generally preferred.
-# We're going with a compromise and using 100, since this allows
-# side-by-side viewing of files on most modern systems.
-# If this needs to be different, then a developer has two choices: Either manually
-# change the result of running clang-format, or introduce '// clang-format off'
-# and '// clang format on' markers to disable clang-format for that section.
+# Line width (don't exceed 100).
 ColumnLimit: 99
 
 # Cause initializer lists to have one member initialized per line, in the case
@@ -140,10 +135,7 @@ BraceWrapping: {
 # For switch statements, indent the cases.
 IndentCaseLabels: true
 
-# Indent after the hash inside preprocessor directives, as is typically done
-# now. Unfortunately for now, this means some preprocessor directives won't be
-# formatted quite correctly. However, this is a small price to pay for the
-# overall utility of clang-format.
+# Indent after the hash inside preprocessor directives
 IndentPPDirectives: AfterHash
 
 SpaceAfterTemplateKeyword: false
