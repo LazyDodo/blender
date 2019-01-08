@@ -2176,6 +2176,9 @@ int ED_gpencil_select_stroke_segment(
 	int memsize = BLI_listbase_count(&gpf->strokes);
 	bGPDstroke **gps_array = MEM_callocN(sizeof(bGPDstroke *) * memsize, __func__);
 
+	/* save points */
+	bGPDspoint *oldpoints = MEM_dupallocN(gps->points);
+
 	/* Save list of strokes to check */
 	int totstrokes = 0;
 	for (bGPDstroke *gps_iter = gpf->strokes.first; gps_iter; gps_iter = gps_iter->next) {
@@ -2317,8 +2320,18 @@ int ED_gpencil_select_stroke_segment(
 		BLI_ghash_free(all_2d, NULL, NULL);
 	}
 
+	/* if no hit, reset selection flag */
+	if ((!hit_a) && (!hit_b)) {
+		for (int i = 0; i < gps->totpoints; i++) {
+			pta1 = &gps->points[i];
+			pta2 = &oldpoints[i];
+			pta1->flag = pta2->flag;
+		}
+	}
+
 	MEM_SAFE_FREE(points2d);
 	MEM_SAFE_FREE(gps_array);
+	MEM_SAFE_FREE(oldpoints);
 
 	/* return type of hit */
 	if ((hit_a) && (hit_b)) {
