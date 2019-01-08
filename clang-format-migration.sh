@@ -1,12 +1,24 @@
 #!/bin/bash
 
+# Optionally pass in files to operate on.
+
+if [[ "$#" -eq 0 ]]; then
+	GIT_PATHS="\
+intern/clog \
+intern/ghost \
+intern/guardedalloc/ \
+intern/string/ \
+source/ \
+"
+else
+	GIT_PATHS="$@"
+fi
+
+echo "Operating on: $GIT_PATHS"
+
 FILES=$(
 	git ls-tree -r HEAD \
-		intern/clog/ \
-		intern/ghost/ \
-		intern/guardedalloc/ \
-		intern/string/ \
-		source/ \
+		$GIT_PATHS \
 		--name-only |
 		egrep \\.\(c\|cc\|cpp\|cxx\|h\|hh\|hpp\|hxx\|m\|mm\|osl\|glsl\)$
 	 )
