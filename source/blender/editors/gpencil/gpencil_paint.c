@@ -2954,12 +2954,12 @@ static void gpencil_guide_event_handling(bContext *C, wmOperator *op, const wmEv
 		}
 	}
 	/* Freehand mode, turn off speed guide */
-	else if ((event->type == VKEY) && (event->val == KM_PRESS)) {
+	else if ((event->type == VKEY) && (event->val == KM_RELEASE)) {
 		guide->use_guide = false;
 		add_notifier = true;
 	}
 	/* Alternate or flip direction */
-	else if ((event->type == MKEY) && (event->val == KM_PRESS)) {
+	else if ((event->type == MKEY) && (event->val == KM_RELEASE)) {
 		if (guide->type == GP_GUIDE_CIRCULAR) {
 			add_notifier = true;
 			guide->type = GP_GUIDE_RADIAL;
@@ -2978,7 +2978,7 @@ static void gpencil_guide_event_handling(bContext *C, wmOperator *op, const wmEv
 		}
 	}
 	/* Line guides */
-	else if ((event->type == LKEY) && (event->val == KM_PRESS)) {
+	else if ((event->type == LKEY) && (event->val == KM_RELEASE)) {
 		add_notifier = true;
 		guide->use_guide = true;		
 		if (event->ctrl) {
@@ -2994,7 +2994,7 @@ static void gpencil_guide_event_handling(bContext *C, wmOperator *op, const wmEv
 		}
 	}
 	/* Point guide */
-	else if ((event->type == CKEY) && (event->val == KM_PRESS)) {
+	else if ((event->type == CKEY) && (event->val == KM_RELEASE)) {
 		add_notifier = true;
 		guide->use_guide = true;
 		if (guide->type == GP_GUIDE_CIRCULAR) {
@@ -3007,8 +3007,8 @@ static void gpencil_guide_event_handling(bContext *C, wmOperator *op, const wmEv
 			guide->type = GP_GUIDE_CIRCULAR;
 		}
 	}
-	/* Change line angle xxx maybe use LEFTBRACKETKEY & RIGHTBRACKETKEY */
-	else if (ELEM(event->type, LEFTBRACKETKEY, RIGHTBRACKETKEY) && (event->val == KM_PRESS)) {
+	/* Change line angle  */
+	else if (ELEM(event->type, JKEY, KKEY) && (event->val == KM_RELEASE)) {
 		add_notifier = true;
 		float angle = guide->angle;
 		float adjust = (float)M_PI / 180.0f;
@@ -3016,7 +3016,7 @@ static void gpencil_guide_event_handling(bContext *C, wmOperator *op, const wmEv
 			adjust *= 45.0f;
 		else if (!event->shift)
 			adjust *= 15.0f;
-		angle += (event->type == RIGHTBRACKETKEY) ? adjust : -adjust;
+		angle += (event->type == JKEY) ? adjust : -adjust;
 		angle = angle_compat_rad(angle, M_PI);
 		guide->angle = angle;
 	}
