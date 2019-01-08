@@ -172,7 +172,8 @@ PenaltyReturnTypeOnItsOwnLine: 10000
 
 AllowShortFunctionsOnASingleLine: None
 
-# Too disruptive.
+# Disable for now since it complicates initial migration tests,
+# TODO: look into enabling this in the future.
 SortIncludes: false
 
 
