@@ -408,6 +408,9 @@ class _defs_edit_mesh:
         return dict(
             text="Add Cube",
             icon="ops.mesh.primitive_cube_add_gizmo",
+            description=(
+                "Add cube to mesh interactively"
+            ),
             widget=None,
             keymap=(),
         )
@@ -863,7 +866,9 @@ class _defs_vertex_paint:
     @staticmethod
     def poll_select_mask(context):
         ob = context.active_object
-        return ob.type == 'MESH' and ob.data.use_paint_mask
+        return (ob.type == 'MESH' and
+                (ob.data.use_paint_mask or
+                 ob.data.use_paint_mask_vertex))
 
     @staticmethod
     def generate_from_brushes(context):
@@ -929,7 +934,10 @@ class _defs_weight_paint:
             brush = context.tool_settings.weight_paint.brush
             if brush is not None:
                 from .properties_paint_common import UnifiedPaintPanel
-                UnifiedPaintPanel.prop_unified_weight(layout, context, brush, "weight", slider=True, text="Weight")
+                UnifiedPaintPanel.prop_unified_weight(
+                    layout, context, brush, "weight", slider=True, text="Weight")
+                UnifiedPaintPanel.prop_unified_strength(
+                    layout, context, brush, "strength", slider=True, text="Strength")
             props = tool.operator_properties("paint.weight_gradient")
             layout.prop(props, "type")
 
